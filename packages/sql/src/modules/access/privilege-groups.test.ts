@@ -9,6 +9,7 @@ import {
   allPrivilegeTargets,
   describeAllowAll,
   findAllowAll,
+  findAllowAllByName,
   groupPrivileges,
   isAllPrivilegeSet,
   privilegeTargetLabel,
@@ -202,7 +203,7 @@ describe('allPrivilegeTargets', () => {
       action: 'grant',
       privilege: t.privilege,
       objectType: t.objectType,
-      objectSchema: t.objectSchema,
+      objectSchema: null,
       objectName: t.objectName,
       grantee,
     });
@@ -231,5 +232,25 @@ describe('allPrivilegeTargets', () => {
 
   it('offers nothing on engines without GRANT', () => {
     expect(allPrivilegeTargets('sqlite', { database: 'x' })).toEqual([]);
+  });
+});
+
+describe('findAllowAllByName', () => {
+  it('answers for every principal exactly as findAllowAll does one at a time', () => {
+    const principals = [
+      principal('app@%', { memberOf: ['ops@%'] }),
+      principal('ops@%', { kind: 'role', memberOf: ['admin@%'] }),
+      principal('admin@%', { kind: 'role' }),
+      principal('root@%', { superuser: true }),
+      principal('plain@%'),
+    ];
+    const privileges = TIDB_GLOBAL_ALL.map((p) => priv("'admin'@'%'", p, 'GLOBAL'));
+    const all = findAllowAllByName({ principals, privileges, dialect: 'mysql' });
+    for (const p of principals) {
+      expect(all.get(p.name) ?? null, p.name).toEqual(
+        findAllowAll({ principal: p.name, principals, privileges, dialect: 'mysql' })
+      );
+    }
+    expect([...all.keys()]).toEqual(['app@%', 'ops@%', 'admin@%', 'root@%']);
   });
 });

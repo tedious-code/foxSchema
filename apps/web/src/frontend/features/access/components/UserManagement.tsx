@@ -75,7 +75,7 @@ import {
 } from '../lib/accountAlterations';
 import type { AccessPrincipalDraft } from '../lib/access';
 import { writeClipboard } from '@/shared/utils/clipboard';
-import { describeAllowAll, dialectFamily, findAllowAll, type AllowAll } from '@foxschema/sql';
+import { describeAllowAll, dialectFamily, findAllowAllByName, type AllowAll } from '@foxschema/sql';
 
 type Mode = 'idle' | 'add' | 'edit' | 'drop' | 'list';
 
@@ -299,15 +299,11 @@ export const UserManagement: React.FC<{
   }, [principals, filter, kindFilter]);
 
   /** Accounts allowed everything — superuser, all of `*.*`, or the whole database. */
-  const allowAllByName = useMemo(() => {
-    const map = new Map<string, AllowAll>();
-    if (!dialect) return map;
-    for (const p of principals) {
-      const allow = findAllowAll({ principal: p.name, principals, privileges, dialect });
-      if (allow) map.set(p.name, allow);
-    }
-    return map;
-  }, [principals, privileges, dialect]);
+  const allowAllByName = useMemo(
+    () =>
+      dialect ? findAllowAllByName({ principals, privileges, dialect }) : new Map<string, AllowAll>(),
+    [principals, privileges, dialect]
+  );
 
   const nameOptions = useMemo(
     () =>
@@ -595,9 +591,9 @@ export const UserManagement: React.FC<{
     setMode('drop');
     setSelectedName(p.name);
     setPrincipalType(principalTypeOf(p));
-    // A MySQL or TiDB role is an account too, listed as name@host; a MariaDB
-    // role has no host and no @ in its name.
-    if (isMysqlFamily && (p.kind === 'user' || p.name.includes('@'))) {
+    // Users and MySQL/TiDB roles are listed as name@host; a MariaDB role has
+    // no @ and parses to its bare name.
+    if (isMysqlFamily) {
       const parsed = parseMysqlAccount(p.name);
       setName(parsed.name);
       setHost(parsed.host || '%');
@@ -611,9 +607,9 @@ export const UserManagement: React.FC<{
     setMode('edit');
     setSelectedName(p.name);
     setPrincipalType(principalTypeOf(p));
-    // A MySQL or TiDB role is an account too, listed as name@host; a MariaDB
-    // role has no host and no @ in its name.
-    if (isMysqlFamily && (p.kind === 'user' || p.name.includes('@'))) {
+    // Users and MySQL/TiDB roles are listed as name@host; a MariaDB role has
+    // no @ and parses to its bare name.
+    if (isMysqlFamily) {
       const parsed = parseMysqlAccount(p.name);
       setName(parsed.name);
       setHost(parsed.host || '%');
@@ -991,6 +987,7 @@ export const UserManagement: React.FC<{
                     )}
                     {filtered.map((p) => {
                       const active = selectedName === p.name;
+                      const allow = allowAllByName.get(p.name);
                       return (
                         <tr
                           key={`${p.kind}:${p.name}`}
@@ -1011,13 +1008,13 @@ export const UserManagement: React.FC<{
                         >
                           <td className="px-2.5 py-1.5 font-mono text-[12px]">
                             {p.name}
-                            {allowAllByName.get(p.name) && (
+                            {allow && (
                               <span
                                 data-testid={`user-allow-all-${p.name}`}
-                                title={describeAllowAll(allowAllByName.get(p.name)!)}
+                                title={describeAllowAll(allow)}
                                 className="ml-1.5 inline-block rounded border border-rose-500/40 bg-rose-500/10 px-1 font-sans text-[9px] font-bold uppercase tracking-wide text-rose-200"
                               >
-                                {allowAllByName.get(p.name)!.kind === 'superuser' ? 'superuser' : 'allow-all'}
+                                {allow.kind === 'superuser' ? 'superuser' : 'allow-all'}
                               </span>
                             )}
                           </td>

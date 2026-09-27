@@ -202,6 +202,8 @@ export {
   formatDbGrantee,
   buildGrantRevokeSql,
   reconcileDbAccess,
+  impliedFixedRolePrivileges,
+  principalKey,
   DB_OBJECT_PRIVILEGES,
 } from './modules/access/db-access.js';
 export {
@@ -209,6 +211,7 @@ export {
   groupPrivileges,
   privilegeTargetLabel,
   findAllowAll,
+  findAllowAllByName,
   describeAllowAll,
   allPrivilegeTargets,
 } from './modules/access/privilege-groups.js';

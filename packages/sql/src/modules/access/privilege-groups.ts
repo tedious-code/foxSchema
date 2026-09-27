@@ -15,7 +15,7 @@
  * Pure: it takes rows the probes already fetched.
  */
 import { accessFamily } from './intent.js';
-import type { DbPrincipal, DbPrivilege, DbPrivilegeObjectType } from './db-access.js';
+import { principalKey, type DbPrincipal, type DbPrivilege, type DbPrivilegeObjectType } from './db-access.js';
 import { resolveRoleChain } from './effective.js';
 
 /**
@@ -147,25 +147,74 @@ export interface AllowAll {
   via: string[];
 }
 
-function key(name: string): string {
-  return (name || '').trim().toLowerCase();
+/** What the allow-all check needs, built once per catalog read. */
+interface AllowAllIndex {
+  dialect: string;
+  principals: readonly DbPrincipal[];
+  byName: Map<string, DbPrincipal>;
+  privilegesByGrantee: Map<string, DbPrivilege[]>;
+  /** Each holder's own answer. A role is shared by many accounts; ask once. */
+  direct: Map<string, AllowAllKind | null>;
 }
 
-function directAllowAll(
-  holder: DbPrincipal | undefined,
-  holderName: string,
+function indexForAllowAll(
+  principals: readonly DbPrincipal[],
   privileges: readonly DbPrivilege[],
   dialect: string
-): AllowAllKind | null {
-  if (holder?.superuser === true) return 'superuser';
-  const own = privileges.filter((p) => key(p.grantee) === key(holderName));
-  for (const group of groupPrivileges(own, dialect)) {
-    if (!group.all) continue;
-    if (group.objectType === 'GLOBAL') return 'all-on-server';
-    // SQL Server CONTROL on the database (db_owner) is everything in it.
-    if (group.objectType === 'DATABASE' && accessFamily(dialect) === 'sqlserver') {
-      return 'all-on-database';
+): AllowAllIndex {
+  const privilegesByGrantee = new Map<string, DbPrivilege[]>();
+  for (const p of privileges) {
+    const k = principalKey(p.grantee);
+    const list = privilegesByGrantee.get(k);
+    if (list) list.push(p);
+    else privilegesByGrantee.set(k, [p]);
+  }
+  return {
+    dialect,
+    principals,
+    byName: new Map(principals.map((p) => [principalKey(p.name), p])),
+    privilegesByGrantee,
+    direct: new Map(),
+  };
+}
+
+/** Whether this one principal holds allow-all itself, not through a role. */
+function directAllowAll(name: string, index: AllowAllIndex): AllowAllKind | null {
+  const k = principalKey(name);
+  const cached = index.direct.get(k);
+  if (cached !== undefined) return cached;
+  let kind: AllowAllKind | null = null;
+  if (index.byName.get(k)?.superuser === true) {
+    kind = 'superuser';
+  } else {
+    for (const group of groupPrivileges(index.privilegesByGrantee.get(k) ?? [], index.dialect)) {
+      if (!group.all) continue;
+      if (group.objectType === 'GLOBAL') {
+        kind = 'all-on-server';
+        break;
+      }
+      // SQL Server CONTROL on the database (db_owner) is everything in it.
+      if (group.objectType === 'DATABASE' && accessFamily(index.dialect) === 'sqlserver') {
+        kind = 'all-on-database';
+        break;
+      }
     }
+  }
+  index.direct.set(k, kind);
+  return kind;
+}
+
+function allowAllOf(principal: string, index: AllowAllIndex): AllowAll | null {
+  const direct = directAllowAll(principal, index);
+  if (direct) return { kind: direct, holder: principal, via: [] };
+  // Nearest holder wins: a reader tracing "why" wants the closest explanation.
+  const chains = [...resolveRoleChain(principal, index.principals).values()].sort(
+    (a, b) => a.length - b.length
+  );
+  for (const chain of chains) {
+    const role = chain[chain.length - 1]!;
+    const kind = directAllowAll(role, index);
+    if (kind) return { kind, holder: index.byName.get(principalKey(role))?.name ?? role, via: chain };
   }
   return null;
 }
@@ -184,18 +233,28 @@ export function findAllowAll(opts: {
   privileges: readonly DbPrivilege[];
   dialect: string;
 }): AllowAll | null {
-  const byName = new Map(opts.principals.map((p) => [key(p.name), p]));
-  const direct = directAllowAll(byName.get(key(opts.principal)), opts.principal, opts.privileges, opts.dialect);
-  if (direct) return { kind: direct, holder: opts.principal, via: [] };
-  const chains = [...resolveRoleChain(opts.principal, opts.principals).values()].sort(
-    (a, b) => a.length - b.length
-  );
-  for (const chain of chains) {
-    const role = chain[chain.length - 1]!;
-    const kind = directAllowAll(byName.get(key(role)), role, opts.privileges, opts.dialect);
-    if (kind) return { kind, holder: byName.get(key(role))?.name ?? role, via: chain };
+  return allowAllOf(opts.principal, indexForAllowAll(opts.principals, opts.privileges, opts.dialect));
+}
+
+/**
+ * {@link findAllowAll} for every principal at once, keyed by principal name.
+ *
+ * The lists that tag accounts need all of them. Asking one at a time re-read
+ * the whole privilege list per account — some 70 million comparisons for a
+ * MySQL server with a thousand accounts, where `*.*` is seventy rows each.
+ */
+export function findAllowAllByName(opts: {
+  principals: readonly DbPrincipal[];
+  privileges: readonly DbPrivilege[];
+  dialect: string;
+}): Map<string, AllowAll> {
+  const index = indexForAllowAll(opts.principals, opts.privileges, opts.dialect);
+  const out = new Map<string, AllowAll>();
+  for (const p of opts.principals) {
+    const allow = allowAllOf(p.name, index);
+    if (allow) out.set(p.name, allow);
   }
-  return null;
+  return out;
 }
 
 /** One line for a badge's tooltip or a banner. */
@@ -218,7 +277,7 @@ export interface AllPrivilegeTarget {
   /** What it really confers, and what it does not. */
   note: string;
   objectType: DbPrivilegeObjectType;
-  objectSchema: string | null;
+  /** The database or schema it applies to; null for the whole server or a system privilege. */
   objectName: string | null;
   /** The engine's own name for "everything" at this level. */
   privilege: string;
@@ -240,106 +299,107 @@ export function allPrivilegeTargets(
   const fam = accessFamily(dialect);
   const db = ctx.database?.trim() || null;
   const schema = ctx.schema?.trim() || null;
-  const out: AllPrivilegeTarget[] = [];
-  const target = (t: AllPrivilegeTarget) => out.push(t);
 
   if (fam === 'mysql' || fam === 'mariadb' || fam === 'clickhouse') {
-    target({
+    const server: AllPrivilegeTarget = {
       id: 'server',
       label: 'Whole server (*.*)',
       note: 'Every privilege on every database, including creating users and shutting the server down.',
       objectType: 'GLOBAL',
-      objectSchema: null,
       objectName: null,
       privilege: 'ALL',
-    });
+    };
+    // Database and schema are one thing here; the connection's schema is the one in use.
     const name = schema || db;
-    if (name) {
-      target({
+    if (!name) return [server];
+    return [
+      server,
+      {
         id: 'database',
         label: `Database ${name} (${name}.*)`,
         note: `Every privilege on ${name} and every table in it, including tables created later.`,
         objectType: 'DATABASE',
-        objectSchema: null,
         objectName: name,
         privilege: 'ALL',
-      });
-    }
-    return out;
+      },
+    ];
   }
+
   if (fam === 'postgres') {
+    const out: AllPrivilegeTarget[] = [];
     if (db) {
-      target({
+      out.push({
         id: 'database',
         label: `Database ${db}`,
         note: 'CONNECT, CREATE and TEMPORARY on the database. It reads no table: that is granted per schema or table. Server-wide access is superuser (ALTER ROLE … SUPERUSER), not a grant.',
         objectType: 'DATABASE',
-        objectSchema: null,
         objectName: db,
         privilege: 'ALL',
       });
     }
     if (schema) {
-      target({
+      out.push({
         id: 'schema',
         label: `Schema ${schema}`,
         note: 'USAGE and CREATE on the schema. The tables in it are granted separately.',
         objectType: 'SCHEMA',
-        objectSchema: null,
         objectName: schema,
         privilege: 'ALL',
       });
     }
     return out;
   }
+
   if (fam === 'sqlserver') {
+    const out: AllPrivilegeTarget[] = [];
     if (db) {
-      target({
+      out.push({
         id: 'database',
         label: `Database ${db} (CONTROL)`,
         note: 'CONTROL on the database: every permission in it, as db_owner has.',
         objectType: 'DATABASE',
-        objectSchema: null,
         objectName: db,
         privilege: 'CONTROL',
       });
     }
     if (schema) {
-      target({
+      out.push({
         id: 'schema',
         label: `Schema ${schema} (CONTROL)`,
         note: `CONTROL on the schema: every permission on ${schema} and everything in it.`,
         objectType: 'SCHEMA',
-        objectSchema: null,
         objectName: schema,
         privilege: 'CONTROL',
       });
     }
     return out;
   }
+
   if (fam === 'oracle') {
-    target({
-      id: 'system',
-      label: 'Every system privilege (ALL PRIVILEGES)',
-      note: 'Every system privilege, including SELECT ANY TABLE and DROP ANY TABLE on every schema.',
-      objectType: 'SYSTEM',
-      objectSchema: null,
-      objectName: null,
-      privilege: 'ALL PRIVILEGES',
-    });
-    return out;
+    return [
+      {
+        id: 'system',
+        label: 'Every system privilege (ALL PRIVILEGES)',
+        note: 'Every system privilege, including SELECT ANY TABLE and DROP ANY TABLE on every schema.',
+        objectType: 'SYSTEM',
+        objectName: null,
+        privilege: 'ALL PRIVILEGES',
+      },
+    ];
   }
+
   if (fam === 'db2') {
-    target({
-      id: 'database',
-      label: 'Database administrator (DBADM)',
-      note: 'DBADM on this database: create and drop objects, and with DATAACCESS read and write every table.',
-      objectType: 'DATABASE',
-      objectSchema: null,
-      objectName: null,
-      privilege: 'DBADM',
-    });
-    return out;
+    return [
+      {
+        id: 'database',
+        label: 'Database administrator (DBADM)',
+        note: 'DBADM on this database: create and drop objects, and with DATAACCESS read and write every table.',
+        objectType: 'DATABASE',
+        objectName: null,
+        privilege: 'DBADM',
+      },
+    ];
   }
-  return out;
+
+  return [];
 }

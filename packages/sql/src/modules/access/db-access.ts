@@ -13,6 +13,7 @@
 
 import { quoteSqlIdentifier } from '../sql-text/sql-template.js';
 import { accessFamily } from './intent.js';
+import { mysqlAccount, mysqlQuote, mysqlRoleRef } from './user-sql-helpers.js';
 
 export type DbAccessProbeMode = 'native' | 'estimated' | 'unsupported';
 
@@ -266,10 +267,9 @@ export function buildDbAccessPrivilegeQueries(opts: {
     // Most complete first. A login that may not read mysql.* loses the role
     // rows only; global grants come from information_schema, which every
     // login may read (it shows each its own).
-    const roles = fam === 'mariadb' ? 'mariadb' : 'mysql';
     const ladder = (filter: boolean): DbAccessQuery[] =>
       [
-        mysqlPrivilegesQuery({ schemaFilter: filter, global: true, roles }),
+        mysqlPrivilegesQuery({ schemaFilter: filter, global: true, roles: fam }),
         mysqlPrivilegesQuery({ schemaFilter: filter, global: true, roles: null }),
         mysqlPrivilegesQuery({ schemaFilter: filter, global: false, roles: null }),
       ].map((sql) => ({ sql, params: filter ? [schema, schema] : [] }));
@@ -362,12 +362,21 @@ export function principalsFromPrivileges(privileges: readonly DbPrivilege[]): Db
   return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/**
+ * How two spellings of one principal are matched: quotes off, case folded.
+ * `'app'@'%'` from information_schema and `app@%` from the principal list are
+ * the same account; Oracle and Db2 fold names to upper case.
+ */
+export function principalKey(name: string): string {
+  return stripQuotes(name).toLowerCase();
+}
+
 export function privilegesForPrincipal(
   privileges: readonly DbPrivilege[],
   principal: string
 ): DbPrivilege[] {
-  const key = stripQuotes(principal).toLowerCase();
-  return privileges.filter((p) => stripQuotes(p.grantee).toLowerCase() === key);
+  const key = principalKey(principal);
+  return privileges.filter((p) => principalKey(p.grantee) === key);
 }
 
 export function groupDbPrincipals(principals: readonly DbPrincipal[]): Array<{
@@ -384,23 +393,7 @@ export function groupDbPrincipals(principals: readonly DbPrincipal[]): Array<{
 }
 
 /**
- * What SQL Server's fixed database roles confer with no permission row to say
- * so. Without these, `db_owner` — allowed everything in the database — listed
- * no privileges at all.
- */
-const SQLSERVER_FIXED_ROLE_PRIVILEGES: Record<string, string[]> = {
-  db_owner: ['CONTROL'],
-  db_datareader: ['SELECT'],
-  db_datawriter: ['INSERT', 'UPDATE', 'DELETE'],
-};
-
-function memberKey(name: string): string {
-  return stripQuotes(name).toLowerCase();
-}
-
-/**
- * Make the two catalogs agree about role membership, and add what fixed roles
- * imply.
+ * Make the two catalogs agree about role membership.
  *
  * Membership arrives two ways: `memberOf` / `members` on each principal, and
  * ROLE rows in the privilege list. Postgres, SQL Server and Oracle fill both;
@@ -410,7 +403,6 @@ function memberKey(name: string): string {
  * this way carry `source: 'derived'`.
  */
 export function reconcileDbAccess(opts: {
-  dialect: string;
   principals: readonly DbPrincipal[];
   privileges: readonly DbPrivilege[];
 }): { principals: DbPrincipal[]; privileges: DbPrivilege[] } {
@@ -419,16 +411,15 @@ export function reconcileDbAccess(opts: {
     memberOf: [...p.memberOf],
     members: [...p.members],
   }));
-  const byName = new Map(principals.map((p) => [memberKey(p.name), p]));
   const privileges = [...opts.privileges];
-  const edges = new Set<string>();
-  const edgeKey = (member: string, role: string) => `${memberKey(member)}\u0000${memberKey(role)}`;
 
+  // Side 1: a ROLE row for every membership the principal list names.
+  const edges = new Set<string>();
+  const edgeKey = (member: string, role: string) => `${principalKey(member)}\u0000${principalKey(role)}`;
   for (const priv of privileges) {
-    if (priv.objectType !== 'ROLE') continue;
-    edges.add(edgeKey(priv.grantee, priv.objectName ?? priv.privilege));
+    if (priv.objectType === 'ROLE') edges.add(edgeKey(priv.grantee, priv.objectName ?? priv.privilege));
   }
-  const addEdge = (member: string, role: string) => {
+  const addRoleRow = (member: string, role: string) => {
     const k = edgeKey(member, role);
     if (edges.has(k)) return;
     edges.add(k);
@@ -445,40 +436,64 @@ export function reconcileDbAccess(opts: {
     });
   };
   for (const p of principals) {
-    for (const role of p.memberOf) addEdge(p.name, role);
-    for (const member of p.members) addEdge(member, p.name);
+    for (const role of p.memberOf) addRoleRow(p.name, role);
+    for (const member of p.members) addRoleRow(member, p.name);
   }
 
-  const has = (list: string[], name: string) => list.some((n) => memberKey(n) === memberKey(name));
+  // Side 2: memberOf / members for every ROLE row. Sets, not list scans: a
+  // widely held role has thousands of members.
+  const byName = new Map(principals.map((p) => [principalKey(p.name), p]));
+  const memberOfKeys = new Map(principals.map((p) => [p, new Set(p.memberOf.map(principalKey))]));
+  const membersKeys = new Map(principals.map((p) => [p, new Set(p.members.map(principalKey))]));
   for (const priv of privileges) {
     if (priv.objectType !== 'ROLE') continue;
     const role = priv.objectName ?? priv.privilege;
-    const member = byName.get(memberKey(priv.grantee));
-    if (member && !has(member.memberOf, role)) member.memberOf.push(role);
-    const rolePrincipal = byName.get(memberKey(role));
-    if (rolePrincipal && !has(rolePrincipal.members, priv.grantee)) {
+    const member = byName.get(principalKey(priv.grantee));
+    if (member && !memberOfKeys.get(member)!.has(principalKey(role))) {
+      memberOfKeys.get(member)!.add(principalKey(role));
+      member.memberOf.push(role);
+    }
+    const rolePrincipal = byName.get(principalKey(role));
+    if (rolePrincipal && !membersKeys.get(rolePrincipal)!.has(principalKey(priv.grantee))) {
+      membersKeys.get(rolePrincipal)!.add(principalKey(priv.grantee));
       rolePrincipal.members.push(member?.name ?? stripQuotes(priv.grantee));
     }
   }
-
-  if (family(opts.dialect) === 'sqlserver') {
-    for (const p of principals) {
-      for (const privilege of SQLSERVER_FIXED_ROLE_PRIVILEGES[p.name.toLowerCase()] ?? []) {
-        privileges.push({
-          grantee: p.name,
-          privilege,
-          objectType: 'DATABASE',
-          objectSchema: null,
-          objectName: null,
-          grantable: false,
-          grantor: null,
-          state: 'grant',
-          source: 'implied',
-        });
-      }
-    }
-  }
   return { principals, privileges };
+}
+
+/**
+ * What SQL Server's fixed database roles confer with no permission row to say
+ * so. Without these, `db_owner` — allowed everything in the database — listed
+ * no privileges at all.
+ */
+const SQLSERVER_FIXED_ROLE_PRIVILEGES: Record<string, string[]> = {
+  db_owner: ['CONTROL'],
+  db_datareader: ['SELECT'],
+  db_datawriter: ['INSERT', 'UPDATE', 'DELETE'],
+};
+
+/** The rows SQL Server's fixed roles imply, tagged `source: 'implied'`. Empty elsewhere. */
+export function impliedFixedRolePrivileges(
+  dialect: string,
+  principals: readonly DbPrincipal[]
+): DbPrivilege[] {
+  if (family(dialect) !== 'sqlserver') return [];
+  return principals.flatMap((p) =>
+    (SQLSERVER_FIXED_ROLE_PRIVILEGES[p.name.toLowerCase()] ?? []).map(
+      (privilege): DbPrivilege => ({
+        grantee: p.name,
+        privilege,
+        objectType: 'DATABASE',
+        objectSchema: null,
+        objectName: null,
+        grantable: false,
+        grantor: null,
+        state: 'grant',
+        source: 'implied',
+      })
+    )
+  );
 }
 
 /** Quote a principal for GRANT/REVOKE (MySQL `'user'@'host'`, Db2 `USER "x"`). */
@@ -490,26 +505,19 @@ export function formatDbGrantee(
   const fam = family(dialect);
   const raw = stripQuotes(name);
   if (fam === 'mysql' || fam === 'mariadb') {
-    // Same escaping as account DDL in user-sql: MySQL treats `\` as an escape
-    // inside string literals, so a name like `al\'ice` would otherwise close
-    // the quote early and turn the rest of the GRANT into free SQL. Double
-    // backslashes before doubling quotes.
-    const quote = (v: string) => `'${v.replace(/\\/g, '\\\\').replace(/'/g, "''")}'`;
-    // A MariaDB role has no host: `'r'@'%'` names a user that does not exist.
-    if (fam === 'mariadb' && kind === 'role') {
-      return quote(raw.endsWith('@') ? raw.slice(0, -1) : raw);
-    }
+    // Quoted exactly as the account DDL in user-sql quotes it (backslashes
+    // doubled before quotes, so `al\'ice` cannot close the literal early).
+    // The catalog spells an account user@host.
     const at = raw.lastIndexOf('@');
-    if (at > 0) {
-      return `${quote(raw.slice(0, at))}@${quote(raw.slice(at + 1))}`;
-    }
-    // MySQL accounts are name@host. A bare name used to become `` `alice` ``,
-    // which is not a user account — CREATE USER / our catalog use 'alice'@'%',
-    // and GRANT TO `alice` either fails or hits a role of that name instead.
-    // Default the host for users (and for roles our DDL creates as name@'%').
-    if (kind === 'user' || kind === 'role') {
-      return `${quote(raw)}@'%'`;
-    }
+    const user = at > 0 ? raw.slice(0, at) : raw;
+    const host = at > 0 ? raw.slice(at + 1) : undefined;
+    // A MariaDB role has no host: `'r'@'%'` names a user that does not exist.
+    if (fam === 'mariadb' && kind === 'role') return mysqlRoleRef(user, host, dialect);
+    if (host !== undefined) return `${mysqlQuote(user)}@${mysqlQuote(host)}`;
+    // A bare name used to become `` `alice` ``, which is not an account —
+    // CREATE USER and our catalog use 'alice'@'%', and GRANT TO `alice` either
+    // fails or hits a role of that name. Default the host for users and roles.
+    if (kind === 'user' || kind === 'role') return mysqlAccount(raw, undefined);
     return quoteSqlIdentifier(raw, dialect);
   }
   const ident = quoteSqlIdentifier(raw, dialect);
@@ -575,11 +583,9 @@ export function buildGrantRevokeSql(args: DbAccessGrantArgs): { sql: string } | 
     const roleName = (args.objectName || privilege).trim();
     if (!roleName) return { error: 'role name is required.' };
     // A MySQL role is an account, `'r'@'%'`; the catalog names it `r@%`, and a
-    // backtick-quoted `r@%` is a role nobody created.
-    const roleSql =
-      fam === 'mysql' || fam === 'mariadb'
-        ? formatDbGrantee(args.dialect, roleName, 'role')
-        : ident(roleName);
+    // backtick-quoted `r@%` is a role nobody created. Named like a grantee.
+    const mysqlFamily = fam === 'mysql' || fam === 'mariadb';
+    const roleSql = mysqlFamily ? formatDbGrantee(args.dialect, roleName, 'role') : ident(roleName);
     // SQL Server does not grant a role, it adds a member to one.
     if (fam === 'sqlserver') {
       const member = ident(stripQuotes(grantee));
@@ -625,9 +631,10 @@ export function buildGrantRevokeSql(args: DbAccessGrantArgs): { sql: string } | 
     return emitGrant({ action, privilege: privSql, on, grantee: granteeSql, grantOption });
   }
 
-  if (fam === 'mysql' || fam === 'mariadb') {
-    // MySQL names a whole database as `db`.* — a bare `db` is a table
-    // reference, so a database-level grant landed on a table of that name.
+  if (fam === 'mysql' || fam === 'mariadb' || fam === 'clickhouse') {
+    // These name the whole server `*.*` and a whole database `db`.* — a bare
+    // `db` is a table reference, so a database-level grant landed on a table
+    // of that name. ClickHouse takes no object keyword either.
     const target =
       objectType === 'GLOBAL'
         ? '*.*'
@@ -636,25 +643,7 @@ export function buildGrantRevokeSql(args: DbAccessGrantArgs): { sql: string } | 
           : objectSql || '*.*';
     return emitGrant({
       action,
-      privilege: privSql === 'ALL' ? 'ALL PRIVILEGES' : privSql,
-      on: `ON ${target}`,
-      grantee: granteeSql,
-      grantOption,
-    });
-  }
-
-  if (fam === 'clickhouse') {
-    // ClickHouse takes no object keyword; `db.table` or `db.*` is the target.
-    // A database is `db.*` here as on MySQL; a bare `db` names a table.
-    const target =
-      objectType === 'GLOBAL'
-        ? '*.*'
-        : objectType === 'DATABASE' || objectType === 'SCHEMA'
-          ? `${objectSql || namedObject()}.*`
-          : objectSql || '*.*';
-    return emitGrant({
-      action,
-      privilege: privSql,
+      privilege: fam !== 'clickhouse' && privSql === 'ALL' ? 'ALL PRIVILEGES' : privSql,
       on: `ON ${target}`,
       grantee: granteeSql,
       grantOption,
@@ -989,7 +978,7 @@ function mysqlPrivilegesQuery(opts: {
   global: boolean;
   roles: 'mysql' | 'mariadb' | null;
 }): string {
-  const where = (col: string) => (opts.schemaFilter ? `\nWHERE ${col} = ?` : '');
+  const inSchema = opts.schemaFilter ? '\nWHERE TABLE_SCHEMA = ?' : '';
   const parts = [
     `SELECT GRANTEE AS grantee,
        PRIVILEGE_TYPE AS privilege,
@@ -998,7 +987,7 @@ function mysqlPrivilegesQuery(opts: {
        TABLE_NAME AS object_name,
        CASE WHEN IS_GRANTABLE = 'YES' THEN 1 ELSE 0 END AS grantable,
        NULL AS grantor
-FROM information_schema.TABLE_PRIVILEGES${where('TABLE_SCHEMA')}`,
+FROM information_schema.TABLE_PRIVILEGES${inSchema}`,
     `SELECT GRANTEE,
        PRIVILEGE_TYPE,
        'SCHEMA',
@@ -1006,7 +995,7 @@ FROM information_schema.TABLE_PRIVILEGES${where('TABLE_SCHEMA')}`,
        NULL,
        CASE WHEN IS_GRANTABLE = 'YES' THEN 1 ELSE 0 END,
        NULL
-FROM information_schema.SCHEMA_PRIVILEGES${where('TABLE_SCHEMA')}`,
+FROM information_schema.SCHEMA_PRIVILEGES${inSchema}`,
   ];
   if (opts.global) {
     parts.push(`SELECT GRANTEE,

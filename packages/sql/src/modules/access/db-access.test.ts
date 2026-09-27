@@ -16,6 +16,7 @@ import {
   principalsFromPrivileges,
   privilegesForPrincipal,
   reconcileDbAccess,
+  impliedFixedRolePrivileges,
   type DbPrincipal,
   type DbPrivilege,
 } from './db-access.js';
@@ -603,7 +604,6 @@ describe('reconcileDbAccess', () => {
     // MySQL before this fix: member_of filled, no ROLE row, so the detail pane
     // said "Belongs to no roles" under a list that said otherwise.
     const out = reconcileDbAccess({
-      dialect: 'mysql',
       principals: [
         principal('zz_app@%', { memberOf: ['zz_reader@%'] }),
         principal('zz_reader@%', { kind: 'role', members: ['zz_app@%'] }),
@@ -624,12 +624,10 @@ describe('reconcileDbAccess', () => {
     // MariaDB before this fix filled member_of and left members empty; other
     // catalogs fill only a role's members. Each side alone is enough.
     const fromMemberOf = reconcileDbAccess({
-      dialect: 'mariadb',
       principals: [principal('app@%', { memberOf: ['reader'] }), principal('reader', { kind: 'role' })],
       privileges: [],
     });
     const fromMembers = reconcileDbAccess({
-      dialect: 'mariadb',
       principals: [principal('app@%'), principal('reader', { kind: 'role', members: ['app@%'] })],
       privileges: [],
     });
@@ -642,7 +640,6 @@ describe('reconcileDbAccess', () => {
 
   it('fills memberOf and members from ROLE rows only the privilege catalog reported', () => {
     const out = reconcileDbAccess({
-      dialect: 'postgres',
       principals: [principal('alice'), principal('reader', { kind: 'role', canLogin: false })],
       privileges: [
         {
@@ -665,7 +662,6 @@ describe('reconcileDbAccess', () => {
 
   it('matches quoted grantees against principal names', () => {
     const out = reconcileDbAccess({
-      dialect: 'mysql',
       principals: [principal('zz_app@%', { memberOf: ['zz_reader@%'] })],
       privileges: normalizeDbPrivileges([
         { grantee: "'zz_app'@'%'", privilege: 'zz_reader@%', object_type: 'ROLE', object_name: 'zz_reader@%' },
@@ -674,13 +670,11 @@ describe('reconcileDbAccess', () => {
     expect(out.privileges.filter((p) => p.objectType === 'ROLE')).toHaveLength(1);
   });
 
-  it("gives SQL Server's fixed roles the permissions they imply", () => {
-    const out = reconcileDbAccess({
-      dialect: 'sqlserver',
-      principals: [principal('db_owner', { kind: 'role' }), principal('db_datareader', { kind: 'role' })],
-      privileges: [],
-    });
-    expect(out.privileges.map((p) => [p.grantee, p.privilege, p.objectType, p.source])).toEqual([
+  it("gives SQL Server's fixed roles the permissions they imply, and nothing elsewhere", () => {
+    const roles = [principal('db_owner', { kind: 'role' }), principal('db_datareader', { kind: 'role' })];
+    expect(impliedFixedRolePrivileges('postgres', roles)).toEqual([]);
+    const implied = impliedFixedRolePrivileges('sqlserver', roles);
+    expect(implied.map((p) => [p.grantee, p.privilege, p.objectType, p.source])).toEqual([
       ['db_owner', 'CONTROL', 'DATABASE', 'implied'],
       ['db_datareader', 'SELECT', 'DATABASE', 'implied'],
     ]);
@@ -688,7 +682,7 @@ describe('reconcileDbAccess', () => {
 
   it('does not change its inputs', () => {
     const input = [principal('alice', { memberOf: ['r'] })];
-    reconcileDbAccess({ dialect: 'postgres', principals: input, privileges: [] });
+    reconcileDbAccess({ principals: input, privileges: [] });
     expect(input[0]!.memberOf).toEqual(['r']);
   });
 });

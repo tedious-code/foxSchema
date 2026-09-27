@@ -40,7 +40,7 @@ export const UNSUPPORTED_USER_SQL: UserManagementSupport = {
  */
 
 /** MySQL-family string literals treat `\` as an escape — double it before quotes. */
-function mysqlQuote(value: string): string {
+export function mysqlQuote(value: string): string {
   return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "''")}'`;
 }
 

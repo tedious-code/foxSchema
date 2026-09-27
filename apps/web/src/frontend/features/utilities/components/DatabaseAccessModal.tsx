@@ -22,7 +22,7 @@ import {
   buildGrantRevokeSql,
   describeAllowAll,
   dialectSupportsDbAccess,
-  findAllowAll,
+  findAllowAllByName,
   groupDbPrincipals,
   groupPrivileges,
   privilegeTargetLabel,
@@ -31,6 +31,7 @@ import {
   type DbPrincipal,
   type DbPrivilege,
   type DbPrivilegeObjectType,
+  type PrivilegeGroup,
 } from '@foxschema/sql';
 import { PERMISSION_META } from '@foxschema/shared';
 import { PasswordInput } from '@/shared/components/PasswordInput';
@@ -78,20 +79,141 @@ function privilegeSummary(names: readonly string[]): string {
   return `${names.slice(0, 3).join(', ')} +${names.length - 3}`;
 }
 
-function granteeKindOf(p: DbPrincipal): 'user' | 'role' | 'group' {
-  return p.kind === 'group' ? 'group' : p.kind === 'role' ? 'role' : 'user';
-}
-
 /** Marks an account allowed everything. The word, not a colour, carries it. */
-const AllowAllTag: React.FC<{ allow: AllowAll; testId: string }> = ({ allow, testId }) => (
-  <span
-    data-testid={testId}
-    title={describeAllowAll(allow)}
-    className="ml-1.5 inline-block rounded border border-rose-500/40 bg-rose-500/10 px-1 text-[9px] font-bold uppercase tracking-wide text-rose-200"
-  >
-    {allow.kind === 'superuser' ? 'superuser' : 'allow-all'}
-  </span>
-);
+const PrincipalAllowAllTag: React.FC<{ allow: AllowAll | undefined; name: string }> = ({ allow, name }) =>
+  allow ? (
+    <span
+      data-testid={`db-access-allow-all-${name}`}
+      title={describeAllowAll(allow)}
+      className="ml-1.5 inline-block rounded border border-rose-500/40 bg-rose-500/10 px-1 text-[9px] font-bold uppercase tracking-wide text-rose-200"
+    >
+      {allow.kind === 'superuser' ? 'superuser' : 'allow-all'}
+    </span>
+  ) : null;
+
+/** What one Revoke button takes away. */
+type RevokeTarget = Pick<DbPrivilege, 'privilege' | 'objectType' | 'objectSchema' | 'objectName'>;
+
+const revokeButtonCls =
+  'text-[10px] font-bold uppercase tracking-wide text-rose-300 hover:text-rose-100 disabled:opacity-40';
+
+/**
+ * One object's privileges in the table.
+ *
+ * One privilege is one row. More than one collapses into a header that
+ * expands, and a complete set says ALL PRIVILEGES — seventy rows for `ON *.*`
+ * hid the one fact that mattered.
+ */
+const PrivilegeGroupRows: React.FC<{
+  group: PrivilegeGroup;
+  /** Position among the groups, for test ids. */
+  index: number;
+  open: boolean;
+  onToggle: () => void;
+  /** Where a privilege sits in the principal's list, for test ids. */
+  rowIndex: (priv: DbPrivilege) => number;
+  revokeDisabled: boolean;
+  onRevoke: (target: RevokeTarget, title: string) => void;
+}> = ({ group, index, open, onToggle, rowIndex, revokeDisabled, onRevoke }) => {
+  const on = privilegeTargetLabel(group);
+  const single = group.privileges.length === 1 && !group.all;
+  const expanded = single || open;
+  const implied = group.privileges.some((p) => p.source === 'implied');
+  const names = group.privileges.map((p) => p.privilege);
+  const Chevron = expanded ? ChevronDown : ChevronRight;
+  return (
+    <>
+      {!single && (
+        <tr
+          data-testid={`db-access-privgroup-${index}`}
+          data-all={group.all ? 'true' : 'false'}
+          className="border-t border-slate-800"
+        >
+          <td className="py-1.5 text-slate-200">
+            <button
+              type="button"
+              data-testid={`db-access-privgroup-toggle-${index}`}
+              onClick={onToggle}
+              aria-expanded={expanded}
+              className="inline-flex items-center gap-1 text-left font-semibold hover:text-slate-50"
+              title={names.join(', ')}
+            >
+              <Chevron className="w-3 h-3 text-slate-500" />
+              {group.state === 'deny' ? 'DENY ' : ''}
+              {group.all ? 'ALL PRIVILEGES' : privilegeSummary(names)}
+            </button>
+            <span className="ml-1 text-[10px] text-slate-500">({group.privileges.length})</span>
+          </td>
+          <td className="py-1.5 text-slate-400 font-mono">{on}</td>
+          <td className="py-1.5 text-right">
+            {group.all && !implied && group.state !== 'deny' && (
+              <button
+                type="button"
+                data-testid={`db-access-revoke-all-${index}`}
+                disabled={revokeDisabled}
+                onClick={() =>
+                  onRevoke(
+                    {
+                      // A lone ALL / CONTROL row is revoked by its own name; an
+                      // expanded set by the engine's ALL.
+                      privilege: group.privileges.length === 1 ? group.privileges[0]!.privilege : 'ALL',
+                      objectType: group.objectType,
+                      objectSchema: group.objectSchema,
+                      objectName: group.objectName,
+                    },
+                    'Revoke all privileges'
+                  )
+                }
+                className={revokeButtonCls}
+              >
+                Revoke all
+              </button>
+            )}
+          </td>
+        </tr>
+      )}
+      {expanded &&
+        group.privileges.map((priv) => {
+          const i = rowIndex(priv);
+          return (
+            <tr key={`${priv.privilege}-${i}`} className={single ? 'border-t border-slate-800' : ''}>
+              <td className={`py-1.5 text-slate-200 ${single ? '' : 'pl-5'}`}>
+                {priv.state === 'deny' ? 'DENY ' : ''}
+                {priv.privilege}
+                {priv.grantable && (
+                  <span
+                    data-testid="db-access-grantable"
+                    title="May pass this privilege on to others (WITH GRANT OPTION)"
+                    className="ml-1.5 rounded border border-amber-500/40 px-1 text-[9px] font-bold uppercase tracking-wide text-amber-200"
+                  >
+                    grantable
+                  </span>
+                )}
+                {priv.source === 'implied' && (
+                  <span className="ml-1.5 text-[10px] text-slate-500">implied by this fixed role</span>
+                )}
+              </td>
+              <td className="py-1.5 text-slate-400 font-mono">{single ? on : ''}</td>
+              <td className="py-1.5 text-right">
+                {priv.source !== 'implied' && (
+                  <button
+                    type="button"
+                    data-testid={`db-access-revoke-${i}`}
+                    disabled={revokeDisabled}
+                    onClick={() => onRevoke(priv, 'Revoke privilege')}
+                    className={revokeButtonCls}
+                  >
+                    Revoke
+                  </button>
+                )}
+              </td>
+            </tr>
+          );
+        })}
+    </>
+  );
+};
+
 const GRANT_PRIV_META = PERMISSION_META.find((m) => m.id === 'editor.grant');
 
 export const DatabaseAccessModal: React.FC<Props> = ({
@@ -198,15 +320,11 @@ export const DatabaseAccessModal: React.FC<Props> = ({
    * Who may do anything, and through whom. Worked out once per catalog read:
    * the tag in the list, the filter and the banner all read this.
    */
-  const allowAllByName = useMemo(() => {
-    const map = new Map<string, AllowAll>();
-    if (!dialect) return map;
-    for (const p of principals) {
-      const allow = findAllowAll({ principal: p.name, principals, privileges, dialect });
-      if (allow) map.set(p.name, allow);
-    }
-    return map;
-  }, [principals, privileges, dialect]);
+  const allowAllByName = useMemo(
+    () =>
+      dialect ? findAllowAllByName({ principals, privileges, dialect }) : new Map<string, AllowAll>(),
+    [principals, privileges, dialect]
+  );
 
   const groups = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -253,17 +371,18 @@ export const DatabaseAccessModal: React.FC<Props> = ({
   );
   const [roleChoice, setRoleChoice] = useState('');
   const typingRole = roleChoices.length === 0 || roleChoice === OTHER_ROLE;
+  /** The role the membership form grants: typed under "Other…", else picked (the first by default). */
+  const membershipRole = typingRole
+    ? grantName
+    : roleChoices.includes(roleChoice)
+      ? roleChoice
+      : roleChoices[0] ?? '';
   useEffect(() => {
-    // A new principal means a new list; start on its first role, not a stale one.
+    // A new principal means a new list, and a name typed for the last one
+    // must not carry over.
     setRoleChoice('');
     setGrantName('');
   }, [selectedName]);
-  useEffect(() => {
-    if (grantKind !== 'membership' || typingRole) return;
-    const pick = roleChoices.includes(roleChoice) ? roleChoice : roleChoices[0] ?? '';
-    if (pick !== roleChoice) setRoleChoice(pick);
-    if (pick !== grantName) setGrantName(pick);
-  }, [grantKind, typingRole, roleChoices, roleChoice, grantName]);
 
   const togglePrivGroup = (key: string) => {
     setOpenPrivGroups((prev) => {
@@ -279,12 +398,12 @@ export const DatabaseAccessModal: React.FC<Props> = ({
     const built = buildGrantRevokeSql({
       dialect,
       action: 'grant',
-      privilege: grantName || grantPrivilege,
+      privilege: membershipRole || grantPrivilege,
       objectType: 'ROLE',
       objectSchema: grantSchema || conn?.schema || null,
-      objectName: grantName || null,
+      objectName: membershipRole || null,
       grantee: selected.name,
-      granteeKind: selected.kind === 'group' ? 'group' : selected.kind === 'role' ? 'role' : 'user',
+      granteeKind: selected.kind,
       withGrantOption: grantWithOption,
     });
     return built;
@@ -294,7 +413,7 @@ export const DatabaseAccessModal: React.FC<Props> = ({
     grantKind,
     grantPrivilege,
     grantSchema,
-    grantName,
+    membershipRole,
     grantWithOption,
     conn?.schema,
   ]);
@@ -312,17 +431,29 @@ export const DatabaseAccessModal: React.FC<Props> = ({
       action: 'grant',
       privilege: allTarget.privilege,
       objectType: allTarget.objectType,
-      objectSchema: allTarget.objectSchema,
+      objectSchema: null,
       objectName: allTarget.objectName,
       grantee: selected.name,
-      granteeKind: granteeKindOf(selected),
+      granteeKind: selected.kind,
     });
   }, [dialect, selected, grantKind, allTarget]);
-  useEffect(() => {
-    // A new confirmation starts empty: a name typed for the last one must not
-    // arm this one.
-    setConfirmTyped('');
-  }, [confirm]);
+
+  /** Build a REVOKE for the selected principal and ask before running it. */
+  const confirmRevoke = (target: RevokeTarget, title: string) => {
+    if (!selected) return;
+    const built = buildGrantRevokeSql({
+      dialect,
+      action: 'revoke',
+      ...target,
+      grantee: selected.name,
+      granteeKind: selected.kind,
+    });
+    if ('error' in built) {
+      setError(built.error);
+      return;
+    }
+    setConfirm({ title, sql: built.sql, kind: 'revoke' });
+  };
 
   const runSql = async (sql: string, kind: 'grant' | 'revoke') => {
     if (!connectionId || !canGrant) return;
@@ -530,12 +661,7 @@ export const DatabaseAccessModal: React.FC<Props> = ({
                             }`}
                           >
                             <span className="font-mono">{p.name}</span>
-                            {allowAllByName.get(p.name) && (
-                              <AllowAllTag
-                                allow={allowAllByName.get(p.name)!}
-                                testId={`db-access-allow-all-${p.name}`}
-                              />
-                            )}
+                            <PrincipalAllowAllTag allow={allowAllByName.get(p.name)} name={p.name} />
                             {p.kind !== 'user' && p.members.length > 0 && (
                               <span className="block text-[10px] text-slate-500">
                                 {p.members.length} member{p.members.length === 1 ? '' : 's'}
@@ -607,140 +733,18 @@ export const DatabaseAccessModal: React.FC<Props> = ({
                       </tr>
                     </thead>
                     <tbody>
-                      {selectedPrivGroups.map((group, gi) => {
-                        const on = privilegeTargetLabel(group);
-                        const deny = group.state === 'deny' ? 'DENY ' : '';
-                        // One privilege on an object needs no group row. More
-                        // than one collapses, and a complete set says ALL —
-                        // thirty rows for `ON *.*` hid the one fact that mattered.
-                        const single = group.privileges.length === 1 && !group.all;
-                        const expanded = single || openPrivGroups.has(group.key);
-                        const implied = group.privileges.some((p) => p.source === 'implied');
-                        const Chevron = expanded ? ChevronDown : ChevronRight;
-                        const names = group.privileges.map((p) => p.privilege);
-                        const revokeAll = () => {
-                          // A lone ALL / CONTROL row is revoked by its own name;
-                          // an expanded set by the engine's ALL.
-                          const lone = group.privileges.length === 1 ? group.privileges[0]!.privilege : 'ALL';
-                          const built = buildGrantRevokeSql({
-                            dialect,
-                            action: 'revoke',
-                            privilege: lone,
-                            objectType: group.objectType,
-                            objectSchema: group.objectSchema,
-                            objectName: group.objectName,
-                            grantee: selected.name,
-                            granteeKind: granteeKindOf(selected),
-                          });
-                          if ('error' in built) {
-                            setError(built.error);
-                            return;
-                          }
-                          setConfirm({ title: 'Revoke all privileges', sql: built.sql, kind: 'revoke' });
-                        };
-                        return (
-                          <React.Fragment key={group.key}>
-                            {!single && (
-                              <tr
-                                data-testid={`db-access-privgroup-${gi}`}
-                                data-all={group.all ? 'true' : 'false'}
-                                className="border-t border-slate-800"
-                              >
-                                <td className="py-1.5 text-slate-200">
-                                  <button
-                                    type="button"
-                                    data-testid={`db-access-privgroup-toggle-${gi}`}
-                                    onClick={() => togglePrivGroup(group.key)}
-                                    aria-expanded={expanded}
-                                    className="inline-flex items-center gap-1 text-left font-semibold hover:text-slate-50"
-                                    title={names.join(', ')}
-                                  >
-                                    <Chevron className="w-3 h-3 text-slate-500" />
-                                    {deny}
-                                    {group.all ? 'ALL PRIVILEGES' : privilegeSummary(names)}
-                                  </button>
-                                  <span className="ml-1 text-[10px] text-slate-500">
-                                    ({group.privileges.length})
-                                  </span>
-                                </td>
-                                <td className="py-1.5 text-slate-400 font-mono">{on}</td>
-                                <td className="py-1.5 text-right">
-                                  {group.all && !implied && group.state !== 'deny' && (
-                                    <button
-                                      type="button"
-                                      data-testid={`db-access-revoke-all-${gi}`}
-                                      disabled={!canGrant || running || !support?.grant}
-                                      onClick={revokeAll}
-                                      className="text-[10px] font-bold uppercase tracking-wide text-rose-300 hover:text-rose-100 disabled:opacity-40"
-                                    >
-                                      Revoke all
-                                    </button>
-                                  )}
-                                </td>
-                              </tr>
-                            )}
-                            {expanded &&
-                              group.privileges.map((priv) => {
-                                const i = selectedPrivs.indexOf(priv);
-                                return (
-                                  <tr
-                                    key={`${priv.privilege}-${i}`}
-                                    className={single ? 'border-t border-slate-800' : ''}
-                                  >
-                                    <td className={`py-1.5 text-slate-200 ${single ? '' : 'pl-5'}`}>
-                                      {priv.state === 'deny' ? 'DENY ' : ''}
-                                      {priv.privilege}
-                                      {priv.grantable && (
-                                        <span
-                                          data-testid="db-access-grantable"
-                                          title="May pass this privilege on to others (WITH GRANT OPTION)"
-                                          className="ml-1.5 rounded border border-amber-500/40 px-1 text-[9px] font-bold uppercase tracking-wide text-amber-200"
-                                        >
-                                          grantable
-                                        </span>
-                                      )}
-                                      {priv.source === 'implied' && (
-                                        <span className="ml-1.5 text-[10px] text-slate-500">
-                                          implied by this fixed role
-                                        </span>
-                                      )}
-                                    </td>
-                                    <td className="py-1.5 text-slate-400 font-mono">{single ? on : ''}</td>
-                                    <td className="py-1.5 text-right">
-                                      {priv.source !== 'implied' && (
-                                        <button
-                                          type="button"
-                                          data-testid={`db-access-revoke-${i}`}
-                                          disabled={!canGrant || running || !support?.grant}
-                                          onClick={() => {
-                                            const built = buildGrantRevokeSql({
-                                              dialect,
-                                              action: 'revoke',
-                                              privilege: priv.privilege,
-                                              objectType: priv.objectType,
-                                              objectSchema: priv.objectSchema,
-                                              objectName: priv.objectName,
-                                              grantee: selected.name,
-                                              granteeKind: granteeKindOf(selected),
-                                            });
-                                            if ('error' in built) {
-                                              setError(built.error);
-                                              return;
-                                            }
-                                            setConfirm({ title: 'Revoke privilege', sql: built.sql, kind: 'revoke' });
-                                          }}
-                                          className="text-[10px] font-bold uppercase tracking-wide text-rose-300 hover:text-rose-100 disabled:opacity-40"
-                                        >
-                                          Revoke
-                                        </button>
-                                      )}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                          </React.Fragment>
-                        );
-                      })}
+                      {selectedPrivGroups.map((group, gi) => (
+                        <PrivilegeGroupRows
+                          key={group.key}
+                          group={group}
+                          index={gi}
+                          open={openPrivGroups.has(group.key)}
+                          onToggle={() => togglePrivGroup(group.key)}
+                          rowIndex={(priv) => selectedPrivs.indexOf(priv)}
+                          revokeDisabled={!canGrant || running || !support?.grant}
+                          onRevoke={confirmRevoke}
+                        />
+                      ))}
                     </tbody>
                   </table>
                 )}
@@ -784,33 +788,18 @@ export const DatabaseAccessModal: React.FC<Props> = ({
                                 type="button"
                                 data-testid={`db-access-remove-member-${i}`}
                                 disabled={!canGrant || running || !support?.grant}
-                                onClick={() => {
-                                  const built = buildGrantRevokeSql({
-                                    dialect,
-                                    action: 'revoke',
-                                    privilege: priv.privilege,
-                                    objectType: 'ROLE',
-                                    objectSchema: priv.objectSchema,
-                                    objectName: priv.objectName,
-                                    grantee: selected.name,
-                                    granteeKind:
-                                      selected.kind === 'group'
-                                        ? 'group'
-                                        : selected.kind === 'role'
-                                          ? 'role'
-                                          : 'user',
-                                  });
-                                  if ('error' in built) {
-                                    setError(built.error);
-                                    return;
-                                  }
-                                  setConfirm({
-                                    title: 'Remove from role',
-                                    sql: built.sql,
-                                    kind: 'revoke',
-                                  });
-                                }}
-                                className="text-[10px] font-bold uppercase tracking-wide text-rose-300 hover:text-rose-100 disabled:opacity-40"
+                                onClick={() =>
+                                  confirmRevoke(
+                                    {
+                                      privilege: priv.privilege,
+                                      objectType: 'ROLE',
+                                      objectSchema: priv.objectSchema,
+                                      objectName: priv.objectName,
+                                    },
+                                    'Remove from role'
+                                  )
+                                }
+                                className={revokeButtonCls}
                               >
                                 Remove
                               </button>
@@ -933,6 +922,8 @@ export const DatabaseAccessModal: React.FC<Props> = ({
                       }
                       onClick={() => {
                         if (!allPreview || 'error' in allPreview || !selected) return;
+                        // A name typed for an earlier confirmation must not arm this one.
+                        setConfirmTyped('');
                         setConfirm({
                           title: 'Grant all privileges',
                           sql: allPreview.sql,
@@ -956,7 +947,7 @@ export const DatabaseAccessModal: React.FC<Props> = ({
                         Role
                         <select
                           data-testid="db-access-grant-role"
-                          value={typingRole ? OTHER_ROLE : roleChoice}
+                          value={typingRole ? OTHER_ROLE : membershipRole}
                           onChange={(e) => {
                             setRoleChoice(e.target.value);
                             if (e.target.value === OTHER_ROLE) setGrantName('');
@@ -1012,7 +1003,7 @@ export const DatabaseAccessModal: React.FC<Props> = ({
                         !grantPreview ||
                         'error' in grantPreview ||
                         !support?.grant ||
-                        !grantName.trim()
+                        !membershipRole.trim()
                       }
                       onClick={() => {
                         if (!grantPreview || 'error' in grantPreview) return;

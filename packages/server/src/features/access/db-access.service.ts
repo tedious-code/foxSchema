@@ -14,6 +14,7 @@ import {
   principalsFromPrivileges,
   normalizeDbPrivileges,
   reconcileDbAccess,
+  impliedFixedRolePrivileges,
   type ConnectionOptions,
   type DbAccessSupport,
   type DbPrincipal,
@@ -119,11 +120,9 @@ export async function probeDbAccess(opts: {
     }
     // One answer about membership for every screen: the catalogs report it two
     // ways, and on several engines only one of them was filled.
-    const reconciled = reconcileDbAccess({
-      dialect: opts.dialect,
-      principals: resolved,
-      privileges,
-    });
+    const reconciled = reconcileDbAccess({ principals: resolved, privileges });
+    // SQL Server's fixed roles confer permissions no row lists (db_owner).
+    reconciled.privileges.push(...impliedFixedRolePrivileges(opts.dialect, reconciled.principals));
     return {
       ok: true,
       value: {

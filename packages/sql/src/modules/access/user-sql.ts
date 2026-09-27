@@ -57,7 +57,8 @@ export {
 import type { GeneratedUserSql, UserManagementSupport, UserRequest } from './user-sql.types.js';
 import type { GeneratedStatement } from './access-sql.types.js';
 import { resolveUserSql } from './user-sql.registry.js';
-import { buildGrantRevokeSql, formatDbGrantee } from './db-access.js';
+import { buildGrantRevokeSql } from './db-access.js';
+import { mysqlAccount, mysqlRoleRef } from './user-sql-helpers.js';
 import { accessFamily } from './intent.js';
 
 export function userManagementSupport(dialect: string): UserManagementSupport {
@@ -133,23 +134,22 @@ function roleMembershipStatements(
       risk: 'elevated',
     });
   }
-  if (mysqlFamily && isUser) {
-    const account = formatDbGrantee(dialect, grantee, 'user');
-    out.push(
-      fam === 'mariadb'
-        ? {
-            sql: `SET DEFAULT ROLE ${formatDbGrantee(dialect, roles[0]!, 'role')} FOR ${account};`,
-            explanation: `Turns ${roles[0]} on at login. MariaDB keeps one default role${
-              roles.length > 1 ? '; the others are switched on with SET ROLE' : ''
-            }.`,
-            risk: 'low',
-          }
-        : {
-            sql: `SET DEFAULT ROLE ALL TO ${account};`,
-            explanation: 'Turns the granted roles on at login. MySQL leaves a granted role inactive otherwise.',
-            risk: 'low',
-          }
-    );
+  if (!mysqlFamily || !isUser) return out;
+  // The account exactly as the CREATE USER above it names it.
+  const account = mysqlAccount(name, request.host);
+  if (fam === 'mariadb') {
+    const others = roles.length > 1 ? '; the others are switched on with SET ROLE' : '';
+    out.push({
+      sql: `SET DEFAULT ROLE ${mysqlRoleRef(roles[0]!, undefined, dialect)} FOR ${account};`,
+      explanation: `Turns ${roles[0]} on at login. MariaDB keeps one default role${others}.`,
+      risk: 'low',
+    });
+  } else {
+    out.push({
+      sql: `SET DEFAULT ROLE ALL TO ${account};`,
+      explanation: 'Turns the granted roles on at login. MySQL leaves a granted role inactive otherwise.',
+      risk: 'low',
+    });
   }
   return out;
 }

@@ -18,6 +18,9 @@ export default tseslint.config(
       '**/dist/**',
       '**/dist-bin/**',
       '**/node_modules/**',
+      // Agent worktrees are whole checkouts of this repo (gitignored). Linting
+      // them reports every finding twice, against code that may be days old.
+      '.claude/**',
     ],
   },
 

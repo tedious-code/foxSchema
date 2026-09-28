@@ -98,6 +98,20 @@ npm run test:e2e:workflow
 `bash scripts/seed/reset-all.sh` (full `down -v` + up + reseed). Re-running against a
 mutated target accumulates corruption and produces false failures.
 
+`apps/e2e/scripts/run-all.mjs` is the sweep. Dialect-matrix suites (utilities,
+database-access, access-assistant) get a wall-clock budget of **120s × configured
+dialects** (minimum 600s). SQL Editor (twelve files) and revert-edge cases get
+**600s**; everything else **300s**. A killed suite is logged as `runner timeout`,
+not a mysterious empty FAIL.
+
+Lokee capture / revert / force-migrate and `POST /schema/db-access` share a
+**20 requests / minute** limiter. The suites run as one user, so History + Revert
++ revert-edges back-to-back used to toast “Snapshot failed” and wait 20–30s for a
+version that was never recorded. New clicks go through
+`apps/e2e/src/helpers/rate-limited.ts`: wait for **that** HTTP response, honour
+`Retry-After` on 429, fail immediately on any other non-2xx. Do not click those
+buttons with a bare Playwright `click` and then wait for the UI to look settled.
+
 ## Testing expectations
 
 - Engine logic (compare, generator) → unit tests in `packages/sql`; drivers/providers → `packages/db`.
@@ -118,9 +132,13 @@ Each dialect spans both packages: `sql-dialect.ts` / `settings.ts` under
 (settings, adapter, provider, sql-dialect). The exact contract — required vs.
 optional hooks, cross-cutting invariants (casing, index/FK naming, DROP ordering),
 and per-dialect gotchas — is documented in
-**packages/sql/src/providers/DIALECTS.md** (local, gitignored),
+[`packages/sql/src/providers/DIALECTS.md`](packages/sql/src/providers/DIALECTS.md)
+(tracked; allowlisted in `.gitignore`),
 with the step-by-step checklist in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 Read `DIALECTS.md` before touching any `*.sql-dialect.ts` or `sql-generator.module.ts`.
+Wire-compatible relatives (MariaDB/TiDB, Cockroach/Yugabyte/Redshift, Azure SQL)
+must go through `dialectFamily()` in `packages/sql/src/providers/provider-settings.ts`
+— do not re-list `d === 'mysql' || d === 'mariadb' || …`.
 
 ## Conventions worth knowing
 
@@ -129,6 +147,10 @@ A few rules that have bitten people before (the full set is in [CLAUDE.md](CLAUD
 - **The compare key is not a SQL identifier.** `obj.tableName` is the uppercased
   match key from `compare.module.ts` — use `source?.name` / `targetTable?.name` for
   real DDL (native casing; case-sensitive on MySQL).
+- **Use `dialectFamily()`, not a handwritten family chain.** MariaDB/TiDB follow
+  MySQL; CockroachDB/YugabyteDB/Redshift follow Postgres; Azure SQL follows SQL
+  Server (`packages/sql/src/providers/provider-settings.ts`). Monaco Format, access
+  SQL, and file-import batch sizes all go through it.
 - **The app's metadata-DB migrations are append-only** — never edit a shipped
   migration in `packages/server/src/database/schema.ts`; add a new one.
 - **Never store database passwords client-side or in history.** Saved connections

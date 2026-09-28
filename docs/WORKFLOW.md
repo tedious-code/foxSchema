@@ -36,6 +36,14 @@ The proxy is the only door the designer uses. Webhook and API-endpoint **ingress
 is never fronted** by a FoxSchema session — those routes authenticate their own
 callers (`apps/workflow-server/src/app.ts`).
 
+Saving a workflow runs the same checks the executor will: every pipe must be
+usable, and every edge `fromPort` must be a port the source pipe declares
+(`assertKnownFromPorts` in `packages/workflow-engine/src/runtime/ports.ts`,
+called from `apps/workflow-server/src/routes/workflows.ts`). An unknown port is
+refused at save (`pipeline p: edge split → out: unknown fromPort "eu"`), not
+discovered when a scheduled run fails. Pipes without static metadata skip the
+check (Goto).
+
 Without `WORKFLOW_ENGINE_TOKEN`, the engine API stays open (loopback dev only)
 and FoxSchema's internal resolve route returns 503, so saved connections cannot
 be used by workflows.

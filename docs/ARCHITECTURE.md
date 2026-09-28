@@ -6,10 +6,11 @@ Stable orientation for FoxSchema. For where a change belongs see
 ## What this is
 
 Database schema **diff & migration** tool. Compare a source schema against a target,
-generate dialect-native migration SQL, and deploy it. Primary target is DB2; Postgres,
-MySQL, SQL Server, Oracle, SQLite, MariaDB, Azure SQL, ClickHouse, and Redshift are also
-implemented. Distributions: **CLI** (`foxschema` via npm/Homebrew) and **Docker**
-(single amd64 image with Db2).
+generate dialect-native migration SQL, and deploy it. Fourteen SQL dialects:
+Postgres (and CockroachDB / YugabyteDB / Redshift), MySQL (and MariaDB / TiDB),
+SQL Server / Azure SQL, Oracle, Db2, SQLite, DuckDB, ClickHouse. MongoDB and Redis
+carry connection settings only. Distributions: **CLI** (`foxschema` via npm/Homebrew)
+and **Docker** (single amd64 image with Db2).
 
 ## Commands
 
@@ -144,7 +145,12 @@ core's.
 
 Each SQL dialect has three layers, split across `packages/sql/src/providers/`
 (dialect + settings) and `packages/db/src/providers/` (adapter + provider).
-`packages/sql` lists 14 SQL dialects (MongoDB and Redis carry settings only):
+Wire-compatible relatives share a family (`dialectFamily()` in
+`packages/sql/src/providers/provider-settings.ts`): MariaDB / TiDB → `mysql`;
+CockroachDB / YugabyteDB / Redshift → `postgres`; Azure SQL → `sqlserver`. Use
+that helper instead of listing dialects by hand (Format / Monaco language, access
+SQL, file-import batch size). `packages/sql` lists 14 SQL dialects (MongoDB and
+Redis carry settings only):
 
 | File | Interface | Registry |
 |------|-----------|----------|

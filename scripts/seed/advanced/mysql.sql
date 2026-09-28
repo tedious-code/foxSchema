@@ -61,7 +61,7 @@ CREATE TABLE t_all_types (
     c_text      TEXT,
     c_blob      BLOB,
     c_date      DATE,
-    c_ts        DATETIME
+    c_ts        DATETIME(6)
 );
 
 -- [B4] Explicit column collation (demo_d uses general_ci on name_ci)
@@ -165,7 +165,7 @@ CREATE TABLE t_all_types (
     c_varchar   VARCHAR(200),
     c_text      TEXT,
     c_date      DATE,
-    c_ts        DATETIME,
+    c_ts        DATETIME(6),
     c_legacy    VARCHAR(20)
 );
 

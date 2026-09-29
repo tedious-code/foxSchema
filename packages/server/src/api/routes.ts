@@ -167,7 +167,7 @@ export function createApiRoutes(connectionModule: ConnectionModule, connectionSt
   });
 
   // First-open email subscriber wizard lives on public /api/signup/* (see
-  // signup.routes.ts) so it works before login when AUTH_REQUIRED=true.
+  // signup.routes.ts) so it works before sign-in.
 
   // Non-secret info about where the app's metadata DB lives and how the
   // credential-encryption key is bound — for the "Database & Security" settings

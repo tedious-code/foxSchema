@@ -3,7 +3,7 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * Admin APIs: list/assign users roles, activate/deactivate, set passwords,
+ * Admin APIs: add users, assign roles, activate/deactivate, set passwords,
  * configure role permission matrices.
  */
 import type { FastifyReply } from 'fastify';
@@ -24,6 +24,37 @@ export function createAdminRoutes(rbac = new RbacModule(), auth = new AuthModule
     requirePermissions('admin.users'),
     async (_req: AuthedRequest, res: FastifyReply) => {
       res.send({ users: await rbac.listUsers() });
+    }
+  );
+
+  /**
+   * Add an account. The only way a second person gets in: self-registration
+   * is closed, and SSO signs in existing accounts only.
+   */
+  router.post(
+    '/users',
+    requirePermissions('admin.users'),
+    async (req: AuthedRequest, res: FastifyReply) => {
+      const { email, password, role = 'viewer' } = (req.body ?? {}) as {
+        email?: unknown;
+        password?: unknown;
+        role?: unknown;
+      };
+      if (typeof email !== 'string' || typeof password !== 'string') {
+        sendError(res, 'invalid_input', 'email and password are required.');
+        return;
+      }
+      if (!isAppRole(role)) {
+        sendError(res, 'invalid_input', `role must be one of: ${APP_ROLES.join(', ')}`);
+        return;
+      }
+      try {
+        const user = await auth.createUser(email, password, role);
+        res.send({ user });
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : 'Could not add the account';
+        sendError(res, msg.includes('already exists') ? 'conflict' : 'invalid_input', msg);
+      }
     }
   );
 

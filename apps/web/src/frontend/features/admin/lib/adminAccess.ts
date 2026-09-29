@@ -39,16 +39,9 @@ export type ControlLock = { disabled: boolean; reason?: string };
 
 export function userRoleSelectLock(
   user: AdminUserLike,
-  opts: { busy?: boolean; localSingleUser?: boolean; users: readonly AdminUserLike[] }
+  opts: { busy?: boolean; users: readonly AdminUserLike[] }
 ): ControlLock {
   if (opts.busy) return { disabled: true };
-  if (opts.localSingleUser) {
-    return {
-      disabled: true,
-      reason:
-        'Single-user mode keeps this account as admin. Enable multi-user login to change roles.',
-    };
-  }
   if (isActiveAdmin(user) && activeAdminCount(opts.users) <= 1) {
     return { disabled: true, reason: 'Cannot change the last active admin’s role' };
   }
@@ -60,17 +53,10 @@ export function userActiveCheckboxLock(
   opts: {
     busy?: boolean;
     meId?: string;
-    localSingleUser?: boolean;
     users: readonly AdminUserLike[];
   }
 ): ControlLock {
   if (opts.busy) return { disabled: true };
-  if (opts.localSingleUser) {
-    return {
-      disabled: true,
-      reason: 'Single-user mode cannot deactivate this account.',
-    };
-  }
   if (user.id === opts.meId) {
     return { disabled: true, reason: 'You cannot deactivate your own account' };
   }

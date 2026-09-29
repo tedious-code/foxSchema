@@ -35,7 +35,6 @@ export function ensureUiEnv(): { source: 'keychain' | 'env' | 'file' | 'generate
     if (!process.env.APP_ENCRYPTION_KEY && process.env.FOXSCHEMA_KEY) {
       process.env.APP_ENCRYPTION_KEY = process.env.FOXSCHEMA_KEY;
     }
-    process.env.AUTH_REQUIRED = 'false';
     process.env.EDITION = process.env.EDITION || 'community';
     return { source: process.env.FOXSCHEMA_KEY ? 'env' : 'keychain' };
   }
@@ -45,7 +44,6 @@ export function ensureUiEnv(): { source: 'keychain' | 'env' | 'file' | 'generate
     const dek = getDek(c.email);
     if (dek) {
       applyEnv();
-      process.env.AUTH_REQUIRED = 'false';
       return { source: 'keychain' };
     }
   }
@@ -64,7 +62,6 @@ export function ensureUiEnv(): { source: 'keychain' | 'env' | 'file' | 'generate
   const dbPath = c.dbPath || DEFAULT_DB_PATH;
   mkdirSync(dirname(dbPath), { recursive: true });
   process.env.APP_DB_PATH = dbPath;
-  process.env.AUTH_REQUIRED = 'false';
   process.env.EDITION = process.env.EDITION || 'community';
   process.env.LOCAL_SINGLE_USER = 'true';
 

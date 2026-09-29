@@ -24,7 +24,6 @@ function seedRole(role: 'viewer' | 'editor' | 'owner') {
       permissions: [...DEFAULT_ROLE_PERMISSIONS[role]],
     },
     status: 'ready',
-    localSingleUser: false,
     error: null,
     busy: false,
     refreshMe: vi.fn(async () => {}),

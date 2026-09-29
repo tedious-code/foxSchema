@@ -14,17 +14,23 @@ foxschema shortcut
 
 Maintainers: **[PUBLISH.md](PUBLISH.md)**.
 
-### Multi-user login + RBAC
+### Sign-in + RBAC
 
-For team installs, require login and enable roles (`admin` / `editor` / `viewer`):
+Every install requires sign-in with an email and password — Docker, `fox open`
+and the desktop app alike. Roles are `admin` / `editor` / `owner` / `viewer`.
 
-```bash
-LOCAL_SINGLE_USER=false
-# AUTH_REQUIRED defaults to true when LOCAL_SINGLE_USER=false
-```
-
-- First UI open can still show the **email subscriber wizard** (public; before login).
-- First registered account becomes **admin**; later signups default to **viewer**.
+- **First run** shows a setup screen that creates the administrator account. On
+  an install that was used before sign-in was required, setup *claims* the
+  existing local account (email pre-filled from `fox setup` when bound), so
+  saved connections and history carry over.
+- **Setup from another machine** (a server, a container) asks for a one-time
+  **setup code**, printed in the Fox server log when someone opens the setup
+  screen remotely. From the machine itself no code is needed. Behind a reverse
+  proxy every visitor counts as remote.
+- **No self-registration.** Admins add people under **Profile → Access control →
+  Add user**, with a starting password to hand over. SSO signs in existing
+  accounts only.
+- First UI open can still show the **email subscriber wizard** (public; before sign-in).
 - Admins configure role permissions and assign users under **Profile → Access control**.
 - Permissions cover Schema Sync (browse / compare / migrate), SQL Editor (sidebar, variables, writes, Data grid insert/update/delete, code cells), Utilities, Secrets, Access, and Workflow (`workflow.access` / `design` / `run` / `admin`).
 - **Database Access** catalog (`POST /schema/db-access`) is an OR gate: **Use utilities** *or* any Access-workspace permission (`access.access`, Users, builder, diff, inspector, report) may load it. GRANT / REVOKE still needs **Grant privileges**.
@@ -39,7 +45,7 @@ Db2) that serves both the UI and the API on one configurable port (default **321
 - [The encryption key](#the-encryption-key)
 - [Choosing a port](#choosing-a-port)
 - [Where app data lives](#where-app-data-lives)
-- [Access: single-user vs. multi-user + SSO](#access-single-user-vs-multi-user--sso)
+- [Access: sign-in + SSO](#access-sign-in--sso)
 - [Cloud platforms](#cloud-platforms)
 - [Database drivers](#database-drivers)
 - [Building the image](#building-the-image)
@@ -59,7 +65,8 @@ docker run -d --name foxschema \
 
 Open http://localhost:3210
 
-Defaults baked into the image: single-user mode (no login), SQLite metadata on
+Defaults baked into the image: sign-in required (first open creates the admin —
+read the setup code from `docker logs`), SQLite metadata on
 `/data`, port `3210`, **Db2 client included**. Image is **linux/amd64** only
 (`ibm_db` has no linux/arm64 build). Keep the same volume across upgrades so saved
 connections and the encryption key survive.
@@ -94,8 +101,7 @@ docker compose -f docker-compose.app.yml up -d
 | `APP_DB_PATH` | `/data/foxschema.db` | SQLite file location (when `APP_DB_ENGINE=sqlite`). |
 | `APP_DB_URL` | — | Connection URL for the metadata store when engine is `postgres`/`mysql`. |
 | `APP_KEY_SCHEME` | `v1` | `v1` = key used directly. `v2` = key bound to `APP_USER_EMAIL` (anti-copy); leave `v1` for stateless servers. |
-| `LOCAL_SINGLE_USER` | `true` | `true` = no login (open, single user). `false` = real accounts. |
-| `AUTH_REQUIRED` | see note | When `LOCAL_SINGLE_USER=false`, defaults to **true** (login required). Set `AUTH_REQUIRED=false` only if you intentionally want open API access. |
+| `LOCAL_SINGLE_USER` | `true` | Whether this is a personal install (`true`) or a shared server (`false`). Sign-in is required either way; this only decides machine-level actions (installing drivers, self-update, changing the metadata DB, host cloud credentials), which a shared server refuses. |
 | `SIGNUP_WEBHOOK_URL` | — | Optional. First-open email subscriber wizard posts here (WordPress `/foxschema/v1/signup`). Without it, subscribe still dismisses the wizard locally. |
 | `SIGNUP_WEBHOOK_SECRET` | — | Optional shared secret sent as `X-Foxschema-Signup-Secret`. |
 | `UPDATE_FEED_URL` | npm `foxschema/latest` | Version check for in-app update toasts. Default is the npm registry. The “What’s new” link opens the matching GitHub Release page. Set `off` to disable. |
@@ -160,9 +166,10 @@ otherwise subscribe still dismisses locally.
 The upgrade migration marks the wizard as already shown, so people who already
 use Fox are not interrupted. Only greenfield metadata DBs see the prompt.
 
-**RBAC upgrade:** existing `users` rows get `app_role = admin`. Default
-`LOCAL_SINGLE_USER=true` still means no login. Switching later to
-`LOCAL_SINGLE_USER=false` keeps those admins; new registrations become viewers.
+**Sign-in upgrade:** installs that ran without sign-in open on the setup screen,
+which claims the existing local account — nothing is lost. Deployments that
+already ran with `LOCAL_SINGLE_USER=false` keep their accounts and passwords and
+never show setup; their local account cannot be claimed.
 
 **Query files / SQL Editor:** browser localStorage (`foxschema-sql-editor`) and
 saved credentials keep working. New **Utilities → Query files** workspaces appear
@@ -222,18 +229,18 @@ databases you compare) defaults to a SQLite file on the **`/data` volume**.
 
   Then you don't need the `/data` volume at all.
 
-## Access: single-user vs. multi-user + SSO
+## Access: sign-in + SSO
 
-**Default is open single-user** (`LOCAL_SINGLE_USER=true`, no login). This is fine for
-local use or a trusted network, **but do not expose it directly to the public internet
-— anyone who can reach the URL gets full access.** Put it behind a reverse proxy with
-its own authentication, a VPN, or your platform's access controls.
+**Every install requires sign-in.** Until the first admin exists the server is
+in setup, and anyone who completes setup owns it — which is why setup from
+another machine needs the one-time code from the server log. Complete setup
+before exposing a new deployment, and still keep internet-facing installs behind
+TLS and, ideally, a VPN or your platform's access controls.
 
-For a public deployment, enable real accounts + SSO:
+For a shared deployment, declare it and add SSO if you use one:
 
 ```bash
 LOCAL_SINGLE_USER=false
-AUTH_REQUIRED=true
 SSO_REDIRECT_BASE=https://fox.example.com     # your public URL
 
 # Enable one or more providers (both ID and SECRET required per provider):
@@ -247,6 +254,7 @@ SSO_MICROSOFT_TENANT=common
 ```
 
 Set each provider's OAuth redirect/callback to `${SSO_REDIRECT_BASE}/api/auth/sso/<provider>/callback`.
+SSO proves who someone is; an admin still has to add their account first.
 
 **App Secrets / cloud credentials on multi-user hosts:** with `LOCAL_SINGLE_USER=false`,
 resolving AWS/GCP/Azure secrets requires a saved credential under **Credentials → Cloud

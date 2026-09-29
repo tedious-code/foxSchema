@@ -9,6 +9,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { DEFAULT_ROLE_PERMISSIONS, PERMISSION_META } from '@foxschema/shared';
 import { useAuthStore } from '@/app/store/authStore';
 
+const apiAdminCreateUser = vi.fn();
 const apiAdminListUsers = vi.fn();
 const apiAdminRolePermissions = vi.fn();
 const apiAdminSetRolePermissions = vi.fn();
@@ -17,6 +18,7 @@ const apiAdminSetUserPassword = vi.fn();
 const apiAdminSetUserRole = vi.fn();
 
 vi.mock('@/shared/api/authApi', () => ({
+  apiAdminCreateUser: (...args: unknown[]) => apiAdminCreateUser(...args),
   apiAdminListUsers: (...args: unknown[]) => apiAdminListUsers(...args),
   apiAdminRolePermissions: (...args: unknown[]) => apiAdminRolePermissions(...args),
   apiAdminSetRolePermissions: (...args: unknown[]) => apiAdminSetRolePermissions(...args),
@@ -37,6 +39,7 @@ const localUser = {
 };
 
 beforeEach(() => {
+  apiAdminCreateUser.mockReset();
   apiAdminListUsers.mockReset();
   apiAdminRolePermissions.mockReset();
   apiAdminSetRolePermissions.mockReset();
@@ -67,7 +70,6 @@ beforeEach(() => {
       permissions: [],
     },
     status: 'ready',
-    localSingleUser: true,
     error: null,
     busy: false,
     refreshMe: vi.fn(async () => {}),
@@ -75,7 +77,7 @@ beforeEach(() => {
 });
 
 describe('AdminAccessPanel', () => {
-  it('locks role and Active for the local single-user admin', async () => {
+  it('locks role and Active for the only admin, and for your own account', async () => {
     render(<AdminAccessPanel open onClose={() => undefined} />);
 
     await waitFor(() => {
@@ -85,13 +87,29 @@ describe('AdminAccessPanel', () => {
     expect(screen.getByTestId('admin-tab-users').textContent).toMatch(/app users/i);
     expect(screen.getByTestId('admin-tab-roles').textContent).toMatch(/app roles/i);
     expect(screen.getByTestId('admin-tab-users-roles').textContent).toMatch(/users and roles/i);
-    expect(screen.getByTestId('admin-single-user-hint').textContent).toMatch(/single-user/i);
     expect((screen.getByTestId(`admin-user-role-${localUser.id}`) as HTMLSelectElement).disabled).toBe(
       true
     );
     expect((screen.getByTestId(`admin-active-${localUser.id}`) as HTMLInputElement).disabled).toBe(
       true
     );
+  });
+
+  it('adds an account, since nobody can register themselves', async () => {
+    apiAdminCreateUser.mockResolvedValue(undefined);
+    render(<AdminAccessPanel open onClose={() => undefined} />);
+    await waitFor(() => expect(screen.getByTestId('admin-add-user')).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText(/add user/i), { target: { value: 'Teammate@Example.com' } });
+    fireEvent.change(screen.getByLabelText(/starting password/i), { target: { value: 'teammate-pass' } });
+    fireEvent.change(screen.getByLabelText(/^role$/i), { target: { value: 'editor' } });
+    fireEvent.submit(screen.getByTestId('admin-add-user'));
+
+    await waitFor(() =>
+      expect(apiAdminCreateUser).toHaveBeenCalledWith('Teammate@Example.com', 'teammate-pass', 'editor')
+    );
+    // The list is read again so the new account appears.
+    await waitFor(() => expect(apiAdminListUsers).toHaveBeenCalledTimes(2));
   });
 
   it('keeps Save visible and persists checkbox edits for a non-admin role', async () => {
@@ -201,7 +219,6 @@ describe('AdminAccessPanel', () => {
         role: 'viewer',
         permissions: [...DEFAULT_ROLE_PERMISSIONS.viewer],
       },
-      localSingleUser: false,
     });
     render(<AdminAccessPanel open onClose={() => undefined} />);
     expect(screen.getByTestId('admin-access-panel')).toBeTruthy();
@@ -220,7 +237,6 @@ describe('AdminAccessPanel', () => {
         role: 'editor',
         permissions: [...DEFAULT_ROLE_PERMISSIONS.editor],
       },
-      localSingleUser: false,
     });
     render(<AdminAccessPanel open onClose={() => undefined} />);
     await waitFor(() => expect(screen.getByTestId('admin-tab-users-roles')).toBeTruthy());
@@ -240,7 +256,6 @@ describe('AdminAccessPanel', () => {
         role: 'owner',
         permissions: [...DEFAULT_ROLE_PERMISSIONS.owner, 'admin.roles'],
       },
-      localSingleUser: false,
     });
     render(<AdminAccessPanel open onClose={() => undefined} />);
     await waitFor(() => expect(screen.getByTestId('admin-tab-roles')).toBeTruthy());
@@ -258,7 +273,6 @@ describe('AdminAccessPanel', () => {
       permissions: [...DEFAULT_ROLE_PERMISSIONS.editor],
     };
     apiAdminListUsers.mockResolvedValue({ users: [localUser, editorUser] });
-    useAuthStore.setState({ localSingleUser: false });
 
     render(<AdminAccessPanel open onClose={() => undefined} />);
 

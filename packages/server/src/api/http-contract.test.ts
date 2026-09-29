@@ -32,6 +32,10 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
+
+// Its own metadata DB. It used to fall through to the developer's dev
+// database and write preferences and signup state into it.
+process.env.APP_DB_PATH = ':memory:';
 import { isApiErrorBody } from '@foxschema/shared';
 
 interface RouteExpectation {
@@ -53,6 +57,7 @@ const ROUTES: RouteExpectation[] = [
   { method: 'GET', path: '/api/admin/role-permissions', status: 200 },
   { method: 'PUT', path: '/api/admin/role-permissions/:role', status: 400 },
   { method: 'GET', path: '/api/admin/users', status: 200 },
+  { method: 'POST', path: '/api/admin/users', status: 400 },
   { method: 'PUT', path: '/api/admin/users/:id/active', status: 400 },
   { method: 'PUT', path: '/api/admin/users/:id/password', status: 400 },
   { method: 'PUT', path: '/api/admin/users/:id/role', status: 400 },
@@ -69,7 +74,9 @@ const ROUTES: RouteExpectation[] = [
   { method: 'POST', path: '/api/auth/login', status: 401 },
   { method: 'POST', path: '/api/auth/logout', status: 200 },
   { method: 'GET', path: '/api/auth/me', status: 200 },
-  { method: 'POST', path: '/api/auth/register', status: 400 },
+  { method: 'POST', path: '/api/auth/register', status: 403 },
+  { method: 'GET', path: '/api/auth/setup', status: 200 },
+  { method: 'POST', path: '/api/auth/setup', status: 409 },
   { method: 'GET', path: '/api/auth/sso/:provider/callback', status: 302 },
   { method: 'GET', path: '/api/auth/sso/:provider/start', status: 404 },
   { method: 'GET', path: '/api/auth/sso/providers', status: 200 },
@@ -134,6 +141,20 @@ const ROUTES: RouteExpectation[] = [
 
 const KEY = '0'.repeat(64);
 
+/**
+ * Routes that answer without a session. Everything else must refuse one:
+ * every install signs in, so a route missing its guard is a hole.
+ */
+const PUBLIC = [
+  /^\/api\/health$/,
+  /^\/api\/config$/,
+  /^\/api\/auth\//,
+  /^\/api\/signup/,
+];
+
+/** The session the probes run as: the admin first-run setup creates. */
+let sessionCookie = '';
+
 function url(path: string): string {
   return path.replace(/:(\w+)/g, '00000000-0000-0000-0000-000000000000');
 }
@@ -153,12 +174,18 @@ interface Probe {
   text: string;
 }
 
-async function probe(port: number, route: RouteExpectation): Promise<Probe> {
+async function probe(port: number, route: RouteExpectation, withSession = true): Promise<Probe> {
   const hasBody = ['POST', 'PUT', 'PATCH'].includes(route.method);
+  // Auth routes run without the session: logout would otherwise end it for
+  // every probe after it.
+  const headers: Record<string, string> = {};
+  if (hasBody) headers['content-type'] = 'application/json';
+  if (withSession && !route.path.startsWith('/api/auth/')) headers.cookie = sessionCookie;
   const res = await fetch(`http://127.0.0.1:${port}${url(route.path)}`, {
     method: route.method,
     redirect: 'manual',
-    ...(hasBody ? { headers: { 'content-type': 'application/json' }, body: '{}' } : {}),
+    headers,
+    ...(hasBody ? { body: '{}' } : {}),
   });
   const text = await res.text();
   let body: unknown = null;
@@ -175,9 +202,16 @@ describe('HTTP contract', () => {
     let stop: () => Promise<void>;
 
     beforeAll(async () => {
-      process.env.LOCAL_SINGLE_USER = 'true';
       process.env.APP_ENCRYPTION_KEY ||= KEY;
       ({ port, stop } = await startFastify());
+      // First-run setup from this machine (no code needed) creates the admin.
+      const res = await fetch(`http://127.0.0.1:${port}/api/auth/setup`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: 'contract-admin@example.com', password: 'contract-pass-1' }),
+      });
+      expect(res.status, await res.clone().text()).toBe(200);
+      sessionCookie = (res.headers.get('set-cookie') ?? '').split(';')[0]!;
     }, 120_000);
 
     afterAll(async () => {
@@ -191,7 +225,10 @@ describe('HTTP contract', () => {
       //
       // 80 -> 81: POST /api/schema/table-insight, behind dbaUtilityLimiter and
       // requirePermissions('editor.run') because it powers Data Peek.
-      expect(ROUTES.length).toBe(81);
+      //
+      // 81 -> 84: POST /api/admin/users and GET/POST /api/auth/setup, when
+      // sign-in became mandatory and self-registration closed.
+      expect(ROUTES.length).toBe(84);
       expect(new Set(ROUTES.map((r) => `${r.method} ${r.path}`)).size).toBe(ROUTES.length);
     });
 
@@ -230,6 +267,20 @@ describe('HTTP contract', () => {
             `${key} must answer with the shared error contract { ok, error, code }`
           ).toBe(true);
         }
+      },
+      30_000
+    );
+
+    it.each(
+      ROUTES.filter((r) => !PUBLIC.some((p) => p.test(r.path))).map(
+        (r) => [`${r.method} ${r.path}`, r] as const
+      )
+    )(
+      '%s refuses a request with no session',
+      async (key, route) => {
+        const { status, body } = await probe(port, route, false);
+        expect(status, `${key} answered ${status} without a session`).toBe(401);
+        expect(isApiErrorBody(body)).toBe(true);
       },
       30_000
     );

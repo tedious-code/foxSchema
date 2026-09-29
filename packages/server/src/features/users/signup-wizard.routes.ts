@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Public first-open email subscriber wizard (no login required).
- * Mounted before authGuard so it still appears when AUTH_REQUIRED=true.
+ * Mounted before authGuard so it still appears before sign-in.
  */
 import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';

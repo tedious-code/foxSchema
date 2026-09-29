@@ -13,7 +13,7 @@ const store = new CloudProviderCredentialsStore();
 let alice: string;
 
 beforeAll(async () => {
-  alice = (await auth.register('alice-cloud-creds@example.com', 'password123')).user.id;
+  alice = (await auth.createUser('alice-cloud-creds@example.com', 'password123', 'viewer')).id;
 });
 
 describe('CloudProviderCredentialsStore', () => {

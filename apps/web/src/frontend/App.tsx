@@ -232,7 +232,7 @@ const App: React.FC = () => {
       </div>
     );
   }
-  if (status === 'anon') return <AuthPage />;
+  if (status === 'anon' || status === 'setup') return <AuthPage />;
   if (status === 'onboarding') return <OnboardingWizard />;
   return <Workspace />;
 };

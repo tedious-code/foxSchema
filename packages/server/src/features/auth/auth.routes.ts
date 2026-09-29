@@ -9,6 +9,9 @@ import type { AppRequest, AuthedRequest, NextFunction } from '../../platform/htt
 import { Router } from '../../platform/http/router';
 import { AuthModule, SESSION_COOKIE, SESSION_MAX_AGE_MS, type AuthUser } from '../auth/auth.service';
 import { sendError } from '../../platform/http/respond';
+import { rateLimit } from '../../platform/guards/rate-limit';
+import { getLogger } from '../../platform/logger/logger';
+import { isDirectLocalRequest, resetSetupCode, setupCode, setupCodeMatches } from './setup-code';
 
 export type { AuthedRequest };
 
@@ -47,18 +50,49 @@ export function setSessionCookie(res: FastifyReply, token: string): void {
 export function createAuthRoutes(auth: AuthModule): Router {
   const router = Router();
 
-  router.post('/register', async (req: AppRequest, res: FastifyReply) => {
-    const { email, password } = req.body as { email: string; password: string };
+  // Sign-in is the only way in, so it is what gets guessed at. Per address,
+  // before any account exists to charge.
+  const signInLimiter = rateLimit({ name: 'sign-in', windowMs: 15 * 60 * 1000, max: 20 });
+
+  // No self-registration: an admin adds accounts (POST /api/admin/users).
+  router.post('/register', (_req: AppRequest, res: FastifyReply) => {
+    sendError(res, 'forbidden', 'Accounts are created by an administrator. Ask yours to add you.');
+  });
+
+  /**
+   * First-run setup state. Says whether setup is still open and whether this
+   * caller will need the setup code, so the sign-in screen can ask for it.
+   */
+  router.get('/setup', async (req: AppRequest, res: FastifyReply) => {
+    const state = await auth.setupState();
+    const codeRequired = state.setupRequired && !isDirectLocalRequest(req);
+    if (codeRequired) announceSetupCode();
+    res.send({ ...state, setupCodeRequired: codeRequired });
+  });
+
+  router.post('/setup', signInLimiter, async (req: AppRequest, res: FastifyReply) => {
+    const { email, password, code } = (req.body ?? {}) as { email?: string; password?: string; code?: string };
+    const state = await auth.setupState();
+    if (!state.setupRequired) {
+      sendError(res, 'conflict', 'Setup is already complete. Sign in instead.');
+      return;
+    }
+    if (!isDirectLocalRequest(req) && !setupCodeMatches(code)) {
+      announceSetupCode();
+      sendError(res, 'forbidden', 'Enter the setup code printed in the Fox server log.');
+      return;
+    }
     try {
-      const { user, token } = await auth.register(email, password);
+      const { user, token } = await auth.completeSetup(email ?? '', password ?? '');
+      resetSetupCode();
       setSessionCookie(res, token);
       res.send({ user });
     } catch (error: unknown) {
-      sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Registration failed');
+      sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Setup failed');
     }
   });
 
-  router.post('/login', async (req: AppRequest, res: FastifyReply) => {
+  router.post('/login', signInLimiter, async (req: AppRequest, res: FastifyReply) => {
     const { email, password } = req.body as { email: string; password: string };
     try {
       const { user, token } = await auth.login(email, password);
@@ -81,15 +115,9 @@ export function createAuthRoutes(auth: AuthModule): Router {
       res.send({ user });
       return;
     }
-    // Local single-user installs have no login cookie — return the singleton
-    // admin so SPA boot does not 401 (which the browser logs as a console error
-    // and breaks e2e "no SEVERE console errors" checks).
-    if (process.env.LOCAL_SINGLE_USER !== 'false') {
-      const local = await auth.ensureLocalUser();
-      res.send({ user: local });
-      return;
-    }
-    sendError(res, 'unauthenticated', 'Not authenticated');
+    // Nobody signed in is an answer, not an error: the app asks this on every
+    // boot, and a 401 here is logged by the browser as a failed request.
+    res.send({ user: null });
   });
 
   return router;
@@ -112,18 +140,14 @@ export function authGuard(auth: AuthModule) {
   };
 }
 
-/**
- * Local single-user guard: skips cookies/login and attaches the singleton
- * local user as admin so per-user routes work without an auth flow.
- */
-export function localUserGuard(auth: AuthModule) {
-  return async (req: AuthedRequest, _res: FastifyReply, next: NextFunction) => {
-    try {
-      const user = await auth.ensureLocalUser();
-      attachAuthUser(user, req);
-      next();
-    } catch (err) {
-      next(err);
-    }
-  };
+let announced = false;
+
+/** Print the setup code to the server log, once, when someone may need it. */
+function announceSetupCode(): void {
+  if (announced) return;
+  announced = true;
+  getLogger().warn(
+    `First-run setup: enter code ${setupCode()} on the sign-in screen to create the admin account ` +
+      '(only needed when setting up from another machine).'
+  );
 }

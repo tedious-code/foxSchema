@@ -7,37 +7,31 @@ import { create } from 'zustand';
 import {
   apiMe,
   apiLogin,
-  apiRegister,
   apiLogout,
   apiPutPreferences,
-  apiAppConfig,
+  apiSetup,
+  apiSetupState,
   type AuthUser,
+  type SetupState,
   type UserPreferences,
 } from '@/shared/api/authApi';
 import type { Permission } from '@/shared/lib/permissions';
 import { userCan } from '@/shared/lib/permissions';
 
-type AuthStatus = 'loading' | 'anon' | 'onboarding' | 'ready';
-
-const LOCAL_USER: AuthUser = {
-  id: 'local',
-  email: 'local@foxschema.app',
-  onboardingCompleted: true,
-  role: 'admin',
-  permissions: [],
-};
+/** `setup`: no account can sign in yet, so the first admin must be created. */
+type AuthStatus = 'loading' | 'setup' | 'anon' | 'onboarding' | 'ready';
 
 interface AuthState {
   status: AuthStatus;
   user: AuthUser | null;
   error: string | null;
   busy: boolean;
-  /** True when the API runs in local single-user mode (no login UI). */
-  localSingleUser: boolean;
+  /** First-run setup details, while status is `setup`. */
+  setupState: SetupState | null;
 
   init: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  setup: (email: string, password: string, code?: string) => Promise<void>;
   logout: () => Promise<void>;
   completeOnboarding: (prefs: Partial<UserPreferences>) => Promise<void>;
   refreshMe: () => Promise<void>;
@@ -55,23 +49,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   error: null,
   busy: false,
-  localSingleUser: true,
+  setupState: null,
 
   can: (permission) => userCan(get().user, permission),
 
+  // Every install signs in. Until one account can, the first admin is set up.
   init: async () => {
-    const cfg = await apiAppConfig();
-    set({ localSingleUser: cfg.localSingleUser });
+    const setupState = await apiSetupState();
+    if (setupState.setupRequired) {
+      set({ setupState, user: null, status: 'setup' });
+      return;
+    }
     await get().refreshMe();
   },
 
-  /** Prefer the server-enriched user (real id + permissions) when available. */
   refreshMe: async () => {
     const user = await apiMe();
-    if (!user && get().localSingleUser) {
-      set({ user: LOCAL_USER, status: 'ready' });
-      return;
-    }
     set({ user, status: statusFor(user) });
   },
 
@@ -88,14 +81,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  register: async (email, password) => {
+  setup: async (email, password, code) => {
     set({ busy: true, error: null });
     try {
-      const user = await apiRegister(email, password);
-      set({ user, status: statusFor(user), busy: false });
+      const user = await apiSetup(email, password, code);
+      set({ user, setupState: null, status: statusFor(user), busy: false });
     } catch (e: unknown) {
       set({
-        error: e instanceof Error ? e.message : 'Registration failed',
+        error: e instanceof Error ? e.message : 'Setup failed',
         busy: false,
       });
     }

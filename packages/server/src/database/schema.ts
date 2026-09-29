@@ -452,6 +452,21 @@ const MIGRATIONS: Migration[] = [
       ];
     },
   },
+  {
+    id: 19,
+    name: 'users_password_set',
+    statements: (d) => {
+      const t = types(d);
+      return [
+        // Whether someone chose this account's password. Sign-in is now
+        // required everywhere; an install that ran without it holds one local
+        // account whose password nobody knows, and first-run setup lets its
+        // owner claim it. Existing rows start at 0 and become 1 on the first
+        // successful sign-in, so nothing here decides who may sign in.
+        `ALTER TABLE users ADD COLUMN password_set ${t.int} NOT NULL DEFAULT 0`,
+      ];
+    },
+  },
 ];
 
 const SIGNUP_WIZARD_SHOWN_KEY = 'signup.wizard_shown';

@@ -20,7 +20,7 @@ foxschema stop
 foxschema doctor
 
 # Development (starts both the Fastify API + Vite frontend)
-npm run dev                          # single-user mode (no login)
+npm run dev                          # sign-in required; first open runs setup
 npm run dev:auth                     # multi-user auth mode
 npm run dev:with-workflow            # plus workflow-server on :8081
 

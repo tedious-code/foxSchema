@@ -35,7 +35,6 @@ beforeEach(() => {
       permissions: [],
     },
     status: 'ready',
-    localSingleUser: true,
     error: null,
     busy: false,
   });
@@ -58,7 +57,6 @@ describe('ProfileMenu', () => {
         role: 'editor',
         permissions: [...DEFAULT_ROLE_PERMISSIONS.editor],
       },
-      localSingleUser: false,
     });
     render(<ProfileMenu />);
     fireEvent.click(screen.getByTestId('profile-menu-trigger'));

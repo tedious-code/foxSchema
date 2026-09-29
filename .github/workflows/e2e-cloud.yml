@@ -60,7 +60,12 @@ jobs:
           E2E_SQLITE_TARGET_DB=/tmp/foxschema-sqlite/demo_b.db
           E2E_SQLITE_TARGET_USER=sqlite
           E2E_SQLITE_TARGET_PASS=
+          E2E_APP_EMAIL=e2e-admin@foxschema.test
+          E2E_API_URL=http://127.0.0.1:3210
           EOF
+          # The suites sign in; on this fresh database they create the admin
+          # through first-run setup with a password made for this run.
+          echo "E2E_APP_PASSWORD=$(openssl rand -hex 16)" >> apps/e2e/.env
 
       - name: Start app (API + Vite)
         run: |

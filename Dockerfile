@@ -76,8 +76,7 @@ ENV NODE_ENV=production \
     APP_DB_ENGINE=sqlite \
     APP_DB_PATH=/data/foxschema.db \
     APP_KEY_SCHEME=v1 \
-    LOCAL_SINGLE_USER=true \
-    AUTH_REQUIRED=false
+    LOCAL_SINGLE_USER=true
 # APP_ENCRYPTION_KEY is optional for pull-and-run: entrypoint generates one into
 # /data/.app_encryption_key on first boot. Set -e APP_ENCRYPTION_KEY=… to override.
 

@@ -1,18 +1,18 @@
 {
   "name": "@foxschema/web",
   "private": true,
-  "version": "0.2.265",
+  "version": "0.2.267",
   "type": "module",
   "exports": {
     "./package.json": "./package.json"
   },
   "scripts": {
     "dev": "vite",
-    "dev:api": "cross-env AUTH_REQUIRED=true APP_ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000 tsx watch ../../packages/server/src/main.ts",
+    "dev:api": "cross-env APP_ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000 tsx watch ../../packages/server/src/main.ts",
     "dev:all": "concurrently -n api,web -c cyan,magenta \"npm run dev:api\" \"npm run dev\"",
     "dev:all:workflow": "concurrently -n api,web,workflow -c cyan,magenta,green \"npm run dev:api\" \"npm run dev\" \"npm -w @foxschema/workflow-server run dev\"",
-    "dev:auth": "cross-env AUTH_REQUIRED=true LOCAL_SINGLE_USER=false vite",
-    "dev:api:auth": "cross-env AUTH_REQUIRED=true LOCAL_SINGLE_USER=false APP_ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000 tsx watch ../../packages/server/src/main.ts",
+    "dev:auth": "cross-env LOCAL_SINGLE_USER=false vite",
+    "dev:api:auth": "cross-env LOCAL_SINGLE_USER=false APP_ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000 tsx watch ../../packages/server/src/main.ts",
     "dev:all:auth": "concurrently -n api,web -c cyan,magenta \"npm run dev:api:auth\" \"npm run dev:auth\"",
     "build": "tsc && vite build",
     "preview": "vite preview",

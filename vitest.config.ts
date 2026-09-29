@@ -1,6 +1,5 @@
 import { defaultExclude, defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
-import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
 const pkg = (p: string) => fileURLToPath(new URL(p, import.meta.url));
@@ -58,8 +57,14 @@ export default defineConfig({
           // Workflow file pipes are confined to FOXFLOW_FILES_DIR. The suites
           // build their fixtures under the OS temp dir, so that is the root
           // here; the confinement itself is tested with its own roots.
-          // eslint-disable-next-line security/detect-non-literal-fs-filename -- the OS temp dir
-          env: { FOXFLOW_FILES_DIR: realpathSync(tmpdir()) },
+          //
+          // `tmpdir()` as the suites spell it, not its real path. On macOS it
+          // is `/var/folders/…`, a symlink to `/private/var/folders/…`; with the
+          // resolved spelling as the root, every fixture path failed the
+          // lexical half of the containment check and 41 workflow tests failed
+          // on every Mac (CI runs Linux, where /tmp is not a link). The real-path
+          // half resolves both sides itself.
+          env: { FOXFLOW_FILES_DIR: tmpdir() },
           testTimeout: 15_000,
         },
       },

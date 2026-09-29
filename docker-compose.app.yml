@@ -34,7 +34,6 @@ services:
       APP_DB_URL: ${APP_DB_URL:-}
       APP_KEY_SCHEME: ${APP_KEY_SCHEME:-v1}
       LOCAL_SINGLE_USER: ${LOCAL_SINGLE_USER:-true}
-      AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
       NODE_ENV: production
     volumes:
       - fox_data:/data

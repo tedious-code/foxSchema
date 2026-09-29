@@ -40,7 +40,8 @@ export default tseslint.config(
   // does not run. Dead directives are the main config's job.
   { linterOptions: { reportUnusedDisableDirectives: 'off' } },
 
-  { ignores: ['**/dist/**', '**/dist-bin/**', '**/node_modules/**'] },
+  // `.claude/**`: agent worktrees are whole checkouts of this repo (gitignored).
+  { ignores: ['**/dist/**', '**/dist-bin/**', '**/node_modules/**', '.claude/**'] },
 
   {
     files: ['**/*.ts', '**/*.tsx', '**/*.mts', '**/*.mjs'],

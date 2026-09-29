@@ -24,7 +24,6 @@ export function applyEnv(): boolean {
     process.env.APP_DB_URL = c.dbUrl;
   }
   process.env.EDITION = process.env.EDITION || 'community';
-  process.env.AUTH_REQUIRED = 'false';
   return !!dek;
 }
 

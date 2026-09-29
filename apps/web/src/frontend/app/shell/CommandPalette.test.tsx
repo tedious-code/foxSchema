@@ -48,7 +48,6 @@ describe('CommandPalette', () => {
         permissions: [...DEFAULT_ROLE_PERMISSIONS.owner],
       },
       status: 'ready',
-      localSingleUser: true,
       error: null,
       busy: false,
       refreshMe: vi.fn(async () => {}),

@@ -37,7 +37,7 @@ Standard commands live in `CONTRIBUTING.md` and `package.json` scripts (`npm run
 ### Running the app
 - `npm run dev` runs the Fastify API (`:3210`) and Vite UI (`:5173`) together; open the
   UI at http://localhost:5173. API liveness: `GET http://localhost:3210/api/health`
-  → `{"ok":true}`. Default mode is single-user (no login). Workflow engine:
+  → `{"ok":true}`. Every install requires sign-in; first open runs admin setup. Workflow engine:
   `npm run dev:with-workflow` (needs `WORKFLOW_ENGINE_TOKEN` and
   `FOXFLOW_ENCRYPTION_KEY` — [docs/WORKFLOW.md](docs/WORKFLOW.md)).
 - Vite is configured with `server.host: true`, `server.strictPort: true`, and

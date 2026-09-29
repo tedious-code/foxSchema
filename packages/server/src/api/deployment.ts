@@ -15,7 +15,13 @@
  * module-load snapshot silently ignores them.
  */
 
-/** Default is single-user (no login). `LOCAL_SINGLE_USER=false` opts out. */
+/**
+ * A personal install (desktop app, `fox open`) rather than a shared server.
+ * `LOCAL_SINGLE_USER=false` declares a shared server.
+ *
+ * This no longer decides whether anyone signs in: every install does. It
+ * decides only which machine-level actions a signed-in user may take.
+ */
 export function isLocalSingleUser(): boolean {
   return process.env.LOCAL_SINGLE_USER !== 'false';
 }

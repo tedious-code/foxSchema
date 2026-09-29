@@ -1,11 +1,12 @@
 import { chromium, type Browser, type Page, type Locator } from 'playwright';
+import { signInBrowser } from './app-session.js';
 
 export const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:5173';
 
 // Track which Browser owns each Page so quitDriver can close both.
 const pageToBrowser = new Map<Page, Browser>();
 
-/** Launch a Chromium browser and return its first Page. Set HEADLESS=false to watch. */
+/** Launch a signed-in Chromium browser and return its first Page. Set HEADLESS=false to watch. */
 export async function buildDriver(): Promise<Page> {
   const headless = process.env.HEADLESS !== 'false';
   const browser = await chromium.launch({
@@ -18,6 +19,8 @@ export async function buildDriver(): Promise<Page> {
   const page = await browser.newPage();
   await page.setViewportSize({ width: 1440, height: 900 });
   pageToBrowser.set(page, browser);
+  // Every install requires sign-in; each suite's browser starts signed in.
+  await signInBrowser(page, BASE_URL);
   return page;
 }
 

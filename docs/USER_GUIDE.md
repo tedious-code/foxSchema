@@ -12,9 +12,11 @@ SQL to make one match the other. This guide is for **using** Fox Schema — no c
 - [Read the diff](#read-the-diff)
 - [Generate & apply a migration](#generate--apply-a-migration)
 - [SQL Editor](#sql-editor)
+- [Utilities](#utilities)
 - [Workflow](#workflow)
 - [Access control](#access-control)
-- [History](#history)
+- [Snapshots](#snapshots-schema-history)
+- [Applies](#applies-migration-runs)
 - [Troubleshooting](#troubleshooting)
 
 ## What Fox Schema is for
@@ -73,6 +75,11 @@ The first time you open the UI, Fox Schema may show a short **welcome wizard** a
 for your email so you can get product updates (new dialects, releases). It is optional —
 use **Skip for now** if you prefer. It only appears once per install.
 
+You land on **Home**: continue last compare / last query, **Snapshots**, **Utilities**,
+and saved connections (grouped by dialect). **⌘K** / **Ctrl+K** searches workspaces and
+recents. The left rail is **Compare**, **Editor**, **Utils**, **Access**, **Workflow**,
+**Snapshots**, then **Creds** and **Applies** at the bottom.
+
 Fox also sets up an **encryption key** that protects the database passwords you save.
 The CLI creates one under your user data directory; Docker auto-generates one on the
 `/data` volume (or use `APP_ENCRYPTION_KEY` in `.env`).
@@ -82,19 +89,28 @@ The CLI creates one under your user data directory; Docker auto-generates one on
 
 ## Connect a database
 
-1. Click **Add connection** (or the connection dropdown → new).
-2. Pick the **type** (PostgreSQL, MySQL, SQL Server, Oracle, Db2, …).
-3. Fill in host, port, database, username, and password. Optionally a schema.
+1. Click **Creds** on the left rail (or a connection chip → new).
+2. Pick the **type**. Saved credentials are **grouped by dialect**; search by name.
+   PostgreSQL, MySQL, MariaDB, SQL Server, Azure SQL, Oracle, Db2, SQLite, DuckDB,
+   ClickHouse, Redshift, CockroachDB, YugabyteDB, and TiDB are first-class SQL.
+   MongoDB and Redis appear in the list (settings only — no schema compare).
+3. Fill in host, port, database, username, and password. Schema is optional on
+   PostgreSQL (the form matches the engine). SQLite and DuckDB are **file paths**
+   — use **Browse…**; they have no password.
 4. **Test** the connection, then save it. Passwords are encrypted — they're stored
    safely and never shown back to your browser.
 
-Do this for both the database you're comparing **from** (source) and the one you're
-comparing **to** (target).
+Do this for both the database you're comparing **from** (Original) and the one you're
+comparing **to** (Target).
 
 ## Run a comparison
 
-1. Choose an **Original Server** connection and a **Target** connection.
-2. Click **Compare**.
+1. On the left rail, open **Compare**.
+2. Choose an **Original Server** connection and a **Target** connection.
+3. Click **Compare**.
+
+A **Same DB** warning appears only after **both** sides are picked and they name the
+same database and schema. Two empty chips are not “the same database”.
 
 Fox Schema reads both schemas and builds the diff. You can narrow what it looks at (tables
 only, views, functions, etc.) with the scope filter.
@@ -137,7 +153,7 @@ Use the **SQL Editor** to run ad-hoc queries and inspect data (separate from sch
 compare / migrate). It lives in the same local web UI you open with `foxschema`.
 
 1. Open Fox Schema (`foxschema` or the Desktop shortcut).
-2. In the top toolbar, click **SQL Editor** (next to Schema Sync).
+2. On the left rail, click **Editor** (next to **Compare**).
 3. Under **Destinations**, check one or more saved connections — the same SQL runs
    against every checked server (handy for comparing data across environments).
 4. Type SQL in the editor. Multiple statements are fine; use the **statement strip**
@@ -156,10 +172,17 @@ compare / migrate). It lives in the same local web UI you open with `foxschema`.
    **Skip trigger cols** (on by default) ignores audit fields such as `createdAt` /
    `updatedBy`. The destination grid shows a **Sync** column (on by default for all
    differing rows) so you can include or exclude individual rows before migrate.
+   On a **partial** page (not page 1, a next page exists, or the result was
+   truncated), rows that appear only on the other side stay **unresolved** — they
+   are not colored as missing/extra, because they may simply be on another page.
 
 7. **Data migrate (≤500 row ops)** — with Compare on, **Data migrate** appears.
    Rows match by the **Keys** you check (PK/unique columns are marked; you can pick
-   any shared column, e.g. compare by name only). **Sync all** re-checks every
+   any shared column, e.g. compare by name only — name Keys are fine for alignment
+   and **Add-only** migrate). **Edit** and **Delete** require the table’s unique
+   key (primary key, or a non-partial unique index) to be **in the SELECT and
+   checked** — otherwise a name column would UPDATE/DELETE every matching row on
+   the destination, including rows you never saw. **Sync all** re-checks every
    differing row without changing your Add / Edit / Delete choices. Migrate only runs
    when **both** grids show the **full** result on **page 1** (no next page) —
    otherwise “missing on this page” is not “missing from the table” and Delete could
@@ -188,34 +211,10 @@ Tips:
   **Edit table** shows each index’s fragmentation % for every dialect (physical or
   estimated probe; SQLite / DuckDB / ClickHouse / Redshift list indexes when no
   native % exists). Paste custom SELECT if the default fails, and use the wrench
-  to insert rebuild/reorg/optimize/REINDEX SQL when useful.
-- **Utilities → Index Management** (SQL Editor sidebar) — pick a credential, load
-  all indexes grouped by table, filter by table/index name or minimum
-  fragmentation %, fetch fragmentation in batch, then defragment selected indexes
-  or all filtered rows. In **Edit table**, the index form opens under the selected
-  index (no jump to a form at the bottom of the section).
-- **Utilities → Clone Table** — archive a huge table as `name_1` / next free
-  `name_N` (or a fixed starting number), then recreate an empty table with the
-  original name and columns so apps keep working. Toggle **Keep indexes** and
-  **Foreign keys (auto)** for the new table; Insert SQL or Apply. Inbound FKs
-  from other tables still point at the archive until you update them — then you
-  can drop history safely.
-- **Utilities → Query files** / **Files** sidebar — import **CSV/TSV**
-  (delimiter: comma, tab, semicolon, pipe, or custom), **JSON** (array or
-  NDJSON), or **fixed-width text** (column start/length offsets).
-  **Destination** choices:
-  - **New temp SQLite workspace** (default) — short-lived `Files: …`
-    credential; add more files later with **Add table to existing Files
-    workspace** so several tables share one temp DB.
-  - **Import into saved credential** — create a table on a checked server
-    (Postgres, MySQL, SQL Server, DB2, Oracle, DuckDB, etc.) using chunked
-    multi-row `INSERT` bulk loads.
-  Large pastes/files upload in **chunks** (disk-backed session). Open the
-  **Files** sidebar to list workspace tables, click one to re-select that DB
-  and load a sample SELECT, delete one workspace, or clear all. **Replace
-  previous file imports** (off by default) deletes earlier `Files:` workspaces
-  when you create a new one; **Replace table if it exists** applies when
-  adding to a workspace or credential. Temp DBs expire after about 24 hours.
+  to insert rebuild/reorg/optimize/REINDEX SQL when useful. The index form opens
+  under the selected index (no jump to a form at the bottom of the section).
+  Index Management, Clone Table, and Query files live in **Utils** — see
+  [Utilities](#utilities).
 - **Data peek** — two ways in:
   - **Schema:** hold **Cmd** (macOS) or **Ctrl** (Windows/Linux) and click a
     table, view or MQT to see its rows without writing a query.
@@ -399,12 +398,57 @@ read-write (the file is opened that way on purpose). **ClickHouse** grid row
 editing is blocked; other dialects that cannot apply a given write show a
 clear error on that connection’s result cell.
 
-Switch back to **Schema Sync** anytime to compare and migrate schemas.
+Switch back to **Compare** anytime to compare and migrate schemas.
+
+## Utilities
+
+Left rail **Utils** — a workspace of its own, not a SQL Editor sidebar. Pick one
+saved credential at the top, then a tool:
+
+**Maintenance**
+
+- **Index Management** — indexes grouped by table; filter by name or minimum
+  fragmentation %; fetch fragmentation in batch (`POST /schema/index-fragmentation-batch`);
+  defragment selected indexes or all filtered rows.
+- **Clone Table** — archive a huge table as `name_1` / next free `name_N` (or a
+  fixed starting number), then recreate an empty table with the original name and
+  columns so apps keep working. Toggle **Keep indexes** and **Foreign keys (auto)**
+  for the new table; Insert SQL or Apply. Inbound FKs from other tables still point
+  at the archive until you update them.
+
+**Insights** (estimated where the engine has no physical figure)
+
+- **Connection Pool**, **User Connections**, **System Info**, **Table & Index Size**.
+  DuckDB reports worker threads, buffer memory, and database-file blocks (no
+  per-table bytes — row counts are estimates). SQLite / DuckDB have no server pool
+  or multi-user sessions.
+
+**Access**
+
+- **DB users & grants** — same catalog as the Access workspace
+  (`POST /schema/db-access`). GRANT / REVOKE still needs **Grant privileges**.
+
+**Files**
+
+- **Query files** — import **CSV/TSV** (comma, tab, semicolon, pipe, or custom),
+  **JSON** (array or NDJSON), or **fixed-width text** (column start/length offsets).
+  **Destination** choices:
+  - **New temp SQLite workspace** (default) — short-lived `Files: …` credential;
+    add more files later so several tables share one temp DB.
+  - **Import into saved credential** — create a table on a saved server using
+    chunked multi-row `INSERT` bulk loads.
+  Large pastes/files upload in **chunks** (disk-backed session). List workspace
+  tables, click one to load a sample SELECT in the Editor, delete one workspace,
+  or clear all. **Replace previous file imports** (off by default) deletes earlier
+  `Files:` workspaces when you create a new one; **Replace table if it exists**
+  applies when adding to a workspace or credential. Temp DBs expire after about
+  24 hours. **Insert SQL** from Clone Table / the table blueprint writes into the
+  Editor tab even if the Editor is not on screen.
 
 ## Workflow
 
 Optional workspace for scheduled and triggered jobs (SQL, HTTP, files, email/SMS)
-beside Schema Sync and the SQL Editor. The designer lives in the Fox Schema UI;
+beside Compare and the SQL Editor. The designer lives in the Fox Schema UI;
 a **separate engine process** runs the jobs.
 
 Developer / ops runbook: [WORKFLOW.md](WORKFLOW.md). Env vars:
@@ -439,7 +483,7 @@ API (`POST /schema/db-access`):
 
 - **Access** workspace (needs any `access.*` tab permission, including
   **Open Access**).
-- **Utilities → Database Access** (needs **Use utilities**).
+- **Utils → DB users & grants** (needs **Use utilities**).
 
 Either family may load the catalog. Running GRANT / REVOKE still needs
 **Grant privileges** (`editor.grant`). SQLite / DuckDB have no GRANT catalog;
@@ -473,13 +517,60 @@ Granting:
   and TiDB it also emits `SET DEFAULT ROLE ALL`, and on MariaDB
   `SET DEFAULT ROLE`, because a granted role is otherwise inactive at login.
 
-## History
+## Snapshots (schema history)
 
-Every migration you apply is recorded — status, target, the exact script, the
-pre-migration snapshot, and per-object results. Open **History** to review or
-re-inspect past runs. No passwords are stored in history.
+Left rail **Snapshots**. This tracks versions of **one** database (not a second
+live connection). It is not the same list as **Applies** (migration runs) at the
+bottom of the rail.
+
+1. Pick a saved credential and **Take first snapshot** (or snapshot again after a
+   live change). Applying a Compare migration also records a version.
+2. The **graph** stays on screen while it reloads; use **Graph** to hide it.
+3. **Original** and **Target** work like Compare: Original is a version; Target is
+   the live database or another version. Changing the pickers does not hide the
+   graph.
+4. **Compare versions** is a preview. Nothing writes the live database until you
+   press **Update** / **Revert**.
+5. **Revert** always runs against the **live** database this history was captured
+   from, snapshots first, and **appends** a new version (it never rewrites the
+   version you picked). Tick objects, or **Select all**. Nothing ticked means
+   nothing runs. A plan that would destroy data needs an extra confirmation; a
+   **blocked** plan is refused. The button says **Update** when the plan only
+   adds (the database has fallen behind) and **Revert** when it rolls back.
+6. **Force migrate…** applies a stored version to a **different** database. It
+   picks its own version and target (not whatever the graph is showing). You must
+   confirm “this is not the history’s database”; if the plan destroys data you
+   also confirm that. Those two acknowledgements are separate — agreeing to data
+   loss is not agreeing to target another database.
+
+View / routine / trigger “sameness” uses the **same rules as Compare**
+(`normalizeDefinitionText` in `@foxschema/sql`): whitespace and a trailing `;`
+are formatting; keyword and identifier case is folded; this history’s schema
+qualifier is ignored (`app.orders` = `orders`); **string-literal case is kept**.
+The definition Lokee stores is still the captured text — revert builds DDL from
+it. After upgrading, the first capture of an existing history may record **one
+extra version** for objects whose hash changed under the new rule; later versions
+appear only for real changes.
+
+SQLite and DuckDB file credentials can be picked from a Browse dialog on the
+machine running Fox Schema.
+
+## Applies (migration runs)
+
+Bottom of the left rail, **Applies**. Every Schema Compare migration you apply is
+recorded — status, target, the exact script, the pre-migration snapshot, and
+per-object results. No passwords are stored. Data migrate has its own history in
+the Editor.
 
 ## Troubleshooting
+
+**UI looks disconnected / API returns 403 "This origin is not allowed".** In
+`npm run dev`, Vite binds every address and prints a **Network:** URL. Dev
+allows Origins on this machine's own literal IPs at ports **5173**, **5199**,
+**3210**, and **3211** — not an arbitrary hostname (DNS rebinding). Opening
+`http://<this-machine-ip>:5173` works; `http://evil.com:5173` does not. In
+production, UI and API share one origin; for a split hostname set
+`FOX_ALLOWED_ORIGINS`. See [DEPLOYMENT.md](DEPLOYMENT.md#origin-policy).
 
 **"Connection failed" / timeout.** Check host, port, and that the database accepts
 connections from where Fox Schema runs (in Docker, `localhost` means *inside the container* —

@@ -110,6 +110,7 @@ docker compose -f docker-compose.app.yml up -d
 | `ALLOW_HOST_CLOUD_CREDENTIALS` | off | When `true`, cloud secret resolve may use the host IAM/ADC chain without saved user credentials. **Keep off** on multi-user hosts. |
 | `SSO_*` | — | OAuth for Google / Microsoft / GitHub (see below). |
 | `NODE_ENV` | `production` | Set in the image; enforces that `APP_ENCRYPTION_KEY` is present. |
+| `FOX_ALLOWED_ORIGINS` | — | Comma-separated browser origins allowed to call the API with cookies. When set, it is the entire allowlist. See [Origin policy](#origin-policy). |
 
 > The app also reads `APP_USER_EMAIL` (only for the `v2` key scheme).
 > Update checks default to the npm `foxschema` registry feed (see below).
@@ -265,6 +266,27 @@ hostnames).
 
 **Always terminate TLS** (via your reverse proxy or platform) for any internet-facing
 deployment — Fox Schema handles database credentials.
+
+## Origin policy
+
+The API holds database credentials and can run migrations, so only named browser
+origins may call it with cookies (`packages/server/src/platform/guards/origin-policy.ts`).
+The allowlist is explicit, not “any localhost”.
+
+| Mode | Who may call |
+|------|----------------|
+| `FOX_ALLOWED_ORIGINS` set | **Only** those comma-separated origins (scheme + host + port). Wins over everything else. |
+| Production, unset | The origin this process is served from, plus same-origin `fetch` (`Origin` matching this request's host). Docker / `foxschema open` work without extra config. |
+| `npm run dev` | This machine's **literal** addresses (`localhost`, `127.0.0.1`, `[::1]`, and `os.networkInterfaces()` IPs) on ports **5173**, **5199**, **3210**, **3211**. Hostnames other than `localhost` are refused — DNS rebinding can point `evil.com` at 127.0.0.1, and Vite (`allowedHosts: true`) would serve it. |
+
+A missing `Origin` is allowed (curl, health checks). A refused Origin is **403**
+with `This origin is not allowed to call the Fox Schema API.` — that is why a
+LAN Vite URL used to look like a blank / disconnected UI.
+
+```bash
+# Split UI hostname in production
+FOX_ALLOWED_ORIGINS=https://fox.example.com,https://fox.example.com:443
+```
 
 ## Cloud platforms
 

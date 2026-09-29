@@ -25,7 +25,7 @@ npm install                       # installs the whole workspace
 docker compose up -d
 bash scripts/seed/seed-all.sh all # seed demo_a/demo_b schemas into each
 
-npm run dev                       # Fastify API + Vite UI (single-user mode)
+npm run dev                       # Fastify API + Vite UI (sign in; first open runs setup)
 ```
 
 `npm run dev` serves the UI on **http://localhost:5173** and the **Fastify** API

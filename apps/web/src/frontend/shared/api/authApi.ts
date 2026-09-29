@@ -6,6 +6,9 @@
 import { api, type RequestOptions } from './client';
 import type { AppRole, Permission, PermissionMeta } from '../lib/permissions';
 
+/** These routes predate the shared client and tolerate an empty reply; keep that. */
+const EMPTY_OK: RequestOptions = { allowEmpty: true };
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -22,20 +25,36 @@ export interface UserPreferences {
   onboardingCompleted: boolean;
 }
 
-export interface AppConfig {
-  localSingleUser: boolean;
+/**
+ * First-run setup state. Every install signs in; until one account can, the
+ * sign-in screen offers setup instead.
+ */
+export interface SetupState {
+  setupRequired: boolean;
+  /** The install's bound email; setup must use it. */
+  setupEmail: string | null;
+  /** This browser is not on the server's machine: setup needs the code from the server log. */
+  setupCodeRequired: boolean;
 }
 
-/** These routes predate the shared client and tolerate an empty reply; keep that. */
-const EMPTY_OK: RequestOptions = { allowEmpty: true };
+const NO_SETUP: SetupState = { setupRequired: false, setupEmail: null, setupCodeRequired: false };
 
-/** Public SPA boot config (login required?). */
-export async function apiAppConfig(): Promise<AppConfig> {
+export async function apiSetupState(): Promise<SetupState> {
   try {
-    return await api.get<AppConfig>('/config', EMPTY_OK);
+    return await api.get<SetupState>('/auth/setup', EMPTY_OK);
   } catch {
-    return { localSingleUser: true };
+    return NO_SETUP;
   }
+}
+
+/** Create (or claim) the first admin account and sign in as it. */
+export async function apiSetup(email: string, password: string, code?: string): Promise<AuthUser> {
+  const { user } = await api.post<{ user: AuthUser }>(
+    '/auth/setup',
+    { email, password, ...(code ? { code } : {}) },
+    EMPTY_OK
+  );
+  return user;
 }
 
 /** Current session, or null if not signed in. */
@@ -46,11 +65,6 @@ export async function apiMe(): Promise<AuthUser | null> {
   } catch {
     return null;
   }
-}
-
-export async function apiRegister(email: string, password: string): Promise<AuthUser> {
-  const { user } = await api.post<{ user: AuthUser }>('/auth/register', { email, password }, EMPTY_OK);
-  return user;
 }
 
 export async function apiLogin(email: string, password: string): Promise<AuthUser> {
@@ -83,6 +97,11 @@ export async function apiAdminListUsers(): Promise<{
   }>;
 }> {
   return api.get('/admin/users', EMPTY_OK);
+}
+
+/** Admin adds an account (there is no self-registration). */
+export async function apiAdminCreateUser(email: string, password: string, role: AppRole): Promise<void> {
+  await api.post('/admin/users', { email, password, role }, EMPTY_OK);
 }
 
 export async function apiAdminSetUserRole(userId: string, role: AppRole): Promise<void> {

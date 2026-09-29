@@ -11,7 +11,7 @@ const users = new UserModule();
 let userId: string;
 
 beforeAll(async () => {
-  userId = (await auth.register('pref@example.com', 'password123')).user.id;
+  userId = (await auth.createUser('pref@example.com', 'password123', 'viewer')).id;
 });
 
 describe('UserModule preferences', () => {

@@ -34,27 +34,22 @@ describe('permissionSetEqual', () => {
   });
 });
 
-describe('last-admin / single-user locks', () => {
+describe('last-admin and own-account locks', () => {
   it('counts only active admins', () => {
     expect(activeAdminCount([admin, editor, inactiveAdmin])).toBe(1);
     expect(activeAdminCount([admin, { ...admin, id: 'a2' }])).toBe(2);
   });
 
-  it('locks the local singleton role and Active checkbox', () => {
-    const role = userRoleSelectLock(admin, { localSingleUser: true, users: [admin] });
-    expect(role.disabled).toBe(true);
-    expect(role.reason).toMatch(/single-user/i);
-
+  it('never lets you deactivate your own account', () => {
     const active = userActiveCheckboxLock(admin, {
-      localSingleUser: true,
       meId: admin.id,
-      users: [admin],
+      users: [admin, { ...admin, id: 'a2' }],
     });
     expect(active.disabled).toBe(true);
-    expect(active.reason).toMatch(/single-user/i);
+    expect(active.reason).toMatch(/your own account/i);
   });
 
-  it('locks the last active admin’s role even in multi-user mode', () => {
+  it('locks the last active admin’s role', () => {
     const lock = userRoleSelectLock(admin, { users: [admin, editor] });
     expect(lock.disabled).toBe(true);
     expect(lock.reason).toMatch(/last active admin/i);

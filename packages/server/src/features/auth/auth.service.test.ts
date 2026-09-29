@@ -14,41 +14,35 @@ describe('AuthModule', () => {
     await auth.getUserByToken('none');
   });
 
-  it('registers and auto-creates a session', async () => {
-    const { user, token } = await auth.register('Alice@Example.com', 'password123');
-    expect(user.email).toBe('alice@example.com'); // normalized
-    expect(user.onboardingCompleted).toBe(false);
-    // First account on a fresh install is admin with full permissions.
-    expect(user.role).toBe('admin');
-    expect(user.permissions.length).toBeGreaterThan(0);
-    expect((await auth.getUserByToken(token))?.id).toBe(user.id);
-  });
-
-  it('assigns viewer to subsequent registrations', async () => {
-    const { user } = await auth.register('viewer2@example.com', 'password123');
-    expect(user.role).toBe('viewer');
-    expect(user.permissions).not.toContain('admin.users');
-    expect(user.permissions).toContain('editor.run');
+  it('an admin-created account can sign in, with the role it was given', async () => {
+    const created = await auth.createUser('Alice@Example.com', 'password123', 'viewer');
+    expect(created.email).toBe('alice@example.com'); // normalized
+    expect(created.role).toBe('viewer');
+    expect(created.permissions).not.toContain('admin.users');
+    expect(created.permissions).toContain('editor.run');
+    const { user, token } = await auth.login('alice@example.com', 'password123');
+    expect(user.id).toBe(created.id);
+    expect((await auth.getUserByToken(token))?.id).toBe(created.id);
   });
 
   it('rejects a duplicate email', async () => {
-    await auth.register('dup@example.com', 'password123');
-    await expect(auth.register('dup@example.com', 'password123')).rejects.toThrow(/already exists/);
+    await auth.createUser('dup@example.com', 'password123', 'viewer');
+    await expect(auth.createUser('dup@example.com', 'password123', 'viewer')).rejects.toThrow(/already exists/);
   });
 
   it('rejects weak passwords and bad emails', async () => {
-    await expect(auth.register('a@b.com', 'short')).rejects.toThrow(/8 characters/);
-    await expect(auth.register('not-an-email', 'password123')).rejects.toThrow(/valid email/);
+    await expect(auth.createUser('a@b.com', 'short', 'viewer')).rejects.toThrow(/8 characters/);
+    await expect(auth.createUser('not-an-email', 'password123', 'viewer')).rejects.toThrow(/valid email/);
   });
 
   it('logs in with correct credentials', async () => {
-    await auth.register('bob@example.com', 'password123');
+    await auth.createUser('bob@example.com', 'password123', 'viewer');
     const { user } = await auth.login('bob@example.com', 'password123');
     expect(user.email).toBe('bob@example.com');
   });
 
   it('rejects wrong password and unknown user the same way', async () => {
-    await auth.register('carol@example.com', 'password123');
+    await auth.createUser('carol@example.com', 'password123', 'viewer');
     await expect(auth.login('carol@example.com', 'wrongpass')).rejects.toThrow(/Invalid email or password/);
     await expect(auth.login('ghost@example.com', 'password123')).rejects.toThrow(/Invalid email or password/);
   });
@@ -57,7 +51,7 @@ describe('AuthModule', () => {
   // toAuthUser. Dropping that column anywhere fails silently as a demotion to
   // viewer, so pin the role across login and the per-request token lookup.
   it('preserves the stored role through login and getUserByToken', async () => {
-    const { user: created } = await auth.register('editorrole@example.com', 'password123');
+    const created = await auth.createUser('editorrole@example.com', 'password123', 'viewer');
     await new RbacModule().setUserRole(created.id, 'editor');
 
     const { user, token } = await auth.login('editorrole@example.com', 'password123');
@@ -72,23 +66,24 @@ describe('AuthModule', () => {
     expect(resolved?.permissions).not.toContain('admin.users');
   });
 
-  it('ensureLocalUser returns an admin with full permissions', async () => {
-    const local = await auth.ensureLocalUser();
-    expect(local.role).toBe('admin');
-    expect(local.permissions).toContain('admin.users');
-    // Idempotent: a second call re-resolves the same singleton as admin.
-    expect((await auth.ensureLocalUser()).id).toBe(local.id);
+  it('SSO signs in an existing account and never creates one', async () => {
+    const created = await auth.createUser('sso-user@example.com', 'password123', 'editor');
+    const { user } = await auth.loginWithEmail('SSO-User@example.com');
+    expect(user.id).toBe(created.id);
+    await expect(auth.loginWithEmail('stranger@example.com')).rejects.toThrow(/Ask an administrator/);
   });
 
   it('invalidates the session on logout', async () => {
-    const { token } = await auth.register('dave@example.com', 'password123');
+    await auth.createUser('dave@example.com', 'password123', 'viewer');
+    const { token } = await auth.login('dave@example.com', 'password123');
     expect(await auth.getUserByToken(token)).not.toBeNull();
     await auth.logout(token);
     expect(await auth.getUserByToken(token)).toBeNull();
   });
 
   it('rejects login for deactivated users', async () => {
-    const { user, token } = await auth.register('inactive@example.com', 'password123');
+    await auth.createUser('inactive@example.com', 'password123', 'viewer');
+    const { user, token } = await auth.login('inactive@example.com', 'password123');
     await new RbacModule().setUserActive(user.id, false);
     await expect(auth.login('inactive@example.com', 'password123')).rejects.toThrow(
       /deactivated/
@@ -97,7 +92,8 @@ describe('AuthModule', () => {
   });
 
   it('adminSetPassword updates credentials and clears sessions', async () => {
-    const { user, token } = await auth.register('pwreset@example.com', 'password123');
+    await auth.createUser('pwreset@example.com', 'password123', 'viewer');
+    const { user, token } = await auth.login('pwreset@example.com', 'password123');
     await auth.adminSetPassword(user.id, 'newpassword99');
     expect(await auth.getUserByToken(token)).toBeNull();
     await expect(auth.login('pwreset@example.com', 'password123')).rejects.toThrow(
@@ -108,7 +104,7 @@ describe('AuthModule', () => {
   });
 
   it('adminSetPassword rejects short passwords', async () => {
-    const { user } = await auth.register('pwshort@example.com', 'password123');
+    const user = await auth.createUser('pwshort@example.com', 'password123', 'viewer');
     await expect(auth.adminSetPassword(user.id, 'short')).rejects.toThrow(/8 characters/);
   });
 });

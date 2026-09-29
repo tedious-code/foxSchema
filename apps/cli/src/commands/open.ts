@@ -395,7 +395,6 @@ export async function runOpen(opts: OpenOptions = {}): Promise<void> {
       PORT: String(port),
       LISTEN_HOST: '127.0.0.1',
       STATIC_DIR: staticDir,
-      AUTH_REQUIRED: 'false',
       LOCAL_SINGLE_USER: 'true',
       APP_ENCRYPTION_KEY: process.env.APP_ENCRYPTION_KEY,
       APP_KEY_SCHEME: process.env.APP_KEY_SCHEME || 'v1',

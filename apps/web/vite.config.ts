@@ -63,6 +63,11 @@ export default defineConfig({
         // Match DEFAULT_API_PORT (3210). Override with API_PORT when needed.
         target: `http://localhost:${process.env.API_PORT || 3210}`,
         changeOrigin: true,
+        // Say it was forwarded. The dev server listens on every interface, and
+        // without these headers the API would take a browser elsewhere on the
+        // LAN for someone at this machine, who may run first-run setup without
+        // the code from the server log.
+        xfwd: true,
         // Origin is forwarded untouched, on purpose. Rewriting it to a trusted
         // value would switch the API's origin check off for everything that
         // reaches this dev server, including a DNS-rebound page (Vite serves any

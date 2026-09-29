@@ -33,3 +33,27 @@ that capture, versions appear only for real changes.
 Revert and force-migrate are not affected by the boundary: when two stored
 versions' hashes differ, both sides are re-hashed with the current rule before
 deciding whether an object changed.
+
+## Sign-in is required on every install
+
+Fox used to open straight into the workspace on a personal install, and a
+multi-user server let anyone register. Both are gone: **every install now asks
+for an email and password**, and only an administrator can create accounts.
+
+- **First launch** shows *Create the administrator account*. On an install used
+  before, this claims the existing local account, so saved connections, history
+  and workflows stay where they are. When the install is bound to an email
+  (`APP_USER_EMAIL`), that email is used.
+- **Setup code.** From the machine Fox runs on, setup needs only the password.
+  From anywhere else, including through a reverse proxy, setup also asks for a
+  one-time code that the server prints to its log (`docker logs <container>` on
+  Docker). Setup closes for good once an account can sign in.
+- **No self-registration.** `POST /api/auth/register` answers 403. Admins add
+  people from the **Add user** form in the admin Access panel with a starting password and a role.
+- **SSO signs in existing accounts only.** A first SSO sign-in no longer creates
+  an account; an admin adds the email first.
+- **Sign-in is rate-limited** to 20 attempts per 15 minutes per client.
+- A server that already ran with `LOCAL_SINGLE_USER=false` keeps its accounts and
+  is never offered setup. `AUTH_REQUIRED` is no longer read; `LOCAL_SINGLE_USER`
+  now only marks a personal install (machine-level actions such as driver
+  install and updates).

@@ -9,6 +9,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronRight, KeyRound, Loader2, Shield, UserCog, Users, X } from 'lucide-react';
 import {
+  apiAdminCreateUser,
   apiAdminListUsers,
   apiAdminRolePermissions,
   apiAdminSetRolePermissions,
@@ -52,7 +53,6 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
 }) => {
   const refreshMe = useAuthStore((s) => s.refreshMe);
   const me = useAuthStore((s) => s.user);
-  const localSingleUser = useAuthStore((s) => s.localSingleUser);
   const canUsers = useAuthStore((s) => s.can('admin.users'));
   const canRoles = useAuthStore((s) => s.can('admin.roles'));
   const canUsersRoles = useAuthStore((s) => s.can('utility.access'));
@@ -70,6 +70,9 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordMsg, setPasswordMsg] = useState<string | null>(null);
   const [expandedUserIds, setExpandedUserIds] = useState<Set<string>>(() => new Set());
+  const [addEmail, setAddEmail] = useState('');
+  const [addPassword, setAddPassword] = useState('');
+  const [addRole, setAddRole] = useState<AppRole>('viewer');
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -241,6 +244,26 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
     }
   };
 
+  /** No self-registration: this is how anyone besides the first admin gets in. */
+  const addUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    setSavedMsg(null);
+    try {
+      await apiAdminCreateUser(addEmail, addPassword, addRole);
+      setSavedMsg(`Added ${addEmail.trim().toLowerCase()} as ${addRole}. Share the password with them directly.`);
+      setAddEmail('');
+      setAddPassword('');
+      setAddRole('viewer');
+      await load();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not add the account');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const saveRolePerms = async () => {
     if (editRole === 'admin') return;
     setBusy(true);
@@ -364,26 +387,68 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
 
           {tab === 'users' && canUsers && (
             <>
-              {localSingleUser && (
-                <p
-                  data-testid="admin-single-user-hint"
-                  className="text-[11px] text-slate-400 leading-snug rounded-md border border-slate-800 bg-slate-950/50 px-3 py-2"
+              <p className="text-[11px] text-slate-400 leading-snug">
+                FoxSchema logins grouped by app role. Expand a row to see that role’s permissions —
+                they are not per-user overrides. Who can access what on the database is on Users
+                and Roles; GRANT / REVOKE is under Access → Permission.
+              </p>
+              <form
+                onSubmit={addUser}
+                data-testid="admin-add-user"
+                className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5"
+              >
+                <div className="flex min-w-[12rem] flex-1 flex-col gap-1">
+                  <label htmlFor="admin-new-email" className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    Add user · email
+                  </label>
+                  <input
+                    id="admin-new-email"
+                    type="email"
+                    required
+                    value={addEmail}
+                    onChange={(e) => setAddEmail(e.target.value)}
+                    placeholder="teammate@company.com"
+                    className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs outline-none accent-focus"
+                  />
+                </div>
+                <div className="flex min-w-[10rem] flex-1 flex-col gap-1">
+                  <label htmlFor="admin-new-password" className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    Starting password
+                  </label>
+                  <PasswordInput
+                    id="admin-new-password"
+                    required
+                    minLength={8}
+                    value={addPassword}
+                    onChange={(e) => setAddPassword(e.target.value)}
+                    placeholder="At least 8 characters"
+                    autoComplete="new-password"
+                    className="w-full rounded-md border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs outline-none accent-focus"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="admin-new-role" className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    Role
+                  </label>
+                  <select
+                    id="admin-new-role"
+                    value={addRole}
+                    onChange={(e) => setAddRole(e.target.value as AppRole)}
+                    className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs outline-none accent-focus"
+                  >
+                    {APP_ROLES.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="rounded-md accent-grad on-accent-fg px-3 py-1.5 text-xs font-bold disabled:opacity-60"
                 >
-                  Single-user mode keeps this account as <span className="text-slate-200">admin</span>{' '}
-                  — role and Active cannot be changed. Expand a user to see FoxSchema permissions
-                  (from their app role). Open <span className="text-slate-200">App roles</span> to
-                  edit what editor / owner / viewer may do, including{' '}
-                  <span className="text-slate-200">Grant privileges</span> for Access → Permission
-                  (applied when you enable multi-user login).
-                </p>
-              )}
-              {!localSingleUser && (
-                <p className="text-[11px] text-slate-400 leading-snug">
-                  FoxSchema logins grouped by app role. Expand a row to see that role’s permissions —
-                  they are not per-user overrides. Who can access what on the database is on Users
-                  and Roles; GRANT / REVOKE is under Access → Permission.
-                </p>
-              )}
+                  Add user
+                </button>
+              </form>
             <div data-testid="admin-user-groups" className="space-y-3">
               {userGroups.map((group) => (
                 <section
@@ -407,10 +472,9 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
                   ) : (
                     <ul className="divide-y divide-slate-800">
                       {group.users.map((u) => {
-                        const roleLock = userRoleSelectLock(u, { busy, localSingleUser, users });
+                        const roleLock = userRoleSelectLock(u, { busy, users });
                         const activeLock = userActiveCheckboxLock(u, {
                           busy,
-                          localSingleUser,
                           meId: me?.id,
                           users,
                         });

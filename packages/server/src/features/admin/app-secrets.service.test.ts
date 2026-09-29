@@ -15,8 +15,8 @@ let alice: string;
 let bob: string;
 
 beforeAll(async () => {
-  alice = (await auth.register('alice-secrets@example.com', 'password123')).user.id;
-  bob = (await auth.register('bob-secrets@example.com', 'password123')).user.id;
+  alice = (await auth.createUser('alice-secrets@example.com', 'password123', 'viewer')).id;
+  bob = (await auth.createUser('bob-secrets@example.com', 'password123', 'viewer')).id;
 });
 
 describe('AppSecretsStore', () => {

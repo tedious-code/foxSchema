@@ -20,6 +20,7 @@
  * reported rather than tolerated.
  */
 import { getSourceConfig, type DbConfig } from './db-config.js';
+import { sessionCookie } from './app-session.js';
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:5173';
 
@@ -104,7 +105,7 @@ export async function runStatements(
 
   const res = await fetch(`${BASE_URL}/api/sql/execute`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', cookie: await sessionCookie() },
     body: JSON.stringify({ dialect, option: optionOf(cfg), statements }),
   });
   const body = (await res.json()) as {
@@ -182,7 +183,8 @@ export async function deleteSavedConnections(names: readonly string[]): Promise<
   if (names.length === 0) return 0;
   const wanted = new Set(names);
   try {
-    const res = await fetch(`${BASE_URL}/api/connections`);
+    const cookie = await sessionCookie();
+    const res = await fetch(`${BASE_URL}/api/connections`, { headers: { cookie } });
     const body = (await res.json()) as unknown;
     const rows = Array.isArray(body)
       ? (body as Array<{ id?: string; name?: string }>)
@@ -191,7 +193,7 @@ export async function deleteSavedConnections(names: readonly string[]): Promise<
     let removed = 0;
     for (const row of rows) {
       if (!row?.id || !row.name || !wanted.has(row.name)) continue;
-      const gone = await fetch(`${BASE_URL}/api/connections/${row.id}`, { method: 'DELETE' })
+      const gone = await fetch(`${BASE_URL}/api/connections/${row.id}`, { method: 'DELETE', headers: { cookie } })
         .then((r) => r.ok)
         .catch(() => false);
       if (gone) removed++;

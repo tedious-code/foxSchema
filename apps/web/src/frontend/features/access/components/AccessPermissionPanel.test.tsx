@@ -117,7 +117,6 @@ beforeEach(() => {
       permissions: [...DEFAULT_ROLE_PERMISSIONS.owner],
     },
     status: 'ready',
-    localSingleUser: false,
     error: null,
     busy: false,
     refreshMe: vi.fn(async () => {}),

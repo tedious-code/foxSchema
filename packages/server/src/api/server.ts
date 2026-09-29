@@ -18,7 +18,7 @@
  *    requests per user rather than per IP.
  */
 import type { FastifyReply } from 'fastify';
-import type { AppRequest, NextFunction } from '../platform/http/types';
+import type { AppRequest } from '../platform/http/types';
 import { ConnectionModule, ConnectionFactory } from '@foxschema/db';
 import { AuthModule } from '../features/auth/auth.service';
 import { ConnectionStore } from '../features/connections/connection-store.service';
@@ -26,7 +26,7 @@ import { sweepOrphanedUploadFiles } from '../features/files/file-session.service
 import { UserModule } from '../features/users/user.service';
 import { createApiRoutes } from './routes';
 import { defaultApiRateLimit } from '../platform/guards/rate-limit';
-import { createAuthRoutes, authGuard, localUserGuard } from '../features/auth/auth.routes';
+import { createAuthRoutes, authGuard } from '../features/auth/auth.routes';
 import { createSsoRoutes } from '../features/auth/sso.routes';
 import { createConnectionStoreRoutes } from '../features/connections/connections.routes';
 import { createAppSecretsRoutes } from '../features/admin/app-secrets.routes';
@@ -42,11 +42,6 @@ import { AppSecretsStore } from '../features/admin/app-secrets.service';
 import { resolveAppVersion } from '../internal/updates.service';
 import { asAppLogger, getLogger } from '../platform/logger/logger';
 import { Router, type RouteDefinition } from '../platform/http/router';
-
-// Default to single-user (no login). Set LOCAL_SINGLE_USER=false to enable
-// multi-user auth. In multi-user mode AUTH_REQUIRED defaults to true (safe).
-const LOCAL_SINGLE_USER = process.env.LOCAL_SINGLE_USER !== 'false';
-const AUTH_REQUIRED = LOCAL_SINGLE_USER ? false : process.env.AUTH_REQUIRED !== 'false';
 
 /** Largest request body the API accepts. Enforced by Fastify as bytes arrive. */
 export const BODY_LIMIT = process.env.FOX_BODY_LIMIT || '10mb';
@@ -66,8 +61,10 @@ export function buildApiRoutes(): RouteDefinition[] {
     res.send({ ok: true, version: resolveAppVersion() });
   });
 
+  // Kept for clients built before sign-in became mandatory: every install now
+  // signs in. First-run setup state is GET /api/auth/setup.
   root.get('/api/config', (_req: AppRequest, res: FastifyReply) => {
-    res.send({ localSingleUser: LOCAL_SINGLE_USER });
+    res.send({ localSingleUser: false });
   });
 
   // Auth endpoints are public. SSO is mounted first so its sub-paths take
@@ -81,9 +78,10 @@ export function buildApiRoutes(): RouteDefinition[] {
   // service token instead.
   root.use(WORKFLOW_INTERNAL_PREFIX, createWorkflowInternalRoutes());
 
-  // In local single-user mode (community desktop) the singleton local user is
-  // attached automatically; otherwise per-user routes require a real session.
-  const userGuard = LOCAL_SINGLE_USER ? localUserGuard(auth) : authGuard(auth);
+  // Every install requires sign-in, desktop and CLI included. There used to be
+  // a single-user mode that attached a built-in local user to every request;
+  // anyone who could reach the port was that user.
+  const userGuard = authGuard(auth);
 
   const connectionStore = new ConnectionStore();
   root.use('/api/connections', userGuard, createConnectionStoreRoutes(connectionStore));
@@ -95,11 +93,7 @@ export function buildApiRoutes(): RouteDefinition[] {
   // CSV / JSON / fixed-width text → temp SQLite credential for SQL Editor.
   root.use('/api/files', userGuard, createFileQueryRoutes(connectionStore));
 
-  const guard = LOCAL_SINGLE_USER
-    ? localUserGuard(auth)
-    : AUTH_REQUIRED
-      ? authGuard(auth)
-      : (_req: AppRequest, _res: FastifyReply, next: NextFunction) => next();
+  const guard = userGuard;
   // The guard runs first so the limiter can charge an authenticated user
   // rather than lumping everyone behind one shared IP bucket.
   root.use('/api', guard, defaultApiRateLimit(), createApiRoutes(connectionModule, connectionStore));

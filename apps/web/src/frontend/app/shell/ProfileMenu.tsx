@@ -9,7 +9,7 @@ import { maybeToastUpdateAvailable } from '@/app/shell/updateToast';
 import { AdminAccessPanel } from '@/features/admin';
 
 export function ProfileMenu(): React.ReactElement | null {
-  const { user, logout, localSingleUser } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const setActiveView = useUiStore((s) => s.setActiveView);
   const canAdminAccess = useAuthStore((s) => s.can('admin.users') || s.can('admin.roles'));
   const [open, setOpen] = useState(false);
@@ -117,15 +117,13 @@ export function ProfileMenu(): React.ReactElement | null {
             <Globe className="w-4 h-4" /> foxschema.com
           </a>
 
-          {!localSingleUser && (
-            <button
-              type="button"
-              onClick={logout}
-              className="w-full flex items-center gap-2.5 px-4 py-3 text-sm font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 transition cursor-pointer border-t border-slate-800 bg-slate-950/40"
-            >
-              <LogOut className="w-4 h-4" /> Sign out
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={logout}
+            className="w-full flex items-center gap-2.5 px-4 py-3 text-sm font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 transition cursor-pointer border-t border-slate-800 bg-slate-950/40"
+          >
+            <LogOut className="w-4 h-4" /> Sign out
+          </button>
         </div>,
         document.body
       )

@@ -9,6 +9,7 @@ import {
   apiLogin,
   apiLogout,
   apiPutPreferences,
+  apiRedeemCode,
   apiSetup,
   apiSetupState,
   type AuthUser,
@@ -32,6 +33,8 @@ interface AuthState {
   init: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   setup: (email: string, password: string, code?: string) => Promise<void>;
+  /** Set a password with a reset or invite code, and sign in. */
+  redeem: (code: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
   completeOnboarding: (prefs: Partial<UserPreferences>) => Promise<void>;
   refreshMe: () => Promise<void>;
@@ -91,6 +94,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         error: e instanceof Error ? e.message : 'Setup failed',
         busy: false,
       });
+    }
+  },
+
+  redeem: async (code, password) => {
+    set({ busy: true, error: null });
+    try {
+      const user = await apiRedeemCode(code, password);
+      set({ user, status: statusFor(user), busy: false });
+      return true;
+    } catch (e: unknown) {
+      set({ error: e instanceof Error ? e.message : 'Could not set the password', busy: false });
+      return false;
     }
   },
 

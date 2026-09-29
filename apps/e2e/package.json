@@ -13,6 +13,8 @@
     "test:headed": "HEADLESS=false vitest run --config vitest.config.ts",
     "test:smoke": "vitest run --config vitest.config.ts src/tests/smoke.test.ts",
     "test:smoke:headed": "HEADLESS=false vitest run --config vitest.config.ts src/tests/smoke.test.ts",
+    "test:auth": "vitest run --config vitest.config.ts src/tests/auth-recovery.test.ts",
+    "test:auth:headed": "HEADLESS=false vitest run --config vitest.config.ts src/tests/auth-recovery.test.ts",
     "test:schema-history": "vitest run --config vitest.config.ts src/tests/schema-history.test.ts",
     "test:schema-history:headed": "HEADLESS=false vitest run --config vitest.config.ts src/tests/schema-history.test.ts",
     "test:schema-revert": "vitest run --config vitest.config.ts src/tests/schema-revert.test.ts",

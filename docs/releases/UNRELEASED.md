@@ -72,3 +72,41 @@ for an email and password**, and only an administrator can create accounts.
   is never offered setup. `AUTH_REQUIRED` is no longer read; `LOCAL_SINGLE_USER`
   now only marks a personal install (machine-level actions such as driver
   install and updates).
+
+## Sign-in: invites, forgot password, Google / Microsoft / GitHub
+
+- **New sign-in pages.** First launch is a *Create your account* page; the
+  sign-in page adds **Forgot password?** and **Have an invite or reset code?**.
+  New passwords are checked as you type against the server's own rules, and a
+  Caps Lock warning shows on password fields.
+- **Invites.** *Add user* without a password sends a one-time invite code; the
+  person chooses their own password. Unaccepted invites are marked *Invited*,
+  and each user row can resend an invite or send a reset code.
+- **Forgot password.** A one-time code (30 minutes, single use) by email, or,
+  without email set up, in the server log and via
+  `foxschema reset-password [email]`. Setting the new password signs out every
+  other session. The reply never says whether the email has an account.
+- **Admin → Access control → Sign-in** configures Google, Microsoft and GitHub
+  sign-in (with the redirect URL to register), the email relay (Hostinger /
+  Gmail / Microsoft 365 presets and a test button) and the public URL — for the
+  desktop app, where there are no environment variables to set. Environment
+  variables still win and show read-only.
+
+### Security fixes
+
+- **SSO accepted unverified emails.** Microsoft's `email` claim with the
+  multi-tenant endpoint is whatever any tenant's admin typed, so an attacker
+  with their own tenant could sign in as any Fox user whose email they set
+  ("nOAuth"). Microsoft now accepts only personal accounts, verified domains
+  (`xms_edov`) or the configured tenant; Google requires `email_verified`;
+  GitHub uses only the verified primary address. SSO also uses PKCE now.
+- **Rate limits could be skipped** by sending a made-up `X-Forwarded-For`: every
+  peer's forwarding headers were trusted. Now only loopback and private-network
+  peers are (`FOX_TRUST_PROXY` to change).
+- **Per-email sign-in lockout**: 5 failures lock the email for 15 minutes, for
+  emails with and without accounts alike; a wrong email now costs the same
+  time as a wrong password.
+- **Session tokens are stored hashed.** Migration 20 clears existing sessions,
+  so **everyone signs in once more** after upgrading.
+- **Password rules**: at least 10 characters, not a common password, not the
+  email name. Existing passwords keep working.

@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import { friendlyError } from './format/friendlyError';
 import { runSetup } from './commands/setup';
 import { runDoctor } from './commands/doctor';
+import { runResetPassword } from './commands/reset-password';
 import { addConnection, listConnections, removeConnection } from './commands/connections';
 import { runCompare } from './commands/compare';
 import { runSnapshot } from './commands/snapshot';
@@ -88,6 +89,11 @@ program
   .command('doctor')
   .description('Show environment, drivers, UI server, and setup status')
   .action(() => runDoctor());
+
+program
+  .command('reset-password [email]')
+  .description('Print a one-time password-reset code (default: the install owner)')
+  .action((email) => runResetPassword(email));
 
 const drivers = program.command('drivers').description('List or install database drivers');
 drivers

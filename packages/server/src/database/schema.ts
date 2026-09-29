@@ -467,6 +467,30 @@ const MIGRATIONS: Migration[] = [
       ];
     },
   },
+  {
+    id: 20,
+    name: 'auth_codes_and_hashed_sessions',
+    statements: (d) => {
+      const t = types(d);
+      return [
+        // One-time password-reset and invite codes. Only a code's SHA-256 is
+        // kept, so reading this table gives nobody a code that works.
+        `CREATE TABLE IF NOT EXISTS auth_codes (
+           code_hash ${t.id} PRIMARY KEY,
+           user_id ${t.id} NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+           purpose ${t.str} NOT NULL,
+           created_at ${t.ts} NOT NULL,
+           expires_at ${t.ts} NOT NULL,
+           used_at ${t.ts}
+         )`,
+        `CREATE INDEX idx_auth_codes_user ON auth_codes(user_id)`,
+        // Session tokens are stored hashed from here on. The rows written
+        // before hold raw tokens, which no longer match anything: drop them,
+        // and everyone signs in once more.
+        `DELETE FROM sessions`,
+      ];
+    },
+  },
 ];
 
 const SIGNUP_WIZARD_SHOWN_KEY = 'signup.wizard_shown';

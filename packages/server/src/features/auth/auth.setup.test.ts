@@ -50,7 +50,7 @@ afterEach(() => {
 describe('first-run setup', () => {
   it('is required on a fresh install and creates the first admin', async () => {
     expect((await auth.setupState()).setupRequired).toBe(true);
-    const { user, token } = await auth.completeSetup('Owner@Example.com', 'password123');
+    const { user, token } = await auth.completeSetup('Owner@Example.com', 'correct-horse-9');
     expect(user.email).toBe('owner@example.com');
     expect(user.role).toBe('admin');
     expect((await auth.getUserByToken(token))?.id).toBe(user.id);
@@ -60,11 +60,11 @@ describe('first-run setup', () => {
   it('claims the legacy local account instead of replacing it', async () => {
     const legacyId = await legacyLocalUser();
     expect((await auth.setupState()).setupRequired).toBe(true);
-    const { user } = await auth.completeSetup('owner@example.com', 'password123');
+    const { user } = await auth.completeSetup('owner@example.com', 'correct-horse-9');
     // Same row: everything saved under the old local account now belongs to the owner.
     expect(user.id).toBe(legacyId);
     expect(user.email).toBe('owner@example.com');
-    const { user: signedIn } = await auth.login('owner@example.com', 'password123');
+    const { user: signedIn } = await auth.login('owner@example.com', 'correct-horse-9');
     expect(signedIn.id).toBe(legacyId);
   });
 
@@ -72,22 +72,22 @@ describe('first-run setup', () => {
     process.env.APP_USER_EMAIL = 'bound@example.com';
     const legacyId = await legacyLocalUser('bound@example.com');
     expect((await auth.setupState()).setupEmail).toBe('bound@example.com');
-    const { user } = await auth.completeSetup('someone-else@example.com', 'password123');
+    const { user } = await auth.completeSetup('someone-else@example.com', 'correct-horse-9');
     expect(user.id).toBe(legacyId);
     expect(user.email).toBe('bound@example.com');
   });
 
   it('closes for good once any account can sign in', async () => {
-    await auth.completeSetup('owner@example.com', 'password123');
-    await expect(auth.completeSetup('intruder@example.com', 'password123')).rejects.toThrow(
+    await auth.completeSetup('owner@example.com', 'correct-horse-9');
+    await expect(auth.completeSetup('intruder@example.com', 'correct-horse-9')).rejects.toThrow(
       /already complete/
     );
   });
 
   it('only one of two racing setups succeeds', async () => {
     const results = await Promise.allSettled([
-      auth.completeSetup('first@example.com', 'password123'),
-      auth.completeSetup('second@example.com', 'password123'),
+      auth.completeSetup('first@example.com', 'correct-horse-9'),
+      auth.completeSetup('second@example.com', 'correct-horse-9'),
     ]);
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
   });
@@ -98,7 +98,7 @@ describe('first-run setup', () => {
     process.env.LOCAL_SINGLE_USER = 'false';
     await legacyLocalUser('admin@corp.example');
     expect((await auth.setupState()).setupRequired).toBe(false);
-    await expect(auth.completeSetup('attacker@example.com', 'password123')).rejects.toThrow(
+    await expect(auth.completeSetup('attacker@example.com', 'correct-horse-9')).rejects.toThrow(
       /already complete/
     );
   });
@@ -106,7 +106,7 @@ describe('first-run setup', () => {
   it('the CLI and the app resolve the same owner account, before and after setup', async () => {
     const fresh = await auth.ownerAccount();
     expect(fresh.email).toBe('local@foxschema.app');
-    const { user } = await auth.completeSetup('owner@example.com', 'password123');
+    const { user } = await auth.completeSetup('owner@example.com', 'correct-horse-9');
     // Setup claimed the account the CLI created, and the CLI still finds it
     // under its new email.
     expect(user.id).toBe(fresh.id);
@@ -114,12 +114,12 @@ describe('first-run setup', () => {
   });
 
   it('a successful sign-in by an existing account also closes setup', async () => {
-    const created = await auth.createUser('existing@example.com', 'password123', 'admin');
+    const created = await auth.createUser('existing@example.com', 'correct-horse-9', 'admin');
     const store = await getStore();
     // As after the migration: the flag starts at 0 on rows that predate it.
     await store.run('UPDATE users SET password_set = 0 WHERE id = ?', [created.id]);
     expect((await auth.setupState()).setupRequired).toBe(true);
-    await auth.login('existing@example.com', 'password123');
+    await auth.login('existing@example.com', 'correct-horse-9');
     expect((await auth.setupState()).setupRequired).toBe(false);
   });
 });

@@ -71,7 +71,10 @@ writeFileSync(
       dependencies: { ...rest.dependencies, '@foxschema/sql': `^${sqlPkg.version}` },
       main: './dist/index.js',
       types: './dist/index.d.ts',
-      exports: { '.': { types: './dist/index.d.ts', default: './dist/index.js' } },
+      exports: {
+        '.': { types: './dist/index.d.ts', default: './dist/index.js' },
+        './mail': { types: './dist/mail/smtp.d.ts', default: './dist/mail/smtp.js' },
+      },
       files: ['dist', 'README.md', 'LICENSE', 'NOTICE'],
       publishConfig: { access: 'public' },
     },

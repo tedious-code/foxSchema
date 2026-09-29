@@ -31,8 +31,8 @@ const saved = (password?: string) => ({
 });
 
 beforeAll(async () => {
-  alice = (await auth.createUser('grant-alice@example.com', 'password123', 'viewer')).id;
-  bob = (await auth.createUser('grant-bob@example.com', 'password123', 'viewer')).id;
+  alice = (await auth.createUser('grant-alice@example.com', 'correct-horse-9', 'viewer')).id;
+  bob = (await auth.createUser('grant-bob@example.com', 'correct-horse-9', 'viewer')).id;
 });
 
 describe('WorkflowConnectionGrants', () => {

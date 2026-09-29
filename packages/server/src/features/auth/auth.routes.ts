@@ -7,7 +7,8 @@ import { setCookie, clearCookie } from '../../platform/http/reply';
 import type { FastifyReply } from 'fastify';
 import type { AppRequest, AuthedRequest, NextFunction } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
-import { AuthModule, SESSION_COOKIE, SESSION_MAX_AGE_MS, type AuthUser } from '../auth/auth.service';
+import { AuthModule, SESSION_COOKIE, SESSION_MAX_AGE_MS, SignInLockedError, type AuthUser } from '../auth/auth.service';
+import { AuthMailer } from './auth-mail';
 import { sendError } from '../../platform/http/respond';
 import { rateLimit } from '../../platform/guards/rate-limit';
 import { getLogger } from '../../platform/logger/logger';
@@ -47,12 +48,14 @@ export function setSessionCookie(res: FastifyReply, token: string): void {
   });
 }
 
-export function createAuthRoutes(auth: AuthModule): Router {
+export function createAuthRoutes(auth: AuthModule, mailer = new AuthMailer()): Router {
   const router = Router();
 
   // Sign-in is the only way in, so it is what gets guessed at. Per address,
   // before any account exists to charge.
   const signInLimiter = rateLimit({ name: 'sign-in', windowMs: 15 * 60 * 1000, max: 20 });
+  // Asking for a reset sends email, and a code is guessed at here: fewer.
+  const resetLimiter = rateLimit({ name: 'password-reset', windowMs: 15 * 60 * 1000, max: 10 });
 
   // No self-registration: an admin adds accounts (POST /api/admin/users).
   router.post('/register', (_req: AppRequest, res: FastifyReply) => {
@@ -99,7 +102,55 @@ export function createAuthRoutes(auth: AuthModule): Router {
       setSessionCookie(res, token);
       res.send({ user });
     } catch (error: unknown) {
+      if (error instanceof SignInLockedError) {
+        res.header('Retry-After', String(Math.ceil(error.retryAfterMs / 1000)));
+        sendError(res, 'rate_limited', error.message);
+        return;
+      }
       sendError(res, 'unauthenticated', error instanceof Error ? error.message : 'Login failed');
+    }
+  });
+
+  /**
+   * Forgot password. The answer is the same whether or not the email has an
+   * account, and the code is sent after the response, so neither the reply
+   * nor its timing says which emails exist. `delivery` describes the install
+   * (email or server log), not the account.
+   */
+  router.post('/password/forgot', resetLimiter, async (req: AppRequest, res: FastifyReply) => {
+    const { email } = (req.body ?? {}) as { email?: string };
+    const delivery = await mailer.delivery();
+    res.send({ ok: true, delivery });
+    try {
+      const issued = await auth.requestPasswordReset(email ?? '');
+      if (issued) await mailer.send('reset', issued);
+    } catch (error: unknown) {
+      getLogger().warn(
+        `Could not send a password-reset email: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  });
+
+  /** Who a reset or invite code is for, so the page can greet them; 404s when it does not work. */
+  router.post('/password/code', resetLimiter, async (req: AppRequest, res: FastifyReply) => {
+    const { code } = (req.body ?? {}) as { code?: string };
+    const found = await auth.inspectCode(code);
+    if (!found) {
+      sendError(res, 'not_found', 'This code is wrong or has expired. Ask for a new one.');
+      return;
+    }
+    res.send(found);
+  });
+
+  /** Choose a password with a reset or invite code, and sign in. */
+  router.post('/password/reset', resetLimiter, async (req: AppRequest, res: FastifyReply) => {
+    const { code, password } = (req.body ?? {}) as { code?: string; password?: string };
+    try {
+      const { user, token } = await auth.redeemCode(code, password ?? '');
+      setSessionCookie(res, token);
+      res.send({ user });
+    } catch (error: unknown) {
+      sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Could not set the password');
     }
   });
 

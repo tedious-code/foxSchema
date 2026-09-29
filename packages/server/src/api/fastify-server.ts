@@ -129,6 +129,21 @@ function codeForStatus(status: number): ErrorCode {
  */
 const DEFAULT_REQUEST_TIMEOUT = 120_000;
 
+/** Peers whose X-Forwarded-* headers are believed: this machine and private networks. */
+export const DEFAULT_TRUST_PROXY = 'loopback, linklocal, uniquelocal';
+
+/**
+ * `FOX_TRUST_PROXY` as Fastify takes it: `true`/`false`, or a comma-separated
+ * list of addresses and CIDR ranges (`10.0.0.0/8, 192.0.2.7`).
+ */
+export function trustProxySetting(raw: string | undefined): boolean | string {
+  const value = (raw ?? '').trim();
+  if (!value) return DEFAULT_TRUST_PROXY;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return value;
+}
+
 export async function createFastifyApp(
   options: FastifyServerOptions = {}
 ): Promise<FastifyInstance> {
@@ -136,9 +151,12 @@ export async function createFastifyApp(
     // Fastify owns the logger, which is what gives every line a request id
     // without a correlation mechanism of our own.
     logger: loggerConfig(),
-    // Behind the CLI launcher and Docker this is the local process; trusting
-    // the proxy headers is what makes req.ip meaningful for rate limiting.
-    trustProxy: true,
+    // Proxy headers make req.ip meaningful behind the CLI launcher, Docker or
+    // a reverse proxy, but only a proxy may set them. Trusting them from
+    // anyone let a client choose its own address with X-Forwarded-For and
+    // walk past every per-address limit, sign-in included. So: trusted from
+    // loopback and private-network peers only (FOX_TRUST_PROXY overrides).
+    trustProxy: trustProxySetting(process.env.FOX_TRUST_PROXY),
     bodyLimit: options.bodyLimitBytes ?? DEFAULT_BODY_LIMIT,
     requestTimeout: options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT,
   });

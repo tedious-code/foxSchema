@@ -27,9 +27,19 @@ and the desktop app alike. Roles are `admin` / `editor` / `owner` / `viewer`.
   **setup code**, printed in the Fox server log when someone opens the setup
   screen remotely. From the machine itself no code is needed. Behind a reverse
   proxy every visitor counts as remote.
-- **No self-registration.** Admins add people under **Profile → Access control →
-  Add user**, with a starting password to hand over. SSO signs in existing
-  accounts only.
+- **No self-registration.** Admins invite people under **Profile → Access
+  control → App users**: an invite sends a one-time code, and the person chooses
+  their own password. (A starting password to hand over still works.)
+- **Forgot password** on the sign-in page sends a one-time reset code (30
+  minutes, works once, ends every other session). Admins can also send one from
+  the user's row. See [Email for invites and resets](#email-for-invites-and-resets).
+- **Google, Microsoft and GitHub** sign in an existing account whose email the
+  provider has verified. Set them up under **Access control → Sign-in**, or with
+  the `SSO_*` variables.
+- **Sign-in is rate-limited** per address (20 per 15 minutes) and **locked per
+  email** after 5 failures for 15 minutes, for emails with and without an
+  account alike. New passwords need 10+ characters and must not be a common
+  password or contain the email name.
 - First UI open can still show the **email subscriber wizard** (public; before sign-in).
 - Admins configure role permissions and assign users under **Profile → Access control**.
 - Permissions cover Schema Sync (browse / compare / migrate), SQL Editor (sidebar, variables, writes, Data grid insert/update/delete, code cells), Utilities, Secrets, Access, and Workflow (`workflow.access` / `design` / `run` / `admin`).
@@ -46,6 +56,7 @@ Db2) that serves both the UI and the API on one configurable port (default **321
 - [Choosing a port](#choosing-a-port)
 - [Where app data lives](#where-app-data-lives)
 - [Access: sign-in + SSO](#access-sign-in--sso)
+- [Email for invites and resets](#email-for-invites-and-resets)
 - [Cloud platforms](#cloud-platforms)
 - [Database drivers](#database-drivers)
 - [Building the image](#building-the-image)
@@ -108,7 +119,10 @@ docker compose -f docker-compose.app.yml up -d
 | `APP_VERSION` | from `package.json` | Running version compared against the feed. The CLI sets this from the installed npm package. |
 | `FOXSCHEMA_SELF_UPDATE` | `true` via CLI open | When `true`, UI can run `npm install -g foxschema@latest`. Off in Docker / set `false` to require a manual terminal upgrade. |
 | `ALLOW_HOST_CLOUD_CREDENTIALS` | off | When `true`, cloud secret resolve may use the host IAM/ADC chain without saved user credentials. **Keep off** on multi-user hosts. |
-| `SSO_*` | — | OAuth for Google / Microsoft / GitHub (see below). |
+| `SSO_*` | — | OAuth for Google / Microsoft / GitHub (see below). Can also be set under Access control → Sign-in. |
+| `APP_PUBLIC_URL` | — | The URL people reach Fox at (`https://fox.example.com`). Invite and reset emails link here; SSO callbacks use it. `SSO_REDIRECT_BASE` is read as a fallback. Can also be set on the Sign-in screen. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | — | Relay for invite and password-reset emails. `SMTP_SECURITY` is `tls` (465), `starttls` (587, default) or `none`. Needs at least `SMTP_HOST` and `SMTP_FROM`. See [Email for invites and resets](#email-for-invites-and-resets). |
+| `FOX_TRUST_PROXY` | `loopback, linklocal, uniquelocal` | Which peers' `X-Forwarded-*` headers are believed. Only a proxy may say who the client is; trusting everyone let any client pick its own address and skip rate limits. Set to your proxy's address or CIDR if it is on a public IP, or `true` / `false`. |
 | `NODE_ENV` | `production` | Set in the image; enforces that `APP_ENCRYPTION_KEY` is present. |
 | `FOX_ALLOWED_ORIGINS` | — | Comma-separated browser origins allowed to call the API with cookies. When set, it is the entire allowlist. See [Origin policy](#origin-policy). |
 
@@ -254,8 +268,45 @@ SSO_MICROSOFT_CLIENT_SECRET=...
 SSO_MICROSOFT_TENANT=common
 ```
 
-Set each provider's OAuth redirect/callback to `${SSO_REDIRECT_BASE}/api/auth/sso/<provider>/callback`.
+Set each provider's OAuth redirect/callback to `${SSO_REDIRECT_BASE}/api/auth/sso/<provider>/callback`
+(the Sign-in screen shows it, ready to copy).
 SSO proves who someone is; an admin still has to add their account first.
+
+Which email SSO trusts, per provider — the part that decides whose account opens:
+
+| Provider | Accepted email |
+|---|---|
+| Google | only with `email_verified: true` |
+| GitHub | the account's **primary, verified** address from `/user/emails` |
+| Microsoft | a personal Microsoft account; a work account whose domain Microsoft marks verified (`xms_edov`); or any account of the tenant in `SSO_MICROSOFT_TENANT` when it is a single tenant ID. With `common` / `organizations`, an unverified work-account email is refused — any tenant's admin can type any address into it. |
+
+The flow uses PKCE (S256) and a state cookie compared in constant time.
+
+### Email for invites and resets
+
+With a relay configured, invites and reset codes are emailed. Without one, the
+code is written to the server log (the same channel as the setup code) and
+shown to the admin who issued it, and `foxschema reset-password [email]` prints a
+fresh reset code on the machine Fox runs on.
+
+Configure it on **Access control → Sign-in → Email** (presets for Hostinger,
+Gmail and Microsoft 365, and a *Send test email* button), or:
+
+```bash
+SMTP_HOST=smtp.hostinger.com
+SMTP_PORT=465
+SMTP_SECURITY=tls
+SMTP_USERNAME=contact@example.com
+SMTP_PASSWORD=...                  # the mailbox password
+SMTP_FROM="Fox <contact@example.com>"
+APP_PUBLIC_URL=https://fox.example.com
+```
+
+Links in the emails use the public URL only — never the request's `Host`
+header, which the requester controls. Without a public URL the email carries
+the code alone. Codes are 60 random bits, stored only as SHA-256 (as are
+session tokens), and the link puts the code in the URL fragment so it never
+reaches a server log.
 
 **App Secrets / cloud credentials on multi-user hosts:** with `LOCAL_SINGLE_USER=false`,
 resolving AWS/GCP/Azure secrets requires a saved credential under **Credentials → Cloud

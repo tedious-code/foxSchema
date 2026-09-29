@@ -1,27 +1,36 @@
-import type { FastifyReply } from 'fastify';
-import type { AppRequest } from '../../platform/http/types';
-
 /**
- * Config-driven SSO (OAuth2 / OIDC). Providers activate only when their client
- * id + secret env vars are set, so the buttons appear once an operator configures
- * them — no secrets in code. Users are linked/created by verified email.
+ * Fox Schema (foxschema)
+ * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
  *
- *   Google     SSO_GOOGLE_CLIENT_ID     SSO_GOOGLE_CLIENT_SECRET
- *   Microsoft  SSO_MICROSOFT_CLIENT_ID  SSO_MICROSOFT_CLIENT_SECRET  [SSO_MICROSOFT_TENANT]
- *   GitHub     SSO_GITHUB_CLIENT_ID     SSO_GITHUB_CLIENT_SECRET
- *   Optional:  SSO_REDIRECT_BASE (e.g. https://app.example.com) — else derived from the request.
+ * SSO with Google, Microsoft and GitHub (OAuth 2 authorization code + PKCE).
+ *
+ * Providers are configured by environment variables or on the admin screen
+ * (`sign-in-settings.service.ts`); a provider's button appears once it has a
+ * client id and secret. SSO signs in an existing account by email, so the one
+ * thing this file must get right is that the email is one the provider has
+ * verified belongs to the person:
+ *
+ *   Google     `email_verified` must be true.
+ *   GitHub     the primary, verified address from /user/emails — never the
+ *              profile's public email, which is not checked.
+ *   Microsoft  the `email` claim is whatever a tenant's admin typed, so with
+ *              the multi-tenant `common` endpoint anyone who runs a tenant
+ *              could claim any address ("nOAuth"). Accepted only from a
+ *              personal Microsoft account, from the one tenant this install is
+ *              configured for, or when Microsoft marks the domain verified
+ *              (`xms_edov`).
  */
+import { createHash, randomBytes } from 'node:crypto';
+import type { AppRequest } from '../../platform/http/types';
 import { headerOf } from '../../platform/http/reply';
+import type { SsoProviderConfig } from './sign-in-settings.service';
 
-export type SsoProviderId = 'google' | 'microsoft' | 'github';
+export type { SsoProviderConfig, SsoProviderId } from './sign-in-settings.service';
 
-export interface SsoProviderConfig {
-  id: SsoProviderId;
-  label: string;
-  clientId: string;
-  clientSecret: string;
-  tenant?: string;
-}
+/** The tenant personal Microsoft accounts (outlook.com, hotmail.com…) sign in from. */
+export const MICROSOFT_CONSUMER_TENANT = '9188040d-6c67-4c5b-b112-36a304b66dad';
+const MULTI_TENANT = new Set(['common', 'organizations', 'consumers']);
 
 interface Endpoints {
   authorize: string;
@@ -40,7 +49,7 @@ function endpoints(p: SsoProviderConfig): Endpoints {
         scope: 'openid email profile',
       };
     case 'microsoft': {
-      const t = p.tenant || 'common';
+      const t = encodeURIComponent(p.tenant || 'common');
       return {
         authorize: `https://login.microsoftonline.com/${t}/oauth2/v2.0/authorize`,
         token: `https://login.microsoftonline.com/${t}/oauth2/v2.0/token`,
@@ -58,38 +67,20 @@ function endpoints(p: SsoProviderConfig): Endpoints {
   }
 }
 
-function fromEnv(
-  id: SsoProviderId,
-  label: string,
-  idVar: string,
-  secretVar: string,
-  tenantVar?: string
-): SsoProviderConfig | null {
-  const clientId = process.env[idVar];
-  const clientSecret = process.env[secretVar];
-  if (!clientId || !clientSecret) return null;
-  return { id, label, clientId, clientSecret, tenant: tenantVar ? process.env[tenantVar] || 'common' : undefined };
-}
-
-/** Providers that are currently configured (have client id + secret). */
-export function configuredProviders(): SsoProviderConfig[] {
-  return [
-    fromEnv('google', 'Google', 'SSO_GOOGLE_CLIENT_ID', 'SSO_GOOGLE_CLIENT_SECRET'),
-    fromEnv('microsoft', 'Microsoft', 'SSO_MICROSOFT_CLIENT_ID', 'SSO_MICROSOFT_CLIENT_SECRET', 'SSO_MICROSOFT_TENANT'),
-    fromEnv('github', 'GitHub', 'SSO_GITHUB_CLIENT_ID', 'SSO_GITHUB_CLIENT_SECRET'),
-  ].filter((p): p is SsoProviderConfig => p !== null);
-}
-
-export function getProvider(id: string): SsoProviderConfig | null {
-  return configuredProviders().find((p) => p.id === id) ?? null;
-}
-
-export function redirectUri(req: AppRequest, providerId: string): string {
-  const base = process.env.SSO_REDIRECT_BASE || `${req.protocol}://${headerOf(req, 'host') ?? ''}`;
+/** The address the provider sends the browser back to. */
+export function redirectUri(req: AppRequest, providerId: string, publicUrl: string): string {
+  const base = publicUrl || `${req.protocol}://${headerOf(req, 'host') ?? ''}`;
   return `${base.replace(/\/$/, '')}/api/auth/sso/${providerId}/callback`;
 }
 
-export function authorizeUrl(p: SsoProviderConfig, redirect: string, state: string): string {
+/** A PKCE verifier, and the challenge sent with the authorize request. */
+export function newPkce(): { verifier: string; challenge: string } {
+  const verifier = randomBytes(32).toString('base64url');
+  const challenge = createHash('sha256').update(verifier).digest('base64url');
+  return { verifier, challenge };
+}
+
+export function authorizeUrl(p: SsoProviderConfig, redirect: string, state: string, challenge: string): string {
   const e = endpoints(p);
   const params = new URLSearchParams({
     client_id: p.clientId,
@@ -97,11 +88,14 @@ export function authorizeUrl(p: SsoProviderConfig, redirect: string, state: stri
     response_type: 'code',
     scope: e.scope,
     state,
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
   });
   if (p.id === 'google') {
     params.set('access_type', 'online');
     params.set('prompt', 'select_account');
   }
+  if (p.id === 'microsoft') params.set('prompt', 'select_account');
   return `${e.authorize}?${params.toString()}`;
 }
 
@@ -109,8 +103,47 @@ interface JsonRecord {
   [k: string]: unknown;
 }
 
-/** Exchange the auth code for a token, then return the verified email. */
-export async function fetchVerifiedEmail(p: SsoProviderConfig, code: string, redirect: string): Promise<string> {
+/**
+ * The claims of an ID token received straight from the provider's token
+ * endpoint over TLS. OIDC lets a client that got the token that way skip the
+ * signature check (Core 1.0 §3.1.3.7), which is the only way this reads one.
+ */
+export function idTokenClaims(idToken: unknown): JsonRecord {
+  if (typeof idToken !== 'string') return {};
+  const payload = idToken.split('.')[1];
+  if (!payload) return {};
+  try {
+    return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as JsonRecord;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Whether a Microsoft sign-in's email can be trusted, from its ID token
+ * claims and this install's tenant setting.
+ */
+export function microsoftEmailTrusted(claims: JsonRecord, configuredTenant: string | undefined): boolean {
+  const tid = String(claims.tid ?? '').toLowerCase();
+  if (!tid) return false;
+  if (tid === MICROSOFT_CONSUMER_TENANT) return true;
+  if (claims.xms_edov === true || claims.xms_edov === 1 || claims.xms_edov === '1') return true;
+  const tenant = (configuredTenant || 'common').toLowerCase();
+  if (MULTI_TENANT.has(tenant)) return false;
+  // A single-tenant app: Microsoft only issues tokens for that tenant, whose
+  // admin is the one who set this install up.
+  return /^[0-9a-f-]{36}$/.test(tenant) ? tid === tenant : true;
+}
+
+const UNVERIFIED = 'The provider did not confirm that this email address is yours.';
+
+/** Exchange the auth code for tokens, then return the verified email. */
+export async function fetchVerifiedEmail(
+  p: SsoProviderConfig,
+  code: string,
+  redirect: string,
+  codeVerifier: string
+): Promise<string> {
   const e = endpoints(p);
   const tokenRes = await fetch(e.token, {
     method: 'POST',
@@ -121,29 +154,38 @@ export async function fetchVerifiedEmail(p: SsoProviderConfig, code: string, red
       code,
       redirect_uri: redirect,
       grant_type: 'authorization_code',
+      code_verifier: codeVerifier,
     }).toString(),
   });
   if (!tokenRes.ok) throw new Error(`Token exchange failed (${tokenRes.status})`);
   const tok = (await tokenRes.json()) as JsonRecord;
   const accessToken = tok.access_token as string | undefined;
   if (!accessToken) throw new Error('No access token returned by the provider.');
-
   const headers = { Authorization: `Bearer ${accessToken}`, Accept: 'application/json', 'User-Agent': 'FoxSchema' };
-  const uiRes = await fetch(e.userinfo, { headers });
-  if (!uiRes.ok) throw new Error(`Could not read profile (${uiRes.status})`);
-  const ui = (await uiRes.json()) as JsonRecord;
-  let email = (ui.email as string) || (ui.preferred_username as string) || '';
 
-  // GitHub may not expose a public email — fetch the primary verified one.
-  if (p.id === 'github' && !email) {
+  let email = '';
+  if (p.id === 'github') {
     const emRes = await fetch('https://api.github.com/user/emails', { headers });
-    if (emRes.ok) {
-      const emails = (await emRes.json()) as { email: string; primary: boolean; verified: boolean }[];
-      const pick = emails.find((x) => x.primary && x.verified) || emails.find((x) => x.verified);
-      email = pick?.email || '';
+    if (!emRes.ok) throw new Error(`Could not read your GitHub email addresses (${emRes.status})`);
+    const emails = (await emRes.json()) as { email: string; primary: boolean; verified: boolean }[];
+    email = emails.find((x) => x.primary && x.verified)?.email ?? '';
+    if (!email) throw new Error('Your GitHub account has no verified primary email address.');
+  } else if (p.id === 'google') {
+    const uiRes = await fetch(e.userinfo, { headers });
+    if (!uiRes.ok) throw new Error(`Could not read profile (${uiRes.status})`);
+    const ui = (await uiRes.json()) as JsonRecord;
+    if (ui.email_verified !== true && ui.email_verified !== 'true') throw new Error(UNVERIFIED);
+    email = String(ui.email ?? '');
+  } else {
+    const claims = idTokenClaims(tok.id_token);
+    if (!microsoftEmailTrusted(claims, p.tenant)) {
+      throw new Error(
+        `${UNVERIFIED} Microsoft work accounts sign in only when an administrator sets this install's Microsoft tenant.`
+      );
     }
+    email = String(claims.email ?? '');
   }
 
-  if (!email || !email.includes('@')) throw new Error('The provider did not return a verified email.');
+  if (!email || !email.includes('@')) throw new Error('The provider did not return an email address.');
   return email.trim().toLowerCase();
 }

@@ -7,7 +7,9 @@ import { randomUUID } from 'node:crypto';
 import { getStore } from '../../database/store';
 import { hashPassword, verifyPassword, newToken } from '../../platform/crypto/crypto';
 import { RbacModule, toAppRole } from '../authorization/rbac.service';
-import type { AppRole, Permission } from '@foxschema/shared';
+import { assertPasswordAcceptable, type AppRole, type Permission } from '@foxschema/shared';
+import { CODE_TTL_MS, hashAuthCode, hashSecretToken, newAuthCode, type AuthCodePurpose } from './auth-codes';
+import { clearFailures, lockedFor, recordFailure } from './sign-in-throttle';
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 
@@ -21,13 +23,41 @@ export interface AuthUser {
   permissions: Permission[];
 }
 
-function validateCredentials(email: string, password: string): void {
+function assertEmail(email: string): void {
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     throw new Error('A valid email is required.');
   }
-  if (!password || password.length < 8) {
-    throw new Error('Password must be at least 8 characters.');
+}
+
+/** A new account's email and chosen password. Never applied at sign-in. */
+function validateCredentials(email: string, password: string): void {
+  assertEmail(email);
+  assertPasswordAcceptable(password, email);
+}
+
+/**
+ * Checked against when the email has no account, so a wrong email costs the
+ * same scrypt time as a wrong password and response time does not reveal
+ * which emails exist.
+ */
+const DUMMY_HASH = hashPassword(randomUUID());
+
+/** Thrown when an account is locked after too many failed sign-ins. */
+export class SignInLockedError extends Error {
+  constructor(readonly retryAfterMs: number) {
+    const minutes = Math.max(1, Math.ceil(retryAfterMs / 60000));
+    super(
+      `Too many failed sign-ins for this email. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}, ` +
+        'or reset your password.'
+    );
+    this.name = 'SignInLockedError';
   }
+}
+
+export interface IssuedCode {
+  code: string;
+  email: string;
+  expiresAt: string;
 }
 
 /** The `users` columns every auth path resolves an AuthUser from. */
@@ -92,19 +122,131 @@ export class AuthModule {
    * admin exists, people get in only when an admin adds them.
    */
   async createUser(email: string, password: string, role: AppRole): Promise<AuthUser> {
-    validateCredentials(email, password);
+    const normalized = (email ?? '').trim().toLowerCase();
+    validateCredentials(normalized, password);
+    return this.insertUser(normalized, hashPassword(password), role, true);
+  }
+
+  /**
+   * An admin invites someone: the account exists, and they choose its password
+   * themselves by redeeming the invite code. Nobody else ever knows it.
+   */
+  async inviteUser(email: string, role: AppRole): Promise<{ user: AuthUser; invite: IssuedCode }> {
+    const normalized = (email ?? '').trim().toLowerCase();
+    assertEmail(normalized);
+    // A password nobody knows until the invite is redeemed.
+    const user = await this.insertUser(normalized, hashPassword(randomUUID()), role, false);
+    return { user, invite: await this.issueCode(user.id, 'invite') };
+  }
+
+  private async insertUser(email: string, passwordHash: string, role: AppRole, passwordSet: boolean): Promise<AuthUser> {
     const store = await getStore();
-    const normalized = email.trim().toLowerCase();
-
-    const existing = await store.get('SELECT id FROM users WHERE email = ?', [normalized]);
+    const existing = await store.get('SELECT id FROM users WHERE email = ?', [email]);
     if (existing) throw new Error('An account with this email already exists.');
-
     const id = randomUUID();
     await store.run(
-      'INSERT INTO users (id, email, password_hash, created_at, app_role, password_set) VALUES (?, ?, ?, ?, ?, 1)',
-      [id, normalized, hashPassword(password), new Date().toISOString(), role]
+      'INSERT INTO users (id, email, password_hash, created_at, app_role, password_set) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, email, passwordHash, new Date().toISOString(), role, passwordSet ? 1 : 0]
     );
-    return this.toAuthUser({ id, email: normalized, onboarding_completed: 0, app_role: role });
+    return this.toAuthUser({ id, email, onboarding_completed: 0, app_role: role });
+  }
+
+  /**
+   * A one-time code for `userId`: a password reset or an invite. Any earlier
+   * unused code of the same kind for that account stops working.
+   */
+  async issueCode(userId: string, purpose: AuthCodePurpose): Promise<IssuedCode> {
+    const store = await getStore();
+    const row = await store.get<{ email: string }>('SELECT email FROM users WHERE id = ?', [userId]);
+    if (!row) throw new Error('User not found.');
+    await store.run('DELETE FROM auth_codes WHERE user_id = ? AND purpose = ? AND used_at IS NULL', [userId, purpose]);
+    const code = newAuthCode();
+    const now = Date.now();
+    const expiresAt = new Date(now + CODE_TTL_MS[purpose]).toISOString();
+    await store.run(
+      'INSERT INTO auth_codes (code_hash, user_id, purpose, created_at, expires_at) VALUES (?, ?, ?, ?, ?)',
+      [hashAuthCode(code), userId, purpose, new Date(now).toISOString(), expiresAt]
+    );
+    return { code, email: row.email, expiresAt };
+  }
+
+  /**
+   * A reset code for whoever owns `email`, or null when no active account
+   * does. The caller answers the same either way.
+   */
+  async requestPasswordReset(email: string): Promise<IssuedCode | null> {
+    const store = await getStore();
+    const normalized = (email ?? '').trim().toLowerCase();
+    if (!normalized) return null;
+    const row = await store.get<UserRow>(
+      'SELECT id, email, onboarding_completed, app_role, active FROM users WHERE email = ?',
+      [normalized]
+    );
+    if (!row || (row.active !== null && row.active !== undefined && Number(row.active) === 0)) return null;
+    return this.issueCode(row.id, 'reset');
+  }
+
+  private async findCode(code: unknown) {
+    const hash = hashAuthCode(code);
+    if (!hash) return null;
+    const store = await getStore();
+    const row = await store.get<{
+      user_id: string;
+      purpose: AuthCodePurpose;
+      expires_at: string;
+      used_at: string | null;
+      email: string;
+      active: number | null;
+    }>(
+      `SELECT c.user_id, c.purpose, c.expires_at, c.used_at, u.email, u.active
+         FROM auth_codes c JOIN users u ON u.id = c.user_id
+        WHERE c.code_hash = ?`,
+      [hash]
+    );
+    if (!row || row.used_at || new Date(row.expires_at).getTime() < Date.now()) return null;
+    if (row.active !== null && row.active !== undefined && Number(row.active) === 0) return null;
+    return { ...row, hash };
+  }
+
+  /** Who a still-valid code is for, so the page can say so; null when it does not work. */
+  async inspectCode(code: unknown): Promise<{ email: string; purpose: AuthCodePurpose } | null> {
+    const row = await this.findCode(code);
+    return row ? { email: row.email, purpose: row.purpose } : null;
+  }
+
+  /**
+   * Set a password with a reset or invite code, and sign in.
+   *
+   * The code works once. Every other session of the account ends, since a
+   * reset is what someone does when they think their password is known.
+   */
+  async redeemCode(code: unknown, password: string): Promise<{ user: AuthUser; token: string; purpose: AuthCodePurpose }> {
+    const found = await this.findCode(code);
+    if (!found) throw new Error('This code is wrong or has expired. Ask for a new one.');
+    assertPasswordAcceptable(password, found.email);
+    const store = await getStore();
+    const now = new Date().toISOString();
+    // Claim the code first, so two requests with it cannot both succeed.
+    const claimed = await store.run('UPDATE auth_codes SET used_at = ? WHERE code_hash = ? AND used_at IS NULL', [
+      now,
+      found.hash,
+    ]);
+    if (claimed.changes === 0) {
+      throw new Error('This code is wrong or has expired. Ask for a new one.');
+    }
+    await store.run('UPDATE users SET password_hash = ?, password_set = 1 WHERE id = ?', [
+      hashPassword(password),
+      found.user_id,
+    ]);
+    await store.run('DELETE FROM sessions WHERE user_id = ?', [found.user_id]);
+    await store.run('DELETE FROM auth_codes WHERE user_id = ? AND used_at IS NULL', [found.user_id]);
+    clearFailures(found.email);
+    const row = await store.get<UserRow>(
+      'SELECT id, email, onboarding_completed, app_role, active FROM users WHERE id = ?',
+      [found.user_id]
+    );
+    if (!row) throw new Error('User not found.');
+    return { user: await this.toAuthUser(row), token: await this.createSession(row.id), purpose: found.purpose };
   }
 
   /** Whether first-run setup is still open, and which email it must use. */
@@ -183,11 +325,18 @@ export class AuthModule {
       [normalized]
     );
 
-    // Same error whether the email or password is wrong (no account enumeration)
-    if (!row || !verifyPassword(password ?? '', row.password_hash)) {
+    const wait = lockedFor(normalized);
+    if (wait > 0) throw new SignInLockedError(wait);
+
+    // Same error, and the same scrypt time, whether the email or the password
+    // is wrong (no account enumeration).
+    const matches = verifyPassword(password ?? '', row?.password_hash ?? DUMMY_HASH);
+    if (!row || !matches) {
+      recordFailure(normalized);
       throw new Error('Invalid email or password.');
     }
     assertUserActive(row);
+    clearFailures(normalized);
     // Someone knows this password, so the install is past first-run setup.
     await store.run('UPDATE users SET password_set = 1 WHERE id = ? AND password_set = 0', [row.id]);
 
@@ -198,12 +347,10 @@ export class AuthModule {
    * Admin sets another user's password (Access control). Invalidates their sessions.
    */
   async adminSetPassword(userId: string, password: string): Promise<void> {
-    if (!password || password.length < 8) {
-      throw new Error('Password must be at least 8 characters.');
-    }
     const store = await getStore();
-    const exists = await store.get('SELECT id FROM users WHERE id = ?', [userId]);
+    const exists = await store.get<{ email: string }>('SELECT email FROM users WHERE id = ?', [userId]);
     if (!exists) throw new Error('User not found.');
+    assertPasswordAcceptable(password, exists.email);
     await store.run('UPDATE users SET password_hash = ?, password_set = 1 WHERE id = ?', [
       hashPassword(password),
       userId,
@@ -264,21 +411,23 @@ export class AuthModule {
   async logout(token: string | undefined): Promise<void> {
     if (!token) return;
     const store = await getStore();
-    await store.run('DELETE FROM sessions WHERE token = ?', [token]);
+    await store.run('DELETE FROM sessions WHERE token = ?', [hashSecretToken(token)]);
   }
 
   /** Resolve a session token to its user, or null if missing/expired. */
   async getUserByToken(token: string | undefined): Promise<AuthUser | null> {
     if (!token) return null;
     const store = await getStore();
+    // Stored hashed: a copy of the metadata database holds no usable session.
+    const stored = hashSecretToken(token);
     const session = await store.get<{ user_id: string; expires_at: string }>(
       'SELECT user_id, expires_at FROM sessions WHERE token = ?',
-      [token]
+      [stored]
     );
     if (!session) return null;
 
     if (new Date(session.expires_at).getTime() < Date.now()) {
-      await store.run('DELETE FROM sessions WHERE token = ?', [token]);
+      await store.run('DELETE FROM sessions WHERE token = ?', [stored]);
       return null;
     }
 
@@ -288,7 +437,7 @@ export class AuthModule {
     );
     if (!user) return null;
     if (user.active !== null && user.active !== undefined && Number(user.active) === 0) {
-      await store.run('DELETE FROM sessions WHERE token = ?', [token]);
+      await store.run('DELETE FROM sessions WHERE token = ?', [stored]);
       return null;
     }
 
@@ -300,7 +449,7 @@ export class AuthModule {
     const now = Date.now();
     const store = await getStore();
     await store.run('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)', [
-      token,
+      hashSecretToken(token),
       userId,
       new Date(now).toISOString(),
       new Date(now + SESSION_TTL_MS).toISOString(),

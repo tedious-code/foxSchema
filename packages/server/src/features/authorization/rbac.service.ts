@@ -107,6 +107,8 @@ export class RbacModule {
       email: string;
       role: AppRole;
       active: boolean;
+      /** False until the person chose a password (an invite not yet accepted). */
+      passwordSet: boolean;
       createdAt: string;
       permissions: Permission[];
     }>
@@ -117,8 +119,9 @@ export class RbacModule {
       email: string;
       app_role: string | null;
       active: number | null;
+      password_set: number | null;
       created_at: string;
-    }>('SELECT id, email, app_role, active, created_at FROM users ORDER BY created_at ASC');
+    }>('SELECT id, email, app_role, active, password_set, created_at FROM users ORDER BY created_at ASC');
     const permsByRole = {} as Record<AppRole, Permission[]>;
     for (const role of APP_ROLES) {
       permsByRole[role] = await this.permissionsForRole(role);
@@ -131,6 +134,7 @@ export class RbacModule {
         role,
         // Pre-migration rows / NULL → treat as active.
         active: r.active === null || r.active === undefined ? true : Number(r.active) !== 0,
+        passwordSet: Number(r.password_set) === 1,
         createdAt: r.created_at,
         permissions: [...permsByRole[role]],
       };

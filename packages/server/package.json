@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@fastify/cors": "11.3.0",
-    "@fastify/static": "10.1.4",
+    "@fastify/static": "10.1.5",
     "@foxschema/db": "*",
     "@foxschema/shared": "*",
     "@foxschema/sql": "*",

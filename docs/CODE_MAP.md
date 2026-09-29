@@ -65,6 +65,8 @@ flags (`workflow`, `enterprise.channels`).
 ```
 interfaces/  The shared vocabulary: TableSchema, TableDiff, MigrationStep.
 providers/   One folder per dialect — settings, SqlDialect, and Access SQL (`*.user-sql.ts`, `*.access-sql.ts`).
+             `dialectFamily()` in `provider-settings.ts` maps wire-compatible
+             relatives onto mysql / postgres / sqlserver.
 cores/       Connection strings, and shaping catalog rows into TableSchema.
 modules/     One folder per domain, named to match the frontend feature
              that consumes it.
@@ -74,7 +76,7 @@ modules/     One folder per domain, named to match the frontend feature
 |---|---|
 | `dialect` | The `SqlDialect` contract, the registry, type mapping, capability flags |
 | `sql-text` | Statement splitting and SQL templating |
-| `schema-diff` | Comparing two schemas, and browsing one |
+| `schema-diff` | Comparing two schemas, and browsing one. `normalizeDefinitionText` is shared with Lokee |
 | `migrations` | Generating DDL, ordering drops, validating a plan |
 | `lokee-weave` | Content-addressed schema versioning and revert |
 | `sql-editor` | FoxScript parsing, code cells, SELECT aliasing, the SQL subset |
@@ -96,7 +98,8 @@ api/         The HTTP server itself: Fastify setup, route tree, security
 
 platform/    Cross-cutting infrastructure used by every feature.
   contracts/   ActorContext and ServiceError
-  guards/      origin policy, rate limit, idempotency, target locks
+  guards/      origin policy (`FOX_ALLOWED_ORIGINS`, literal LAN IPs in dev),
+               rate limit, idempotency, target locks
   http/        request/response types, router, Fastify binding, responses
   db/          connection resolution
   crypto/      secret encryption
@@ -186,12 +189,12 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | `admin` | User and role administration |
 | `auth` | Sign-in, SSO buttons, onboarding |
 | `connections` | Connection modal (login method: password / Windows / LDAP), credential manager, database settings |
-| `lokee-weave` | Schema history graph and version compare |
-| `migrations` | Migration run history |
+| `lokee-weave` | Schema history graph and version compare (Snapshots workspace) |
+| `migrations` | Migration run history (Applies on the rail) |
 | `object-detail` | Detail panel for a single schema object |
 | `schema-diff` | Diff rendering shared by compare and history |
-| `sql-editor` | SQL editor, results grid, data peek, utilities |
-| `utilities` | Clone table, index management, server insights |
+| `sql-editor` | SQL editor, results grid, data peek (Index/Clone/Query files live in `utilities`) |
+| `utilities` | Own workspace: clone table, index management, server insights, query files, DB users & grants |
 | `workflow` | Workflow designer (canvas, inspector, triggers, SQL and script editors), runs, variables, credentials and engine settings — through the engine proxy, plus linking saved connections to workflows |
 
 ## Where does my change go?

@@ -2,10 +2,10 @@
 
 # Fox Schema
 
-**Compare schemas · generate migrations · run SQL — across 10 dialects.**
+**Compare schemas · generate migrations · run SQL — across 14 SQL dialects.**
 
-Install once, then open the local web UI (`foxschema`) for **Schema Sync**, the
-**SQL Editor**, and optional **Workflow**. Self-host with Docker when you need a server.
+Install once, then open the local web UI (`foxschema`) for **Compare**, the
+**SQL Editor**, **Utils**, **Snapshots**, and optional **Workflow**. Self-host with Docker when you need a server.
 
 [foxschema.com](https://foxschema.com) · [Install](docs/INSTALL.md) · [User guide](docs/USER_GUIDE.md) · [Workflow](docs/WORKFLOW.md) · [Publish](docs/PUBLISH.md) · [Contributing](CONTRIBUTING.md)
 
@@ -128,10 +128,11 @@ Open **http://localhost:3210**. Guide: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Supported dialects
 
-PostgreSQL · MySQL · MariaDB · SQL Server · Azure SQL · Oracle · IBM Db2 ·
-SQLite · ClickHouse · Amazon Redshift
+PostgreSQL · CockroachDB · YugabyteDB · MySQL · MariaDB · TiDB · SQL Server ·
+Azure SQL · Oracle · IBM Db2 · SQLite · DuckDB · ClickHouse · Amazon Redshift
 
-One product — Docker image includes Db2 on linux/amd64.
+MongoDB and Redis appear in the connection list (settings only — no schema
+compare). One product — Docker image includes Db2 on linux/amd64.
 
 ## Package notes (npm)
 

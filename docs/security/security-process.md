@@ -174,7 +174,7 @@ document's claim that the two matched was not true. Both are wired into
 
 Forced nested pins live in the root `package.json` `overrides` (do not take `npm audit fix --force` for these):
 
-- `dompurify@3.4.13` — Monaco 0.55.1 still depends on 3.2.7; 0.56.0 is a breaking ESM rewrite and still ships 3.4.8.
+- `dompurify@3.4.15` and `monaco-editor@0.57.0` — Monaco ships an older DOMPurify; the override forces the patched one. The two pins must match `apps/web/package.json` and the lockfile, or `npm ci` refuses to install (a Dependabot bump that moved only one of them broke CI on 2026-09-29).
 - `adm-zip@0.6.0` — `ibm_db@4` still depends on `^0.5.16`; the suggested “fix” is a downgrade to `ibm_db@3.1.0`.
 
 ### Responding to a Gitleaks finding

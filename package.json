@@ -94,10 +94,10 @@
     "vitest": "5.0.2"
   },
   "overrides": {
-    "monaco-editor": "0.56.0",
+    "monaco-editor": "0.57.0",
     "nanoid": "3.3.18",
     "postcss": "8.5.26",
-    "dompurify": "3.4.13",
+    "dompurify": "3.4.15",
     "adm-zip": "0.6.1",
     "react-dom": "19.3.0"
   }

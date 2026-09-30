@@ -23,7 +23,6 @@
  */
 import { createHash, randomBytes } from 'node:crypto';
 import type { AppRequest } from '../../platform/http/types';
-import { headerOf } from '../../platform/http/reply';
 import type { SsoProviderConfig } from './sign-in-settings.service';
 
 export type { SsoProviderConfig, SsoProviderId } from './sign-in-settings.service';
@@ -67,9 +66,17 @@ function endpoints(p: SsoProviderConfig): Endpoints {
   }
 }
 
-/** The address the provider sends the browser back to. */
+/**
+ * The address the provider sends the browser back to.
+ *
+ * Without a configured public URL it is the address the browser used, which
+ * behind a proxy — the Vite dev server included — is `X-Forwarded-Host`, not
+ * the proxy's own `Host`. Taking `Host` sent people back to the bare API
+ * port, which serves no page, so sign-in ended on a blank screen. `req.host`
+ * reads the forwarded value only from a trusted proxy (see `trustProxy`).
+ */
 export function redirectUri(req: AppRequest, providerId: string, publicUrl: string): string {
-  const base = publicUrl || `${req.protocol}://${headerOf(req, 'host') ?? ''}`;
+  const base = publicUrl || `${req.protocol}://${req.host}`;
   return `${base.replace(/\/$/, '')}/api/auth/sso/${providerId}/callback`;
 }
 

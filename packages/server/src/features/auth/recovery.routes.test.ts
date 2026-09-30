@@ -141,6 +141,16 @@ describe('sign-in settings over HTTP', () => {
     expect(JSON.stringify(got.json)).not.toContain('shh-secret');
 
     expect((await call('GET', '/auth/sso/providers')).json.providers).toEqual([{ id: 'github', label: 'GitHub' }]);
+
+    // Through a proxy (the Vite dev server), the provider must send people
+    // back to the page they came from, not to the API's own port.
+    const start = await fetch(`${base}/auth/sso/github/start`, {
+      redirect: 'manual',
+      headers: { 'x-forwarded-host': 'localhost:5199', 'x-forwarded-proto': 'http' },
+    });
+    const authorize = new URL(start.headers.get('location')!);
+    expect(authorize.searchParams.get('redirect_uri')).toBe('http://localhost:5199/api/auth/sso/github/callback');
+    expect(authorize.searchParams.get('code_challenge_method')).toBe('S256');
     expect((await call('GET', '/admin/sign-in')).status).toBe(401);
   });
 });

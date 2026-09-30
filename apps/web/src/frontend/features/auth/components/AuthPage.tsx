@@ -21,7 +21,7 @@ import { Brand } from '@/app/shell/Brand';
 import { PasswordInput } from '@/shared/components/PasswordInput';
 import { SsoButtons } from './SsoButtons';
 import { AuthError } from './AuthError';
-import { NewPasswordFields, newPasswordError, useCapsLock, CapsLockHint } from './NewPasswordFields';
+import { NewPasswordFields, NewsOptIn, newPasswordError, useCapsLock, CapsLockHint } from './NewPasswordFields';
 import { ForgotPasswordView, RedeemCodeView } from './PasswordRecovery';
 import { authInputCls, authLabelCls, authLinkCls, authSubmitCls } from './authStyles';
 
@@ -191,6 +191,7 @@ const FirstAccountForm: React.FC = () => {
   const [confirm, setConfirm] = useState('');
   const [code, setCode] = useState('');
   const [attempted, setAttempted] = useState(false);
+  const [news, setNews] = useState(false);
   const accountEmail = boundEmail ?? email.trim();
   const problem = newPasswordError(password, confirm, accountEmail);
 
@@ -198,7 +199,7 @@ const FirstAccountForm: React.FC = () => {
     e.preventDefault();
     setAttempted(true);
     if (problem) return;
-    void setup(accountEmail, password, setupState?.setupCodeRequired ? code.trim() : undefined);
+    void setup(accountEmail, password, setupState?.setupCodeRequired ? code.trim() : undefined, news);
   };
 
   return (
@@ -249,6 +250,8 @@ const FirstAccountForm: React.FC = () => {
           </p>
         </div>
       )}
+
+      <NewsOptIn checked={news} onChange={setNews} />
 
       <AuthError message={error} />
 

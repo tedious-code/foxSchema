@@ -86,6 +86,11 @@ for an email and password**, and only an administrator can create accounts.
   without email set up, in the server log and via
   `foxschema reset-password [email]`. Setting the new password signs out every
   other session. The reply never says whether the email has an account.
+- **Email me Fox news** on *Create your account* and when accepting an invite:
+  unticked by default; when ticked, the email goes to the Fox subscriber list
+  (the same foxschema.com endpoint as the first-run wizard, which notifies
+  contact@foxschema.com). Never sent on a password reset, and a signup service
+  that is down never blocks creating the account.
 - **Admin → Access control → Sign-in** configures Google, Microsoft and GitHub
   sign-in (with the redirect URL to register), the email relay (Hostinger /
   Gmail / Microsoft 365 presets and a test button) and the public URL — for the

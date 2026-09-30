@@ -32,9 +32,9 @@ interface AuthState {
 
   init: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  setup: (email: string, password: string, code?: string) => Promise<void>;
+  setup: (email: string, password: string, code?: string, subscribe?: boolean) => Promise<void>;
   /** Set a password with a reset or invite code, and sign in. */
-  redeem: (code: string, password: string) => Promise<boolean>;
+  redeem: (code: string, password: string, subscribe?: boolean) => Promise<boolean>;
   logout: () => Promise<void>;
   completeOnboarding: (prefs: Partial<UserPreferences>) => Promise<void>;
   refreshMe: () => Promise<void>;
@@ -84,10 +84,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  setup: async (email, password, code) => {
+  setup: async (email, password, code, subscribe = false) => {
     set({ busy: true, error: null });
     try {
-      const user = await apiSetup(email, password, code);
+      const user = await apiSetup(email, password, code, subscribe);
       set({ user, setupState: null, status: statusFor(user), busy: false });
     } catch (e: unknown) {
       set({
@@ -97,10 +97,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  redeem: async (code, password) => {
+  redeem: async (code, password, subscribe = false) => {
     set({ busy: true, error: null });
     try {
-      const user = await apiRedeemCode(code, password);
+      const user = await apiRedeemCode(code, password, subscribe);
       set({ user, status: statusFor(user), busy: false });
       return true;
     } catch (e: unknown) {

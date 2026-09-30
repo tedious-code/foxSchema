@@ -113,7 +113,7 @@ docker compose -f docker-compose.app.yml up -d
 | `APP_DB_URL` | — | Connection URL for the metadata store when engine is `postgres`/`mysql`. |
 | `APP_KEY_SCHEME` | `v1` | `v1` = key used directly. `v2` = key bound to `APP_USER_EMAIL` (anti-copy); leave `v1` for stateless servers. |
 | `LOCAL_SINGLE_USER` | `true` | Whether this is a personal install (`true`) or a shared server (`false`). Sign-in is required either way; this only decides machine-level actions (installing drivers, self-update, changing the metadata DB, host cloud credentials), which a shared server refuses. |
-| `SIGNUP_WEBHOOK_URL` | — | Optional. First-open email subscriber wizard posts here (WordPress `/foxschema/v1/signup`). Without it, subscribe still dismisses the wizard locally. |
+| `SIGNUP_WEBHOOK_URL` | — | Optional. The first-open subscriber wizard posts here (WordPress `/foxschema/v1/signup`, which emails contact@foxschema.com), and so does a new account whose owner ticks **Email me Fox news** at sign-up or when accepting an invite (unticked by default; never on a password reset). Without it, subscribing is a local no-op and never blocks sign-up. |
 | `SIGNUP_WEBHOOK_SECRET` | — | Optional shared secret sent as `X-Foxschema-Signup-Secret`. |
 | `UPDATE_FEED_URL` | npm `foxschema/latest` | Version check for in-app update toasts. Default is the npm registry. The “What’s new” link opens the matching GitHub Release page. Set `off` to disable. |
 | `APP_VERSION` | from `package.json` | Running version compared against the feed. The CLI sets this from the installed npm package. |

@@ -11,7 +11,7 @@ import React, { useEffect, useState } from 'react';
 import { Loader2, MailCheck, ScrollText } from 'lucide-react';
 import { useAuthStore } from '@/app/store/authStore';
 import { apiForgotPassword, apiInspectCode, type CodeDelivery, type CodePurpose } from '@/shared/api/authApi';
-import { NewPasswordFields, newPasswordError } from './NewPasswordFields';
+import { NewPasswordFields, NewsOptIn, newPasswordError } from './NewPasswordFields';
 import { authInputCls, authLabelCls, authLinkCls, authSubmitCls } from './authStyles';
 import { AuthError } from './AuthError';
 
@@ -123,6 +123,7 @@ export const RedeemCodeView: React.FC<NavProps & { initialCode?: string }> = ({ 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [attempted, setAttempted] = useState(false);
+  const [news, setNews] = useState(false);
 
   const check = async (value: string) => {
     setChecking(true);
@@ -186,7 +187,7 @@ export const RedeemCodeView: React.FC<NavProps & { initialCode?: string }> = ({ 
     e.preventDefault();
     setAttempted(true);
     if (problem) return;
-    await redeem(code.trim(), password);
+    await redeem(code.trim(), password, target.purpose === 'invite' && news);
   };
 
   return (
@@ -218,6 +219,7 @@ export const RedeemCodeView: React.FC<NavProps & { initialCode?: string }> = ({ 
         showMismatch={attempted}
         label={target.purpose === 'invite' ? 'Password' : 'New password'}
       />
+      {target.purpose === 'invite' && <NewsOptIn checked={news} onChange={setNews} />}
       <AuthError message={error} />
       <button type="submit" disabled={busy || (attempted && !!problem)} className={authSubmitCls}>
         {busy && <Loader2 className="w-4 h-4 animate-spin" />}

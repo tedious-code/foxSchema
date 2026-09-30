@@ -9,6 +9,8 @@ import type { AppRequest, AuthedRequest, NextFunction } from '../../platform/htt
 import { Router } from '../../platform/http/router';
 import { AuthModule, SESSION_COOKIE, SESSION_MAX_AGE_MS, SignInLockedError, type AuthUser } from '../auth/auth.service';
 import { AuthMailer } from './auth-mail';
+import { SignupModule } from '../users/signup-wizard.service';
+import { AppSettingsStore } from '../admin/app-settings.service';
 import { sendError } from '../../platform/http/respond';
 import { rateLimit } from '../../platform/guards/rate-limit';
 import { getLogger } from '../../platform/logger/logger';
@@ -48,8 +50,25 @@ export function setSessionCookie(res: FastifyReply, token: string): void {
   });
 }
 
-export function createAuthRoutes(auth: AuthModule, mailer = new AuthMailer()): Router {
+export function createAuthRoutes(
+  auth: AuthModule,
+  mailer = new AuthMailer(),
+  signup = new SignupModule(new AppSettingsStore())
+): Router {
   const router = Router();
+
+  /**
+   * A new account's owner ticked "Email me Fox news": pass it on to the
+   * subscriber list, after the reply, and never let it fail the sign-up.
+   */
+  const subscribeIfAsked = (wanted: unknown, email: string) => {
+    if (wanted !== true) return;
+    signup.subscribeNewAccount(email).catch((error: unknown) => {
+      getLogger().warn(
+        `Could not add a new account to the Fox news list: ${error instanceof Error ? error.message : String(error)}`
+      );
+    });
+  };
 
   // Sign-in is the only way in, so it is what gets guessed at. Per address,
   // before any account exists to charge.
@@ -74,7 +93,12 @@ export function createAuthRoutes(auth: AuthModule, mailer = new AuthMailer()): R
   });
 
   router.post('/setup', signInLimiter, async (req: AppRequest, res: FastifyReply) => {
-    const { email, password, code } = (req.body ?? {}) as { email?: string; password?: string; code?: string };
+    const { email, password, code, subscribe } = (req.body ?? {}) as {
+      email?: string;
+      password?: string;
+      code?: string;
+      subscribe?: unknown;
+    };
     const state = await auth.setupState();
     if (!state.setupRequired) {
       sendError(res, 'conflict', 'Setup is already complete. Sign in instead.');
@@ -90,6 +114,7 @@ export function createAuthRoutes(auth: AuthModule, mailer = new AuthMailer()): R
       resetSetupCode();
       setSessionCookie(res, token);
       res.send({ user });
+      subscribeIfAsked(subscribe, user.email);
     } catch (error: unknown) {
       sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Setup failed');
     }
@@ -144,11 +169,13 @@ export function createAuthRoutes(auth: AuthModule, mailer = new AuthMailer()): R
 
   /** Choose a password with a reset or invite code, and sign in. */
   router.post('/password/reset', resetLimiter, async (req: AppRequest, res: FastifyReply) => {
-    const { code, password } = (req.body ?? {}) as { code?: string; password?: string };
+    const { code, password, subscribe } = (req.body ?? {}) as { code?: string; password?: string; subscribe?: unknown };
     try {
-      const { user, token } = await auth.redeemCode(code, password ?? '');
+      const { user, token, purpose } = await auth.redeemCode(code, password ?? '');
       setSessionCookie(res, token);
       res.send({ user });
+      // Only a new account (an accepted invite) is asked; a reset is not a sign-up.
+      if (purpose === 'invite') subscribeIfAsked(subscribe, user.email);
     } catch (error: unknown) {
       sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Could not set the password');
     }

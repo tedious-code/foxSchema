@@ -78,7 +78,7 @@ describe('first-time sign-up', () => {
 
     type(/confirm password/i, GOOD);
     fireEvent.submit(screen.getByTestId('auth-setup-form'));
-    await waitFor(() => expect(apiSetup).toHaveBeenCalledWith('owner@example.com', GOOD, undefined));
+    await waitFor(() => expect(apiSetup).toHaveBeenCalledWith('owner@example.com', GOOD, undefined, false));
     await waitFor(() => expect(useAuthStore.getState().status).toBe('ready'));
   });
 
@@ -97,7 +97,24 @@ describe('first-time sign-up', () => {
     type(/confirm password/i, GOOD);
     type(/setup code/i, 'ABCD-EFGH');
     fireEvent.submit(screen.getByTestId('auth-setup-form'));
-    await waitFor(() => expect(apiSetup).toHaveBeenCalledWith('bound@example.com', GOOD, 'ABCD-EFGH'));
+    await waitFor(() => expect(apiSetup).toHaveBeenCalledWith('bound@example.com', GOOD, 'ABCD-EFGH', false));
+  });
+
+  it('asks before subscribing the new account to Fox news, unticked by default', async () => {
+    apiSetup.mockResolvedValue(ADMIN);
+    useAuthStore.setState({
+      status: 'setup',
+      setupState: { setupRequired: true, setupEmail: null, setupCodeRequired: false },
+    });
+    render(<AuthPage />);
+    const optIn = screen.getByTestId('auth-news-opt-in') as HTMLInputElement;
+    expect(optIn.checked).toBe(false);
+    type(/^email$/i, 'owner@example.com');
+    type(/^password$/i, GOOD);
+    type(/confirm password/i, GOOD);
+    fireEvent.click(optIn);
+    fireEvent.submit(screen.getByTestId('auth-setup-form'));
+    await waitFor(() => expect(apiSetup).toHaveBeenCalledWith('owner@example.com', GOOD, undefined, true));
   });
 });
 
@@ -164,8 +181,10 @@ describe('codes', () => {
 
     type(/^password$/i, GOOD);
     type(/confirm password/i, GOOD);
+    expect((screen.getByTestId('auth-news-opt-in') as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(screen.getByTestId('auth-news-opt-in'));
     fireEvent.submit(screen.getByTestId('auth-redeem-form'));
-    await waitFor(() => expect(apiRedeemCode).toHaveBeenCalledWith('ABCD-EFGH-JKMN', GOOD));
+    await waitFor(() => expect(apiRedeemCode).toHaveBeenCalledWith('ABCD-EFGH-JKMN', GOOD, true));
     await waitFor(() => expect(useAuthStore.getState().status).toBe('ready'));
   });
 

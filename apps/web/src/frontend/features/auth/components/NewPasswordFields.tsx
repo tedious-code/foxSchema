@@ -29,6 +29,23 @@ export const CapsLockHint: React.FC<{ on: boolean }> = ({ on }) =>
     </p>
   ) : null;
 
+/**
+ * "Email me Fox news" on a new account. Unticked until the person ticks it:
+ * a pre-ticked box is not consent (CASL, GDPR).
+ */
+export const NewsOptIn: React.FC<{ checked: boolean; onChange: (v: boolean) => void }> = ({ checked, onChange }) => (
+  <label className="flex items-start gap-2 text-xs text-slate-400 cursor-pointer">
+    <input
+      type="checkbox"
+      data-testid="auth-news-opt-in"
+      checked={checked}
+      onChange={(e) => onChange(e.target.checked)}
+      className="mt-0.5 rounded border-slate-600 bg-slate-900"
+    />
+    <span>Email me Fox news and updates. Unsubscribe any time.</span>
+  </label>
+);
+
 /** Why the pair cannot be submitted yet, or null when it can. */
 export function newPasswordError(password: string, confirm: string, email: string): string | null {
   return passwordProblem(password, email) ?? (password !== confirm ? 'The two passwords do not match.' : null);

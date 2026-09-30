@@ -64,6 +64,8 @@ describe('invite, forgot password and reset', () => {
     // The code is taken off the address bar once read.
     expect(new URL(page.url()).hash).toBe('');
     expect(await page.inputValue('#auth-redeem-email')).toBe(EMAIL);
+    // Asked, never assumed: "Email me Fox news" starts unticked.
+    expect(await page.isChecked('[data-testid="auth-news-opt-in"]')).toBe(false);
 
     await page.fill('#auth-new-password', FIRST_PASSWORD);
     await page.fill('#auth-confirm', FIRST_PASSWORD);

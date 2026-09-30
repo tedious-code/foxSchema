@@ -48,10 +48,10 @@ export async function apiSetupState(): Promise<SetupState> {
 }
 
 /** Create (or claim) the first admin account and sign in as it. */
-export async function apiSetup(email: string, password: string, code?: string): Promise<AuthUser> {
+export async function apiSetup(email: string, password: string, code?: string, subscribe = false): Promise<AuthUser> {
   const { user } = await api.post<{ user: AuthUser }>(
     '/auth/setup',
-    { email, password, ...(code ? { code } : {}) },
+    { email, password, ...(code ? { code } : {}), ...(subscribe ? { subscribe: true } : {}) },
     EMPTY_OK
   );
   return user;
@@ -90,9 +90,16 @@ export async function apiInspectCode(code: string): Promise<{ email: string; pur
   return api.post('/auth/password/code', { code }, EMPTY_OK);
 }
 
-/** Choose a password with a reset or invite code, and sign in. */
-export async function apiRedeemCode(code: string, password: string): Promise<AuthUser> {
-  const { user } = await api.post<{ user: AuthUser }>('/auth/password/reset', { code, password }, EMPTY_OK);
+/**
+ * Choose a password with a reset or invite code, and sign in. `subscribe` is
+ * the new account's "Email me Fox news" choice (invites only).
+ */
+export async function apiRedeemCode(code: string, password: string, subscribe = false): Promise<AuthUser> {
+  const { user } = await api.post<{ user: AuthUser }>(
+    '/auth/password/reset',
+    { code, password, ...(subscribe ? { subscribe: true } : {}) },
+    EMPTY_OK
+  );
   return user;
 }
 

@@ -52,7 +52,32 @@ function message(purpose: AuthCodePurpose, issued: IssuedCode, link: string, inv
   ]
     .filter((line, i, all) => line !== '' || all[i - 1] !== '')
     .join('\n');
-  return { subject, text };
+  return { subject, text, html: htmlMessage(purpose, issued, link, intro, validity) };
+}
+
+const escapeHtml = (value: string) =>
+  value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+/** The same message for mail clients that show HTML: a button when there is a link, and the code. */
+function htmlMessage(purpose: AuthCodePurpose, issued: IssuedCode, link: string, intro: string, validity: string): string {
+  const action = purpose === 'reset' ? 'Choose a new password' : 'Choose your password';
+  const button = link
+    ? `<p style="margin:24px 0"><a href="${escapeHtml(link)}" style="background:#e8912d;color:#111;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:6px;display:inline-block">${action}</a></p><p style="color:#555">Or enter this code on the Fox sign-in page:</p>`
+    : `<p style="color:#555">On the Fox sign-in page choose ${
+        purpose === 'reset' ? '<b>Forgot password?</b> → <b>I have a code</b>' : '<b>Have an invite or reset code?</b>'
+      } and enter:</p>`;
+  const ignore =
+    purpose === 'reset'
+      ? '<p style="color:#777;font-size:13px">If you did not ask for this, ignore this email; your password has not changed.</p>'
+      : '';
+  return `<!doctype html><html><body style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#222;max-width:520px;margin:0 auto;padding:24px">
+<p style="font-size:18px;font-weight:700;margin:0 0 16px">Fox</p>
+<p>${escapeHtml(intro)}</p>
+${button}
+<p style="font:600 22px/1.2 ui-monospace,Menlo,monospace;letter-spacing:2px;background:#f4f4f5;padding:12px 16px;border-radius:6px;display:inline-block">${escapeHtml(issued.code)}</p>
+<p style="color:#555">The code works once, for ${validity}.</p>
+${ignore}
+</body></html>`;
 }
 
 export class AuthMailer {
@@ -82,8 +107,8 @@ export class AuthMailer {
       );
       return 'log';
     }
-    const { subject, text } = message(purpose, issued, link, invitedBy);
-    await smtpSend(mail.smtp, { from: mail.from, to: [issued.email], subject, text });
+    const { subject, text, html } = message(purpose, issued, link, invitedBy);
+    await smtpSend(mail.smtp, { from: mail.from, to: [issued.email], subject, text, html });
     return 'email';
   }
 

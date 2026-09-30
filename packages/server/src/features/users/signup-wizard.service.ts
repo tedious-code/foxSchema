@@ -40,25 +40,8 @@ export class SignupModule {
     const trimmed = email.trim();
     if (!EMAIL_RE.test(trimmed)) return { ok: false, error: 'Enter a valid email address.' };
 
-    const url = process.env.SIGNUP_WEBHOOK_URL;
-    if (!url) {
-      // Not configured (e.g. local dev without the WordPress webhook set up) —
-      // don't block the user on infra that isn't there; just resolve the wizard.
-      await this.appSettings.set(SHOWN_KEY, 'true');
-      return { ok: true };
-    }
-
     try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(process.env.SIGNUP_WEBHOOK_SECRET ? { 'X-Foxschema-Signup-Secret': process.env.SIGNUP_WEBHOOK_SECRET } : {}),
-        },
-        body: JSON.stringify({ email: trimmed, source }),
-        signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
-      });
-      if (!res.ok) throw new Error(`Webhook responded ${res.status}`);
+      await this.forward(trimmed, source);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Could not reach the signup service';
       return { ok: false, error: `Couldn't save your email right now (${message}). Try again, or skip for now.` };
@@ -66,5 +49,37 @@ export class SignupModule {
 
     await this.appSettings.set(SHOWN_KEY, 'true');
     return { ok: true };
+  }
+
+  /**
+   * Someone creating their account ticked "Email me Fox news". Forwards their
+   * email the same way the wizard does (foxschema.com records it and notifies
+   * contact@foxschema.com), and resolves the wizard so it does not ask again.
+   *
+   * Only ever called with that person's consent, once per account: setup and
+   * invites are gated by the setup code or an admin. A failure is logged by
+   * the caller and never blocks the account being created.
+   */
+  async subscribeNewAccount(email: string): Promise<void> {
+    const trimmed = (email ?? '').trim();
+    if (!EMAIL_RE.test(trimmed)) return;
+    await this.forward(trimmed, 'web');
+    await this.appSettings.set(SHOWN_KEY, 'true');
+  }
+
+  /** POST to the WordPress signup webhook; a no-op when none is configured (local dev). */
+  private async forward(email: string, source: 'web' | 'cli'): Promise<void> {
+    const url = process.env.SIGNUP_WEBHOOK_URL;
+    if (!url) return;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(process.env.SIGNUP_WEBHOOK_SECRET ? { 'X-Foxschema-Signup-Secret': process.env.SIGNUP_WEBHOOK_SECRET } : {}),
+      },
+      body: JSON.stringify({ email, source }),
+      signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(`Webhook responded ${res.status}`);
   }
 }

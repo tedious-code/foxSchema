@@ -28,6 +28,7 @@ import { createApiRoutes } from './routes';
 import { defaultApiRateLimit } from '../platform/guards/rate-limit';
 import { createAuthRoutes, authGuard } from '../features/auth/auth.routes';
 import { createSsoRoutes } from '../features/auth/sso.routes';
+import { createSignInSettingsRoutes } from '../features/auth/sign-in-settings.routes';
 import { createConnectionStoreRoutes } from '../features/connections/connections.routes';
 import { createAppSecretsRoutes } from '../features/admin/app-secrets.routes';
 import { createUserRoutes } from '../features/users/user.routes';
@@ -87,6 +88,7 @@ export function buildApiRoutes(): RouteDefinition[] {
   root.use('/api/connections', userGuard, createConnectionStoreRoutes(connectionStore));
   root.use('/api/app-secrets', userGuard, createAppSecretsRoutes(new AppSecretsStore()));
   root.use('/api/user', userGuard, createUserRoutes(new UserModule()));
+  root.use('/api/admin/sign-in', userGuard, createSignInSettingsRoutes());
   root.use('/api/admin', userGuard, createAdminRoutes());
   // FoxWorkflow control plane (settings + engine health proxy).
   root.use('/api/workflow', userGuard, createWorkflowRoutes());

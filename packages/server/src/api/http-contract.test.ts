@@ -56,9 +56,17 @@ const ROUTES: RouteExpectation[] = [
   { method: 'GET', path: '/api/activity', status: 200 },
   { method: 'GET', path: '/api/admin/role-permissions', status: 200 },
   { method: 'PUT', path: '/api/admin/role-permissions/:role', status: 400 },
+  { method: 'GET', path: '/api/admin/sign-in', status: 200 },
+  { method: 'DELETE', path: '/api/admin/sign-in/mail', status: 200 },
+  { method: 'PUT', path: '/api/admin/sign-in/mail', status: 400 },
+  { method: 'POST', path: '/api/admin/sign-in/mail/test', status: 400 },
+  { method: 'DELETE', path: '/api/admin/sign-in/providers/:id', status: 404 },
+  { method: 'PUT', path: '/api/admin/sign-in/providers/:id', status: 404 },
+  { method: 'PUT', path: '/api/admin/sign-in/public-url', status: 200 },
   { method: 'GET', path: '/api/admin/users', status: 200 },
   { method: 'POST', path: '/api/admin/users', status: 400 },
   { method: 'PUT', path: '/api/admin/users/:id/active', status: 400 },
+  { method: 'POST', path: '/api/admin/users/:id/code', status: 404 },
   { method: 'PUT', path: '/api/admin/users/:id/password', status: 400 },
   { method: 'PUT', path: '/api/admin/users/:id/role', status: 400 },
   { method: 'GET', path: '/api/app-info', status: 200 },
@@ -74,6 +82,9 @@ const ROUTES: RouteExpectation[] = [
   { method: 'POST', path: '/api/auth/login', status: 401 },
   { method: 'POST', path: '/api/auth/logout', status: 200 },
   { method: 'GET', path: '/api/auth/me', status: 200 },
+  { method: 'POST', path: '/api/auth/password/code', status: 404 },
+  { method: 'POST', path: '/api/auth/password/forgot', status: 200 },
+  { method: 'POST', path: '/api/auth/password/reset', status: 400 },
   { method: 'POST', path: '/api/auth/register', status: 403 },
   { method: 'GET', path: '/api/auth/setup', status: 200 },
   { method: 'POST', path: '/api/auth/setup', status: 409 },
@@ -228,7 +239,10 @@ describe('HTTP contract', () => {
       //
       // 81 -> 84: POST /api/admin/users and GET/POST /api/auth/setup, when
       // sign-in became mandatory and self-registration closed.
-      expect(ROUTES.length).toBe(84);
+      //
+      // 84 -> 95: forgot password (/api/auth/password/*), an admin's fresh
+      // invite or reset code, and the sign-in settings screen (/api/admin/sign-in).
+      expect(ROUTES.length).toBe(95);
       expect(new Set(ROUTES.map((r) => `${r.method} ${r.path}`)).size).toBe(ROUTES.length);
     });
 

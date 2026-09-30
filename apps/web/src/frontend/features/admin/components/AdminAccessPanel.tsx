@@ -7,16 +7,22 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, ChevronRight, KeyRound, Loader2, Shield, UserCog, Users, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, KeyRound, Loader2, LogIn, Mail, Shield, UserCog, Users, X } from 'lucide-react';
+import { passwordProblem } from '@foxschema/shared';
 import {
   apiAdminCreateUser,
+  apiAdminIssueCode,
   apiAdminListUsers,
   apiAdminRolePermissions,
   apiAdminSetRolePermissions,
   apiAdminSetUserActive,
   apiAdminSetUserPassword,
   apiAdminSetUserRole,
+  type CodePurpose,
+  type IssuedCode,
 } from '@/shared/api/authApi';
+import { IssuedCodeNotice } from './IssuedCodeNotice';
+import { SignInSettingsPanel } from './SignInSettingsPanel';
 import {
   groupPermissionsForDisplay,
   groupUsersByRole,
@@ -36,13 +42,15 @@ import { PasswordInput } from '@/shared/components/PasswordInput';
 import { AccessReport } from '@/features/access/components/AccessReport';
 import { sectionLabelCls } from '@/shared/components/surfaces';
 
-type Tab = 'users' | 'roles' | 'users-roles';
+type Tab = 'users' | 'roles' | 'users-roles' | 'sign-in';
 
 type AdminUserRow = {
   id: string;
   email: string;
   role: AppRole;
   active: boolean;
+  /** False while an invite has not been accepted. */
+  passwordSet?: boolean;
   createdAt: string;
   permissions: Permission[];
 };
@@ -73,6 +81,8 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
   const [addEmail, setAddEmail] = useState('');
   const [addPassword, setAddPassword] = useState('');
   const [addRole, setAddRole] = useState<AppRole>('viewer');
+  /** The last invite or reset code issued here, shown until dismissed. */
+  const [issued, setIssued] = useState<(IssuedCode & { email: string; purpose: CodePurpose }) | null>(null);
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -221,8 +231,9 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
 
   const submitPasswordChange = async () => {
     if (!passwordUser) return;
-    if (newPassword.length < 8) {
-      setPasswordMsg('Password must be at least 8 characters');
+    const problem = passwordProblem(newPassword, passwordUser.email);
+    if (problem) {
+      setPasswordMsg(problem);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -244,21 +255,42 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
     }
   };
 
-  /** No self-registration: this is how anyone besides the first admin gets in. */
+  /**
+   * No self-registration: this is how anyone besides the first admin gets in.
+   * Without a password it is an invite, and they choose their own.
+   */
   const addUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
     setSavedMsg(null);
+    setIssued(null);
+    const email = addEmail.trim().toLowerCase();
     try {
-      await apiAdminCreateUser(addEmail, addPassword, addRole);
-      setSavedMsg(`Added ${addEmail.trim().toLowerCase()} as ${addRole}. Share the password with them directly.`);
+      const { invite } = await apiAdminCreateUser(addEmail, addPassword, addRole);
+      if (invite) setIssued({ ...invite, email, purpose: 'invite' });
+      else setSavedMsg(`Added ${email} as ${addRole}. Share the password with them directly.`);
       setAddEmail('');
       setAddPassword('');
       setAddRole('viewer');
       await load();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not add the account');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** A fresh code: a password reset, or a new invite if they never chose a password. */
+  const issueCode = async (u: AdminUserRow) => {
+    setBusy(true);
+    setError(null);
+    setSavedMsg(null);
+    try {
+      const { purpose, ...code } = await apiAdminIssueCode(u.id);
+      setIssued({ ...code, email: u.email, purpose });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not issue a code');
     } finally {
       setBusy(false);
     }
@@ -345,6 +377,19 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
               App roles
             </button>
           )}
+          {canUsers && (
+            <button
+              type="button"
+              data-testid="admin-tab-sign-in"
+              onClick={() => setTab('sign-in')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md ${
+                tab === 'sign-in' ? 'bg-slate-800 text-slate-100' : 'text-slate-400'
+              }`}
+            >
+              <LogIn className="w-3.5 h-3.5 inline mr-1" />
+              Sign-in
+            </button>
+          )}
           {canUsersRoles && (
             <button
               type="button"
@@ -413,15 +458,13 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
                 </div>
                 <div className="flex min-w-[10rem] flex-1 flex-col gap-1">
                   <label htmlFor="admin-new-password" className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                    Starting password
+                    Starting password (optional)
                   </label>
                   <PasswordInput
                     id="admin-new-password"
-                    required
-                    minLength={8}
                     value={addPassword}
                     onChange={(e) => setAddPassword(e.target.value)}
-                    placeholder="At least 8 characters"
+                    placeholder="Empty: send an invite"
                     autoComplete="new-password"
                     className="w-full rounded-md border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs outline-none accent-focus"
                   />
@@ -446,9 +489,14 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
                   disabled={busy}
                   className="rounded-md accent-grad on-accent-fg px-3 py-1.5 text-xs font-bold disabled:opacity-60"
                 >
-                  Add user
+                  {addPassword ? 'Add user' : 'Invite user'}
                 </button>
               </form>
+              <p className="text-[11px] text-slate-500 -mt-1">
+                An invite sends a one-time code; they choose their own password, and nobody else
+                ever knows it.
+              </p>
+              {issued && <IssuedCodeNotice {...issued} onDismiss={() => setIssued(null)} />}
             <div data-testid="admin-user-groups" className="space-y-3">
               {userGroups.map((group) => (
                 <section
@@ -503,6 +551,14 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
                               </button>
                               <span className="text-xs text-slate-200 font-mono flex-1 min-w-[10rem]">
                                 {u.email}
+                                {u.passwordSet === false && (
+                                  <span
+                                    data-testid={`admin-user-invited-${u.id}`}
+                                    className="ml-2 font-sans text-[10px] font-semibold uppercase tracking-wide text-amber-300 border border-amber-500/30 rounded-full px-1.5 py-0.5"
+                                  >
+                                    Invited
+                                  </span>
+                                )}
                               </span>
                               <span
                                 data-testid={`admin-user-perm-count-${u.id}`}
@@ -556,6 +612,21 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
                               >
                                 <KeyRound className="w-3 h-3" />
                                 Change password
+                              </button>
+                              <button
+                                type="button"
+                                data-testid={`admin-issue-code-${u.id}`}
+                                disabled={busy || u.active === false}
+                                onClick={() => void issueCode(u)}
+                                title={
+                                  u.passwordSet === false
+                                    ? 'Send a new invite code'
+                                    : 'Send a one-time code to choose a new password'
+                                }
+                                className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-slate-700 bg-slate-950 text-slate-300 hover:border-slate-500 hover:text-white disabled:opacity-40"
+                              >
+                                <Mail className="w-3 h-3" />
+                                {u.passwordSet === false ? 'Resend invite' : 'Send reset code'}
                               </button>
                             </div>
                             {expanded && (
@@ -734,6 +805,8 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
               <AccessReport embedded />
             </div>
           )}
+
+          {tab === 'sign-in' && canUsers && <SignInSettingsPanel />}
         </div>
 
         {tab === 'roles' && canRoles && (

@@ -77,13 +77,13 @@ describe('first-run setup over HTTP', () => {
   });
 
   it('refuses a proxied setup without the right code', async () => {
-    const creds = { email: 'owner@example.com', password: 'owner-pass-1' };
+    const creds = { email: 'owner@example.com', password: 'blue-lantern-42' };
     expect((await call('POST', '/auth/setup', creds, PROXIED)).status).toBe(403);
     expect((await call('POST', '/auth/setup', { ...creds, code: 'AAAA-AAAA' }, PROXIED)).status).toBe(403);
   });
 
   it('accepts a proxied setup with the code from the log, once', async () => {
-    const creds = { email: 'owner@example.com', password: 'owner-pass-1', code: setupCode().toLowerCase() };
+    const creds = { email: 'owner@example.com', password: 'blue-lantern-42', code: setupCode().toLowerCase() };
     const done = await call('POST', '/auth/setup', creds, PROXIED);
     expect(done.status).toBe(200);
     expect(done.json.user.role).toBe('admin');
@@ -103,13 +103,13 @@ describe('first-run setup over HTTP', () => {
     const added = await call(
       'POST',
       '/admin/users',
-      { email: 'teammate@example.com', password: 'teammate-pass', role: 'viewer' },
+      { email: 'teammate@example.com', password: 'green-river-17', role: 'viewer' },
       { cookie: adminCookie }
     );
     expect(added.status).toBe(200);
     expect(added.json.user.role).toBe('viewer');
 
-    const login = await call('POST', '/auth/login', { email: 'teammate@example.com', password: 'teammate-pass' });
+    const login = await call('POST', '/auth/login', { email: 'teammate@example.com', password: 'green-river-17' });
     expect(login.status).toBe(200);
 
     const byViewer = await call(

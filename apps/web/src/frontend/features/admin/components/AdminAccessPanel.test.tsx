@@ -16,6 +16,7 @@ const apiAdminSetRolePermissions = vi.fn();
 const apiAdminSetUserActive = vi.fn();
 const apiAdminSetUserPassword = vi.fn();
 const apiAdminSetUserRole = vi.fn();
+const apiAdminIssueCode = vi.fn();
 
 vi.mock('@/shared/api/authApi', () => ({
   apiAdminCreateUser: (...args: unknown[]) => apiAdminCreateUser(...args),
@@ -25,6 +26,7 @@ vi.mock('@/shared/api/authApi', () => ({
   apiAdminSetUserActive: (...args: unknown[]) => apiAdminSetUserActive(...args),
   apiAdminSetUserPassword: (...args: unknown[]) => apiAdminSetUserPassword(...args),
   apiAdminSetUserRole: (...args: unknown[]) => apiAdminSetUserRole(...args),
+  apiAdminIssueCode: (...args: unknown[]) => apiAdminIssueCode(...args),
 }));
 
 import { AdminAccessPanel } from './AdminAccessPanel';
@@ -46,6 +48,7 @@ beforeEach(() => {
   apiAdminSetUserActive.mockReset();
   apiAdminSetUserPassword.mockReset();
   apiAdminSetUserRole.mockReset();
+  apiAdminIssueCode.mockReset();
 
   apiAdminListUsers.mockResolvedValue({ users: [localUser] });
   apiAdminRolePermissions.mockResolvedValue({
@@ -96,20 +99,56 @@ describe('AdminAccessPanel', () => {
   });
 
   it('adds an account, since nobody can register themselves', async () => {
-    apiAdminCreateUser.mockResolvedValue(undefined);
+    apiAdminCreateUser.mockResolvedValue({});
     render(<AdminAccessPanel open onClose={() => undefined} />);
     await waitFor(() => expect(screen.getByTestId('admin-add-user')).toBeTruthy());
 
     fireEvent.change(screen.getByLabelText(/add user/i), { target: { value: 'Teammate@Example.com' } });
-    fireEvent.change(screen.getByLabelText(/starting password/i), { target: { value: 'teammate-pass' } });
+    fireEvent.change(screen.getByLabelText(/starting password/i), { target: { value: 'green-river-17' } });
     fireEvent.change(screen.getByLabelText(/^role$/i), { target: { value: 'editor' } });
     fireEvent.submit(screen.getByTestId('admin-add-user'));
 
     await waitFor(() =>
-      expect(apiAdminCreateUser).toHaveBeenCalledWith('Teammate@Example.com', 'teammate-pass', 'editor')
+      expect(apiAdminCreateUser).toHaveBeenCalledWith('Teammate@Example.com', 'green-river-17', 'editor')
     );
     // The list is read again so the new account appears.
     await waitFor(() => expect(apiAdminListUsers).toHaveBeenCalledTimes(2));
+  });
+
+  it('invites without a password and shows the code to pass on when email is not set up', async () => {
+    apiAdminCreateUser.mockResolvedValue({
+      invite: { code: 'ABCD-EFGH-JKMN', link: '', expiresAt: '2026-10-06T00:00:00.000Z', delivery: 'log' },
+    });
+    render(<AdminAccessPanel open onClose={() => undefined} />);
+    await waitFor(() => expect(screen.getByTestId('admin-add-user')).toBeTruthy());
+    expect(screen.getByRole('button', { name: /invite user/i })).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText(/add user/i), { target: { value: 'new@example.com' } });
+    fireEvent.submit(screen.getByTestId('admin-add-user'));
+
+    await waitFor(() => expect(apiAdminCreateUser).toHaveBeenCalledWith('new@example.com', '', 'viewer'));
+    const notice = await screen.findByTestId('admin-issued-code');
+    expect(notice.textContent).toMatch(/pass this invite to new@example.com yourself/i);
+    expect(screen.getByTestId('admin-issued-code-value').textContent).toBe('ABCD-EFGH-JKMN');
+  });
+
+  it('marks an unaccepted invite, and issues a fresh code for it', async () => {
+    apiAdminListUsers.mockResolvedValue({
+      users: [localUser, { ...localUser, id: 'inv', email: 'inv@example.com', role: 'viewer', passwordSet: false }],
+    });
+    apiAdminIssueCode.mockResolvedValue({
+      purpose: 'invite',
+      code: 'WXYZ-2345-6789',
+      link: 'https://fox.example.com/#invite=WXYZ-2345-6789',
+      expiresAt: '2026-10-06T00:00:00.000Z',
+      delivery: 'email',
+    });
+    render(<AdminAccessPanel open onClose={() => undefined} />);
+    await waitFor(() => expect(screen.getByTestId('admin-user-invited-inv')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('admin-issue-code-inv'));
+    const notice = await screen.findByTestId('admin-issued-code');
+    expect(apiAdminIssueCode).toHaveBeenCalledWith('inv');
+    expect(notice.textContent).toMatch(/invite emailed to inv@example.com/i);
   });
 
   it('keeps Save visible and persists checkbox edits for a non-admin role', async () => {

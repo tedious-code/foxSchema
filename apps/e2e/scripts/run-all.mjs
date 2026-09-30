@@ -96,6 +96,11 @@ const ALWAYS = [
     label: 'Smoke',
   },
   {
+    key: 'auth',
+    file: 'src/tests/auth-recovery.test.ts',
+    label: 'Sign-in: invite, forgot password, reset',
+  },
+  {
     key: 'sql-editor',
     file: [
       'src/tests/sql-editor-smoke.test.ts',

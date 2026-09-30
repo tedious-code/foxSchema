@@ -11,13 +11,47 @@ import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
 import { RbacModule } from '../authorization/rbac.service';
 import { AuthModule } from '../auth/auth.service';
+import { AuthMailer, type Delivery } from '../auth/auth-mail';
+import type { AuthCodePurpose } from '../auth/auth-codes';
+import type { IssuedCode } from '../auth/auth.service';
 import { APP_ROLES, PERMISSION_META, isAppRole } from '@foxschema/shared';
 import type { AuthedRequest } from '../auth/auth.routes';
 import { requirePermissions } from '../authorization/rbac.guard';
 import { sendError } from '../../platform/http/respond';
 
-export function createAdminRoutes(rbac = new RbacModule(), auth = new AuthModule()): Router {
+export function createAdminRoutes(
+  rbac = new RbacModule(),
+  auth = new AuthModule(),
+  mailer = new AuthMailer()
+): Router {
   const router = Router();
+
+  /**
+   * Hand an invite or reset code to the admin and send it to its owner.
+   *
+   * The admin always gets the code and link back, so they can pass it on
+   * themselves when email is not set up or did not arrive.
+   */
+  async function deliverCode(purpose: AuthCodePurpose, issued: IssuedCode, invitedBy: string | undefined) {
+    let delivery: Delivery | 'failed';
+    let deliveryError: string | undefined;
+    try {
+      delivery = await mailer.send(purpose, issued, invitedBy);
+    } catch (error: unknown) {
+      delivery = 'failed';
+      deliveryError = error instanceof Error ? error.message : String(error);
+    }
+    return {
+      code: issued.code,
+      link: await mailer.link(purpose, issued.code),
+      expiresAt: issued.expiresAt,
+      delivery,
+      ...(deliveryError ? { deliveryError } : {}),
+    };
+  }
+
+  const adminEmail = async (req: AuthedRequest) =>
+    (await rbac.listUsers()).find((u) => u.id === req.userId)?.email;
 
   router.get(
     '/users',
@@ -30,6 +64,10 @@ export function createAdminRoutes(rbac = new RbacModule(), auth = new AuthModule
   /**
    * Add an account. The only way a second person gets in: self-registration
    * is closed, and SSO signs in existing accounts only.
+   *
+   * Without a password this is an invite: the person gets a one-time code and
+   * chooses their own password, so nobody else ever knows it. With one, the
+   * admin sets the starting password and passes it on themselves.
    */
   router.post(
     '/users',
@@ -40,8 +78,8 @@ export function createAdminRoutes(rbac = new RbacModule(), auth = new AuthModule
         password?: unknown;
         role?: unknown;
       };
-      if (typeof email !== 'string' || typeof password !== 'string') {
-        sendError(res, 'invalid_input', 'email and password are required.');
+      if (typeof email !== 'string' || (password !== undefined && password !== '' && typeof password !== 'string')) {
+        sendError(res, 'invalid_input', 'email is required; password, when given, must be text.');
         return;
       }
       if (!isAppRole(role)) {
@@ -49,8 +87,12 @@ export function createAdminRoutes(rbac = new RbacModule(), auth = new AuthModule
         return;
       }
       try {
-        const user = await auth.createUser(email, password, role);
-        res.send({ user });
+        if (typeof password === 'string' && password !== '') {
+          res.send({ user: await auth.createUser(email, password, role) });
+          return;
+        }
+        const { user, invite } = await auth.inviteUser(email, role);
+        res.send({ user, invite: await deliverCode('invite', invite, await adminEmail(req)) });
       } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : 'Could not add the account';
         sendError(res, msg.includes('already exists') ? 'conflict' : 'invalid_input', msg);
@@ -143,6 +185,31 @@ export function createAdminRoutes(rbac = new RbacModule(), auth = new AuthModule
         const msg = error instanceof Error ? error.message : 'Update failed';
         sendError(res, msg.includes('not found') ? 'not_found' : 'invalid_input', msg);
       }
+    }
+  );
+
+  /**
+   * A new one-time code for someone who forgot their password, or whose
+   * invite expired: a reset when they have chosen a password, otherwise a
+   * fresh invite.
+   */
+  router.post(
+    '/users/:id/code',
+    requirePermissions('admin.users'),
+    async (req: AuthedRequest, res: FastifyReply) => {
+      const userId = String(req.params.id ?? '');
+      const user = (await rbac.listUsers()).find((u) => u.id === userId);
+      if (!user) {
+        sendError(res, 'not_found', 'User not found.');
+        return;
+      }
+      if (!user.active) {
+        sendError(res, 'invalid_input', 'Activate the account first.');
+        return;
+      }
+      const purpose: AuthCodePurpose = user.passwordSet ? 'reset' : 'invite';
+      const issued = await auth.issueCode(userId, purpose);
+      res.send({ purpose, ...(await deliverCode(purpose, issued, await adminEmail(req))) });
     }
   );
 

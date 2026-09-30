@@ -5,7 +5,8 @@
   "type": "module",
   "license": "Apache-2.0",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./mail": "./src/mail/smtp.ts"
   },
   "dependencies": {
     "@foxschema/sql": "*"

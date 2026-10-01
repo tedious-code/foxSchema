@@ -188,6 +188,20 @@ describe('codes', () => {
     await waitFor(() => expect(useAuthStore.getState().status).toBe('ready'));
   });
 
+  it('opens an invite link pasted into a tab where Fox is already open', async () => {
+    apiInspectCode.mockResolvedValue({ email: 'late@example.com', purpose: 'invite' });
+    useAuthStore.setState({ status: 'anon', setupState: null });
+    render(<AuthPage />);
+    expect(screen.getByTestId('auth-login-form')).toBeTruthy();
+
+    window.history.replaceState(null, '', '/#invite=WXYZ-2345-6789');
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+
+    await waitFor(() => expect(screen.getByTestId('auth-redeem-form')).toBeTruthy());
+    expect(apiInspectCode).toHaveBeenCalledWith('WXYZ-2345-6789');
+    expect(window.location.hash).toBe('');
+  });
+
   it('says so when a typed code does not work', async () => {
     apiInspectCode.mockRejectedValue(new Error('This code is wrong or has expired. Ask for a new one.'));
     useAuthStore.setState({ status: 'anon', setupState: null });

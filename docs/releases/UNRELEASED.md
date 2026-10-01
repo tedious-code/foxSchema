@@ -91,6 +91,12 @@ for an email and password**, and only an administrator can create accounts.
   (the same foxschema.com endpoint as the first-run wizard, which notifies
   contact@foxschema.com). Never sent on a password reset, and a signup service
   that is down never blocks creating the account.
+- **Google and GitHub with no OAuth app of your own**: turn on *Use the Fox
+  sign-in service* (Access control → Sign-in, or `FOX_SSO_BROKER=on`).
+  foxschema.com does the sign-in and returns a signed, single-use assertion
+  bound to this install's callback and the browser that started; only
+  existing accounts sign in. Off by default, since it trusts foxschema.com to
+  say who is signing in.
 - **Admin → Access control → Sign-in** configures Google, Microsoft and GitHub
   sign-in (with the redirect URL to register), the email relay (Hostinger /
   Gmail / Microsoft 365 presets and a test button) and the public URL — for the

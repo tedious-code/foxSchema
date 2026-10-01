@@ -84,6 +84,21 @@ export function createSignInSettingsRoutes(settings = new SignInSettings(), mail
     }
   });
 
+  /** Turn Google / GitHub through the Fox sign-in service on or off. */
+  router.put('/broker', guard, async (req: AuthedRequest, res: FastifyReply) => {
+    const { enabled } = (req.body ?? {}) as { enabled?: unknown };
+    if (typeof enabled !== 'boolean') {
+      sendError(res, 'invalid_input', 'enabled must be true or false.');
+      return;
+    }
+    try {
+      await settings.setBroker(enabled);
+      res.send({ ok: true });
+    } catch (error: unknown) {
+      fail(res, error);
+    }
+  });
+
   router.put('/public-url', guard, async (req: AuthedRequest, res: FastifyReply) => {
     const { url } = (req.body ?? {}) as { url?: unknown };
     try {

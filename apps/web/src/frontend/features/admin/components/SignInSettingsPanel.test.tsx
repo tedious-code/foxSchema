@@ -13,6 +13,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 const apiSignInSettings = vi.fn();
 const apiSaveSsoProvider = vi.fn();
 const apiSaveMailSettings = vi.fn();
+const apiSetSignInService = vi.fn();
 
 vi.mock('@/shared/api/authApi', () => ({
   apiSignInSettings: (...a: unknown[]) => apiSignInSettings(...a),
@@ -22,6 +23,7 @@ vi.mock('@/shared/api/authApi', () => ({
   apiRemoveMailSettings: vi.fn(),
   apiSavePublicUrl: vi.fn(),
   apiSendTestEmail: vi.fn(),
+  apiSetSignInService: (...a: unknown[]) => apiSetSignInService(...a),
 }));
 
 import { SignInSettingsPanel } from './SignInSettingsPanel';
@@ -50,7 +52,9 @@ beforeEach(() => {
       provider('github', 'GitHub', { configured: true, source: 'app', clientId: 'gh', hasSecret: true }),
     ],
     mail: { configured: false, source: null, host: '', port: 587, security: 'starttls', username: '', hasPassword: false, from: '' },
+    broker: { enabled: false, source: null, url: 'https://foxschema.com/wp-json/foxschema/v1/sso' },
   });
+  apiSetSignInService.mockReset().mockResolvedValue(undefined);
 });
 
 describe('sign-in settings', () => {
@@ -90,5 +94,15 @@ describe('sign-in settings', () => {
         from: 'Fox <me@example.com>',
       })
     );
+  });
+
+  it('turns the Fox sign-in service on only when the admin ticks it, after saying what it trusts', async () => {
+    render(<SignInSettingsPanel />);
+    const section = await screen.findByTestId('sign-in-service');
+    expect(section.textContent).toMatch(/trusting foxschema.com to say who is signing in/);
+    const toggle = screen.getByTestId('sign-in-service-toggle') as HTMLInputElement;
+    expect(toggle.checked).toBe(false);
+    fireEvent.click(toggle);
+    await waitFor(() => expect(apiSetSignInService).toHaveBeenCalledWith(true));
   });
 });

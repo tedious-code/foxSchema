@@ -122,6 +122,8 @@ docker compose -f docker-compose.app.yml up -d
 | `SSO_*` | — | OAuth for Google / Microsoft / GitHub (see below). Can also be set under Access control → Sign-in. |
 | `APP_PUBLIC_URL` | — | The URL people reach Fox at (`https://fox.example.com`). Invite and reset emails link here; SSO callbacks use it. `SSO_REDIRECT_BASE` is read as a fallback. Can also be set on the Sign-in screen. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | — | Relay for invite and password-reset emails. `SMTP_SECURITY` is `tls` (465), `starttls` (587, default) or `none`. Needs at least `SMTP_HOST` and `SMTP_FROM`. See [Email for invites and resets](#email-for-invites-and-resets). |
+| `FOX_SSO_BROKER` | off | `on` lets people sign in with Google / GitHub **through the Fox sign-in service** on foxschema.com, with no OAuth app of your own (also a switch under Access control → Sign-in). See [Fox sign-in service](#fox-sign-in-service). |
+| `FOX_SSO_BROKER_URL` | `https://foxschema.com/wp-json/foxschema/v1/sso` | Where the sign-in service lives. |
 | `FOX_TRUST_PROXY` | `loopback, linklocal, uniquelocal` | Which peers' `X-Forwarded-*` headers are believed. Only a proxy may say who the client is; trusting everyone let any client pick its own address and skip rate limits. Set to your proxy's address or CIDR if it is on a public IP, or `true` / `false`. |
 | `NODE_ENV` | `production` | Set in the image; enforces that `APP_ENCRYPTION_KEY` is present. |
 | `FOX_ALLOWED_ORIGINS` | — | Comma-separated browser origins allowed to call the API with cookies. When set, it is the entire allowlist. See [Origin policy](#origin-policy). |
@@ -281,6 +283,27 @@ Which email SSO trusts, per provider — the part that decides whose account ope
 | Microsoft | a personal Microsoft account; a work account whose domain Microsoft marks verified (`xms_edov`); or any account of the tenant in `SSO_MICROSOFT_TENANT` when it is a single tenant ID. With `common` / `organizations`, an unverified work-account email is refused — any tenant's admin can type any address into it. |
 
 The flow uses PKCE (S256) and a state cookie compared in constant time.
+
+### Fox sign-in service
+
+Registering a Google client and a GitHub app is a chore for a single install.
+Instead, an admin can turn on **Use the Fox sign-in service** (Access control →
+Sign-in, or `FOX_SSO_BROKER=on`): the Google and GitHub buttons then go through
+foxschema.com, which holds one app for each.
+
+1. Fox sends the browser to `…/sso/start` with a random nonce, also kept in an
+   HttpOnly cookie in that browser, and its own callback URL.
+2. foxschema.com signs the person in with the provider (PKCE), keeps only a
+   provider-verified email (Google `email_verified`; GitHub's verified primary
+   address), and sends the browser back with an **Ed25519-signed assertion**
+   valid for two minutes.
+3. Fox checks the signature against `…/sso/jwks`, that the assertion is for
+   **its own callback URL** and **this browser's nonce**, that it is fresh and
+   unused, and then signs in an **existing** account with that email.
+
+Turning it on trusts foxschema.com to say who is signing in, and it sees the
+emails used (it does not store them). It is off by default for that reason.
+An install's own Google or GitHub app, when configured, is used instead.
 
 ### Email for invites and resets
 

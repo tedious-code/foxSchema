@@ -19,6 +19,7 @@ import {
   apiSavePublicUrl,
   apiSaveSsoProvider,
   apiSendTestEmail,
+  apiSetSignInService,
   apiSignInSettings,
   type MailSettings,
   type SignInSettingsState,
@@ -135,6 +136,8 @@ export const SignInSettingsPanel: React.FC = () => {
       )}
       {notice && <div className="text-xs text-emerald-300">{notice}</div>}
 
+      <SignInServiceSection state={state} run={run} />
+
       <PublicUrlSection state={state} run={run} />
 
       <section className="space-y-2">
@@ -150,6 +153,47 @@ export const SignInSettingsPanel: React.FC = () => {
 };
 
 type Run = (action: () => Promise<void>, done: string) => Promise<void>;
+
+/**
+ * Google and GitHub with no OAuth app of your own, through foxschema.com.
+ * Off by default: turning it on trusts foxschema.com to say who is signing in.
+ */
+const SignInServiceSection: React.FC<{ state: SignInSettingsState; run: Run }> = ({ state, run }) => {
+  const { enabled, source } = state.broker;
+  const locked = source === 'env';
+  return (
+    <section data-testid="sign-in-service" className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5 space-y-2">
+      <div className="flex items-center gap-2">
+        <h3 className="text-xs font-bold text-slate-200 flex-1">Google and GitHub through foxschema.com</h3>
+        <Status configured={enabled} source={source} />
+      </div>
+      <p className="text-[11px] text-slate-400 leading-snug">
+        Sign in with Google or GitHub without creating your own OAuth apps. foxschema.com does the sign-in
+        and sends back a signed, single-use confirmation of the verified email; this install still decides
+        who has an account. Turning it on means <b className="text-slate-200">trusting foxschema.com to say
+        who is signing in</b>, and it sees the emails used (it does not keep them). Your own Google or
+        GitHub app, if set below, is used instead.
+      </p>
+      {!locked && (
+        <label className="inline-flex items-center gap-2 text-xs text-slate-200 cursor-pointer">
+          <input
+            type="checkbox"
+            data-testid="sign-in-service-toggle"
+            checked={enabled}
+            onChange={(e) =>
+              void run(
+                () => apiSetSignInService(e.target.checked),
+                e.target.checked ? 'Google and GitHub sign-in through foxschema.com is on.' : 'Sign-in through foxschema.com is off.'
+              )
+            }
+          />
+          Use the Fox sign-in service
+        </label>
+      )}
+      {locked && <p className="text-[11px] text-slate-500">Set on the server (FOX_SSO_BROKER).</p>}
+    </section>
+  );
+};
 
 const PublicUrlSection: React.FC<{ state: SignInSettingsState; run: Run }> = ({ state, run }) => {
   const [url, setUrl] = useState(state.publicUrl);

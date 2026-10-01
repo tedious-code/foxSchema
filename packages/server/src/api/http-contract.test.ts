@@ -57,6 +57,7 @@ const ROUTES: RouteExpectation[] = [
   { method: 'GET', path: '/api/admin/role-permissions', status: 200 },
   { method: 'PUT', path: '/api/admin/role-permissions/:role', status: 400 },
   { method: 'GET', path: '/api/admin/sign-in', status: 200 },
+  { method: 'PUT', path: '/api/admin/sign-in/broker', status: 400 },
   { method: 'DELETE', path: '/api/admin/sign-in/mail', status: 200 },
   { method: 'PUT', path: '/api/admin/sign-in/mail', status: 400 },
   { method: 'POST', path: '/api/admin/sign-in/mail/test', status: 400 },
@@ -89,6 +90,7 @@ const ROUTES: RouteExpectation[] = [
   { method: 'GET', path: '/api/auth/setup', status: 200 },
   { method: 'POST', path: '/api/auth/setup', status: 409 },
   { method: 'GET', path: '/api/auth/sso/:provider/callback', status: 302 },
+  { method: 'GET', path: '/api/auth/sso/broker/callback', status: 302 },
   { method: 'GET', path: '/api/auth/sso/:provider/start', status: 404 },
   { method: 'GET', path: '/api/auth/sso/providers', status: 200 },
   { method: 'POST', path: '/api/compare', status: 400 },
@@ -242,7 +244,9 @@ describe('HTTP contract', () => {
       //
       // 84 -> 95: forgot password (/api/auth/password/*), an admin's fresh
       // invite or reset code, and the sign-in settings screen (/api/admin/sign-in).
-      expect(ROUTES.length).toBe(95);
+      //
+      // 95 -> 97: the Fox sign-in service switch and its callback.
+      expect(ROUTES.length).toBe(97);
       expect(new Set(ROUTES.map((r) => `${r.method} ${r.path}`)).size).toBe(ROUTES.length);
     });
 

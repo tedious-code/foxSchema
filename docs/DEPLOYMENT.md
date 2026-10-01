@@ -123,6 +123,7 @@ docker compose -f docker-compose.app.yml up -d
 | `APP_PUBLIC_URL` | — | The URL people reach Fox at (`https://fox.example.com`). Invite and reset emails link here; SSO callbacks use it. `SSO_REDIRECT_BASE` is read as a fallback. Can also be set on the Sign-in screen. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | — | Relay for invite and password-reset emails. `SMTP_SECURITY` is `tls` (465), `starttls` (587, default) or `none`. Needs at least `SMTP_HOST` and `SMTP_FROM`. See [Email for invites and resets](#email-for-invites-and-resets). |
 | `FOX_TRUST_PROXY` | `loopback, linklocal, uniquelocal` | Which peers' `X-Forwarded-*` headers are believed. Only a proxy may say who the client is; trusting everyone let any client pick its own address and skip rate limits. Set to your proxy's address or CIDR if it is on a public IP, or `true` / `false`. |
+| `FOX_SETUP_ALLOW_LOCAL_WITHOUT_CODE` | off | Skip the first-run setup code for a direct loopback request. The `foxschema open` launcher sets this because it binds only to loopback. Never enable it behind a reverse proxy: an unlabelled proxy request is indistinguishable from a local one. |
 | `NODE_ENV` | `production` | Set in the image; enforces that `APP_ENCRYPTION_KEY` is present. |
 | `FOX_ALLOWED_ORIGINS` | — | Comma-separated browser origins allowed to call the API with cookies. When set, it is the entire allowlist. See [Origin policy](#origin-policy). |
 

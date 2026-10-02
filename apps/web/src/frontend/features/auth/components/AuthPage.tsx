@@ -60,8 +60,22 @@ const TITLES: Record<View | 'setup', { title: string; subtitle: string }> = {
 export const AuthPage: React.FC = () => {
   const { status, setupState } = useAuthStore();
   const settingUp = status === 'setup' && !!setupState;
-  const [linkCode] = useState(takeCodeFromLink);
+  const [linkCode, setLinkCode] = useState(takeCodeFromLink);
   const [view, setView] = useState<View>(linkCode ? 'code' : 'signin');
+
+  // A link pasted into a tab where Fox is already open changes only the
+  // fragment, which does not reload the page: pick the code up from here too.
+  useEffect(() => {
+    const onHash = () => {
+      const code = takeCodeFromLink();
+      if (!code) return;
+      useAuthStore.getState().clearError();
+      setLinkCode(code);
+      setView('code');
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
   const [email, setEmail] = useState('');
   const clearError = useAuthStore((s) => s.clearError);
 
@@ -87,7 +101,7 @@ export const AuthPage: React.FC = () => {
           ) : view === 'forgot' ? (
             <ForgotPasswordView initialEmail={email} onBack={() => go('signin')} onHaveCode={() => go('code')} />
           ) : view === 'code' ? (
-            <RedeemCodeView initialCode={linkCode} onBack={() => go('signin')} />
+            <RedeemCodeView key={linkCode} initialCode={linkCode} onBack={() => go('signin')} />
           ) : (
             <SignInForm
               email={email}

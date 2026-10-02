@@ -53,6 +53,60 @@ const REDACT_PATHS = [
   'headers.cookie',
 ];
 
+/**
+ * Query parameters whose values are one-time credentials: an OAuth `code` and
+ * `state`, the Fox sign-in service's signed `assertion`, and tokens a provider
+ * may put in a URL. A browser brings them back on a GET redirect, so without
+ * this they land in the access log with the rest of the URL.
+ */
+const SECRET_QUERY_PARAMS = new Set([
+  'assertion',
+  'code',
+  'state',
+  'token',
+  'access_token',
+  'id_token',
+  'refresh_token',
+  'code_verifier',
+]);
+
+/** `url` with the value of every secret query parameter replaced by `[REDACTED]`. */
+export function redactUrl(url: string | undefined): string | undefined {
+  if (!url) return url;
+  const q = url.indexOf('?');
+  if (q === -1) return url;
+  const query = url
+    .slice(q + 1)
+    .split('&')
+    .map((pair) => {
+      const eq = pair.indexOf('=');
+      const name = decodeURIComponent((eq === -1 ? pair : pair.slice(0, eq)).replace(/\+/g, ' ')).toLowerCase();
+      return SECRET_QUERY_PARAMS.has(name) && eq !== -1 ? `${pair.slice(0, eq)}=[REDACTED]` : pair;
+    })
+    .join('&');
+  return `${url.slice(0, q)}?${query}`;
+}
+
+interface LoggedRequest {
+  method?: string;
+  url?: string;
+  host?: string;
+  hostname?: string;
+  ip?: string;
+  socket?: { remotePort?: number };
+}
+
+/** The fields Fastify logs for a request, with secrets taken out of the URL. */
+function serializeRequest(req: LoggedRequest) {
+  return {
+    method: req.method,
+    url: redactUrl(req.url),
+    host: req.host ?? req.hostname,
+    remoteAddress: req.ip,
+    remotePort: req.socket?.remotePort,
+  };
+}
+
 export interface LoggerOptions {
   level?: string;
   /** Write JSON to this path instead of stdout. */
@@ -80,6 +134,7 @@ export function loggerConfig(options: LoggerOptions = {}): pino.LoggerOptions {
   const base: pino.LoggerOptions = {
     level,
     redact: { paths: REDACT_PATHS, censor: '[REDACTED]' },
+    serializers: { req: serializeRequest },
     // A request id per line is what makes a failure traceable across the
     // handler, the service and the driver.
     base: { service: 'foxschema-api' },

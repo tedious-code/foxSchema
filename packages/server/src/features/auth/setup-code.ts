@@ -41,6 +41,16 @@ const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
  * reverse proxy on the same host makes every visitor look local.
  */
 export function isDirectLocalRequest(req: AppRequest): boolean {
+  // A reverse proxy on this machine is also a loopback peer. Without a
+  // forwarding header its Internet clients are indistinguishable from a
+  // process on the host, so production servers require the log code unless a
+  // launcher that binds only to loopback explicitly enables this exception.
+  if (
+    process.env.NODE_ENV === 'production' &&
+    process.env.FOX_SETUP_ALLOW_LOCAL_WITHOUT_CODE !== 'true'
+  ) {
+    return false;
+  }
   const address = req.raw?.socket?.remoteAddress ?? '';
   if (!LOOPBACK.has(address)) return false;
   const headers = req.headers ?? {};

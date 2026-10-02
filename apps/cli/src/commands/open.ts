@@ -396,6 +396,9 @@ export async function runOpen(opts: OpenOptions = {}): Promise<void> {
       LISTEN_HOST: '127.0.0.1',
       STATIC_DIR: staticDir,
       LOCAL_SINGLE_USER: 'true',
+      // This launcher binds Fox to loopback, so a request whose TCP peer is
+      // loopback really is local rather than an unlabelled reverse proxy.
+      FOX_SETUP_ALLOW_LOCAL_WITHOUT_CODE: 'true',
       APP_ENCRYPTION_KEY: process.env.APP_ENCRYPTION_KEY,
       APP_KEY_SCHEME: process.env.APP_KEY_SCHEME || 'v1',
       APP_DB_ENGINE: process.env.APP_DB_ENGINE || 'sqlite',

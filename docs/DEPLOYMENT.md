@@ -125,6 +125,7 @@ docker compose -f docker-compose.app.yml up -d
 | `FOX_SSO_BROKER` | off | `on` lets people sign in with Google / GitHub **through the Fox sign-in service** on foxschema.com, with no OAuth app of your own (also a switch under Access control → Sign-in). See [Fox sign-in service](#fox-sign-in-service). |
 | `FOX_SSO_BROKER_URL` | `https://foxschema.com/wp-json/foxschema/v1/sso` | Where the sign-in service lives. |
 | `FOX_TRUST_PROXY` | `loopback, linklocal, uniquelocal` | Which peers' `X-Forwarded-*` headers are believed. Only a proxy may say who the client is; trusting everyone let any client pick its own address and skip rate limits. Set to your proxy's address or CIDR if it is on a public IP, or `true` / `false`. |
+| `FOX_SETUP_ALLOW_LOCAL_WITHOUT_CODE` | off | Skip the first-run setup code for a direct loopback request. The `foxschema open` launcher sets this because it binds only to loopback. Never enable it behind a reverse proxy: an unlabelled proxy request is indistinguishable from a local one. |
 | `NODE_ENV` | `production` | Set in the image; enforces that `APP_ENCRYPTION_KEY` is present. |
 | `FOX_ALLOWED_ORIGINS` | — | Comma-separated browser origins allowed to call the API with cookies. When set, it is the entire allowlist. See [Origin policy](#origin-policy). |
 

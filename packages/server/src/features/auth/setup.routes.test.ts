@@ -76,6 +76,38 @@ describe('first-run setup over HTTP', () => {
     });
   });
 
+  it('does not mistake an unlabelled loopback production proxy for the local owner', async () => {
+    const oldNodeEnv = process.env.NODE_ENV;
+    const oldLocalBypass = process.env.FOX_SETUP_ALLOW_LOCAL_WITHOUT_CODE;
+    try {
+      process.env.NODE_ENV = 'production';
+      delete process.env.FOX_SETUP_ALLOW_LOCAL_WITHOUT_CODE;
+      expect((await call('GET', '/auth/setup')).json).toMatchObject({
+        setupRequired: true,
+        setupCodeRequired: true,
+      });
+      expect(
+        (
+          await call('POST', '/auth/setup', {
+            email: 'proxy-attacker@example.com',
+            password: 'proxy-attacker-42',
+          })
+        ).status
+      ).toBe(403);
+
+      process.env.FOX_SETUP_ALLOW_LOCAL_WITHOUT_CODE = 'true';
+      expect((await call('GET', '/auth/setup')).json).toMatchObject({
+        setupRequired: true,
+        setupCodeRequired: false,
+      });
+    } finally {
+      if (oldNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = oldNodeEnv;
+      if (oldLocalBypass === undefined) delete process.env.FOX_SETUP_ALLOW_LOCAL_WITHOUT_CODE;
+      else process.env.FOX_SETUP_ALLOW_LOCAL_WITHOUT_CODE = oldLocalBypass;
+    }
+  });
+
   it('refuses a proxied setup without the right code', async () => {
     const creds = { email: 'owner@example.com', password: 'blue-lantern-42' };
     expect((await call('POST', '/auth/setup', creds, PROXIED)).status).toBe(403);

@@ -187,6 +187,8 @@ export interface SignInSettingsState {
   publicUrlSource: SettingSource | null;
   providers: SsoProviderSettings[];
   mail: MailSettings;
+  /** Google / GitHub through the Fox sign-in service on foxschema.com. */
+  broker: { enabled: boolean; source: SettingSource | null; url: string };
 }
 
 export async function apiSignInSettings(): Promise<SignInSettingsState> {
@@ -221,6 +223,10 @@ export async function apiRemoveMailSettings(): Promise<void> {
 
 export async function apiSendTestEmail(to: string): Promise<void> {
   await api.post('/admin/sign-in/mail/test', { to }, EMPTY_OK);
+}
+
+export async function apiSetSignInService(enabled: boolean): Promise<void> {
+  await api.put('/admin/sign-in/broker', { enabled }, EMPTY_OK);
 }
 
 export async function apiSavePublicUrl(url: string): Promise<void> {

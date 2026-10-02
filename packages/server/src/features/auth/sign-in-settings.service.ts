@@ -17,6 +17,7 @@
 import type { SmtpOptions, SmtpSecurity } from '@foxschema/db/mail';
 import { AppSettingsStore } from '../admin/app-settings.service';
 import { decryptSecret, encryptSecret } from '../../platform/crypto/crypto';
+import { brokerUrl } from './sso-broker';
 
 export type SsoProviderId = 'google' | 'microsoft' | 'github';
 export const SSO_PROVIDER_IDS: SsoProviderId[] = ['google', 'microsoft', 'github'];
@@ -73,11 +74,19 @@ export interface MailSummary {
   from: string;
 }
 
+export interface BrokerSummary {
+  /** Google / GitHub through the Fox sign-in service on foxschema.com. */
+  enabled: boolean;
+  source: SettingSource | null;
+  url: string;
+}
+
 export interface SignInSettingsSummary {
   publicUrl: string;
   publicUrlSource: SettingSource | null;
   providers: SsoProviderSummary[];
   mail: MailSummary;
+  broker: BrokerSummary;
 }
 
 interface StoredProvider {
@@ -98,6 +107,7 @@ interface StoredMail {
 const providerKey = (id: SsoProviderId) => `auth.sso.${id}`;
 const MAIL_KEY = 'auth.mail';
 const PUBLIC_URL_KEY = 'auth.public_url';
+const BROKER_KEY = 'auth.broker';
 const SECURITIES: SmtpSecurity[] = ['tls', 'starttls', 'none'];
 
 function env(name: string | undefined): string {
@@ -297,6 +307,24 @@ export class SignInSettings {
     await this.settings.set(PUBLIC_URL_KEY, normalizePublicUrl(raw));
   }
 
+  /**
+   * Whether this install signs people in with Google / GitHub through the
+   * Fox sign-in service. Off until an admin turns it on (or FOX_SSO_BROKER=on):
+   * it means trusting foxschema.com to say who is signing in.
+   */
+  async broker(): Promise<{ enabled: boolean; source: SettingSource | null }> {
+    const fromEnv = env('FOX_SSO_BROKER').toLowerCase();
+    if (fromEnv === 'on' || fromEnv === 'true') return { enabled: true, source: 'env' };
+    if (fromEnv === 'off' || fromEnv === 'false') return { enabled: false, source: 'env' };
+    const stored = await this.settings.get(BROKER_KEY);
+    return { enabled: stored === 'on', source: stored ? 'app' : null };
+  }
+
+  async setBroker(enabled: boolean): Promise<void> {
+    if (env('FOX_SSO_BROKER')) throw new Error('The Fox sign-in service is set by FOX_SSO_BROKER on the server.');
+    await this.settings.set(BROKER_KEY, enabled ? 'on' : 'off');
+  }
+
   async summary(): Promise<SignInSettingsSummary> {
     const { url, source } = await this.publicUrl();
     const providers = await Promise.all(
@@ -328,6 +356,7 @@ export class SignInSettings {
       hasPassword: !!mailSmtp?.password,
       from: envMail?.from ?? storedMail?.from ?? '',
     };
-    return { publicUrl: url, publicUrlSource: source, providers, mail };
+    const broker = await this.broker();
+    return { publicUrl: url, publicUrlSource: source, providers, mail, broker: { ...broker, url: brokerUrl() } };
   }
 }

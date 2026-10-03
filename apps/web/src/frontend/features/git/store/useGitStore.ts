@@ -11,7 +11,7 @@ import { gitApi, type GitRepo } from '../api/gitApi';
 
 interface GitState {
   repos: GitRepo[];
-  /** The first load has finished (or failed); until then whether a commit is required is unknown. */
+  /** A successful listing has arrived. Until then whether a commit is required is unknown. */
   loaded: boolean;
   error: string | null;
   load: () => Promise<void>;
@@ -21,8 +21,8 @@ export type CommitRequirement = 'required' | 'not required' | 'unknown';
 
 /**
  * Whether a migration must be committed to Git before it runs: some
- * repository says so. Unknown until the repositories have loaded — never
- * read an empty list as "not required".
+ * repository says so. Unknown until a listing succeeds — never read an
+ * empty list (initial state or a failed first load) as "not required".
  */
 export const commitRequirement = (s: Pick<GitState, 'repos' | 'loaded'>): CommitRequirement =>
   !s.loaded ? 'unknown' : s.repos.some((r) => r.requireCommit) ? 'required' : 'not required';
@@ -35,9 +35,9 @@ export const useGitStore = create<GitState>((set) => ({
     try {
       set({ repos: await gitApi.listRepos(), loaded: true, error: null });
     } catch (e: unknown) {
-      // Keep the repositories already known: an empty list would read as
-      // "commit not required" and unblock Execute on an install that requires it.
-      set({ loaded: true, error: e instanceof Error ? e.message : 'Could not load repositories' });
+      // Keep the repositories already known. Do not mark a first failure as
+      // loaded: an empty list would read as "commit not required".
+      set({ error: e instanceof Error ? e.message : 'Could not load repositories' });
     }
   },
 }));

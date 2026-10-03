@@ -128,6 +128,26 @@ describe('/api/git', () => {
     expect(withToken.json.repo).toMatchObject({ remoteUrl: elsewhere, hasToken: true });
   });
 
+  it('a repository limited to some roles does not exist for anyone else', async () => {
+    const created = await call('POST', '/git/repos', { name: 'Owners only', remoteUrl: server.url, token: server.token, roles: ['owner'] }, admin);
+    expect(created.json.repo.roles).toEqual(['owner']);
+    const id = created.json.repo.id;
+    const listed = async (who: string) => (await call('GET', '/git/repos', undefined, who)).json.repos.map((r: { id: string }) => r.id);
+
+    expect(await listed(viewer)).not.toContain(id);
+    expect((await call('GET', `/git/repos/${id}/branches`, undefined, viewer)).status).toBe(404);
+    expect((await call('POST', `/git/repos/${id}/fetch`, {}, viewer)).status).toBe(404);
+    expect(await listed(owner)).toContain(id);
+    expect((await call('GET', `/git/repos/${id}/branches`, undefined, owner)).status).toBe(200);
+    expect(await listed(admin)).toContain(id); // managing repositories means seeing them all
+
+    expect((await call('PUT', `/git/repos/${id}`, { roles: ['superuser'] }, admin)).status).toBe(400);
+    // Lifting the limit opens it to everyone with Git access again.
+    expect((await call('PUT', `/git/repos/${id}`, { roles: [] }, admin)).json.repo.roles).toBeNull();
+    expect(await listed(viewer)).toContain(id);
+    await call('DELETE', `/git/repos/${id}`, undefined, admin);
+  });
+
   it('records who changed the repository and moved its branches, for admins only', async () => {
     expect((await call('GET', `/git/repos/${repoId}/activity`, undefined, owner)).status).toBe(403);
     const res = await call('GET', `/git/repos/${repoId}/activity`, undefined, admin);

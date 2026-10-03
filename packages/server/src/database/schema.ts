@@ -565,6 +565,16 @@ const MIGRATIONS: Migration[] = [
         `CREATE INDEX idx_git_activity_repo ON git_activity(repo_id, at)`,
       ];
     },
+  },  {
+    // 24 is sessions_last_seen (#468); ids are a set, so the order they land in does not matter.
+    id: 25,
+    name: 'git_repo_roles',
+    statements: (d) => {
+      const t = types(d);
+      // The app roles a repository is limited to, as a JSON list; NULL means
+      // everyone with git.view, which is what every existing repository keeps.
+      return [`ALTER TABLE git_repos ADD COLUMN roles ${t.big}`];
+    },
   },
 ];
 

@@ -189,6 +189,18 @@ describe('secrets and policy', () => {
     expect(file.json.steps).toEqual([expect.objectContaining({ objectName: 'invoices', statements: ['CREATE TABLE invoices (id INTEGER)'] })]);
   });
 
+  it('will not run a committed migration from a repository the person may not see', async () => {
+    const { AuthModule } = await import('../auth/auth.service');
+    // An owner may run migrations, but this repository is for editors.
+    await new AuthModule().createUser('olu@example.com', 'amber-forest-8', 'owner');
+    const ownerCookie = (await call('POST', '/auth/login', { email: 'olu@example.com', password: 'amber-forest-8' }, '')).cookie;
+    const hidden = (await call('POST', '/git/repos', { name: 'Editors only', remoteUrl: server.url, defaultBranch: 'main', token: server.token, roles: ['editor'] })).json.repo.id;
+    const c = await call('POST', `/git/repos/${hidden}/commit`, { branch: 'main', steps: plan, note: 'Hidden one', dialect: 'sqlite', target: 'main' });
+    const res = await call('POST', '/migration/execute', { ...target, steps: [], git: { repoId: hidden, commit: c.json.commit, path: c.json.path } }, ownerCookie);
+    expect(res.status, JSON.stringify(res.json)).toBe(404);
+    expect(res.json.error).toMatch(/Repository not found/);
+  });
+
   it('requires a commit before a migration runs when the repository says so', async () => {
     await call('PUT', `/git/repos/${repoId}`, { requireCommit: true });
     const res = await call('POST', '/migration/execute', { ...target, steps: plan });

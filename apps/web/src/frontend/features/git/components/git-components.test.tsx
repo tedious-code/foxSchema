@@ -197,6 +197,21 @@ describe('managing repositories', () => {
     expect(lines[2]).toContain(`ana@example.com committed ${HEAD.slice(0, 7)} to main`);
   });
 
+  it('limits a repository to the roles ticked, and shows the limit', async () => {
+    gitApi.updateRepo.mockResolvedValue({ ...repo, roles: ['owner'] });
+    render(<GitReposAdmin />);
+    fireEvent.click(await screen.findByText('Edit'));
+    fireEvent.click(screen.getByTestId('admin-git-role-owner'));
+    fireEvent.submit(screen.getByTestId('admin-git-form'));
+    await waitFor(() => expect(gitApi.updateRepo).toHaveBeenCalledWith('r1', expect.objectContaining({ roles: ['owner'] })));
+  });
+
+  it('marks a limited repository in the list', async () => {
+    gitApi.listRepos.mockResolvedValue([{ ...repo, roles: ['editor', 'owner'] }]);
+    render(<GitReposAdmin />);
+    expect((await screen.findByTestId('admin-git-roles-r1')).textContent).toBe('Only editor, owner');
+  });
+
   it('never shows a stored token, and keeps it when saved with the field empty', async () => {
     gitApi.updateRepo.mockResolvedValue(repo);
     render(<GitReposAdmin />);

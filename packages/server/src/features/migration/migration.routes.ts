@@ -35,7 +35,7 @@ export interface MigrationRouteDeps {
   captureLiveSchema: (...args: any[]) => Promise<any>;
   normalizeTableSchemas: (...args: any[]) => any;
   /** Committed migrations; defaults to the app's shared Git services. */
-  gitMigrations?: Pick<GitMigrationsService, 'read' | 'recordApplied' | 'commitRequired'>;
+  gitMigrations?: Pick<GitMigrationsService, 'read' | 'recordApplied' | 'commitRequired' | 'canSee'>;
 }
 
 /** A run of a committed migration names the file and the exact commit. */
@@ -74,6 +74,10 @@ export function createMigrationRoutes(deps: MigrationRouteDeps): Router {
     if (gitRun) {
       if (!gitRun.repoId || !gitRun.path || !/^[0-9a-f]{40}$/.test(gitRun.commit ?? '')) {
         sendError(res, 'invalid_input', 'A committed migration needs its repository, file path and full commit id.');
+        return;
+      }
+      if (!(await gitMigrations.canSee(gitRun.repoId, req as AuthedRequest))) {
+        sendError(res, 'not_found', 'Repository not found.');
         return;
       }
       try {

@@ -6,6 +6,7 @@
  * /api/git — repositories migrations are committed to.
  */
 import { api } from '@/shared/api/client';
+import type { AppRole } from '@foxschema/shared';
 import type { ConnectionRef } from '@/shared/api/schemaApi';
 import type { MigrationFileHeader, MigrationStep } from '@foxschema/sql';
 
@@ -18,6 +19,8 @@ export interface GitRepo {
   authUsername: string;
   hasToken: boolean;
   requireCommit: boolean;
+  /** The app roles that may see it; null for everyone with Git access. */
+  roles: AppRole[] | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -31,6 +34,7 @@ export interface GitRepoInput {
   /** Empty keeps the stored token. */
   token?: string;
   requireCommit?: boolean;
+  roles?: AppRole[] | null;
 }
 
 export interface BranchState {

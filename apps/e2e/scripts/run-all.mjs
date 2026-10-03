@@ -167,6 +167,11 @@ const ALWAYS = [
         },
       ]
     : []),
+  // Migrations in Git: commit, push, run from commit, pull a teammate's. Needs
+  // the Postgres demo pair and the git binary (it serves a real repo).
+  ...(isConfigured('postgres')
+    ? [{ key: 'git', file: 'src/tests/git-migrations.test.ts', label: 'Migrations in Git' }]
+    : []),
 ];
 
 /**

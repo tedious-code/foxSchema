@@ -12,6 +12,7 @@
     "test:watch": "vitest --config vitest.config.ts",
     "test:headed": "HEADLESS=false vitest run --config vitest.config.ts",
     "test:smoke": "vitest run --config vitest.config.ts src/tests/smoke.test.ts",
+    "test:git": "vitest run --config vitest.config.ts src/tests/git-migrations.test.ts",
     "test:smoke:headed": "HEADLESS=false vitest run --config vitest.config.ts src/tests/smoke.test.ts",
     "test:auth": "vitest run --config vitest.config.ts src/tests/auth-recovery.test.ts",
     "test:auth:headed": "HEADLESS=false vitest run --config vitest.config.ts src/tests/auth-recovery.test.ts",

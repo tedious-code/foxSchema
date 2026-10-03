@@ -121,3 +121,26 @@ for an email and password**, and only an administrator can create accounts.
   so **everyone signs in once more** after upgrading.
 - **Password rules**: at least 10 characters, not a common password, not the
   email name. Existing passwords keep working.
+
+## Migrations in Git
+
+Commit a migration to a Git repository before it runs, and run teammates'
+migrations from theirs. Built in (no `git` binary needed); works with GitHub,
+GitLab, Bitbucket and Azure DevOps over HTTPS with an access token.
+
+- **Access control → Git** (new `git.manage` permission): add repositories —
+  HTTPS URL, default branch, folder, access token (encrypted, never shown
+  again), and optionally **require a commit** before any migration runs.
+- **Migrate → Commit to Git**: pick a branch or create one, write a note (the
+  commit message), review the exact file, then Commit or Commit & push.
+  **Execute** then runs the migration *from that commit*.
+- **Applies → Git** (new `git.view` permission, granted once on upgrade to
+  roles that can browse or compare schemas): fetch, pull and push; each
+  migration marked applied or incoming for the connected target; review and
+  run incoming ones from their commit.
+- Migration files are plain SQL with the steps kept in comments, so Fox runs
+  exactly what was reviewed. Passwords in account statements are replaced with
+  `<password>`, and a file that still carries a credential is refused.
+- Remotes are `https://` only; on a shared server, private and internal
+  addresses are refused at connect time (including IPv6 spellings of them).
+

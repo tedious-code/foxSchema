@@ -193,6 +193,17 @@ export function createAuthRoutes(
     res.send({ ok: true });
   });
 
+  /** End this person's sessions everywhere else (another browser, a lost laptop). */
+  router.post('/sign-out-others', async (req: AppRequest, res: FastifyReply) => {
+    const token = readCookie(req, SESSION_COOKIE);
+    const user = await auth.getUserByToken(token);
+    if (!user || !token) {
+      sendError(res, 'unauthenticated', 'Authentication required');
+      return;
+    }
+    res.send({ signedOut: await auth.signOutOtherSessions(user.id, token) });
+  });
+
   router.get('/me', async (req: AppRequest, res: FastifyReply) => {
     const user = await auth.getUserByToken(readCookie(req, SESSION_COOKIE));
     if (user) {

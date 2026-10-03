@@ -22,6 +22,13 @@ vi.mock('@/features/admin', () => ({
 vi.mock('@/app/settings/SettingsPanel', () => ({
   SettingsPanel: () => null,
 }));
+const signOutOthers = vi.hoisted(() => vi.fn(async () => 2));
+vi.mock('@/shared/api/authApi', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  apiSignOutOthers: signOutOthers,
+}));
+const toast = vi.hoisted(() => vi.fn());
+vi.mock('@/app/store/toastStore', () => ({ toast }));
 
 import { ProfileMenu } from './ProfileMenu';
 
@@ -41,6 +48,14 @@ beforeEach(() => {
 });
 
 describe('ProfileMenu', () => {
+  it('signs out the other sessions and says how many', async () => {
+    render(<ProfileMenu />);
+    fireEvent.click(screen.getByTestId('profile-menu-trigger'));
+    fireEvent.click(screen.getByTestId('profile-sign-out-others'));
+    expect(signOutOthers).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Signed out 2 other sessions' })));
+  });
+
   it('opens Access control from the avatar menu for the local admin', () => {
     render(<ProfileMenu />);
     fireEvent.click(screen.getByTestId('profile-menu-trigger'));

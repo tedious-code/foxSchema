@@ -566,6 +566,16 @@ const MIGRATIONS: Migration[] = [
       ];
     },
   },
+  {
+    id: 24,
+    name: 'sessions_last_seen',
+    statements: (d) => {
+      const t = types(d);
+      // When a session was last used, so one left idle ends before its
+      // absolute expiry. Existing sessions count from their creation.
+      return [`ALTER TABLE sessions ADD COLUMN last_seen_at ${t.ts}`];
+    },
+  },
 ];
 
 const SIGNUP_WIZARD_SHOWN_KEY = 'signup.wizard_shown';

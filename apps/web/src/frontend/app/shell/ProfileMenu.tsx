@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { LogOut, Palette, ChevronDown, ArrowUpCircle, Globe, Shield } from 'lucide-react';
+import { LogOut, Palette, ChevronDown, ArrowUpCircle, Globe, Shield, MonitorX } from 'lucide-react';
+import { apiSignOutOthers } from '@/shared/api/authApi';
+import { toast } from '@/app/store/toastStore';
 import { useAuthStore } from '@/app/store/authStore';
 import { useUiStore } from '@/app/store/uiStore';
 import { checkForUpdates, type UpdateInfo } from '@/shared/api/updatesApi';
@@ -116,6 +118,22 @@ export function ProfileMenu(): React.ReactElement | null {
           >
             <Globe className="w-4 h-4" /> foxschema.com
           </a>
+
+          <button
+            type="button"
+            data-testid="profile-sign-out-others"
+            onClick={() => {
+              setOpen(false);
+              apiSignOutOthers()
+                .then((n) =>
+                  toast({ tone: 'success', title: n === 0 ? 'No other sessions were open' : `Signed out ${n} other session${n === 1 ? '' : 's'}` })
+                )
+                .catch((e: unknown) => toast({ tone: 'warning', title: 'Could not sign out other sessions', body: e instanceof Error ? e.message : undefined }));
+            }}
+            className="w-full flex items-center gap-2 px-4 py-3 text-sm font-semibold text-slate-300 hover:text-slate-100 hover:bg-slate-800/60 transition cursor-pointer border-t border-slate-800"
+          >
+            <MonitorX className="w-4 h-4" /> Sign out other sessions
+          </button>
 
           <button
             type="button"

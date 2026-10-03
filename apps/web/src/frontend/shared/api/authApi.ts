@@ -76,6 +76,11 @@ export async function apiLogout(): Promise<void> {
   await api.post('/auth/logout', undefined, EMPTY_OK);
 }
 
+/** End this account's sessions in every other browser; how many ended. */
+export async function apiSignOutOthers(): Promise<number> {
+  return (await api.post<{ signedOut: number }>('/auth/sign-out-others', undefined)).signedOut;
+}
+
 /** Where reset codes go on this install: by email, or to the server log. */
 export type CodeDelivery = 'email' | 'log';
 export type CodePurpose = 'reset' | 'invite';

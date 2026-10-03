@@ -82,6 +82,7 @@ const ROUTES: RouteExpectation[] = [
   { method: 'POST', path: '/api/app-secrets/resolve', status: 200 },
   { method: 'POST', path: '/api/auth/login', status: 401 },
   { method: 'POST', path: '/api/auth/logout', status: 200 },
+  { method: 'POST', path: '/api/auth/sign-out-others', status: 401 },
   { method: 'GET', path: '/api/auth/me', status: 200 },
   { method: 'POST', path: '/api/auth/password/code', status: 404 },
   { method: 'POST', path: '/api/auth/password/forgot', status: 200 },
@@ -267,7 +268,9 @@ describe('HTTP contract', () => {
       // 107 -> 111: committing migrations (preview, commit, list, read a file).
       //
       // 111 -> 112: who changed a Git repository (/api/git/repos/:id/activity).
-      expect(ROUTES.length).toBe(112);
+      //
+      // 112 -> 113: sign out other sessions (/api/auth/sign-out-others).
+      expect(ROUTES.length).toBe(113);
       expect(new Set(ROUTES.map((r) => `${r.method} ${r.path}`)).size).toBe(ROUTES.length);
     });
 

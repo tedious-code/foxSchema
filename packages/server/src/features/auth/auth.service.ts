@@ -12,6 +12,19 @@ import { CODE_TTL_MS, hashAuthCode, hashSecretToken, newAuthCode, type AuthCodeP
 import { clearFailures, lockedFor, recordFailure } from './sign-in-throttle';
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
+/** A session's last use is written at most this often, not on every request. */
+const SESSION_TOUCH_MS = 60_000;
+
+/**
+ * How long a session may sit unused before it ends, whatever its expiry:
+ * `FOX_SESSION_IDLE_HOURS`, 8 by default (a working day); 0 turns it off.
+ * Read per call, so a test or an operator can change it.
+ */
+export function sessionIdleMs(): number {
+  const raw = process.env.FOX_SESSION_IDLE_HOURS;
+  const hours = raw === undefined || raw.trim() === '' ? 8 : Number(raw);
+  return Number.isFinite(hours) && hours > 0 ? hours * 60 * 60 * 1000 : 0;
+}
 
 export interface AuthUser {
   id: string;
@@ -412,14 +425,19 @@ export class AuthModule {
   }
 
   /**
-   * Delete sessions past their expiry, and codes that are used or expired.
+   * Delete sessions past their expiry or left idle, and codes that are used or expired.
    * Nothing else removes them: an expired session goes only if it is
    * presented again, and a used code never.
    */
   async purgeExpired(now = new Date()): Promise<{ sessions: number; codes: number }> {
     const store = await getStore();
     const at = now.toISOString();
-    const sessions = await store.run('DELETE FROM sessions WHERE expires_at < ?', [at]);
+    const idle = sessionIdleMs();
+    const idleCutoff = idle > 0 ? new Date(now.getTime() - idle).toISOString() : '';
+    const sessions = await store.run(
+      'DELETE FROM sessions WHERE expires_at < ? OR (? <> \'\' AND COALESCE(last_seen_at, created_at) < ?)',
+      [at, idleCutoff, idleCutoff]
+    );
     const codes = await store.run('DELETE FROM auth_codes WHERE used_at IS NOT NULL OR expires_at < ?', [at]);
     return { sessions: sessions.changes, codes: codes.changes };
   }
@@ -436,15 +454,21 @@ export class AuthModule {
     const store = await getStore();
     // Stored hashed: a copy of the metadata database holds no usable session.
     const stored = hashSecretToken(token);
-    const session = await store.get<{ user_id: string; expires_at: string }>(
-      'SELECT user_id, expires_at FROM sessions WHERE token = ?',
+    const session = await store.get<{ user_id: string; expires_at: string; created_at: string; last_seen_at: string | null }>(
+      'SELECT user_id, expires_at, created_at, last_seen_at FROM sessions WHERE token = ?',
       [stored]
     );
     if (!session) return null;
 
-    if (new Date(session.expires_at).getTime() < Date.now()) {
+    const now = Date.now();
+    const lastSeen = new Date(session.last_seen_at ?? session.created_at).getTime();
+    const idle = sessionIdleMs();
+    if (new Date(session.expires_at).getTime() < now || (idle > 0 && now - lastSeen > idle)) {
       await store.run('DELETE FROM sessions WHERE token = ?', [stored]);
       return null;
+    }
+    if (now - lastSeen > SESSION_TOUCH_MS) {
+      await store.run('UPDATE sessions SET last_seen_at = ? WHERE token = ?', [new Date(now).toISOString(), stored]);
     }
 
     const user = await store.get<UserRow>(
@@ -464,13 +488,21 @@ export class AuthModule {
     const token = newToken();
     const now = Date.now();
     const store = await getStore();
-    await store.run('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)', [
+    await store.run('INSERT INTO sessions (token, user_id, created_at, expires_at, last_seen_at) VALUES (?, ?, ?, ?, ?)', [
       hashSecretToken(token),
       userId,
       new Date(now).toISOString(),
       new Date(now + SESSION_TTL_MS).toISOString(),
+      new Date(now).toISOString(),
     ]);
     return token;
+  }
+
+  /** End every session of `userId` except the one holding `keepToken`; how many ended. */
+  async signOutOtherSessions(userId: string, keepToken: string): Promise<number> {
+    const store = await getStore();
+    const r = await store.run('DELETE FROM sessions WHERE user_id = ? AND token != ?', [userId, hashSecretToken(keepToken)]);
+    return r.changes;
   }
 }
 

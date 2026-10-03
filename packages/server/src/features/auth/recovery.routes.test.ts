@@ -99,6 +99,20 @@ describe('sign-in lockout over HTTP', () => {
   });
 });
 
+describe('signing out other sessions over HTTP', () => {
+  it('needs a session, and ends only the others', async () => {
+    expect((await call('POST', '/auth/sign-out-others')).status).toBe(401);
+    await auth.createUser('ned@example.com', 'amber-forest-8', 'viewer');
+    const first = (await call('POST', '/auth/login', { email: 'ned@example.com', password: 'amber-forest-8' })).cookie;
+    const second = (await call('POST', '/auth/login', { email: 'ned@example.com', password: 'amber-forest-8' })).cookie;
+    const res = await call('POST', '/auth/sign-out-others', undefined, second);
+    expect(res.status).toBe(200);
+    expect(res.json.signedOut).toBeGreaterThanOrEqual(1);
+    expect((await call('GET', '/auth/me', undefined, first)).json.user).toBeNull();
+    expect((await call('GET', '/auth/me', undefined, second)).json.user).toMatchObject({ email: 'ned@example.com' });
+  });
+});
+
 describe('a malformed session cookie', () => {
   it('reads as signed out, not as a server error', async () => {
     const bad = 'sid=%E0%A4%A';

@@ -23,9 +23,10 @@
  *   -- fox:next
  *   CREATE INDEX ix_orders_id ON orders (id);
  *
- * Password literals never reach a file: they are replaced with the same
- * placeholder Database Access uses, and a file that still looks like it holds
- * a credential is refused. Pure and dependency-free, so the browser can
+ * Passwords never reach a file: in account statements they are replaced with
+ * the same placeholder Database Access uses, a password set in a form that
+ * cannot be read is refused rather than guessed at, and a file that still
+ * looks like it holds a credential is refused. Pure and dependency-free, so the browser can
  * preview exactly what will be committed.
  */
 import type { DbObjectType } from '../../interfaces/schema.interface.js';
@@ -70,26 +71,44 @@ export function migrationFileName(note: string, when: Date = new Date()): string
   return `${stamp}__${slug}.sql`;
 }
 
-/**
- * Statements that create or change an account — the only place a password
- * literal is a credential. Anywhere else (`WHERE password = 'x'` in a view,
- * `SET password = ...` in a procedure) it is ordinary SQL and is left exactly
- * as written: the committed file is what runs.
- */
-function isAccountDdl(text: string): boolean {
-  const words = text.trimStart().slice(0, 64).split(/\s+/).map((w) => w.toUpperCase());
-  if (words[0] !== 'CREATE' && words[0] !== 'ALTER') return false;
-  const kind = words[1] === 'OR' && words[2] === 'REPLACE' ? words[3] : words[1];
-  return kind === 'USER' || kind === 'ROLE' || kind === 'LOGIN';
+
+const isWordChar = (ch: string | undefined) => ch !== undefined && /[\w$]/.test(ch);
+
+const wordEnd = (text: string, i: number) => {
+  while (i < text.length && isWordChar(text[i])) i += 1;
+  return i;
+};
+
+/** End of the `--` or `/* *\/` comment starting at `i`, or -1 when none starts there. */
+function commentEnd(text: string, i: number): number {
+  if (text[i] === '-' && text[i + 1] === '-') {
+    const nl = text.indexOf('\n', i);
+    return nl === -1 ? text.length : nl + 1;
+  }
+  if (text[i] === '/' && text[i + 1] === '*') {
+    const close = text.indexOf('*/', i + 2);
+    return close === -1 ? text.length : close + 2;
+  }
+  return -1;
 }
 
-/** End of the quoted literal starting at `start` (the opening quote), honouring doubled quotes. */
+/** The next token after whitespace and comments. */
+function skipGap(text: string, i: number): number {
+  for (;;) {
+    while (i < text.length && /\s/.test(text[i]!)) i += 1;
+    const end = commentEnd(text, i);
+    if (end === -1) return i;
+    i = end;
+  }
+}
+
+/** End of the quoted literal starting at `start` (the opening quote), honouring doubled quotes; -1 when unclosed. */
 function literalEnd(text: string, start: number): number {
-  const q = text[start]!;
+  const close = text[start] === '[' ? ']' : text[start]!;
   let i = start + 1;
   while (i < text.length) {
-    if (text[i] === q) {
-      if (text[i + 1] === q) {
+    if (text[i] === close) {
+      if (text[i + 1] === close) {
         i += 2;
         continue;
       }
@@ -100,89 +119,239 @@ function literalEnd(text: string, start: number): number {
   return -1;
 }
 
-const skipSpace = (text: string, i: number) => {
-  while (i < text.length && /\s/.test(text[i]!)) i += 1;
-  return i;
-};
-
-const wordAt = (text: string, i: number, word: string) =>
-  text.slice(i, i + word.length).toUpperCase() === word && !/[\w$]/.test(text[i + word.length] ?? '');
+/** The `$tag$` opening a PostgreSQL dollar-quoted string at `i`, or '' when none does. */
+function dollarTag(text: string, i: number): string {
+  if (text[i] !== '$' || isWordChar(text[i - 1])) return '';
+  let j = i + 1;
+  if (/[A-Za-z_]/.test(text[j] ?? '')) {
+    while (j < text.length && j - i <= 64 && /\w/.test(text[j]!)) j += 1;
+  }
+  return text[j] === '$' ? text.slice(i, j + 1) : '';
+}
 
 /**
- * `text` with every password literal in an account statement replaced by
- * the placeholder, and how many were: `PASSWORD 'x'`, `PASSWORD = N'x'`,
- * `IDENTIFIED BY 'x'` / `"x"` / `x`, `IDENTIFIED WITH plugin BY 'x'`.
- * A small scanner rather than regular expressions, which on this kind of
- * input can backtrack catastrophically.
+ * Statements that create or change an account, or store a credential that
+ * signs in somewhere else (a database link, a foreign server, a SQL Server
+ * credential) — the only places a password literal is a credential. Anywhere
+ * else (`WHERE password = 'x'` in a view, `SET password = ...` in a procedure)
+ * it is ordinary SQL and is left exactly as written: the committed file is
+ * what runs. Read after any leading comments.
  */
-export function scrubSecrets(text: string): { text: string; replaced: number } {
-  if (!isAccountDdl(text)) return { text, replaced: 0 };
+const ACCOUNT_KINDS = new Set(['USER', 'ROLE', 'LOGIN', 'GROUP', 'CREDENTIAL', 'LINK', 'SERVER']);
+const KIND_MODIFIERS = new Set(['PUBLIC', 'SHARED', 'DATABASE', 'SCOPED']);
+
+function isAccountStatement(text: string): boolean {
+  const w: string[] = [];
+  let i = skipGap(text, 0);
+  while (w.length < 8 && isWordChar(text[i])) {
+    const end = wordEnd(text, i);
+    w.push(text.slice(i, end).toUpperCase());
+    i = skipGap(text, end);
+  }
+  if (w[0] === 'GRANT') return true; // GRANT ... IDENTIFIED BY (MySQL 5, Oracle)
+  if (w[0] === 'SET') return w[1] === 'PASSWORD';
+  if (w[0] !== 'CREATE' && w[0] !== 'ALTER') return false;
+  let k = 1;
+  if (w[k] === 'OR' && w[k + 1] === 'REPLACE') k += 2;
+  while (KIND_MODIFIERS.has(w[k] ?? '')) k += 1;
+  return ACCOUNT_KINDS.has(w[k] ?? '');
+}
+
+/** Words whose value is a credential: `PASSWORD 'x'`, SQL Server's `OLD_PASSWORD = 'x'`, `SECRET = 'x'`. */
+const SECRET_WORDS = new Set(['PASSWORD', 'OLD_PASSWORD', 'SECRET']);
+/** A comment in an account statement that seems to quote a password is refused, not guessed at. */
+const CREDENTIAL_WORD = /\b(?:password|secret|identified)\b/i;
+
+/** A credential value: `text.slice(start, end)`, kept delimiters `open`/`close` around the placeholder. */
+interface SecretValue {
+  start: number;
+  end: number;
+  open: string;
+  close: string;
+}
+
+/**
+ * The value at `j`, which follows a credential keyword:
+ * - a {@link SecretValue} for `'x'`, `N'x'`, `E'x'`, `"x"`, `$$x$$`, a `0x…`
+ *   hash, `PASSWORD('x')` — or any word, when `bare` (Oracle's `IDENTIFIED BY x`);
+ * - `null` when there is no value: an option (`PASSWORD EXPIRE`, `PASSWORD
+ *   NULL`), a column name (`GRANT SELECT (password)`), a bind parameter;
+ * - `'unreadable'` for anything else, which the caller refuses.
+ */
+function readValue(text: string, j: number, bare: boolean): SecretValue | null | 'unreadable' {
+  const c = text[j];
+  if (c === undefined || c === ';' || c === ',' || c === ')' || c === '.') return null;
+  let prefix = '';
+  if (/[A-Za-z]/.test(c) && text[j + 1] === "'") prefix = c; // N'x', E'x'
+  else if (/[Uu]/.test(c) && text[j + 1] === '&' && text[j + 2] === "'") prefix = text.slice(j, j + 2); // U&'x'
+  const q = text[j + prefix.length];
+  if (q === "'" || q === '"') {
+    const at = j + prefix.length;
+    let end = literalEnd(text, at);
+    while (end !== -1) {
+      // A backslash before the closing quote is an escape in MySQL and a character in PostgreSQL: unknowable here.
+      if (text[end - 2] === '\\') return 'unreadable';
+      // Adjacent literals are one string ('ab' 'cd'); all of it is the password.
+      const next = skipGap(text, end);
+      if (q !== "'" || text[next] !== "'") break;
+      end = literalEnd(text, next);
+    }
+    return end === -1
+      ? { start: j, end: text.length, open: prefix + q, close: '' }
+      : { start: j, end, open: prefix + q, close: q };
+  }
+  const tag = dollarTag(text, j);
+  if (tag) {
+    const close = text.indexOf(tag, j + tag.length);
+    return close === -1
+      ? { start: j, end: text.length, open: tag, close: '' }
+      : { start: j, end: close + tag.length, open: tag, close: tag };
+  }
+  if (c === '0' && (text[j + 1] === 'x' || text[j + 1] === 'X')) {
+    let end = j + 2;
+    while (end < text.length && /[0-9A-Fa-f]/.test(text[end]!)) end += 1;
+    return { start: j, end, open: '', close: '' };
+  }
+  if (c === '(') {
+    const inner = readValue(text, skipGap(text, j + 1), false);
+    return inner === null ? 'unreadable' : inner;
+  }
+  if (bare) {
+    let end = j;
+    while (end < text.length && !/[\s;]/.test(text[end]!)) end += 1;
+    return { start: j, end, open: '', close: '' };
+  }
+  if (/[A-Za-z_]/.test(c)) return null; // an option keyword
+  if (/[@:?%]/.test(c) || (c === '$' && /\d/.test(text[j + 1] ?? ''))) return null; // a parameter
+  return 'unreadable';
+}
+
+export interface ScrubbedText {
+  text: string;
+  /** Password values replaced by the placeholder. */
+  replaced: number;
+  /** 1-based lines of `text` that set a password in a form the scanner cannot read — refuse them. */
+  unreadable: number[];
+}
+
+/**
+ * `text` with every password value in an account statement replaced by the
+ * placeholder, how many were, and the lines it could not make safe. Reads
+ * `PASSWORD 'x'`, `PASSWORD = N'x'`, `PASSWORD $$x$$`, `PASSWORD = 0x… HASHED`,
+ * `OLD_PASSWORD`, `SECRET`, `IDENTIFIED BY 'x'` / `"x"` / `x`, `IDENTIFIED WITH
+ * plugin BY|AS 'x'`, `REPLACE 'old'`, `SET PASSWORD FOR u = 'x'`. Fails
+ * closed: a password set in any other way is reported as unreadable rather
+ * than committed. A small scanner rather than regular expressions, which on
+ * this kind of input can backtrack catastrophically.
+ */
+export function scrubSecrets(text: string): ScrubbedText {
+  if (!isAccountStatement(text)) return { text, replaced: 0, unreadable: [] };
   let out = '';
   let replaced = 0;
+  const flagged: number[] = []; // offsets into `out`
   let i = 0;
-  while (i < text.length) {
-    const c = text[i]!;
-    // Skip string literals and quoted identifiers whole, so keywords inside them are not read.
-    if (c === "'" || c === '"') {
-      const end = literalEnd(text, i);
-      const stop = end === -1 ? text.length : end;
-      out += text.slice(i, stop);
-      i = stop;
-      continue;
+  const copyTo = (to: number) => {
+    out += text.slice(i, to);
+    i = to;
+  };
+  /** Write everything up to the value, then the value scrubbed; or flag what cannot be read. */
+  const take = (value: SecretValue | null | 'unreadable', after: number): boolean => {
+    if (value === null) return false;
+    if (value === 'unreadable') {
+      copyTo(after);
+      flagged.push(out.length);
+      return true;
     }
-    const atWordStart = !/[\w$]/.test(text[i - 1] ?? '');
-    let valueAt = -1;
-    if (atWordStart && wordAt(text, i, 'PASSWORD')) {
-      let j = skipSpace(text, i + 'PASSWORD'.length);
-      if (text[j] === '=') j = skipSpace(text, j + 1);
-      if ((text[j] === 'N' || text[j] === 'n') && text[j + 1] === "'") j += 1;
-      if (text[j] === "'") valueAt = j;
-      if (valueAt !== -1) out += text.slice(i, valueAt);
-    } else if (atWordStart && wordAt(text, i, 'IDENTIFIED')) {
-      let j = skipSpace(text, i + 'IDENTIFIED'.length);
-      if (wordAt(text, j, 'WITH')) {
-        j = skipSpace(text, j + 4);
-        while (j < text.length && /[\w$]/.test(text[j]!)) j += 1;
-        j = skipSpace(text, j);
-      }
-      if (wordAt(text, j, 'BY') || wordAt(text, j, 'AS')) {
-        j = skipSpace(text, j + 2);
-        if ((text[j] === 'N' || text[j] === 'n') && text[j + 1] === "'") j += 1;
-        // IDENTIFIED BY PASSWORD 'hash' / BY VALUES '...' are hashes, still credentials.
-        if (wordAt(text, j, 'PASSWORD') || wordAt(text, j, 'VALUES')) {
-          const k = skipSpace(text, j + (wordAt(text, j, 'PASSWORD') ? 8 : 6));
-          if (text[k] === "'") j = k;
-        }
-        valueAt = j;
-        out += text.slice(i, valueAt);
-      }
-    }
-    if (valueAt === -1) {
-      out += c;
-      i += 1;
-      continue;
-    }
-    const q = text[valueAt];
-    let end: number;
-    let quote = '';
-    if (q === "'" || q === '"') {
-      end = literalEnd(text, valueAt);
-      if (end === -1) end = text.length;
-      quote = q;
-    } else {
-      end = valueAt;
-      while (end < text.length && !/[\s;]/.test(text[end]!)) end += 1;
-    }
-    const value = text.slice(valueAt, end);
-    if (value.includes(PASSWORD_PLACEHOLDER) || end === valueAt) {
-      out += value;
-    } else {
-      out += quote ? `${quote}${PASSWORD_PLACEHOLDER}${quote}` : PASSWORD_PLACEHOLDER;
+    copyTo(value.start);
+    const raw = text.slice(value.start, value.end);
+    const inner = raw.slice(value.open.length, raw.length - value.close.length);
+    if (inner === '' || inner === PASSWORD_PLACEHOLDER) out += raw;
+    else {
+      out += `${value.open}${PASSWORD_PLACEHOLDER}${value.close}`;
       replaced += 1;
     }
-    i = end;
+    i = value.end;
+    return true;
+  };
+
+  while (i < text.length) {
+    const c = text[i]!;
+    const comment = commentEnd(text, i);
+    if (comment !== -1) {
+      const body = text.slice(i, comment);
+      copyTo(comment);
+      if (CREDENTIAL_WORD.test(body) && /['"$]/.test(body)) flagged.push(out.length - 1);
+      continue;
+    }
+    // Skip string literals and quoted names whole, so keywords inside them are not read.
+    if (c === "'" || c === '"' || c === '`' || c === '[') {
+      const end = literalEnd(text, i);
+      copyTo(end === -1 ? text.length : end);
+      continue;
+    }
+    const tag = dollarTag(text, i);
+    if (tag) {
+      const close = text.indexOf(tag, i + tag.length);
+      copyTo(close === -1 ? text.length : close + tag.length);
+      continue;
+    }
+    if (!isWordChar(c)) {
+      copyTo(i + 1);
+      continue;
+    }
+    const end = wordEnd(text, i);
+    const word = text.slice(i, end).toUpperCase();
+    if (SECRET_WORDS.has(word)) {
+      let j = skipGap(text, end);
+      if (word === 'PASSWORD' && /^FOR$/i.test(text.slice(j, wordEnd(text, j)))) {
+        // SET PASSWORD FOR 'u'@'h' = 'x': the value follows the account.
+        j = wordEnd(text, j);
+        while (j < text.length && text[j] !== '=' && text[j] !== ';') {
+          const lit = text[j] === "'" || text[j] === '"' || text[j] === '`' ? literalEnd(text, j) : -1;
+          j = lit === -1 ? j + 1 : lit;
+        }
+      }
+      if (text[j] === '=') j = skipGap(text, j + 1);
+      if (take(readValue(text, j, false), j)) continue;
+    } else if (word === 'IDENTIFIED') {
+      let j = skipGap(text, end);
+      if (/^WITH$/i.test(text.slice(j, wordEnd(text, j)))) {
+        j = skipGap(text, j + 4);
+        const plugin = text[j] === "'" || text[j] === '"' || text[j] === '`' ? literalEnd(text, j) : wordEnd(text, j);
+        j = skipGap(text, plugin === -1 ? text.length : plugin);
+      }
+      const by = text.slice(j, wordEnd(text, j)).toUpperCase();
+      if (by === 'BY' || by === 'AS') {
+        j = skipGap(text, j + 2);
+        const next = text.slice(j, wordEnd(text, j)).toUpperCase();
+        // IDENTIFIED BY RANDOM PASSWORD (MySQL) has no value; BY PASSWORD 'hash' / BY VALUES '…' are hashes, still credentials.
+        if (next === 'RANDOM' && /^PASSWORD$/i.test(text.slice(skipGap(text, j + 6), wordEnd(text, skipGap(text, j + 6))))) {
+          copyTo(j + 6);
+          continue;
+        }
+        if (next === 'PASSWORD' || next === 'VALUES') {
+          const k = skipGap(text, j + next.length);
+          if (text[k] === "'" || text[k] === '"') j = k;
+        }
+        if (take(readValue(text, j, true), j)) {
+          // Oracle and MySQL take the current password too: IDENTIFIED BY new REPLACE old.
+          const r = skipGap(text, i);
+          if (/^REPLACE$/i.test(text.slice(r, wordEnd(text, r)))) take(readValue(text, skipGap(text, r + 7), true), r + 7);
+          continue;
+        }
+      }
+    }
+    copyTo(end);
   }
-  return { text: out, replaced };
+
+  const unreadable: number[] = [];
+  let line = 1;
+  let at = 0;
+  for (const offset of flagged) {
+    for (; at < offset && at < out.length; at++) if (out[at] === '\n') line += 1;
+    if (unreadable[unreadable.length - 1] !== line) unreadable.push(line);
+  }
+  return { text: out, replaced, unreadable };
 }
 
 /** The contents of every single-quoted string literal in `line`. */
@@ -249,14 +418,17 @@ export interface BuiltMigrationFile {
 }
 
 /**
- * The file for `steps`. Throws when, after scrubbing, a line still looks like
- * it holds a credential — naming the line, so the plan can be fixed rather
- * than a secret committed.
+ * The file for `steps`. Throws when an account statement sets a password in
+ * a form the scrubber cannot read, or when, after scrubbing, a line still
+ * looks like it holds a credential — naming the line, so the plan can be
+ * fixed rather than a secret committed.
  */
 export function buildMigrationFile(header: MigrationFileHeader, steps: MigrationStep[]): BuiltMigrationFile {
   if (!header.note.trim()) throw new Error('A note is required: it becomes the commit message.');
   if (!steps.length) throw new Error('There is nothing to commit: the plan has no steps.');
+  const head = headerLines(header);
   let scrubbed = 0;
+  const unreadable: number[] = [];
   const body: string[] = [];
   for (const step of steps) {
     if (!ACTIONS.includes(step.action) || !OBJECT_TYPES.includes(step.objectType)) {
@@ -268,10 +440,18 @@ export function buildMigrationFile(header: MigrationFileHeader, steps: Migration
       if (i > 0) body.push(`${MARK}next`);
       const clean = scrubSecrets(statement);
       scrubbed += clean.replaced;
+      const firstLine = head.length + body.length + 1;
+      unreadable.push(...clean.unreadable.map((line) => firstLine + line - 1));
       body.push(...clean.text.split(/\r?\n/).map(escapeLine));
     });
   }
-  const content = [...headerLines(header), ...body, ''].join('\n');
+  if (unreadable.length) {
+    throw new Error(
+      `Line ${unreadable.join(', ')} of the migration sets a password in a form Fox cannot remove. ` +
+        `Use ${PASSWORD_PLACEHOLDER} there, or take it out of the plan, before committing.`
+    );
+  }
+  const content = [...head, ...body, ''].join('\n');
   const leftover = findLeftoverSecrets(content);
   if (leftover.length) {
     throw new Error(

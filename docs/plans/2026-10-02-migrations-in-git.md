@@ -150,8 +150,12 @@ gitPath }` and refuses when the script does not match the file at that commit.
 - Tokens are encrypted with the install key, sent only to the remote as HTTPS
   basic auth, never logged (the request-URL redaction from #448 plus the logger
   redact paths), never returned.
-- Password literals are scrubbed from scripts before commit; a commit with a
-  credential left in it is refused.
+- Passwords are scrubbed from account statements (CREATE/ALTER USER, ROLE,
+  LOGIN, credentials, database links, SET PASSWORD, GRANT … IDENTIFIED BY)
+  before commit, however they are quoted. A password the scrubber cannot read
+  fails closed and refuses the commit, naming the line, as does any other
+  credential left in the file. Ordinary SQL that mentions a password column is
+  committed exactly as written.
 - Size and time limits on fetch/clone; a repository bigger than the limit is
   refused with a clear message.
 - The per-repository lock also bounds concurrent network operations.

@@ -520,6 +520,31 @@ const MIGRATIONS: Migration[] = [
       ];
     },
   },
+  {
+    id: 22,
+    name: 'git_applied',
+    statements: (d) => {
+      const t = types(d);
+      return [
+        // Which committed migration ran against which database. Separate from
+        // migration_runs, which keeps only each user's recent runs: if this
+        // were pruned, an old migration would look unapplied and be offered
+        // to run again.
+        `CREATE TABLE IF NOT EXISTS git_applied (
+           id ${t.id} PRIMARY KEY,
+           repo_id ${t.id} NOT NULL,
+           path ${t.str} NOT NULL,
+           commit_oid ${t.str} NOT NULL,
+           target_key ${t.str} NOT NULL,
+           status ${t.str} NOT NULL,
+           run_id ${t.id},
+           applied_by ${t.id},
+           applied_at ${t.ts} NOT NULL
+         )`,
+        `CREATE INDEX idx_git_applied_target ON git_applied(repo_id, target_key)`,
+      ];
+    },
+  },
 ];
 
 const SIGNUP_WIZARD_SHOWN_KEY = 'signup.wizard_shown';

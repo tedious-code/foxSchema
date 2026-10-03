@@ -404,6 +404,25 @@ export class GitRepoService {
     return git.writeTree({ fs, gitdir, tree: entries });
   }
 
+  /**
+   * Migration files (`*.sql` under the repository's folder) at the head of
+   * `branch` (local, else the remote's), with the commit that head is.
+   */
+  listMigrationFiles(id: string, branch: string): Promise<{ head: string | null; paths: string[] }> {
+    return this.locked(id, async () => {
+      const repo = await this.repo(id);
+      const { gitdir } = await this.prepare(repo);
+      const name = normalizeBranchName(branch);
+      const head = (await this.resolve(gitdir, `refs/heads/${name}`)) ?? (await this.resolve(gitdir, `refs/remotes/origin/${name}`));
+      if (!head) return { head: null, paths: [] };
+      const folder = normalizeFolder(repo.folder);
+      const prefix = folder ? `${folder}/` : '';
+      const files = await git.listFiles({ fs, gitdir, ref: head });
+      const paths = files.filter((f) => f.startsWith(prefix) && f.endsWith('.sql') && !f.slice(prefix.length).includes('/')).sort();
+      return { head, paths };
+    });
+  }
+
   /** Forget the local copy (when a repository is removed). */
   async removeLocal(id: string): Promise<void> {
     await this.locked(id, async () => {

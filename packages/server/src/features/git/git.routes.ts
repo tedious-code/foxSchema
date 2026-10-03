@@ -17,8 +17,18 @@ import { requirePermissions } from '../authorization/rbac.guard';
 import { sendError } from '../../platform/http/respond';
 import { rateLimit } from '../../platform/guards/rate-limit';
 import { getStore } from '../../database/store';
-import { GitReposStore, type GitRepoInput } from './git-repos.store';
-import { GitOperationError, GitRepoService, gitErrorMessage, type GitAuthor } from './git-repo.service';
+import { type GitRepoInput } from './git-repos.store';
+import { GitOperationError, gitErrorMessage, type GitAuthor } from './git-repo.service';
+import { gitServices, type CommitInput, type PlanInput } from './git-migrations.service';
+import { targetKey } from '../../platform/guards/target-lock';
+import type { ConnectionRef } from '../../platform/db/resolve';
+import type { ConnectionOptions } from '@foxschema/sql';
+
+/** Resolves a saved or inline connection for the current user (the app's resolver). */
+export type ResolveRef = (
+  userId: string | undefined,
+  ref: ConnectionRef
+) => Promise<{ dialect: string; option: ConnectionOptions; schema: string }>;
 
 /** The signed-in person as a Git author. */
 async function authorOf(req: AuthedRequest): Promise<GitAuthor> {
@@ -28,7 +38,8 @@ async function authorOf(req: AuthedRequest): Promise<GitAuthor> {
   return { name: email.split('@')[0] || 'Fox', email };
 }
 
-export function createGitRoutes(store = new GitReposStore(), service = new GitRepoService(store)): Router {
+export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices()): Router {
+  const { repos: store, git: service, migrations } = services;
   const router = Router();
   const view = requirePermissions('git.view');
   const manage = requirePermissions('git.manage');
@@ -125,6 +136,55 @@ export function createGitRoutes(store = new GitReposStore(), service = new GitRe
     const limit = Number(req.query.limit) || 50;
     try {
       res.send({ commits: await service.log(String(req.params.id), branch, limit) });
+    } catch (error) {
+      fail(res, error);
+    }
+  });
+
+  /** The file a commit would add, for review before committing. */
+  router.post('/repos/:id/preview', view, async (req: AuthedRequest, res: FastifyReply) => {
+    try {
+      res.send(await migrations.preview(String(req.params.id), (req.body ?? {}) as PlanInput, await authorOf(req)));
+    } catch (error) {
+      fail(res, error);
+    }
+  });
+
+  /** Commit a migration plan to a branch (and push when asked). */
+  router.post('/repos/:id/commit', migrate, async (req: AuthedRequest, res: FastifyReply) => {
+    try {
+      res.send(await migrations.commit(String(req.params.id), (req.body ?? {}) as CommitInput, await authorOf(req)));
+    } catch (error) {
+      fail(res, error);
+    }
+  });
+
+  /**
+   * Migration files on a branch; with a connection in the body, which have
+   * been applied to that database and which are incoming.
+   */
+  router.post('/repos/:id/migrations', view, async (req: AuthedRequest, res: FastifyReply) => {
+    const { branch, ...ref } = (req.body ?? {}) as { branch?: string } & ConnectionRef;
+    try {
+      let target: { key: string; dialect: string } | undefined;
+      const hasRef = Object.keys(ref).length > 0;
+      if (hasRef) {
+        if (!resolveRef) throw new GitOperationError('Choosing a database is not available here.');
+        const r = await resolveRef(req.userId, ref);
+        target = { key: targetKey({ dialect: r.dialect, host: r.option.host, database: r.option.database, schema: r.schema }), dialect: r.dialect };
+      }
+      res.send(await migrations.list(String(req.params.id), branch ?? '', target));
+    } catch (error) {
+      fail(res, error);
+    }
+  });
+
+  /** One committed migration: header, steps and the file itself. */
+  router.get('/repos/:id/file', view, async (req: AuthedRequest, res: FastifyReply) => {
+    const ref = typeof req.query.ref === 'string' ? req.query.ref : '';
+    const path = typeof req.query.path === 'string' ? req.query.path : '';
+    try {
+      res.send(await migrations.read(String(req.params.id), ref, path));
     } catch (error) {
       fail(res, error);
     }

@@ -112,6 +112,22 @@ describe('/api/git', () => {
     expect(server.branches()).toContain('release/1.0');
   });
 
+  it('sends a stored token only to the server it was entered for', async () => {
+    const elsewhere = 'https://collector.example/steal.git';
+    const moved = await call('PUT', `/git/repos/${repoId}`, { remoteUrl: elsewhere }, admin);
+    expect(moved.status).toBe(400);
+    expect(moved.json.error).toMatch(/access token again/);
+    const unchanged = (await call('GET', '/git/repos', undefined, admin)).json.repos[0];
+    expect(unchanged).toMatchObject({ remoteUrl: server.url, hasToken: true });
+
+    // Another path on the same server is within the token's reach already.
+    const sameServer = new URL('other.git', server.url).href;
+    expect((await call('PUT', `/git/repos/${repoId}`, { remoteUrl: sameServer }, admin)).status).toBe(200);
+    // Another server with its own token is fine.
+    const withToken = await call('PUT', `/git/repos/${repoId}`, { remoteUrl: elsewhere, token: 'its-own-token' }, admin);
+    expect(withToken.json.repo).toMatchObject({ remoteUrl: elsewhere, hasToken: true });
+  });
+
   it('removes a repository and its local copy', async () => {
     expect(existsSync(join(dataDir, repoId))).toBe(true);
     expect((await call('DELETE', `/git/repos/${repoId}`, undefined, owner)).status).toBe(403);

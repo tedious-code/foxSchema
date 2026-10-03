@@ -37,7 +37,7 @@ export interface GitRepoInput {
   defaultBranch?: string;
   folder?: string;
   authUsername?: string;
-  /** Empty or absent on update keeps the stored token. */
+  /** Empty or absent on update keeps the stored token, unless the remote moves to another server. */
   token?: string;
   requireCommit?: boolean;
 }
@@ -140,12 +140,19 @@ export class GitReposStore {
     if (!current) return null;
     const store = await getStore();
     const token = (input.token ?? '').trim();
+    const remoteUrl = input.remoteUrl !== undefined ? normalizeRemoteUrl(input.remoteUrl, allowInsecureHttp) : current.remoteUrl;
+    // A stored token goes only to the server it was entered for. Moving the
+    // remote to another server without entering it again would hand it to
+    // whoever runs that server on the next fetch.
+    if (!token && current.hasToken && new URL(remoteUrl).origin !== new URL(current.remoteUrl).origin) {
+      throw new Error('Enter the access token again: a saved token is only sent to the server it was entered for.');
+    }
     await store.run(
       `UPDATE git_repos SET name = ?, remote_url = ?, default_branch = ?, folder = ?, auth_username = ?,
          require_commit = ?, updated_at = ?${token ? ', encrypted_token = ?' : ''} WHERE id = ?`,
       [
         (input.name ?? current.name).trim() || current.name,
-        input.remoteUrl !== undefined ? normalizeRemoteUrl(input.remoteUrl, allowInsecureHttp) : current.remoteUrl,
+        remoteUrl,
         input.defaultBranch !== undefined ? normalizeBranchName(input.defaultBranch) : current.defaultBranch,
         input.folder !== undefined ? normalizeFolder(input.folder) : current.folder,
         input.authUsername !== undefined ? input.authUsername.trim() || null : current.authUsername === DEFAULT_AUTH_USERNAME ? null : current.authUsername,

@@ -56,9 +56,6 @@ export interface MigrationListing {
   incoming: boolean;
 }
 
-/** Statuses that mean a committed migration has been applied. */
-const APPLIED = new Set(['SUCCESS', 'PARTIAL_SUCCESS']);
-
 export class GitMigrationsService {
   constructor(
     private repos = new GitReposStore(),
@@ -155,12 +152,12 @@ export class GitMigrationsService {
   private async appliedTo(repoId: string, targetKey: string): Promise<Map<string, AppliedRecord>> {
     const store = await getStore();
     const rows = await store.all<{ path: string; commit_oid: string; status: string; applied_at: string; applied_by: string | null }>(
-      'SELECT path, commit_oid, status, applied_at, applied_by FROM git_applied WHERE repo_id = ? AND target_key = ? ORDER BY applied_at',
+      // Only a clean run applies a migration; one with failed steps stays incoming.
+      "SELECT path, commit_oid, status, applied_at, applied_by FROM git_applied WHERE repo_id = ? AND target_key = ? AND status = 'SUCCESS' ORDER BY applied_at",
       [repoId, targetKey]
     );
     const out = new Map<string, AppliedRecord>();
     for (const r of rows) {
-      if (!APPLIED.has(r.status)) continue;
       out.set(r.path, { path: r.path, commit: r.commit_oid, status: r.status, appliedAt: r.applied_at, appliedBy: r.applied_by });
     }
     return out;

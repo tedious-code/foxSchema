@@ -128,11 +128,36 @@ describe('/api/git', () => {
     expect(withToken.json.repo).toMatchObject({ remoteUrl: elsewhere, hasToken: true });
   });
 
+  it('records who changed the repository and moved its branches, for admins only', async () => {
+    expect((await call('GET', `/git/repos/${repoId}/activity`, undefined, owner)).status).toBe(403);
+    const res = await call('GET', `/git/repos/${repoId}/activity`, undefined, admin);
+    expect(res.status).toBe(200);
+    const seen = (res.json.activity as Array<{ action: string; userEmail: string; detail: Record<string, unknown> }>).map(
+      (a) => `${a.action} by ${a.userEmail}`
+    );
+    expect(seen).toEqual(
+      expect.arrayContaining([
+        'repo.added by boss@example.com',
+        'pulled by owner@example.com',
+        'branch.created by owner@example.com',
+        'pushed by owner@example.com',
+        'repo.edited by boss@example.com',
+      ])
+    );
+    // Newest first; the last edit says what changed, and that a token was replaced, never the token.
+    expect(res.json.activity[0]).toMatchObject({ action: 'repo.edited', detail: { remoteUrl: { to: 'https://collector.example/steal.git' }, tokenReplaced: true } });
+    expect(res.text).not.toContain(server.token);
+    expect(res.text).not.toContain('its-own-token');
+  });
+
   it('removes a repository and its local copy', async () => {
     expect(existsSync(join(dataDir, repoId))).toBe(true);
     expect((await call('DELETE', `/git/repos/${repoId}`, undefined, owner)).status).toBe(403);
     expect((await call('DELETE', `/git/repos/${repoId}`, undefined, admin)).status).toBe(200);
     expect(existsSync(join(dataDir, repoId))).toBe(false);
     expect((await call('GET', `/git/repos/${repoId}/branches`, undefined, admin)).status).toBe(404);
+    // The record outlives the repository.
+    const after = await call('GET', `/git/repos/${repoId}/activity`, undefined, admin);
+    expect(after.json.activity[0]).toMatchObject({ action: 'repo.removed', userEmail: 'boss@example.com', detail: { name: 'Migrations' } });
   });
 });

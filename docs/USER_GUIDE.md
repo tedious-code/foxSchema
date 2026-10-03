@@ -186,6 +186,11 @@ nothing runs until the plan is committed.
 Fox remembers what ran against which database for good, so an old migration never
 shows up as incoming again.
 
+**Activity** next to a repository in **Access control → Git** shows admins who
+added or changed it (a replaced token is noted, never shown), created branches,
+committed, pushed and pulled. Everyone pushes with the repository's one token,
+so this is the record of who acted.
+
 ## SQL Editor
 
 Use the **SQL Editor** to run ad-hoc queries and inspect data (separate from schema

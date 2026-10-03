@@ -130,6 +130,7 @@ const ROUTES: RouteExpectation[] = [
   { method: 'POST', path: '/api/git/repos/:id/preview', status: 404 },
   { method: 'POST', path: '/api/git/repos/:id/branches', status: 404 },
   { method: 'POST', path: '/api/git/repos/:id/fetch', status: 404 },
+  { method: 'GET', path: '/api/git/repos/:id/activity', status: 200 },
   { method: 'GET', path: '/api/git/repos/:id/log', status: 404 },
   { method: 'POST', path: '/api/git/repos/:id/pull', status: 404 },
   { method: 'POST', path: '/api/git/repos/:id/push', status: 404 },
@@ -264,7 +265,9 @@ describe('HTTP contract', () => {
       // 97 -> 107: migration repositories (/api/git).
       //
       // 107 -> 111: committing migrations (preview, commit, list, read a file).
-      expect(ROUTES.length).toBe(111);
+      //
+      // 111 -> 112: who changed a Git repository (/api/git/repos/:id/activity).
+      expect(ROUTES.length).toBe(112);
       expect(new Set(ROUTES.map((r) => `${r.method} ${r.path}`)).size).toBe(ROUTES.length);
     });
 

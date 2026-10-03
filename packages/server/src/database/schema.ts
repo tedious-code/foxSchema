@@ -545,6 +545,27 @@ const MIGRATIONS: Migration[] = [
       ];
     },
   },
+  {
+    id: 23,
+    name: 'git_activity',
+    statements: (d) => {
+      const t = types(d);
+      return [
+        // Who changed a Git repository or moved its branches. Push and pull
+        // use the repository's one token, so the remote sees one identity
+        // for everyone; this is the record of who acted. Never pruned.
+        `CREATE TABLE IF NOT EXISTS git_activity (
+           id ${t.id} PRIMARY KEY,
+           repo_id ${t.id} NOT NULL,
+           action ${t.str} NOT NULL,
+           detail ${t.big},
+           user_id ${t.id},
+           at ${t.ts} NOT NULL
+         )`,
+        `CREATE INDEX idx_git_activity_repo ON git_activity(repo_id, at)`,
+      ];
+    },
+  },
 ];
 
 const SIGNUP_WIZARD_SHOWN_KEY = 'signup.wizard_shown';

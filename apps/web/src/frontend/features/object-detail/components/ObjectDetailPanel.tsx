@@ -2,7 +2,9 @@ import React, { useState, useMemo, Suspense, lazy } from 'react';
 import { useSyncStore } from '@/app/store/useSyncStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/app/store/authStore';
-import { Play, RefreshCw, FileText, CheckCircle2, Copy, AlertTriangle } from 'lucide-react';
+import { Play, RefreshCw, FileText, CheckCircle2, Copy, AlertTriangle, GitCommitHorizontal } from 'lucide-react';
+import { CommitMigrationDialog } from '@/features/git/components/CommitMigrationDialog';
+import { useGitStore } from '@/features/git/store/useGitStore';
 import { SqlGeneratorModule } from '@/shared/lib/sql-generator';
 import { findDropDependencies } from '@foxschema/sql';
 import { findMissingFkTargets, findNarrowingTypeChanges, extractReviewNotices, resolveDialect } from '@/shared/lib/migration-validation';
@@ -50,6 +52,17 @@ const SKIP_DEPLOY_CONFIRM_KEY = 'foxschema-skip-deploy-confirm';
 
 export const ObjectDetailPanel: React.FC = () => {
   const canMigrate = useAuthStore((s) => s.can('schema.migrate'));
+  // Migrations in Git: committing needs to see repositories and to migrate.
+  const canUseGit = useAuthStore((s) => s.can('git.view')) && canMigrate;
+  const gitRepos = useGitStore((s) => s.repos);
+  const loadGitRepos = useGitStore((s) => s.load);
+  const commitRequired = useGitStore((s) => s.repos.some((r) => r.requireCommit));
+  const committedMigration = useSyncStore((s) => s.committedMigration);
+  const commitMatchesPlan = useSyncStore((s) => s.commitMatchesPlan);
+  const [showCommit, setShowCommit] = useState(false);
+  React.useEffect(() => {
+    if (canUseGit) void loadGitRepos();
+  }, [canUseGit, loadGitRepos]);
   // Only these fields: a whole-store subscription re-rendered this on every
   // store write (migration progress events included).
   const {
@@ -621,6 +634,9 @@ export const ObjectDetailPanel: React.FC = () => {
   // least self-service first. `null` means nothing is blocking. Some of these
   // states stay clickable on purpose so the click can open the resolution
   // dialog — see the narrower `disabled` list on the button itself.
+  // Committed, and the plan unchanged since: Execute runs it from that commit.
+  const planIsCommitted = !!committedMigration && commitMatchesPlan();
+
   const executeBlockReason: string | null =
     !canMigrate ? 'Your role cannot execute migrations'
     : includedCount === 0 ? 'No objects selected for deployment'
@@ -630,6 +646,7 @@ export const ObjectDetailPanel: React.FC = () => {
     : hasNarrowingChanges && !narrowingAcked ? 'Acknowledge the narrowing type changes below before deploying'
     : hasDestructiveDrops && !destructiveDropsAcked ? 'Acknowledge the destructive drops below before deploying'
     : deploysRoutineToMySql && !mysqlRiskAcked ? 'Acknowledge the MySQL binlog privilege risk below before deploying'
+    : commitRequired && !planIsCommitted ? 'This install runs only committed migrations — commit the plan to Git first'
     : null;
 
   return (
@@ -655,6 +672,21 @@ export const ObjectDetailPanel: React.FC = () => {
             </button>
           )}
 
+          {!browseMode && canUseGit && gitRepos.length > 0 && (
+            <button
+              type="button"
+              data-testid="git-commit-btn"
+              onClick={() => setShowCommit(true)}
+              disabled={includedCount === 0 || isComparing || isMigrating || migrationExecuted}
+              title={planIsCommitted ? `Committed as ${committedMigration!.commit.slice(0, 7)} on ${committedMigration!.branch}` : 'Review and commit this migration to Git'}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold border border-slate-700 bg-slate-950/40 text-slate-200 hover:border-slate-500 disabled:opacity-40"
+            >
+              <GitCommitHorizontal className="w-3.5 h-3.5" />
+              {planIsCommitted ? 'Committed' : 'Commit to Git'}
+            </button>
+          )}
+          <CommitMigrationDialog open={showCommit} onClose={() => setShowCommit(false)} />
+
           {!browseMode && (
           <button
             data-testid="execute-btn"
@@ -664,7 +696,8 @@ export const ObjectDetailPanel: React.FC = () => {
               isComparing || isMigrating || migrationExecuted || includedCount === 0 ||
               !targetConnected || hasUnresolvedDropDeps ||
               (hasDestructiveDrops && !destructiveDropsAcked) ||
-              (deploysRoutineToMySql && !mysqlRiskAcked)
+              (deploysRoutineToMySql && !mysqlRiskAcked) ||
+              (commitRequired && !planIsCommitted)
             }
             title={executeBlockReason ?? `Deploy ${includedCount} object(s) to target`}
             className={`flex items-center gap-1.5 px-4 py-1.5 rounded text-xs font-bold transition shadow ${
@@ -685,7 +718,10 @@ export const ObjectDetailPanel: React.FC = () => {
               </>
             ) : (
               <>
-                <Play className="w-3.5 h-3.5 fill-current" /> Execute Sync Script ({includedCount})
+                <Play className="w-3.5 h-3.5 fill-current" />
+                {planIsCommitted
+                  ? `Execute committed ${committedMigration!.commit.slice(0, 7)} (${includedCount})`
+                  : `Execute Sync Script (${includedCount})`}
               </>
             )}
           </button>

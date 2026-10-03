@@ -561,17 +561,27 @@ export async function executeMigration(
   ref: ConnectionRef,
   steps: MigrationStep[],
   onEvent: (e: MigrationStreamEvent) => void,
-  continueOnError?: boolean
+  continueOnError?: boolean,
+  /** Run the file at this commit instead of `steps` (the server ignores `steps` then). */
+  git?: { repoId: string; branch?: string; commit: string; path: string }
 ): Promise<void> {
   const res = await fetch(`${getApiBase()}/migration/execute`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...ref, steps, continueOnError: !!continueOnError }),
+    body: JSON.stringify({ ...ref, steps, continueOnError: !!continueOnError, ...(git ? { git } : {}) }),
   });
 
   if (!res.ok || !res.body) {
-    throw new Error(`Migration request failed: ${res.statusText}`);
+    // The server says why (commit required, wrong dialect…); show that, not just the status text.
+    let message = `Migration request failed: ${res.statusText}`;
+    try {
+      const body = (await res.json()) as { error?: unknown };
+      if (typeof body.error === 'string' && body.error) message = body.error;
+    } catch {
+      /* not JSON */
+    }
+    throw new Error(message);
   }
 
   const reader = res.body.getReader();

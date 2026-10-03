@@ -11,6 +11,15 @@ Notes for the next release. At ship time, rename this file to that version's
   files, DB users & grants) — not a SQL Editor sidebar.
 - Saved credentials are grouped by dialect; Home continues last compare / query.
 
+## A development server stays on this machine
+
+- Without `NODE_ENV=production`, `npm start` in `apps/web` now listens on
+  `127.0.0.1` instead of every address, and a network `LISTEN_HOST` is refused
+  at startup. Such a server encrypts saved credentials with a development key
+  and sends its session cookie without the Secure flag. To serve the network,
+  set `NODE_ENV=production` (with `APP_ENCRYPTION_KEY`), as Docker does; for a
+  development server on a network you trust, set `FOX_INSECURE_DEV=1`.
+
 ## Origin policy
 
 `npm run dev` allows this machine's own literal IPs on ports 5173 / 5199 / 3210 /

@@ -25,3 +25,35 @@
 export function isLocalSingleUser(): boolean {
   return process.env.LOCAL_SINGLE_USER !== 'false';
 }
+
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
+/** Whether a listen address is reachable only from this machine. */
+export function isLoopbackHost(host: string): boolean {
+  const h = host.trim().toLowerCase();
+  return LOOPBACK_HOSTS.has(h) || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h);
+}
+
+/** Where to listen when nobody says: the network in production (Docker), this machine otherwise. */
+export function defaultListenHost(): string {
+  return process.env.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1';
+}
+
+/**
+ * Refuse to serve the network without production settings.
+ *
+ * Outside `NODE_ENV=production` Fox encrypts saved credentials with a fixed
+ * development key when `APP_ENCRYPTION_KEY` is unset, sends its session cookie
+ * without the Secure flag, and lets a request from this machine skip the
+ * first-run setup code. Harmless on loopback; on a network address it is a
+ * server anyone nearby can read the secrets of. `FOX_INSECURE_DEV=1` is the
+ * deliberate opt-in for a development server on a network you trust.
+ */
+export function assertListenPosture(host: string): void {
+  if (isLoopbackHost(host) || process.env.NODE_ENV === 'production' || process.env.FOX_INSECURE_DEV === '1') return;
+  throw new Error(
+    `Fox will not listen on ${host} outside production: it would encrypt saved credentials with a ` +
+      'development key and send its session cookie without the Secure flag. Set NODE_ENV=production ' +
+      '(with APP_ENCRYPTION_KEY) to serve on the network, or FOX_INSECURE_DEV=1 for a development server on a network you trust.'
+  );
+}

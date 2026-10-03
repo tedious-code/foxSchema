@@ -36,9 +36,11 @@ and the desktop app alike. Roles are `admin` / `editor` / `owner` / `viewer`.
 - **Google, Microsoft and GitHub** sign in an existing account whose email the
   provider has verified. Set them up under **Access control → Sign-in**, or with
   the `SSO_*` variables.
-- **Sign-in is rate-limited** per address (20 per 15 minutes) and **locked per
-  email** after 5 failures for 15 minutes, for emails with and without an
-  account alike. New passwords need 10+ characters and must not be a common
+- **Sign-in is rate-limited** per address (20 per 15 minutes). After 5 wrong
+  passwords for one email from one address, that address is locked out of that
+  email for 15 minutes; after 50 from any addresses together, the email is
+  locked for everyone. Emails with and without an account are counted alike,
+  and a guesser from one address cannot lock the account's owner out. New passwords need 10+ characters and must not be a common
   password or contain the email name.
 - First UI open can still show the **email subscriber wizard** (public; before sign-in).
 - Admins configure role permissions and assign users under **Profile → Access control**.

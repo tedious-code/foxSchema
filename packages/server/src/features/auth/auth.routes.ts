@@ -129,7 +129,7 @@ export function createAuthRoutes(
   router.post('/login', signInLimiter, async (req: AppRequest, res: FastifyReply) => {
     const { email, password } = req.body as { email: string; password: string };
     try {
-      const { user, token } = await auth.login(email, password);
+      const { user, token } = await auth.login(email, password, req.ip);
       setSessionCookie(res, token);
       res.send({ user });
     } catch (error: unknown) {

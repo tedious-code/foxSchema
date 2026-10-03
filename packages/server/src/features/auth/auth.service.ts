@@ -319,7 +319,8 @@ export class AuthModule {
     return { user, token: await this.createSession(id) };
   }
 
-  async login(email: string, password: string): Promise<{ user: AuthUser; token: string }> {
+  /** `address` is the client's, so a guesser's failures lock out only that client (see sign-in-throttle). */
+  async login(email: string, password: string, address = ''): Promise<{ user: AuthUser; token: string }> {
     const store = await getStore();
     const normalized = (email ?? '').trim().toLowerCase();
     const row = await store.get<UserRow & { password_hash: string }>(
@@ -327,14 +328,14 @@ export class AuthModule {
       [normalized]
     );
 
-    const wait = lockedFor(normalized);
+    const wait = lockedFor(normalized, address);
     if (wait > 0) throw new SignInLockedError(wait);
 
     // Same error, and the same scrypt time, whether the email or the password
     // is wrong (no account enumeration).
     const matches = await verifyPassword(password ?? '', row?.password_hash ?? (await DUMMY_HASH));
     if (!row || !matches) {
-      recordFailure(normalized);
+      recordFailure(normalized, address);
       throw new Error('Invalid email or password.');
     }
     assertUserActive(row);

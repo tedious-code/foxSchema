@@ -106,12 +106,29 @@ export function buildApiRoutes(): RouteDefinition[] {
   return root.flatten();
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Delete expired sessions and spent sign-in codes; never fails the caller. */
+async function purgeExpiredAuth(): Promise<void> {
+  try {
+    const { sessions, codes } = await new AuthModule().purgeExpired();
+    if (sessions + codes > 0) {
+      getLogger().info({ component: 'auth', sessions, codes }, 'purged expired sessions and codes');
+    }
+  } catch (error: unknown) {
+    getLogger().warn({ component: 'auth', err: error }, 'session purge skipped');
+  }
+}
+
 /**
- * Remove upload fragments left behind by a previous process.
+ * Housekeeping at boot.
  *
  * Partial uploads are tracked in memory, so any `.part` file on disk at startup
  * belongs to no live session and can be deleted. Startup is the only point at
  * which that is safe to assume.
+ *
+ * Expired sessions and used or expired sign-in codes are deleted now and then
+ * daily; otherwise those tables only grow.
  */
 export function sweepOnBoot(): void {
   try {
@@ -123,6 +140,8 @@ export function sweepOnBoot(): void {
     // Never block boot on temp-dir housekeeping.
     getLogger().warn({ component: 'uploads', err: error }, 'upload sweep skipped');
   }
+  void purgeExpiredAuth();
+  setInterval(() => void purgeExpiredAuth(), DAY_MS).unref();
 }
 
 /** Drain connection pools on shutdown so the process exits cleanly. */

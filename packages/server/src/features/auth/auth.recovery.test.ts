@@ -32,6 +32,23 @@ beforeEach(async () => {
   resetSignInThrottle();
 });
 
+describe('housekeeping', () => {
+  it('purges expired sessions and spent codes, and keeps live ones', async () => {
+    await auth.createUser('ana@example.com', PASSWORD, 'editor');
+    const { token } = await auth.login('ana@example.com', PASSWORD);
+    const used = await auth.requestPasswordReset('ana@example.com');
+    await auth.redeemCode(used!.code, NEW_PASSWORD); // used, and a new session
+    const live = await auth.requestPasswordReset('ana@example.com');
+
+    // Nothing has expired yet: only the used code goes.
+    expect(await auth.purgeExpired()).toEqual({ sessions: 0, codes: 1 });
+    expect(await auth.inspectCode(live!.code)).not.toBeNull();
+    // A week and a day later, every session and the reset code have expired.
+    expect(await auth.purgeExpired(new Date(Date.now() + 8 * 24 * 60 * 60 * 1000))).toEqual({ sessions: 1, codes: 1 });
+    expect(await auth.getUserByToken(token)).toBeNull();
+  });
+});
+
 describe('password reset', () => {
   it('sets a new password once, signs in, and ends every other session', async () => {
     await auth.createUser('ana@example.com', PASSWORD, 'editor');

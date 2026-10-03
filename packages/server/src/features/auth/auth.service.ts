@@ -410,6 +410,19 @@ export class AuthModule {
     return this.toAuthUser({ id, email, onboarding_completed: 0, app_role: 'admin' });
   }
 
+  /**
+   * Delete sessions past their expiry, and codes that are used or expired.
+   * Nothing else removes them: an expired session goes only if it is
+   * presented again, and a used code never.
+   */
+  async purgeExpired(now = new Date()): Promise<{ sessions: number; codes: number }> {
+    const store = await getStore();
+    const at = now.toISOString();
+    const sessions = await store.run('DELETE FROM sessions WHERE expires_at < ?', [at]);
+    const codes = await store.run('DELETE FROM auth_codes WHERE used_at IS NOT NULL OR expires_at < ?', [at]);
+    return { sessions: sessions.changes, codes: codes.changes };
+  }
+
   async logout(token: string | undefined): Promise<void> {
     if (!token) return;
     const store = await getStore();

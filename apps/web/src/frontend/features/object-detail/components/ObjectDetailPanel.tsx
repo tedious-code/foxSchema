@@ -3,7 +3,7 @@ import { useSyncStore } from '@/app/store/useSyncStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/app/store/authStore';
 import { Play, RefreshCw, FileText, CheckCircle2, Copy, AlertTriangle, GitCommitHorizontal } from 'lucide-react';
-import { CommitMigrationDialog, useGitStore } from '@/features/git';
+import { CommitMigrationDialog, commitRequirement, useGitStore } from '@/features/git';
 import { SqlGeneratorModule } from '@/shared/lib/sql-generator';
 import { findDropDependencies } from '@foxschema/sql';
 import { findMissingFkTargets, findNarrowingTypeChanges, extractReviewNotices, resolveDialect } from '@/shared/lib/migration-validation';
@@ -55,7 +55,9 @@ export const ObjectDetailPanel: React.FC = () => {
   const canUseGit = useAuthStore((s) => s.can('git.view')) && canMigrate;
   const gitRepos = useGitStore((s) => s.repos);
   const loadGitRepos = useGitStore((s) => s.load);
-  const commitRequired = useGitStore((s) => s.repos.some((r) => r.requireCommit));
+  const requirement = useGitStore(commitRequirement);
+  const commitRequired = requirement === 'required';
+  const gitSettingsPending = canUseGit && requirement === 'unknown';
   const committedMigration = useSyncStore((s) => s.committedMigration);
   const commitMatchesPlan = useSyncStore((s) => s.commitMatchesPlan);
   const [showCommit, setShowCommit] = useState(false);
@@ -645,6 +647,7 @@ export const ObjectDetailPanel: React.FC = () => {
     : hasNarrowingChanges && !narrowingAcked ? 'Acknowledge the narrowing type changes below before deploying'
     : hasDestructiveDrops && !destructiveDropsAcked ? 'Acknowledge the destructive drops below before deploying'
     : deploysRoutineToMySql && !mysqlRiskAcked ? 'Acknowledge the MySQL binlog privilege risk below before deploying'
+    : gitSettingsPending ? 'Checking whether migrations must be committed to Git first'
     : commitRequired && !planIsCommitted ? 'This install runs only committed migrations — commit the plan to Git first'
     : null;
 
@@ -696,7 +699,7 @@ export const ObjectDetailPanel: React.FC = () => {
               !targetConnected || hasUnresolvedDropDeps ||
               (hasDestructiveDrops && !destructiveDropsAcked) ||
               (deploysRoutineToMySql && !mysqlRiskAcked) ||
-              (commitRequired && !planIsCommitted)
+              gitSettingsPending || (commitRequired && !planIsCommitted)
             }
             title={executeBlockReason ?? `Deploy ${includedCount} object(s) to target`}
             className={`flex items-center gap-1.5 px-4 py-1.5 rounded text-xs font-bold transition shadow ${

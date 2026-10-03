@@ -36,7 +36,9 @@ export const CommitMigrationDialog: React.FC<{ open: boolean; onClose: () => voi
   const [branch, setBranch] = useState('');
   const [newBranch, setNewBranch] = useState('');
   const [note, setNote] = useState('');
-  const [preview, setPreview] = useState<{ path: string; content: string; scrubbed: number } | null>(null);
+  // The file and the repository and inputs it was built from: Commit sends
+  // exactly what was reviewed, so it waits for the preview of what is on screen.
+  const [preview, setPreview] = useState<{ path: string; content: string; scrubbed: number; repoId: string; input: object } | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,26 +96,33 @@ export const CommitMigrationDialog: React.FC<{ open: boolean; onClose: () => voi
       setPreview(null);
       return;
     }
+    let current = true; // false once a newer note or repository replaces this request
     const t = setTimeout(() => {
       gitApi
         .preview(repoId, planInput)
         .then((p) => {
-          setPreview(p);
+          if (!current) return;
+          setPreview({ ...p, repoId, input: planInput });
           setPreviewError(null);
         })
         .catch((e: unknown) => {
+          if (!current) return;
           setPreview(null);
           setPreviewError(e instanceof Error ? e.message : 'Could not build the file');
         });
     }, 300);
-    return () => clearTimeout(t);
+    return () => {
+      current = false;
+      clearTimeout(t);
+    };
   }, [open, repoId, note, plan.length, planInput]);
 
   if (!open) return null;
 
   const targetBranch = branch === NEW_BRANCH ? newBranch.trim() : branch;
   const current = branches.find((b) => b.name === targetBranch);
-  const canCommit = !!repo && !!targetBranch && !!note.trim() && plan.length > 0 && !previewError && !busy;
+  const previewIsCurrent = !!preview && preview.repoId === repoId && preview.input === planInput;
+  const canCommit = !!repo && !!targetBranch && previewIsCurrent && !busy;
 
   const commit = async (push: boolean) => {
     if (!repo) return;
@@ -217,7 +226,10 @@ export const CommitMigrationDialog: React.FC<{ open: boolean; onClose: () => voi
               </div>
 
               <div className="flex flex-col gap-1">
-                <span className={labelCls}>File to add{preview ? ` · ${preview.path}` : ''}</span>
+                <span className={labelCls}>
+                  File to add{preview ? ` · ${preview.path}` : ''}
+                  {preview && !previewIsCurrent && !previewError && ' · updating…'}
+                </span>
                 {previewError ? (
                   <p role="alert" className="text-xs text-rose-300">{previewError}</p>
                 ) : preview ? (

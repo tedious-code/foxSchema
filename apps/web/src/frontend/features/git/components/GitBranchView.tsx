@@ -7,7 +7,7 @@
  * the migrations on it and whether each has been applied to the current
  * target database, and the incoming ones to review and run.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowDownToLine, ArrowUpFromLine, GitBranch, Loader2, Play, RefreshCw, X } from 'lucide-react';
 import { useSyncStore } from '@/app/store/useSyncStore';
@@ -30,8 +30,10 @@ export const GitBranchView: React.FC<{ open: boolean; onClose: () => void }> = (
   const [repoId, setRepoId] = useState('');
   const [branches, setBranches] = useState<BranchState[]>([]);
   const [branch, setBranch] = useState('');
-  const [migrations, setMigrations] = useState<MigrationListing[]>([]);
-  const [head, setHead] = useState<string | null>(null);
+  // The listing with the repository and branch it was read from: a run uses all
+  // three together, so it can never pair a new branch with an old commit.
+  const [listing, setListing] = useState<{ repoId: string; branch: string; head: string | null; migrations: MigrationListing[] } | null>(null);
+  const latestRequest = useRef(0);
   const [review, setReview] = useState<{ path: string; content: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,14 +50,16 @@ export const GitBranchView: React.FC<{ open: boolean; onClose: () => void }> = (
 
   const refresh = useCallback(async () => {
     if (!repoId) return;
+    const request = ++latestRequest.current;
     const list = await gitApi.branches(repoId);
+    if (request !== latestRequest.current) return; // a newer selection has replaced this one
     setBranches(list);
     const name = branch || repo?.defaultBranch || list[0]?.name || '';
     if (!branch) setBranch(name);
     if (!name) return;
     const res = await gitApi.migrations(repoId, name, targetConnected ? buildRef(targetConfig) : undefined);
-    setHead(res.head);
-    setMigrations(res.migrations);
+    if (request !== latestRequest.current) return;
+    setListing({ repoId, branch: name, head: res.head, migrations: res.migrations });
   }, [repoId, branch, repo, targetConfig, targetConnected]);
 
   useEffect(() => {
@@ -78,11 +82,17 @@ export const GitBranchView: React.FC<{ open: boolean; onClose: () => void }> = (
     }
   };
 
+  // Only the listing of what is selected now: never a previous repository's or branch's.
+  const shown = listing && listing.repoId === repoId && listing.branch === branch ? listing : null;
+  const head = shown?.head ?? null;
+  const migrations = shown?.migrations ?? [];
+
   const run = async (m: MigrationListing) => {
-    if (!head) return;
-    const file = await gitApi.file(repoId, head, m.path);
+    if (!shown?.head) return;
+    const ref = { repoId: shown.repoId, branch: shown.branch, commit: shown.head, path: m.path };
+    const file = await gitApi.file(ref.repoId, ref.commit, ref.path);
     if (!window.confirm(`Run "${file.header.note.split('\n')[0]}" (${file.steps.length} step(s)) against ${targetConfig.option.database ?? ''}.${targetConfig.schema}?`)) return;
-    const ok = await runCommittedMigration({ repoId, branch, commit: head, path: m.path }, file.steps);
+    const ok = await runCommittedMigration(ref, file.steps);
     toast({ tone: ok ? 'success' : 'warning', title: ok ? `Applied ${m.fileName}` : `${m.fileName} did not apply — see the migration progress` });
     await refresh();
   };

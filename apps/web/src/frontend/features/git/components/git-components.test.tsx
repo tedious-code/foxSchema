@@ -33,7 +33,7 @@ vi.mock('@/app/store/useUiStore', () => ({ useUiStore: { getState: () => ({ bump
 
 import { useSyncStore } from '@/app/store/useSyncStore';
 import { useAuthStore } from '@/app/store/authStore';
-import { useGitStore } from '../store/useGitStore';
+import { commitRequirement, useGitStore } from '../store/useGitStore';
 import { CommitMigrationDialog } from './CommitMigrationDialog';
 import { GitReposAdmin } from './GitReposAdmin';
 import { GitBranchView } from './GitBranchView';
@@ -108,6 +108,28 @@ describe('committing a migration', () => {
     await waitFor(() => expect(gitApi.commit).toHaveBeenCalledWith('r1', expect.objectContaining({ branch: 'feature/orders', push: false })));
   });
 
+  it('commits only the file shown for the note on screen, never an older preview', async () => {
+    const answers: Array<(file: object) => void> = [];
+    gitApi.preview.mockImplementation(() => new Promise((resolve) => answers.push(resolve)));
+    const file = (note: string) => ({ fileName: 'x.sql', path: 'migrations/x.sql', content: `-- note: ${note}`, scrubbed: 0 });
+    render(<CommitMigrationDialog open onClose={() => undefined} />);
+    await waitFor(() => expect((screen.getByLabelText(/^branch$/i) as HTMLSelectElement).value).toBe('main'));
+    const commitBtn = () => screen.getByTestId('git-commit-push') as HTMLButtonElement;
+
+    fireEvent.change(screen.getByLabelText(/note/i), { target: { value: 'Add orders' } });
+    await waitFor(() => expect(answers.length).toBe(1));
+    expect(commitBtn().disabled).toBe(true); // the file is still being built
+
+    fireEvent.change(screen.getByLabelText(/note/i), { target: { value: 'Add orders and invoices' } });
+    await waitFor(() => expect(answers.length).toBe(2));
+    answers[1]!(file('Add orders and invoices'));
+    await waitFor(() => expect(commitBtn().disabled).toBe(false));
+    answers[0]!(file('Add orders')); // the older request answers last
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByTestId('git-commit-preview').textContent).toContain('Add orders and invoices');
+    expect(commitBtn().disabled).toBe(false);
+  });
+
   it('says what to do when no repository is set up', async () => {
     gitApi.listRepos.mockResolvedValue([]);
     render(<CommitMigrationDialog open onClose={() => undefined} />);
@@ -168,6 +190,34 @@ describe('the branch view', () => {
     expect(gitApi.file).toHaveBeenCalledWith('r1', HEAD, 'migrations/2.sql');
   });
 
+  it('never runs a file under a branch it was not listed from', async () => {
+    const DEV = 'd'.repeat(40);
+    gitApi.branches.mockResolvedValue([
+      { name: 'main', local: HEAD, remote: HEAD, ahead: 0, behind: 0 },
+      { name: 'dev', local: DEV, remote: DEV, ahead: 0, behind: 0 },
+    ]);
+    let answerDev: (l: object) => void = () => undefined;
+    gitApi.migrations.mockImplementation((_repo: string, branch: string) =>
+      branch === 'main' ? Promise.resolve(listing) : new Promise((resolve) => (answerDev = resolve))
+    );
+    const steps = [{ action: 'CREATE', objectType: 'TABLE', objectName: 'invoices', statements: ['CREATE TABLE invoices (id int)'] }];
+    gitApi.file.mockResolvedValue({ content: 'x', header: { note: 'Add invoices', dialect: 'postgres' }, steps });
+    const runCommitted = vi.fn(async () => true);
+    useSyncStore.setState({ runCommittedMigration: runCommitted });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<GitBranchView open onClose={() => undefined} />);
+    expect(await screen.findByTestId('git-run-2.sql')).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('Branch'), { target: { value: 'dev' } });
+    // main's files are not offered while dev's load: Run would pair dev with main's commit.
+    await waitFor(() => expect(screen.queryByTestId('git-run-2.sql')).toBeNull());
+    answerDev({ head: DEV, migrations: [listing.migrations[1]] });
+    fireEvent.click(await screen.findByTestId('git-run-2.sql'));
+    await waitFor(() =>
+      expect(runCommitted).toHaveBeenCalledWith({ repoId: 'r1', branch: 'dev', commit: DEV, path: 'migrations/2.sql' }, steps)
+    );
+  });
+
   it('lets a viewer review but not pull, push or run', async () => {
     signIn(['git.view'], 'viewer');
     gitApi.migrations.mockResolvedValue(listing);
@@ -177,5 +227,18 @@ describe('the branch view', () => {
     expect(screen.queryByText('Push')).toBeNull();
     expect(screen.queryByTestId('git-run-2.sql')).toBeNull();
     expect(screen.getAllByText('Review').length).toBe(2);
+  });
+});
+
+describe('whether a commit is required', () => {
+  it('is unknown until the repositories load, and a failed reload keeps what was known', async () => {
+    expect(commitRequirement(useGitStore.getState())).toBe('unknown');
+    gitApi.listRepos.mockResolvedValue([{ ...repo, requireCommit: true }]);
+    await useGitStore.getState().load();
+    expect(commitRequirement(useGitStore.getState())).toBe('required');
+    gitApi.listRepos.mockRejectedValue(new Error('offline'));
+    await useGitStore.getState().load();
+    expect(commitRequirement(useGitStore.getState())).toBe('required');
+    expect(useGitStore.getState().error).toBe('offline');
   });
 });

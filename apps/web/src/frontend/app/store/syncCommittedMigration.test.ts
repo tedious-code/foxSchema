@@ -35,6 +35,9 @@ const ordersDiff = {
   sourceTable: { name: 'orders', columns: [] },
 } as unknown as TableDiff;
 
+/** A second table, so skipping ORDERS still leaves a plan to run. */
+const itemsDiff = { ...ordersDiff, tableName: 'ITEMS', sourceTable: { name: 'items', columns: [] } } as unknown as TableDiff;
+
 const COMMIT = 'a'.repeat(40);
 const ref = { repoId: 'r1', branch: 'main', commit: COMMIT, path: 'migrations/x.sql' };
 
@@ -86,6 +89,31 @@ describe('committed migrations', () => {
     const [, plan, , , git] = executeMigration.mock.calls.at(-1)!;
     expect(plan).toEqual(steps);
     expect(git).toEqual(ref);
+  });
+
+  it("leaves the plan the user committed alone when a teammate's migration runs", async () => {
+    useSyncStore.getState().setCommittedMigration(ref);
+    await useSyncStore.getState().runCommittedMigration({ ...ref, path: 'migrations/theirs.sql' }, []);
+    expect(useSyncStore.getState().committedMigration).toMatchObject(ref);
+    expect(useSyncStore.getState().commitMatchesPlan()).toBe(true);
+  });
+
+  it('skip & retry after a commit does not run a plan nobody committed', async () => {
+    useSyncStore.setState({ compareResult: { tables: [ordersDiff, itemsDiff] } as never, syncSelection: { ORDERS: true, ITEMS: true } });
+    useSyncStore.getState().setCommittedMigration(ref);
+    await useSyncStore.getState().skipObjectAndRetry('ORDERS');
+    expect(executeMigration).not.toHaveBeenCalled();
+    expect(useSyncStore.getState().syncSelection.ORDERS).toBe(false);
+    // The commit is kept; it just no longer matches, so Execute asks for a new one.
+    expect(useSyncStore.getState().committedMigration).toMatchObject(ref);
+    expect(useSyncStore.getState().commitMatchesPlan()).toBe(false);
+  });
+
+  it('skip & retry without a commit re-runs at once', async () => {
+    useSyncStore.setState({ compareResult: { tables: [ordersDiff, itemsDiff] } as never, syncSelection: { ORDERS: true, ITEMS: true } });
+    await useSyncStore.getState().skipObjectAndRetry('ORDERS');
+    expect(executeMigration).toHaveBeenCalledTimes(1);
+    expect(sentGit()).toBeUndefined();
   });
 
   it('reports a refused run as not applied', async () => {

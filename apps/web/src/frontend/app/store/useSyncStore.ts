@@ -112,7 +112,6 @@ export const useSyncStore = create<SyncState>()(
       } finally {
         set({ isMigrating: false });
       }
-      if (migrationSucceeded) set({ committedMigration: null });
       return migrationSucceeded;
     };
 
@@ -756,6 +755,17 @@ export const useSyncStore = create<SyncState>()(
       snapshotDdl: null,
       migrationExecuted: false,
     });
+    // A committed plan without this object is a different migration: it runs
+    // from Git only once that plan is reviewed and committed too.
+    const committed = s.committedMigration;
+    if (committed) {
+      toast({
+        tone: 'warning',
+        title: `Skipped ${objectName}`,
+        body: `The plan no longer matches commit ${committed.commit.slice(0, 7)}. Commit it again, then Execute.`,
+      });
+      return;
+    }
     await get().applyMigration();
   },
 
@@ -799,6 +809,9 @@ export const useSyncStore = create<SyncState>()(
     const c = get().committedMigration;
     const git = c && get().commitMatchesPlan() ? { repoId: c.repoId, branch: c.branch, commit: c.commit, path: c.path } : undefined;
     const ok = await runPlan(plan, git);
+    // The committed plan has run; running a teammate's migration from the Git
+    // view (runCommittedMigration) leaves it alone.
+    if (ok) set({ committedMigration: null });
     // Auto-refresh the comparison so the diff list reflects what was just applied.
     // migrationProgress and migration result state are preserved across the refresh.
     if (ok) await get().runSchemaComparison();

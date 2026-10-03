@@ -9,4 +9,4 @@
 export { CommitMigrationDialog } from './components/CommitMigrationDialog';
 export { GitBranchView } from './components/GitBranchView';
 export { GitReposAdmin } from './components/GitReposAdmin';
-export { useGitStore } from './store/useGitStore';
+export { commitRequirement, useGitStore } from './store/useGitStore';

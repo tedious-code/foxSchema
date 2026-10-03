@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { LogOut, Palette, ChevronDown, ArrowUpCircle, Globe, Shield, MonitorX } from 'lucide-react';
+import { LogOut, Palette, ArrowUpCircle, Globe, Shield, MonitorX } from 'lucide-react';
 import { apiSignOutOthers } from '@/shared/api/authApi';
 import { toast } from '@/app/store/toastStore';
 import { useAuthStore } from '@/app/store/authStore';

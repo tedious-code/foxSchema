@@ -35,7 +35,13 @@ export function readCookie(req: AppRequest, name: string): string | undefined {
   for (const part of header.split(';')) {
     const eq = part.indexOf('=');
     if (eq === -1) continue;
-    if (part.slice(0, eq).trim() === name) return decodeURIComponent(part.slice(eq + 1).trim());
+    if (part.slice(0, eq).trim() !== name) continue;
+    try {
+      return decodeURIComponent(part.slice(eq + 1).trim());
+    } catch {
+      // A malformed escape (a stray %) reads as no cookie: signed out, not a 500.
+      return undefined;
+    }
   }
   return undefined;
 }

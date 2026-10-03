@@ -132,6 +132,18 @@ describe('the Fox sign-in service', () => {
     expect(back.cookies.some((c) => c.startsWith('sid=') && c !== 'sid=')).toBe(false);
   });
 
+  it('shows only the messages the service sends, never words from the link', async () => {
+    const shown = async (error: string) => {
+      const { state, nonce } = await start('github');
+      const back = await call('GET', `/auth/sso/broker/callback?error=${encodeURIComponent(error)}&state=${nonce}`, undefined, state);
+      return new URL(back.location, 'http://fox.test').searchParams.get('sso_error');
+    };
+    expect(await shown('Sign-in was cancelled.')).toBe('Sign-in was cancelled.');
+    expect(await shown('Your session expired. Call 555-0100 to restore access.')).toBe(
+      'The Fox sign-in service could not sign you in. Start the sign-in again.'
+    );
+  });
+
   it('never creates an account', async () => {
     const { state, returnTo, nonce } = await start('google');
     const back = await call(

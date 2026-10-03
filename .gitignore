@@ -31,41 +31,14 @@ dist-ssr
 foxschema.db*
 schemacompare.db*
 
+# Personal working notes stay on this machine. Everything else in Markdown is
+# tracked: a blanket `*.md` rule here used to swallow real docs silently (the
+# dialect checklist, an example guide) until someone noticed a link was dead.
 IMPLEMENTATION_STATE.md
+docs/IMPLEMENTATION_HISTORY.md
 CLAUDE.md
 CHANGELOG.md
 
-*.md
-*/*.md
-*/*/*.md
-# Security policy and docs must be tracked
-!SECURITY.md
-!docs/security/security-process.md
-# Session work-summary plans must be tracked
-!docs/plans/*.md
-# WinGet / Windows install guide must be tracked
-!docs/winget.md
-# Public project docs must be tracked
-!README.md
-!CONTRIBUTING.md
-# The dialect checklist is required reading before touching a `*.sql-dialect.ts`
-# — CONTRIBUTING.md and docs/ARCHITECTURE.md both send contributors to it. The
-# `*.md` rules above had swallowed it, so nobody cloning the repo has ever
-# actually had the file those docs point at. Caught by doc-paths.test.ts.
-!packages/sql/src/providers/DIALECTS.md
-# Licence notices for bundled dependencies must ship with the product —
-# MIT/BSD/ISC all require their notice to travel with the code.
-!THIRD-PARTY-NOTICES.md
-# Agent onboarding notes must be tracked
-!AGENTS.md
-!docs/ARCHITECTURE.md
-!docs/USER_GUIDE.md
-!docs/WORKFLOW.md
-!docs/DEPLOYMENT.md
-!docs/INSTALL.md
-!docs/PUBLISH.md
-!docs/docker-hub-overview.md
-!docs/releases/*.md
 docs/demo/*
 !docs/demo/foxschema-demo.mp4
 !docs/demo/foxschema-demo.gif

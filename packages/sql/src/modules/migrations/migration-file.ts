@@ -23,11 +23,13 @@
  *   -- fox:next
  *   CREATE INDEX ix_orders_id ON orders (id);
  *
- * Passwords never reach a file: in account statements they are replaced with
- * the same placeholder Database Access uses, a password set in a form that
- * cannot be read is refused rather than guessed at, and a file that still
- * looks like it holds a credential is refused. Pure and dependency-free, so the browser can
- * preview exactly what will be committed.
+ * Passwords never reach a file. In account statements they are replaced with
+ * the same placeholder Database Access uses; a password set in a form that
+ * cannot be read is refused rather than guessed at, and so is a file that
+ * still looks like it holds a credential.
+ *
+ * Pure and dependency-free, so the browser can preview exactly what will be
+ * committed.
  */
 import type { DbObjectType } from '../../interfaces/schema.interface.js';
 import type { MigrationStep } from './sql-generator.module.js';
@@ -71,167 +73,220 @@ export function migrationFileName(note: string, when: Date = new Date()): string
   return `${stamp}__${slug}.sql`;
 }
 
+// ---------------------------------------------------------------------------
+// Tokens. The scrubber lexes a statement once and reads keywords and values
+// from the tokens, so every rule agrees on where strings and comments end.
+// ---------------------------------------------------------------------------
 
-const isWordChar = (ch: string | undefined) => ch !== undefined && /[\w$]/.test(ch);
-
-const wordEnd = (text: string, i: number) => {
-  while (i < text.length && isWordChar(text[i])) i += 1;
-  return i;
-};
-
-/** End of the `--` or `/* *\/` comment starting at `i`, or -1 when none starts there. */
-function commentEnd(text: string, i: number): number {
-  if (text[i] === '-' && text[i + 1] === '-') {
-    const nl = text.indexOf('\n', i);
-    return nl === -1 ? text.length : nl + 1;
-  }
-  if (text[i] === '/' && text[i + 1] === '*') {
-    const close = text.indexOf('*/', i + 2);
-    return close === -1 ? text.length : close + 2;
-  }
-  return -1;
+/** One token of a SQL text. A text's tokens cover it exactly, in order. */
+interface SqlToken {
+  kind: 'space' | 'comment' | 'word' | 'string' | 'name' | 'dollar' | 'punct';
+  start: number;
+  end: number;
+  /** A word uppercased, or a punctuation character; '' for other kinds. */
+  upper: string;
+  /** Delimiters of a string, quoted name or dollar-quoted body: `N'`…`'`, `$pw$`…`$pw$`. `close` is '' when unclosed. */
+  open: string;
+  close: string;
 }
 
-/** The next token after whitespace and comments. */
-function skipGap(text: string, i: number): number {
-  for (;;) {
-    while (i < text.length && /\s/.test(text[i]!)) i += 1;
-    const end = commentEnd(text, i);
-    if (end === -1) return i;
-    i = end;
-  }
+const SPACE = /\s+/y;
+const WORD = /[\w$]+/y;
+/** `$$` or `$tag$`, the delimiter of a PostgreSQL dollar-quoted string. */
+const DOLLAR_TAG = /\$(?:\$|[A-Za-z_]\w{0,63}\$)/y;
+/** `N'x'`, `E'x'`, `X'x'`, `U&'x'`: a string whose prefix belongs to it. */
+const STRING_PREFIX = /(?:[A-Za-z]|[Uu]&)(?=')/y;
+const CLOSING_QUOTE: Record<string, string> = { "'": "'", '"': '"', '`': '`', '[': ']' };
+/** Dialects where `#` starts a comment. Elsewhere it is an operator, or part of an Oracle name (`app#1`). */
+const HASH_COMMENT_DIALECTS = new Set(['mysql', 'mariadb', 'clickhouse']);
+
+/** What a sticky pattern matches at `i`, or ''. */
+function matchAt(pattern: RegExp, text: string, i: number): string {
+  pattern.lastIndex = i;
+  return pattern.exec(text)?.[0] ?? '';
 }
 
 /** End of the quoted literal starting at `start` (the opening quote), honouring doubled quotes; -1 when unclosed. */
 function literalEnd(text: string, start: number): number {
-  const close = text[start] === '[' ? ']' : text[start]!;
-  let i = start + 1;
-  while (i < text.length) {
-    if (text[i] === close) {
-      if (text[i + 1] === close) {
-        i += 2;
-        continue;
-      }
-      return i + 1;
-    }
-    i += 1;
+  const close = CLOSING_QUOTE[text[start]!] ?? text[start]!;
+  for (let i = text.indexOf(close, start + 1); i !== -1; i = text.indexOf(close, i + 2)) {
+    if (text[i + 1] !== close) return i + 1; // a doubled quote is one quote character
   }
   return -1;
 }
 
-/** The `$tag$` opening a PostgreSQL dollar-quoted string at `i`, or '' when none does. */
-function dollarTag(text: string, i: number): string {
-  if (text[i] !== '$' || isWordChar(text[i - 1])) return '';
-  let j = i + 1;
-  if (/[A-Za-z_]/.test(text[j] ?? '')) {
-    while (j < text.length && j - i <= 64 && /\w/.test(text[j]!)) j += 1;
+/** The token starting at `i`. */
+function tokenAt(text: string, i: number, hashComments: boolean): SqlToken {
+  const token = (kind: SqlToken['kind'], end: number, open = '', close = ''): SqlToken => ({
+    kind,
+    start: i,
+    end,
+    upper: kind === 'word' || kind === 'punct' ? text.slice(i, end).toUpperCase() : '',
+    open,
+    close,
+  });
+  const space = matchAt(SPACE, text, i);
+  if (space) return token('space', i + space.length);
+
+  if (text.startsWith('--', i) || (hashComments && text[i] === '#')) {
+    const newline = text.indexOf('\n', i);
+    return token('comment', newline === -1 ? text.length : newline + 1);
   }
-  return text[j] === '$' ? text.slice(i, j + 1) : '';
+  if (text.startsWith('/*', i)) {
+    const close = text.indexOf('*/', i + 2);
+    return token('comment', close === -1 ? text.length : close + 2);
+  }
+
+  const quoteAt = i + matchAt(STRING_PREFIX, text, i).length;
+  const quote = text[quoteAt]!;
+  if (CLOSING_QUOTE[quote]) {
+    const end = literalEnd(text, quoteAt);
+    const kind = quote === "'" || quote === '"' ? 'string' : 'name';
+    const open = text.slice(i, quoteAt + 1);
+    return end === -1 ? token(kind, text.length, open) : token(kind, end, open, CLOSING_QUOTE[quote]);
+  }
+
+  const tag = matchAt(DOLLAR_TAG, text, i);
+  if (tag) {
+    const close = text.indexOf(tag, i + tag.length);
+    return close === -1 ? token('dollar', text.length, tag) : token('dollar', close + tag.length, tag, tag);
+  }
+
+  const word = matchAt(WORD, text, i);
+  if (word) return token('word', i + word.length);
+  return token('punct', i + 1);
 }
 
-/**
- * Statements that create or change an account, or store a credential that
- * signs in somewhere else (a database link, a foreign server, a SQL Server
- * credential) — the only places a password literal is a credential. Anywhere
- * else (`WHERE password = 'x'` in a view, `SET password = ...` in a procedure)
- * it is ordinary SQL and is left exactly as written: the committed file is
- * what runs. Read after any leading comments.
- */
+/** The tokens of `text`, lexed as they are read. */
+function* sqlTokens(text: string, hashComments: boolean): Generator<SqlToken> {
+  for (let i = 0; i < text.length; ) {
+    const token = tokenAt(text, i, hashComments);
+    yield token;
+    i = token.end;
+  }
+}
+
+const isTrivia = (token: SqlToken) => token.kind === 'space' || token.kind === 'comment';
+
+// ---------------------------------------------------------------------------
+// Which statements carry credentials.
+// ---------------------------------------------------------------------------
+
+/** The first words of `text` after any leading comments, uppercased: up to 8, lexing no further. */
+function leadingWords(text: string, hashComments: boolean): string[] {
+  const words: string[] = [];
+  for (const token of sqlTokens(text, hashComments)) {
+    if (isTrivia(token)) continue;
+    if (token.kind !== 'word' || words.length === 8) break;
+    words.push(token.upper);
+  }
+  return words;
+}
+
 const ACCOUNT_KINDS = new Set(['USER', 'ROLE', 'LOGIN', 'GROUP', 'CREDENTIAL', 'LINK', 'SERVER']);
 const KIND_MODIFIERS = new Set(['PUBLIC', 'SHARED', 'DATABASE', 'SCOPED']);
 
-function isAccountStatement(text: string): boolean {
-  const w: string[] = [];
-  let i = skipGap(text, 0);
-  while (w.length < 8 && isWordChar(text[i])) {
-    const end = wordEnd(text, i);
-    w.push(text.slice(i, end).toUpperCase());
-    i = skipGap(text, end);
-  }
-  if (w[0] === 'GRANT') return true; // GRANT ... IDENTIFIED BY (MySQL 5, Oracle)
-  if (w[0] === 'SET') return w[1] === 'PASSWORD';
-  if (w[0] !== 'CREATE' && w[0] !== 'ALTER') return false;
+/**
+ * Whether a statement starting with `words` creates or changes an account,
+ * or stores a credential that signs in somewhere else (a database link, a
+ * foreign server, a SQL Server credential) — the only places a password
+ * literal is a credential. Anywhere else (`WHERE password = 'x'` in a view,
+ * `SET password = ...` in a procedure) it is ordinary SQL and is left exactly
+ * as written: the committed file is what runs.
+ */
+function isAccountStatement(words: string[]): boolean {
+  if (words[0] === 'GRANT') return true; // GRANT ... IDENTIFIED BY (MySQL 5, Oracle)
+  if (words[0] === 'SET') return words[1] === 'PASSWORD';
+  if (words[0] !== 'CREATE' && words[0] !== 'ALTER') return false;
   let k = 1;
-  if (w[k] === 'OR' && w[k + 1] === 'REPLACE') k += 2;
-  while (KIND_MODIFIERS.has(w[k] ?? '')) k += 1;
-  return ACCOUNT_KINDS.has(w[k] ?? '');
+  if (words[k] === 'OR' && words[k + 1] === 'REPLACE') k += 2;
+  while (KIND_MODIFIERS.has(words[k] ?? '')) k += 1;
+  return ACCOUNT_KINDS.has(words[k] ?? '');
 }
+
+// ---------------------------------------------------------------------------
+// Reading a password value.
+// ---------------------------------------------------------------------------
 
 /** Words whose value is a credential: `PASSWORD 'x'`, SQL Server's `OLD_PASSWORD = 'x'`, `SECRET = 'x'`. */
 const SECRET_WORDS = new Set(['PASSWORD', 'OLD_PASSWORD', 'SECRET']);
+/** What ends a clause, so a keyword before it has no value: `GRANT SELECT (password)`, `RESET PASSWORD;`. */
+const NO_VALUE = new Set([';', ',', ')', '.']);
+/** A bind parameter or format placeholder stands where a value would: `@pw`, `:pw`, `?`, `%L`. */
+const PARAMETER = new Set(['@', ':', '?', '%']);
 /** A comment in an account statement that seems to quote a password is refused, not guessed at. */
-const CREDENTIAL_WORD = /\b(?:password|secret|identified)\b/i;
+const quotesCredential = (comment: string) => /['"$]/.test(comment) && /\b(?:password|secret|identified)\b/i.test(comment);
 
-/** A credential value: `text.slice(start, end)`, kept delimiters `open`/`close` around the placeholder. */
+/** A password value: tokens `[first, end)` of the statement, and the delimiters kept around the placeholder. */
 interface SecretValue {
-  start: number;
+  first: number;
   end: number;
   open: string;
   close: string;
 }
 
 /**
- * The value at `j`, which follows a credential keyword:
- * - a {@link SecretValue} for `'x'`, `N'x'`, `E'x'`, `"x"`, `$$x$$`, a `0x…`
- *   hash, `PASSWORD('x')` — or any word, when `bare` (Oracle's `IDENTIFIED BY x`);
+ * The value at token `k` of `tokens` (spaces and comments left out), which
+ * follows a credential keyword:
+ * - a {@link SecretValue} for `'x'`, `N'x'`, `"x"`, `'ab' 'cd'`, `$$x$$`, a
+ *   `0x…` hash, `PASSWORD('x')` — or any run of tokens up to a space, when
+ *   `bareWords` (Oracle's `IDENTIFIED BY x`);
  * - `null` when there is no value: an option (`PASSWORD EXPIRE`, `PASSWORD
- *   NULL`), a column name (`GRANT SELECT (password)`), a bind parameter;
+ *   NULL`), the end of a clause, a bind parameter;
  * - `'unreadable'` for anything else, which the caller refuses.
  */
-function readValue(text: string, j: number, bare: boolean): SecretValue | null | 'unreadable' {
-  const c = text[j];
-  if (c === undefined || c === ';' || c === ',' || c === ')' || c === '.') return null;
-  let prefix = '';
-  if (/[A-Za-z]/.test(c) && text[j + 1] === "'") prefix = c; // N'x', E'x'
-  else if (/[Uu]/.test(c) && text[j + 1] === '&' && text[j + 2] === "'") prefix = text.slice(j, j + 2); // U&'x'
-  const q = text[j + prefix.length];
-  if (q === "'" || q === '"') {
-    const at = j + prefix.length;
-    let end = literalEnd(text, at);
-    while (end !== -1) {
-      // A backslash before the closing quote is an escape in MySQL and a character in PostgreSQL: unknowable here.
-      if (text[end - 2] === '\\') return 'unreadable';
-      // Adjacent literals are one string ('ab' 'cd'); all of it is the password.
-      const next = skipGap(text, end);
-      if (q !== "'" || text[next] !== "'") break;
-      end = literalEnd(text, next);
-    }
-    return end === -1
-      ? { start: j, end: text.length, open: prefix + q, close: '' }
-      : { start: j, end, open: prefix + q, close: q };
+function readValue(tokens: SqlToken[], k: number, bareWords: boolean): SecretValue | null | 'unreadable' {
+  const token = tokens[k];
+  if (!token || NO_VALUE.has(token.upper)) return null;
+  if (token.upper === '(') {
+    // PASSWORD('x'): the value is inside the parentheses.
+    let inner = k;
+    while (tokens[inner]?.upper === '(') inner += 1;
+    return readValue(tokens, inner, false) ?? 'unreadable';
   }
-  const tag = dollarTag(text, j);
-  if (tag) {
-    const close = text.indexOf(tag, j + tag.length);
-    return close === -1
-      ? { start: j, end: text.length, open: tag, close: '' }
-      : { start: j, end: close + tag.length, open: tag, close: tag };
+  if (token.kind === 'string') {
+    // Adjacent literals are one string ('ab' 'cd'); all of it is the password.
+    let end = k + 1;
+    while (token.open.endsWith("'") && tokens[end - 1]!.close && tokens[end]?.open === "'") end += 1;
+    return { first: k, end, open: token.open, close: tokens[end - 1]!.close };
   }
-  if (c === '0' && (text[j + 1] === 'x' || text[j + 1] === 'X')) {
-    let end = j + 2;
-    while (end < text.length && /[0-9A-Fa-f]/.test(text[end]!)) end += 1;
-    return { start: j, end, open: '', close: '' };
+  if (token.kind === 'dollar') return { first: k, end: k + 1, open: token.open, close: token.close };
+  if (token.upper.startsWith('0X')) return { first: k, end: k + 1, open: '', close: '' };
+  if (bareWords) {
+    let end = k + 1;
+    while (tokens[end] && tokens[end]!.start === tokens[end - 1]!.end && tokens[end]!.upper !== ';') end += 1;
+    return { first: k, end, open: '', close: '' };
   }
-  if (c === '(') {
-    const inner = readValue(text, skipGap(text, j + 1), false);
-    return inner === null ? 'unreadable' : inner;
-  }
-  if (bare) {
-    let end = j;
-    while (end < text.length && !/[\s;]/.test(text[end]!)) end += 1;
-    return { start: j, end, open: '', close: '' };
-  }
-  if (/[A-Za-z_]/.test(c)) return null; // an option keyword
-  if (/[@:?%]/.test(c) || (c === '$' && /\d/.test(text[j + 1] ?? ''))) return null; // a parameter
+  if (/^[A-Z_]/.test(token.upper)) return null; // an option keyword
+  if (PARAMETER.has(token.upper) || /^\$\d/.test(token.upper)) return null;
   return 'unreadable';
+}
+
+/** The 1-based line of each offset in `text` (offsets ascending), each line once. */
+function linesAt(text: string, offsets: number[]): number[] {
+  const lines: number[] = [];
+  let line = 1;
+  let i = 0;
+  for (const offset of offsets) {
+    for (; i < offset; i++) if (text[i] === '\n') line += 1;
+    if (lines[lines.length - 1] !== line) lines.push(line);
+  }
+  return lines;
 }
 
 export interface ScrubbedText {
   text: string;
   /** Password values replaced by the placeholder. */
   replaced: number;
-  /** 1-based lines of `text` that set a password in a form the scanner cannot read — refuse them. */
+  /** 1-based lines of `text` that set a password in a form the scrubber cannot read — refuse them. */
   unreadable: number[];
+}
+
+/** A change to the text: a value replaced, or, when `replacement` is null, a place to refuse. */
+interface Edit {
+  start: number;
+  end: number;
+  replacement: string | null;
 }
 
 /**
@@ -239,119 +294,97 @@ export interface ScrubbedText {
  * placeholder, how many were, and the lines it could not make safe. Reads
  * `PASSWORD 'x'`, `PASSWORD = N'x'`, `PASSWORD $$x$$`, `PASSWORD = 0x… HASHED`,
  * `OLD_PASSWORD`, `SECRET`, `IDENTIFIED BY 'x'` / `"x"` / `x`, `IDENTIFIED WITH
- * plugin BY|AS 'x'`, `REPLACE 'old'`, `SET PASSWORD FOR u = 'x'`. Fails
- * closed: a password set in any other way is reported as unreadable rather
- * than committed. A small scanner rather than regular expressions, which on
- * this kind of input can backtrack catastrophically.
+ * plugin BY|AS 'x'`, `REPLACE 'old'`, `SET PASSWORD FOR u = 'x'`.
+ *
+ * Fails closed: a password set in any other way, a string whose end depends
+ * on the dialect's escaping (`'it\'s'`), or a comment that seems to quote a
+ * password, is reported as unreadable rather than committed. Linear in the
+ * length of `text`, however hostile.
  */
-export function scrubSecrets(text: string): ScrubbedText {
-  if (!isAccountStatement(text)) return { text, replaced: 0, unreadable: [] };
-  let out = '';
-  let replaced = 0;
-  const flagged: number[] = []; // offsets into `out`
-  let i = 0;
-  const copyTo = (to: number) => {
-    out += text.slice(i, to);
-    i = to;
-  };
-  /** Write everything up to the value, then the value scrubbed; or flag what cannot be read. */
-  const take = (value: SecretValue | null | 'unreadable', after: number): boolean => {
-    if (value === null) return false;
+export function scrubSecrets(text: string, dialect: string): ScrubbedText {
+  const hashComments = HASH_COMMENT_DIALECTS.has(dialect.toLowerCase());
+  if (!isAccountStatement(leadingWords(text, hashComments))) return { text, replaced: 0, unreadable: [] };
+
+  const all = [...sqlTokens(text, hashComments)];
+  const tokens = all.filter((token) => !isTrivia(token));
+  const edits: Edit[] = [];
+  const refuse = (at: number) => edits.push({ start: at, end: at, replacement: null });
+
+  for (const token of all) {
+    if (token.kind === 'comment' && quotesCredential(text.slice(token.start, token.end))) refuse(token.end - 1);
+    // A backslash before the closing quote escapes it in MySQL and is a plain character in PostgreSQL.
+    if (token.kind === 'string' && token.close && text[token.end - 2] === '\\') refuse(token.start);
+  }
+
+  const is = (k: number, ...words: string[]) => words.includes(tokens[k]?.upper ?? '');
+  /** Record the value at token `k`; returns the token to read next. */
+  const take = (k: number, bareWords: boolean): number => {
+    const value = readValue(tokens, k, bareWords);
+    if (value === null) return k;
     if (value === 'unreadable') {
-      copyTo(after);
-      flagged.push(out.length);
-      return true;
+      refuse(tokens[k]!.start);
+      return k + 1;
     }
-    copyTo(value.start);
-    const raw = text.slice(value.start, value.end);
-    const inner = raw.slice(value.open.length, raw.length - value.close.length);
-    if (inner === '' || inner === PASSWORD_PLACEHOLDER) out += raw;
-    else {
-      out += `${value.open}${PASSWORD_PLACEHOLDER}${value.close}`;
-      replaced += 1;
+    const start = tokens[value.first]!.start;
+    const end = tokens[value.end - 1]!.end;
+    const inner = text.slice(start + value.open.length, end - value.close.length);
+    if (inner !== '' && inner !== PASSWORD_PLACEHOLDER) {
+      edits.push({ start, end, replacement: `${value.open}${PASSWORD_PLACEHOLDER}${value.close}` });
     }
-    i = value.end;
-    return true;
+    return value.end;
+  };
+  /** SET PASSWORD FOR 'u'@'h' = 'x': the value follows the account, and there must be one. */
+  const setPasswordFor = (k: number): number => {
+    let j = k + 2;
+    while (j < tokens.length && !is(j, '=', ';')) j += 1;
+    if (is(j, '=')) return take(j + 1, false);
+    refuse(tokens[k]!.start);
+    return j;
+  };
+  /** IDENTIFIED [WITH plugin] BY|AS value [REPLACE old]. */
+  const identified = (k: number): number => {
+    let j = k + 1;
+    if (is(j, 'WITH')) j += 2; // the plugin, a word or a quoted name
+    if (!is(j, 'BY', 'AS')) return k + 1;
+    j += 1;
+    if (is(j, 'RANDOM') && is(j + 1, 'PASSWORD')) return j + 2; // MySQL generates one: no value
+    // BY PASSWORD 'hash' (MySQL 5) and BY VALUES '…' (Oracle) are hashes, still credentials.
+    if (is(j, 'PASSWORD', 'VALUES') && tokens[j + 1]?.kind === 'string') j += 1;
+    const next = take(j, true);
+    // Oracle and MySQL take the current password too: IDENTIFIED BY new REPLACE old.
+    return next > j && is(next, 'REPLACE') ? take(next + 1, true) : next;
   };
 
-  while (i < text.length) {
-    const c = text[i]!;
-    const comment = commentEnd(text, i);
-    if (comment !== -1) {
-      const body = text.slice(i, comment);
-      copyTo(comment);
-      if (CREDENTIAL_WORD.test(body) && /['"$]/.test(body)) flagged.push(out.length - 1);
-      continue;
-    }
-    // Skip string literals and quoted names whole, so keywords inside them are not read.
-    if (c === "'" || c === '"' || c === '`' || c === '[') {
-      const end = literalEnd(text, i);
-      copyTo(end === -1 ? text.length : end);
-      continue;
-    }
-    const tag = dollarTag(text, i);
-    if (tag) {
-      const close = text.indexOf(tag, i + tag.length);
-      copyTo(close === -1 ? text.length : close + tag.length);
-      continue;
-    }
-    if (!isWordChar(c)) {
-      copyTo(i + 1);
-      continue;
-    }
-    const end = wordEnd(text, i);
-    const word = text.slice(i, end).toUpperCase();
-    if (SECRET_WORDS.has(word)) {
-      let j = skipGap(text, end);
-      if (word === 'PASSWORD' && /^FOR$/i.test(text.slice(j, wordEnd(text, j)))) {
-        // SET PASSWORD FOR 'u'@'h' = 'x': the value follows the account.
-        j = wordEnd(text, j);
-        while (j < text.length && text[j] !== '=' && text[j] !== ';') {
-          const lit = text[j] === "'" || text[j] === '"' || text[j] === '`' ? literalEnd(text, j) : -1;
-          j = lit === -1 ? j + 1 : lit;
-        }
-      }
-      if (text[j] === '=') j = skipGap(text, j + 1);
-      if (take(readValue(text, j, false), j)) continue;
-    } else if (word === 'IDENTIFIED') {
-      let j = skipGap(text, end);
-      if (/^WITH$/i.test(text.slice(j, wordEnd(text, j)))) {
-        j = skipGap(text, j + 4);
-        const plugin = text[j] === "'" || text[j] === '"' || text[j] === '`' ? literalEnd(text, j) : wordEnd(text, j);
-        j = skipGap(text, plugin === -1 ? text.length : plugin);
-      }
-      const by = text.slice(j, wordEnd(text, j)).toUpperCase();
-      if (by === 'BY' || by === 'AS') {
-        j = skipGap(text, j + 2);
-        const next = text.slice(j, wordEnd(text, j)).toUpperCase();
-        // IDENTIFIED BY RANDOM PASSWORD (MySQL) has no value; BY PASSWORD 'hash' / BY VALUES '…' are hashes, still credentials.
-        if (next === 'RANDOM' && /^PASSWORD$/i.test(text.slice(skipGap(text, j + 6), wordEnd(text, skipGap(text, j + 6))))) {
-          copyTo(j + 6);
-          continue;
-        }
-        if (next === 'PASSWORD' || next === 'VALUES') {
-          const k = skipGap(text, j + next.length);
-          if (text[k] === "'" || text[k] === '"') j = k;
-        }
-        if (take(readValue(text, j, true), j)) {
-          // Oracle and MySQL take the current password too: IDENTIFIED BY new REPLACE old.
-          const r = skipGap(text, i);
-          if (/^REPLACE$/i.test(text.slice(r, wordEnd(text, r)))) take(readValue(text, skipGap(text, r + 7), true), r + 7);
-          continue;
-        }
-      }
-    }
-    copyTo(end);
+  for (let k = 0; k < tokens.length; ) {
+    const word = tokens[k]!.upper;
+    if (word === 'PASSWORD' && is(k + 1, 'FOR')) k = setPasswordFor(k);
+    else if (SECRET_WORDS.has(word)) k = take(is(k + 1, '=') ? k + 2 : k + 1, false);
+    else if (word === 'IDENTIFIED') k = identified(k);
+    else k += 1;
   }
 
-  const unreadable: number[] = [];
-  let line = 1;
-  let at = 0;
-  for (const offset of flagged) {
-    for (; at < offset && at < out.length; at++) if (out[at] === '\n') line += 1;
-    if (unreadable[unreadable.length - 1] !== line) unreadable.push(line);
+  // Write the text with the edits applied, in order; a refusal is counted on the line it lands on.
+  edits.sort((a, b) => a.start - b.start);
+  let out = '';
+  let copied = 0;
+  let replaced = 0;
+  const refusedAt: number[] = [];
+  for (const edit of edits) {
+    // Values never overlap; a refusal inside one already replaced counts where it ends.
+    if (edit.start > copied) {
+      out += text.slice(copied, edit.start);
+      copied = edit.start;
+    }
+    if (edit.replacement === null) {
+      refusedAt.push(out.length);
+      continue;
+    }
+    out += edit.replacement;
+    copied = edit.end;
+    replaced += 1;
   }
-  return { text: out, replaced, unreadable };
+  out += text.slice(copied);
+  return { text: out, replaced, unreadable: linesAt(out, refusedAt) };
 }
 
 /** The contents of every single-quoted string literal in `line`. */
@@ -438,11 +471,12 @@ export function buildMigrationFile(header: MigrationFileHeader, steps: Migration
     if (step.skipped) body.push(`${MARK}skip ${JSON.stringify(step.skipped)}`);
     step.statements.forEach((statement, i) => {
       if (i > 0) body.push(`${MARK}next`);
-      const clean = scrubSecrets(statement);
+      const clean = scrubSecrets(statement, header.dialect);
       scrubbed += clean.replaced;
-      const firstLine = head.length + body.length + 1;
-      unreadable.push(...clean.unreadable.map((line) => firstLine + line - 1));
-      body.push(...clean.text.split(/\r?\n/).map(escapeLine));
+      const linesBefore = head.length + body.length;
+      for (const line of clean.unreadable) unreadable.push(linesBefore + line);
+      // A loop, not push(...lines): spreading a statement of many lines overflows the stack.
+      for (const line of clean.text.split(/\r?\n/)) body.push(escapeLine(line));
     });
   }
   if (unreadable.length) {

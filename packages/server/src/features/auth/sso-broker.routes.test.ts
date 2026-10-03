@@ -123,6 +123,26 @@ describe('the Fox sign-in service', () => {
     expect(decodeURIComponent(again.location)).toMatch(/already used/);
   });
 
+  it('keeps admin accounts out when an admin says so, and lets everyone else in', async () => {
+    const { AuthModule } = await import('./auth.service');
+    await new AuthModule().createUser('pat@example.com', 'amber-forest-8', 'editor');
+    const signIn = async (email: string) => {
+      const { state, returnTo, nonce } = await start('github');
+      const back = await call('GET', `/auth/sso/broker/callback?assertion=${assertionFor(returnTo, nonce, email)}&state=${nonce}`, undefined, state);
+      return { location: decodeURIComponent(back.location), sid: back.cookies.find((c) => c.startsWith('sid=') && c !== 'sid=') };
+    };
+    expect((await call('PUT', '/admin/sign-in/broker', { admins: false }, admin)).status).toBe(200);
+    try {
+      const boss = await signIn('boss@example.com');
+      expect(boss.location).toMatch(/Admin accounts cannot sign in through this service/);
+      expect(boss.sid).toBeUndefined();
+      expect((await signIn('pat@example.com')).location).toBe('/');
+    } finally {
+      await call('PUT', '/admin/sign-in/broker', { admins: true }, admin);
+    }
+    expect((await signIn('boss@example.com')).location).toBe('/');
+  });
+
   it('refuses an assertion that comes back to a browser that did not start the sign-in', async () => {
     const { returnTo, nonce } = await start('github');
     const assertion = assertionFor(returnTo, nonce, 'boss@example.com');

@@ -79,6 +79,9 @@ export interface BrokerSummary {
   enabled: boolean;
   source: SettingSource | null;
   url: string;
+  /** Whether admin accounts may sign in through it. */
+  admins: boolean;
+  adminsSource: SettingSource | null;
 }
 
 export interface SignInSettingsSummary {
@@ -108,6 +111,7 @@ const providerKey = (id: SsoProviderId) => `auth.sso.${id}`;
 const MAIL_KEY = 'auth.mail';
 const PUBLIC_URL_KEY = 'auth.public_url';
 const BROKER_KEY = 'auth.broker';
+const BROKER_ADMINS_KEY = 'auth.broker.admins';
 const SECURITIES: SmtpSecurity[] = ['tls', 'starttls', 'none'];
 
 function env(name: string | undefined): string {
@@ -325,6 +329,25 @@ export class SignInSettings {
     await this.settings.set(BROKER_KEY, enabled ? 'on' : 'off');
   }
 
+  /**
+   * Whether admin accounts may sign in through the Fox sign-in service. On by
+   * default; turned off, whoever controls foxschema.com or its signing key
+   * still cannot sign in as an admin here, only as people with less power.
+   * FOX_SSO_BROKER_ADMINS=off sets it on the server.
+   */
+  async brokerAdmins(): Promise<{ allowed: boolean; source: SettingSource | null }> {
+    const fromEnv = env('FOX_SSO_BROKER_ADMINS').toLowerCase();
+    if (fromEnv === 'on' || fromEnv === 'true') return { allowed: true, source: 'env' };
+    if (fromEnv === 'off' || fromEnv === 'false') return { allowed: false, source: 'env' };
+    const stored = await this.settings.get(BROKER_ADMINS_KEY);
+    return { allowed: stored !== 'off', source: stored ? 'app' : null };
+  }
+
+  async setBrokerAdmins(allowed: boolean): Promise<void> {
+    if (env('FOX_SSO_BROKER_ADMINS')) throw new Error('Whether admins may use the Fox sign-in service is set by FOX_SSO_BROKER_ADMINS on the server.');
+    await this.settings.set(BROKER_ADMINS_KEY, allowed ? 'on' : 'off');
+  }
+
   async summary(): Promise<SignInSettingsSummary> {
     const { url, source } = await this.publicUrl();
     const providers = await Promise.all(
@@ -357,6 +380,13 @@ export class SignInSettings {
       from: envMail?.from ?? storedMail?.from ?? '',
     };
     const broker = await this.broker();
-    return { publicUrl: url, publicUrlSource: source, providers, mail, broker: { ...broker, url: brokerUrl() } };
+    const admins = await this.brokerAdmins();
+    return {
+      publicUrl: url,
+      publicUrlSource: source,
+      providers,
+      mail,
+      broker: { ...broker, url: brokerUrl(), admins: admins.allowed, adminsSource: admins.source },
+    };
   }
 }

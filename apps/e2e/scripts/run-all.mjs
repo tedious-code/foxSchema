@@ -167,6 +167,20 @@ const ALWAYS = [
         },
       ]
     : []),
+  // Migrations in Git: commit, push, run from commit, pull a teammate's. Needs
+  // the Postgres demo pair and the git binary (it serves a real repo).
+  ...(isConfigured('postgres')
+    ? [
+        {
+          key: 'git',
+          file: 'src/tests/git-migrations.test.ts',
+          label: 'Migrations in Git',
+          // Its own timeouts add up to 660s (setup, compare, a 180s execute,
+          // the teammate's run); the 300s default would kill it mid-run.
+          timeoutMs: 720_000,
+        },
+      ]
+    : []),
 ];
 
 /**
@@ -202,7 +216,8 @@ for (const suite of ALWAYS) {
   const DIALECT_MATRIX = new Set(['sql-editor-utilities', 'db-access', 'access-dialects']);
   // 60s a dialect was not enough: sql-editor-utilities took 1005s for 11
   // dialects on its own (2026-09-24), against a 660s budget.
-  const suiteTimeoutMs = DIALECT_MATRIX.has(suite.key)
+  // A suite can declare its own budget; the rest are sized here.
+  const suiteTimeoutMs = suite.timeoutMs ?? (DIALECT_MATRIX.has(suite.key)
     ? Math.max(600_000, configured.length * 120_000)
     : suite.key === 'schema-revert-edges'
       ? 600_000
@@ -211,7 +226,7 @@ for (const suite of ALWAYS) {
       // failing test in the log.
       : suite.key === 'sql-editor'
         ? 600_000
-        : 300_000;
+        : 300_000);
   try {
     output = execSync(`${HEADED}${VITEST} ${suite.file}`, {
       cwd: ROOT,

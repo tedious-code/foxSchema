@@ -1,5 +1,17 @@
 # Migrations in Git — 2026-10-02
 
+**Status (2026-10-03): built** — #450 (core), #451 (commit & run), #452 (UI),
+and the end-to-end test + docs. Changes from the plan below:
+
+- What ran where is in its own table, `git_applied` (migration 22), not only on
+  `migration_runs`: run history is pruned per user, which would have made old
+  migrations look incoming again.
+- Password scrubbing touches only account and credential statements; elsewhere
+  `password` is ordinary SQL and is committed as written. It fails closed: a
+  password it cannot read refuses the commit, naming the line.
+- Execute with a commit runs the steps read from the file at that commit and
+  ignores any steps sent alongside.
+
 ## Summary
 
 Put every migration Fox runs into a real Git repository, so a team reviews

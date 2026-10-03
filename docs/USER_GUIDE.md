@@ -147,6 +147,45 @@ look (view/function bodies, for instance, aren't auto-translated).
 You can always just copy the generated SQL and run it yourself instead of applying it
 through Fox Schema.
 
+### Commit the migration to Git first
+
+When an admin has added a Git repository (**Access control → Git**), Migrate shows
+**Commit to Git** next to Execute:
+
+1. Choose the repository and a branch — or **New branch…**, which starts from the
+   repository's default branch.
+2. Write a **note**. It becomes the commit message, so say what the migration does
+   and why.
+3. Review the **file** Fox will add — `migrations/20261002-153012__your-note.sql`.
+   It is plain SQL anyone can read and run; the plan's steps are kept in comments
+   so Fox can run exactly those steps later. Passwords in account statements are
+   replaced with `<password>` and never reach the repository. If Fox cannot read
+   how a password is written, it refuses the commit and names the line; put
+   `<password>` there yourself.
+4. **Commit**, or **Commit & push** to send it to the remote for review.
+
+Execute then says **Execute committed abc1234** and runs the migration *from that
+commit*: the database gets exactly what was committed. Change the selection after
+committing and the commit no longer describes the plan, so Execute goes back to
+the plan on screen. An admin can make a repository **require a commit**; then
+nothing runs until the plan is committed.
+
+### Migrations from your team
+
+**Applies → Git** shows a repository's branch:
+
+- **Fetch** gets the remote's branches and shows how far behind or ahead you are.
+- **Pull** brings the branch up to date. If both sides changed it, Fox makes a merge
+  commit; if the same file changed on both sides it stops and changes nothing.
+- **Push** sends your commits. If the remote moved on, pull first.
+- Each migration on the branch is marked **Applied** to the target you are connected
+  to, or **Incoming** — not yet run there. **Review** shows the file; **Run**
+  applies an incoming migration from its commit, through the same confirmation and
+  progress view as Execute.
+
+Fox remembers what ran against which database for good, so an old migration never
+shows up as incoming again.
+
 ## SQL Editor
 
 Use the **SQL Editor** to run ad-hoc queries and inspect data (separate from schema
@@ -560,7 +599,9 @@ machine running Fox Schema.
 Bottom of the left rail, **Applies**. Every Schema Compare migration you apply is
 recorded — status, target, the exact script, the pre-migration snapshot, and
 per-object results. No passwords are stored. Data migrate has its own history in
-the Editor.
+the Editor. A migration run from Git also shows the commit it applied; **Git**
+in the header opens the branch view described in
+[Commit the migration to Git first](#commit-the-migration-to-git-first).
 
 ## Troubleshooting
 

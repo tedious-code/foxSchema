@@ -117,13 +117,16 @@ describe('secrets', () => {
   });
 
   it("reads # as a comment only where the dialect does: MySQL's comment, Oracle's name character", () => {
-    expectScrubbedOnce(
-      [
-        ["CREATE USER app # the user's account\n  IDENTIFIED BY 'hunter2';", "CREATE USER app # the user's account\n  IDENTIFIED BY '<password>';"],
-        ["# the user's account\nCREATE USER app IDENTIFIED BY 'hunter2';", "# the user's account\nCREATE USER app IDENTIFIED BY '<password>';"],
-      ],
-      'mysql'
-    );
+    // Every MySQL relative the dialect registry knows, not a list kept here.
+    for (const dialect of ['mysql', 'mariadb', 'tidb', 'clickhouse']) {
+      expectScrubbedOnce(
+        [
+          ["CREATE USER app # the user's account\n  IDENTIFIED BY 'hunter2';", "CREATE USER app # the user's account\n  IDENTIFIED BY '<password>';"],
+          ["# the user's account\nCREATE USER app IDENTIFIED BY 'hunter2';", "# the user's account\nCREATE USER app IDENTIFIED BY '<password>';"],
+        ],
+        dialect
+      );
+    }
     expectScrubbedOnce([['CREATE USER app#1 IDENTIFIED BY "hunter2";', 'CREATE USER app#1 IDENTIFIED BY "<password>";']], 'oracle');
   });
 

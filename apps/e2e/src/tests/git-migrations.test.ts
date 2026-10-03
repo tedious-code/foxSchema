@@ -109,6 +109,9 @@ describe.skipIf(!hasConfig('postgres'))('Migrations in Git (Postgres)', () => {
   it('commits the plan after showing the exact file, and pushes it', async () => {
     await driver.click('[data-testid="git-commit-btn"]');
     await driver.waitForSelector('[data-testid="git-commit-dialog"]');
+    // This run's repository, not whichever sorts first: one left by an earlier run would win.
+    await driver.selectOption('#git-commit-repo', repoId);
+    await expect.poll(() => driver.inputValue('#git-commit-branch'), { timeout: 15_000 }).toBe('main');
     await driver.fill('#git-commit-note', 'Sync demo_b with demo_a');
     const preview = driver.locator('[data-testid="git-commit-preview"]');
     await preview.waitFor({ timeout: 15_000 });
@@ -133,6 +136,7 @@ describe.skipIf(!hasConfig('postgres'))('Migrations in Git (Postgres)', () => {
     await migration.openHistory();
     await driver.click('[data-testid="applies-git-btn"]');
     await driver.locator('[data-testid="git-branch-view"]').waitFor();
+    await driver.getByLabel('Repository').selectOption(repoId);
     // The row itself: "Applied" also appears in the view's explanatory text.
     const row = driver.locator('[data-testid^="git-migration-"]', { hasText: 'Sync demo_b with demo_a' });
     await row.waitFor({ timeout: 15_000 });

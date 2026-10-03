@@ -2,7 +2,7 @@ import React, { useEffect, useState, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import { X, History, RefreshCw, Trash2, Download, Database, CheckSquare, Square, GitBranch } from 'lucide-react';
 import { useAuthStore } from '@/app/store/authStore';
-import { GitBranchView } from '@/features/git/components/GitBranchView';
+import { GitBranchView } from '@/features/git';
 import {
   apiListMigrations,
   apiGetMigration,

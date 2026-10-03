@@ -23,7 +23,7 @@ import {
 } from '@/shared/api/authApi';
 import { IssuedCodeNotice } from './IssuedCodeNotice';
 import { SignInSettingsPanel } from './SignInSettingsPanel';
-import { GitReposAdmin } from '@/features/git/components/GitReposAdmin';
+import { GitReposAdmin } from '@/features/git';
 import {
   groupPermissionsForDisplay,
   groupUsersByRole,

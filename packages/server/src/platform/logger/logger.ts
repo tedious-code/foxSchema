@@ -70,6 +70,20 @@ const SECRET_QUERY_PARAMS = new Set([
   'code_verifier',
 ]);
 
+/**
+ * A query parameter's name, decoded for comparison. A serializer must never
+ * throw, and `decodeURIComponent` does on malformed escapes (`%E0%A4%A`), so
+ * an undecodable name is compared as written.
+ */
+function decodeName(raw: string): string {
+  const spaced = raw.replace(/\+/g, ' ');
+  try {
+    return decodeURIComponent(spaced).toLowerCase();
+  } catch {
+    return spaced.toLowerCase();
+  }
+}
+
 /** `url` with the value of every secret query parameter replaced by `[REDACTED]`. */
 export function redactUrl(url: string | undefined): string | undefined {
   if (!url) return url;
@@ -80,7 +94,7 @@ export function redactUrl(url: string | undefined): string | undefined {
     .split('&')
     .map((pair) => {
       const eq = pair.indexOf('=');
-      const name = decodeURIComponent((eq === -1 ? pair : pair.slice(0, eq)).replace(/\+/g, ' ')).toLowerCase();
+      const name = decodeName(eq === -1 ? pair : pair.slice(0, eq));
       return SECRET_QUERY_PARAMS.has(name) && eq !== -1 ? `${pair.slice(0, eq)}=[REDACTED]` : pair;
     })
     .join('&');

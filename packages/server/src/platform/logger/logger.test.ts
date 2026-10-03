@@ -22,6 +22,13 @@ describe('redactUrl', () => {
     expect(redactUrl('/cb?ID_TOKEN=x&Access_Token=y')).toBe('/cb?ID_TOKEN=[REDACTED]&Access_Token=[REDACTED]');
   });
 
+  it('never throws on malformed percent-encoding, and still redacts what it can', () => {
+    expect(() => redactUrl('/x?%E0%A4%A=1&code=abc')).not.toThrow();
+    expect(redactUrl('/x?%E0%A4%A=1&code=abc')).toBe('/x?%E0%A4%A=1&code=[REDACTED]');
+    expect(redactUrl('/x?%=1')).toBe('/x?%=1');
+    expect(redactUrl('/x?st%61te=s')).toBe('/x?st%61te=[REDACTED]');
+  });
+
   it('leaves URLs without secrets alone', () => {
     expect(redactUrl('/api/health')).toBe('/api/health');
     expect(redactUrl('/?sso_error=No%20account')).toBe('/?sso_error=No%20account');
@@ -50,6 +57,15 @@ describe('the request log', () => {
 
   afterAll(async () => {
     await app.close();
+  });
+
+  it('still logs (and answers) a request whose query name is malformed', async () => {
+    const before = lines.length;
+    const res = await app.inject({ url: '/api/auth/sso/broker/callback?%E0%A4%A=1&assertion=eyJBAD.x.y' });
+    expect(res.statusCode).toBe(200);
+    const logged = lines.slice(before).join('\n');
+    expect(logged).toContain('assertion=[REDACTED]');
+    expect(logged).not.toContain('eyJBAD');
   });
 
   it('logs the sign-in callback without its assertion or state', async () => {

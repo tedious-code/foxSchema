@@ -17,6 +17,7 @@ import type { ConnectionOptions, MigrationStep } from '@foxschema/db';
 import { requirePermissions } from '../authorization/rbac.guard';
 import { idempotency } from '../../platform/guards/idempotency';
 import { targetKey, targetLocks } from '../../platform/guards/target-lock';
+import { gitServices, type GitMigrationsService } from '../git/git-migrations.service';
 import type { AuthedRequest } from '../auth/auth.routes';
 import type { ConnectionRef } from '../../platform/db/resolve';
 import type {
@@ -33,14 +34,29 @@ export interface MigrationRouteDeps {
   sqlGenerator: Record<string, any>;
   captureLiveSchema: (...args: any[]) => Promise<any>;
   normalizeTableSchemas: (...args: any[]) => any;
+  /** Committed migrations; defaults to the app's shared Git services. */
+  gitMigrations?: Pick<GitMigrationsService, 'read' | 'recordApplied' | 'commitRequired'>;
+}
+
+/** A run of a committed migration names the file and the exact commit. */
+interface GitRunRef {
+  repoId: string;
+  branch?: string;
+  commit: string;
+  path: string;
 }
 
 export function createMigrationRoutes(deps: MigrationRouteDeps): Router {
   const router = Router();
+  const gitMigrations = deps.gitMigrations ?? gitServices().migrations;
   // A factory, not the middleware — see the editor extraction.
   const writeIdempotency = idempotency();
   router.post('/migration/execute', requirePermissions('schema.migrate'), writeIdempotency, async (req: AppRequest, res: FastifyReply) => {
-    const { steps, continueOnError, ...ref } = req.body as ConnectionRef & { steps: MigrationStep[]; continueOnError?: boolean };
+    const { steps: postedSteps, continueOnError, git: gitRun, ...ref } = req.body as ConnectionRef & {
+      steps: MigrationStep[];
+      continueOnError?: boolean;
+      git?: GitRunRef;
+    };
     let dialect: string;
     let option: ConnectionOptions;
     let schema: string;
@@ -48,6 +64,35 @@ export function createMigrationRoutes(deps: MigrationRouteDeps): Router {
       ({ dialect, option, schema } = await deps.resolveRef((req as AuthedRequest).userId, ref));
     } catch (error: unknown) {
       sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Invalid connection');
+      return;
+    }
+
+    // A committed migration runs exactly the steps in its file at that
+    // commit — never steps the browser sent alongside — so what reaches the
+    // database is what was reviewed.
+    let steps = postedSteps;
+    if (gitRun) {
+      if (!gitRun.repoId || !gitRun.path || !/^[0-9a-f]{40}$/.test(gitRun.commit ?? '')) {
+        sendError(res, 'invalid_input', 'A committed migration needs its repository, file path and full commit id.');
+        return;
+      }
+      try {
+        const file = await gitMigrations.read(gitRun.repoId, gitRun.commit, gitRun.path);
+        if (file.header.dialect.toLowerCase() !== dialect.toLowerCase()) {
+          sendError(res, 'invalid_input', `This migration was written for ${file.header.dialect}; the target is ${dialect}.`);
+          return;
+        }
+        steps = file.steps;
+      } catch (error: unknown) {
+        sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Could not read the committed migration.');
+        return;
+      }
+    } else if (await gitMigrations.commitRequired()) {
+      sendError(
+        res,
+        'forbidden',
+        'Migrations must be committed to Git before they run on this install. Commit the plan, then run it from its commit.'
+      );
       return;
     }
 
@@ -81,6 +126,7 @@ export function createMigrationRoutes(deps: MigrationRouteDeps): Router {
         schema,
         objectCount: steps.length,
         script,
+        ...(gitRun ? { git: gitRun } : {}),
       });
     } catch {
       /* history is non-critical */
@@ -175,6 +221,26 @@ export function createMigrationRoutes(deps: MigrationRouteDeps): Router {
           phase: 'after',
           error: error instanceof Error ? error.message : 'Lokee snapshot failed',
         });
+      }
+    }
+
+    // A committed migration that ran is applied to this database for good —
+    // recorded apart from run history, which is pruned.
+    // Widened: finalStatus is set inside the stream callback, which TypeScript does not follow.
+    const outcome = finalStatus as MigrationRunStatus;
+    if (gitRun && (outcome === 'SUCCESS' || outcome === 'PARTIAL_SUCCESS')) {
+      try {
+        await gitMigrations.recordApplied({
+          repoId: gitRun.repoId,
+          path: gitRun.path,
+          commit: gitRun.commit,
+          targetKey: targetKey({ dialect, host: option.host, database: option.database, schema }),
+          status: outcome,
+          runId,
+          userId,
+        });
+      } catch {
+        /* the run itself succeeded; the listing can be corrected by running again */
       }
     }
 

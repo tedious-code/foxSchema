@@ -25,6 +25,8 @@ export interface MigrationRunSummary {
   error?: string;
   startedAt: string;
   finishedAt?: string;
+  /** The committed migration this run applied, when it came from Git. */
+  git?: { repoId: string; branch?: string; commit: string; path: string };
 }
 
 /** Full record including the script, snapshot, and per-object results. */
@@ -48,6 +50,10 @@ interface Row {
   error: string | null;
   started_at: string;
   finished_at: string | null;
+  git_repo_id?: string | null;
+  git_branch?: string | null;
+  git_commit?: string | null;
+  git_path?: string | null;
 }
 
 // Bounds so the metadata DB can't grow unbounded.
@@ -63,14 +69,24 @@ export class MigrationHistoryStore {
   /** Record the start of a migration; returns the run id. */
   async start(
     userId: string,
-    input: { dialect: string; host?: string; database?: string; schema?: string; objectCount: number; script: string }
+    input: {
+      dialect: string;
+      host?: string;
+      database?: string;
+      schema?: string;
+      objectCount: number;
+      script: string;
+      /** The committed migration this run applies, when it came from Git. */
+      git?: { repoId: string; branch?: string; commit: string; path: string };
+    }
   ): Promise<string> {
     const id = randomUUID();
     const store = await getStore();
     await store.run(
       `INSERT INTO migration_runs
-         (id, user_id, status, dialect, target_host, database_name, "schema", object_count, script, started_at)
-       VALUES (?, ?, 'RUNNING', ?, ?, ?, ?, ?, ?, ?)`,
+         (id, user_id, status, dialect, target_host, database_name, "schema", object_count, script, started_at,
+          git_repo_id, git_branch, git_commit, git_path)
+       VALUES (?, ?, 'RUNNING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         userId,
@@ -81,6 +97,10 @@ export class MigrationHistoryStore {
         input.objectCount,
         truncateForDisplay(input.script) ?? null,
         new Date().toISOString(),
+        input.git?.repoId ?? null,
+        input.git?.branch ?? null,
+        input.git?.commit ?? null,
+        input.git?.path ?? null,
       ]
     );
     await this.prune(userId);
@@ -135,13 +155,17 @@ export class MigrationHistoryStore {
       error: r.error ?? undefined,
       startedAt: r.started_at,
       finishedAt: r.finished_at ?? undefined,
+      ...(r.git_repo_id && r.git_commit && r.git_path
+        ? { git: { repoId: r.git_repo_id, branch: r.git_branch ?? undefined, commit: r.git_commit, path: r.git_path } }
+        : {}),
     };
   }
 
   async list(userId: string, limit = 100): Promise<MigrationRunSummary[]> {
     const store = await getStore();
     const rows = await store.all<Row>(
-      `SELECT id, status, dialect, target_host, database_name, "schema", object_count, error, started_at, finished_at
+      `SELECT id, status, dialect, target_host, database_name, "schema", object_count, error, started_at, finished_at,
+              git_repo_id, git_branch, git_commit, git_path
          FROM migration_runs WHERE user_id = ? ORDER BY started_at DESC LIMIT ?`,
       [userId, limit]
     );

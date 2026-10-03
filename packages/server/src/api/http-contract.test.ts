@@ -124,6 +124,10 @@ const ROUTES: RouteExpectation[] = [
   { method: 'DELETE', path: '/api/git/repos/:id', status: 404 },
   { method: 'PUT', path: '/api/git/repos/:id', status: 404 },
   { method: 'GET', path: '/api/git/repos/:id/branches', status: 404 },
+  { method: 'POST', path: '/api/git/repos/:id/commit', status: 404 },
+  { method: 'GET', path: '/api/git/repos/:id/file', status: 404 },
+  { method: 'POST', path: '/api/git/repos/:id/migrations', status: 404 },
+  { method: 'POST', path: '/api/git/repos/:id/preview', status: 404 },
   { method: 'POST', path: '/api/git/repos/:id/branches', status: 404 },
   { method: 'POST', path: '/api/git/repos/:id/fetch', status: 404 },
   { method: 'GET', path: '/api/git/repos/:id/log', status: 404 },
@@ -258,7 +262,9 @@ describe('HTTP contract', () => {
       // 95 -> 97: the Fox sign-in service switch and its callback.
       //
       // 97 -> 107: migration repositories (/api/git).
-      expect(ROUTES.length).toBe(107);
+      //
+      // 107 -> 111: committing migrations (preview, commit, list, read a file).
+      expect(ROUTES.length).toBe(111);
       expect(new Set(ROUTES.map((r) => `${r.method} ${r.path}`)).size).toBe(ROUTES.length);
     });
 

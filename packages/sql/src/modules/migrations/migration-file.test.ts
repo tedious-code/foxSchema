@@ -1,0 +1,98 @@
+/**
+ * Fox Schema (foxschema)
+ * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * A migration file must read back into exactly the steps that were written —
+ * a teammate's migration pulled from Git runs those steps — and must never
+ * carry a password.
+ */
+import { describe, expect, it } from 'vitest';
+import {
+  buildMigrationFile,
+  findLeftoverSecrets,
+  migrationFileName,
+  parseMigrationFile,
+  scrubSecrets,
+} from './migration-file';
+import type { MigrationStep } from './sql-generator.module';
+
+const header = {
+  note: 'Add the orders index\n\nThe reports need it.',
+  dialect: 'postgres',
+  target: 'app_db.public',
+  source: 'staging.public',
+  author: 'ana@example.com',
+  created: '2026-10-02T15:30:12.000Z',
+};
+
+const steps: MigrationStep[] = [
+  { action: 'CREATE', objectType: 'TABLE', objectName: 'orders', statements: ['CREATE TABLE orders (\n  id int primary key,\n  note text\n);', 'CREATE INDEX ix_orders ON orders (id);'] },
+  { action: 'ALTER', objectType: 'VIEW', objectName: 'My "odd" view', statements: ["CREATE OR REPLACE VIEW v AS\nSELECT '-- fox:step not a marker' AS x;\n\n\nSELECT 2;"] },
+  { action: 'DROP', objectType: 'FUNCTION', objectName: 'f', statements: ['DROP FUNCTION f();'], skipped: 'kept: still referenced' },
+  { action: 'CREATE', objectType: 'PROCEDURE', objectName: 'p', statements: ['CREATE PROCEDURE p()\nBEGIN\n-- fox:next looks like a marker\nSELECT 1;\nEND'] },
+];
+
+describe('migration files', () => {
+  it('read back into exactly the steps and header that were written', () => {
+    const { content } = buildMigrationFile(header, steps);
+    expect(content.startsWith('-- fox:migration v1\n-- note: Add the orders index\n')).toBe(true);
+    expect(content).not.toContain('localhost');
+    const parsed = parseMigrationFile(content);
+    expect(parsed.header).toEqual(header);
+    expect(parsed.steps).toEqual(steps);
+  });
+
+  it('round-trips with Windows line endings too', () => {
+    const { content } = buildMigrationFile(header, steps.slice(0, 1));
+    expect(parseMigrationFile(content.replace(/\n/g, '\r\n')).steps).toEqual(steps.slice(0, 1));
+  });
+
+  it('needs a note and at least one step, and refuses files that are not Fox migrations', () => {
+    expect(() => buildMigrationFile({ ...header, note: ' ' }, steps)).toThrow(/note is required/);
+    expect(() => buildMigrationFile(header, [])).toThrow(/nothing to commit/);
+    expect(() => parseMigrationFile('CREATE TABLE x (id int);')).toThrow(/not a Fox migration/);
+    expect(() => parseMigrationFile('-- fox:migration v9\n-- dialect: x')).toThrow(/version 9/);
+  });
+
+  it('names files by time and note', () => {
+    expect(migrationFileName('Add the orders index!', new Date('2026-10-02T15:30:12Z'))).toBe('20261002-153012__add-the-orders-index.sql');
+    expect(migrationFileName('   ', new Date('2026-10-02T15:30:12Z'))).toBe('20261002-153012__migration.sql');
+    expect(migrationFileName('Ça marche: déjà vu', new Date('2026-10-02T15:30:12Z'))).toBe('20261002-153012__ca-marche-deja-vu.sql');
+  });
+});
+
+describe('secrets', () => {
+  it('replaces password literals in every dialect shape', () => {
+    const cases: Array<[string, string]> = [
+      ["CREATE ROLE app WITH LOGIN PASSWORD 's3cret';", "CREATE ROLE app WITH LOGIN PASSWORD '<password>';"],
+      ["CREATE USER app IDENTIFIED BY 'p@ss';", "CREATE USER app IDENTIFIED BY '<password>';"],
+      ['CREATE USER app IDENTIFIED BY "Oracle#1";', 'CREATE USER app IDENTIFIED BY "<password>";'],
+      ['ALTER USER app IDENTIFIED BY Plain123;', 'ALTER USER app IDENTIFIED BY <password>;'],
+      ["CREATE LOGIN app WITH PASSWORD = N'Sql!Server1';", "CREATE LOGIN app WITH PASSWORD = '<password>';"],
+      ["CREATE USER app IDENTIFIED WITH sha256_password BY 'ch';", "CREATE USER app IDENTIFIED WITH sha256_password BY '<password>';"],
+      ["ALTER USER app PASSWORD 'it''s';", "ALTER USER app PASSWORD '<password>';"],
+    ];
+    for (const [input, output] of cases) expect(scrubSecrets(input), input).toEqual({ text: output, replaced: 1 });
+    expect(scrubSecrets("CREATE ROLE app PASSWORD '<password>';").replaced).toBe(0);
+  });
+
+  it('commits a scrubbed plan, and says how many it scrubbed', () => {
+    const built = buildMigrationFile(header, [
+      { action: 'CREATE', objectType: 'ROLE', objectName: 'app', statements: ["CREATE ROLE app WITH LOGIN PASSWORD 'hunter2';"] },
+    ]);
+    expect(built.scrubbed).toBe(1);
+    expect(built.content).not.toContain('hunter2');
+  });
+
+  it('refuses a plan that still carries a credential, naming the line', () => {
+    const leaky: MigrationStep[] = [
+      { action: 'CREATE', objectType: 'VIEW', objectName: 'v', statements: ["CREATE VIEW v AS SELECT 'postgres://app:hunter2@db:5432/x' AS dsn;"] },
+    ];
+    // Where that statement lands: after the header (3 note lines here) and the step marker.
+    const line = buildMigrationFile(header, [{ ...leaky[0]!, statements: ['SELECT 1;'] }]).content.split('\n').indexOf('SELECT 1;') + 1;
+    expect(() => buildMigrationFile(header, leaky)).toThrow(new RegExp(`Line ${line} .*credential`));
+    expect(findLeftoverSecrets("SELECT 'api_key=abc123def'")).toEqual([1]);
+    expect(findLeftoverSecrets("CREATE ROLE r PASSWORD '<password>';")).toEqual([]);
+  });
+});

@@ -26,6 +26,15 @@ export type { MigrationEvent } from './interfaces/migration.types.js';
 export { CompareModule } from './modules/schema-diff/compare.module.js';
 export { SqlGeneratorModule } from './modules/migrations/sql-generator.module.js';
 export type { MigrationStep, SchemaMapping } from './modules/migrations/sql-generator.module.js';
+export {
+  buildMigrationFile,
+  findLeftoverSecrets,
+  migrationFileName,
+  parseMigrationFile,
+  scrubSecrets,
+  MIGRATION_FILE_VERSION,
+} from './modules/migrations/migration-file.js';
+export type { BuiltMigrationFile, MigrationFile, MigrationFileHeader } from './modules/migrations/migration-file.js';
 export { findDropDependencies } from './modules/migrations/dependency-scan.js';
 export type { DropDependency, DropDependencyOptions } from './modules/migrations/dependency-scan.js';
 export { parseSqlSubset, subsetValue } from './modules/sql-editor/sql-subset.js';

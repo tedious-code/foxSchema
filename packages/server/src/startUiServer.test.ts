@@ -77,6 +77,11 @@ describe('single-origin server', () => {
     expect(await res.json()).toMatchObject({ ok: false, code: 'not_found' });
   });
 
+  it('will not listen on the network outside production', async () => {
+    expect(process.env.NODE_ENV).not.toBe('production');
+    await expect(startUiServer({ port: 0, host: '0.0.0.0', staticDir })).rejects.toThrow(/will not listen on 0\.0\.0\.0/);
+  });
+
   it('refuses to start without a frontend to serve', async () => {
     const previous = process.env.STATIC_DIR;
     delete process.env.STATIC_DIR;

@@ -41,6 +41,7 @@ import { createWorkflowRoutes } from '../features/workflow/workflow.routes';
 import { createWorkflowInternalRoutes } from '../features/workflow/workflow-internal.routes';
 import { WORKFLOW_INTERNAL_PREFIX } from '@foxschema/workflow-contract';
 import { DEFAULT_API_PORT } from '../defaultApiPort';
+import { assertListenPosture } from './deployment';
 import { AppSecretsStore } from '../features/admin/app-secrets.service';
 import { resolveAppVersion } from '../internal/updates.service';
 import { asAppLogger, getLogger } from '../platform/logger/logger';
@@ -160,10 +161,12 @@ export function installShutdownHandlers(close: () => Promise<void> | void): void
 export async function startServer(
   port = Number(process.env.API_PORT) || DEFAULT_API_PORT
 ): Promise<void> {
+  const host = process.env.LISTEN_HOST ?? '127.0.0.1';
+  assertListenPosture(host);
   const { createFastifyApp } = await import('./fastify-server');
   const app = await createFastifyApp({});
   sweepOnBoot();
-  await app.listen({ port, host: process.env.LISTEN_HOST ?? '127.0.0.1' });
+  await app.listen({ port, host });
   getLogger().info(
     { component: 'server', port, url: `http://localhost:${port}` },
     'Fox API listening'

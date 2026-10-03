@@ -13,6 +13,7 @@ import type http from 'node:http';
 import { ConnectionFactory, setupDb2ClientEnv } from '@foxschema/db';
 import { createFastifyApp } from './api/fastify-server';
 import { sweepOnBoot } from './api/server';
+import { assertListenPosture, defaultListenHost } from './api/deployment';
 import { DEFAULT_API_PORT } from './defaultApiPort';
 
 export interface StartUiServerOptions {
@@ -23,7 +24,10 @@ export interface StartUiServerOptions {
    * no default, because this package must not know where an app puts its dist.
    */
   staticDir?: string;
-  /** Bind address. Defaults to 0.0.0.0 so Docker can reach it. */
+  /**
+   * Bind address. Defaults to 0.0.0.0 in production, so Docker can reach it,
+   * and to 127.0.0.1 otherwise; a network address outside production is refused.
+   */
   host?: string;
 }
 
@@ -37,6 +41,8 @@ export interface StartedUiServer {
 }
 
 export async function startUiServer(opts: StartUiServerOptions = {}): Promise<StartedUiServer> {
+  const host = opts.host ?? process.env.LISTEN_HOST ?? defaultListenHost();
+  assertListenPosture(host);
   setupDb2ClientEnv();
 
   // The caller supplies the frontend's location. This package must not assume
@@ -59,7 +65,6 @@ export async function startUiServer(opts: StartUiServerOptions = {}): Promise<St
 
   const requested =
     opts.port ?? (Number(process.env.API_PORT || process.env.PORT) || DEFAULT_API_PORT);
-  const host = opts.host ?? process.env.LISTEN_HOST ?? '0.0.0.0';
   await app.listen({ port: requested, host });
 
   // Report the port that was actually bound. A requested port of 0 means "any

@@ -130,6 +130,22 @@ describe('review, commit, run', () => {
     expect(detail.text).not.toContain('DROP TABLE keep_me');
   });
 
+  it('keeps a migration incoming when its run had failed steps', async () => {
+    // orders exists now, so this step fails; continueOnError still reports the run as a success.
+    const again = await call('POST', `/git/repos/${repoId}/commit`, { branch: 'main', steps: plan, note: 'Create orders again', dialect: 'sqlite', target: 'main' });
+    const res = await call('POST', '/migration/execute', {
+      ...target,
+      steps: [],
+      continueOnError: true,
+      git: { repoId, branch: 'main', commit: again.json.commit, path: again.json.path },
+    });
+    const done = res.text.trim().split('\n').map((l) => JSON.parse(l)).find((e) => e.type === 'done');
+    expect(done).toMatchObject({ success: true });
+    const list = await call('POST', `/git/repos/${repoId}/migrations`, { branch: 'main', ...target });
+    expect(list.json.migrations.find((m: any) => m.path === again.json.path)).toMatchObject({ incoming: true, applied: null });
+    expect((await call('GET', '/migrations')).json.runs[0]).toMatchObject({ status: 'PARTIAL_SUCCESS', git: { commit: again.json.commit } });
+  });
+
   it('refuses a committed migration written for another dialect, and a malformed reference', async () => {
     const pg = await call('POST', `/git/repos/${repoId}/commit`, {
       branch: 'main',

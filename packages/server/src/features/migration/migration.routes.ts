@@ -224,11 +224,13 @@ export function createMigrationRoutes(deps: MigrationRouteDeps): Router {
       }
     }
 
-    // A committed migration that ran is applied to this database for good —
-    // recorded apart from run history, which is pruned.
+    // A committed migration that ran cleanly is applied to this database for
+    // good — recorded apart from run history, which is pruned. A run with
+    // failed steps (continueOnError reports it as a success) applied only part
+    // of it, so it stays incoming; its run history still names the commit.
     // Widened: finalStatus is set inside the stream callback, which TypeScript does not follow.
     const outcome = finalStatus as MigrationRunStatus;
-    if (gitRun && (outcome === 'SUCCESS' || outcome === 'PARTIAL_SUCCESS')) {
+    if (gitRun && outcome === 'SUCCESS') {
       try {
         await gitMigrations.recordApplied({
           repoId: gitRun.repoId,

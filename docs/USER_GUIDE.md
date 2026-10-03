@@ -168,7 +168,9 @@ Execute then says **Execute committed abc1234** and runs the migration *from tha
 commit*: the database gets exactly what was committed. Change the selection after
 committing and the commit no longer describes the plan, so Execute goes back to
 the plan on screen. An admin can make a repository **require a commit**; then
-nothing runs until the plan is committed.
+nothing runs until the plan is committed, and schema history **revert** and
+**force-migrate** are turned off, since they change the schema the same way.
+Statements run in the SQL editor or by workflows are not covered.
 
 ### Migrations from your team
 

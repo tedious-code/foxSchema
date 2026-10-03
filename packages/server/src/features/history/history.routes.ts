@@ -31,7 +31,16 @@ export interface HistoryRouteDeps {
    * revert it cannot get them from this history — the target may have none.
    */
   loadScopedTables: (...args: any[]) => Promise<any>;
+  /**
+   * Whether this install runs only migrations committed to Git. Revert and
+   * force-migrate change a live schema too, so they are refused while it is on.
+   */
+  commitRequired: () => Promise<boolean>;
 }
+
+const COMMIT_REQUIRED =
+  'This install runs only migrations committed to Git, and this changes the schema like a migration. ' +
+  'Commit the change as a migration and run it from Migrate, or ask an admin to turn off Require a commit.';
 
 export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
   const router = Router();
@@ -190,6 +199,11 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
         ({ dialect, option, schema } = await deps.resolveRef((req as AuthedRequest).userId, body));
       } catch (error: unknown) {
         sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Invalid connection');
+        return;
+      }
+
+      if (await deps.commitRequired()) {
+        sendError(res, 'forbidden', COMMIT_REQUIRED);
         return;
       }
 
@@ -404,6 +418,10 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
       const target = await resolveForceTarget(req, res);
       if (!target) return;
       const { versionId, dialect, option, schema } = target;
+      if (await deps.commitRequired()) {
+        sendError(res, 'forbidden', COMMIT_REQUIRED);
+        return;
+      }
 
       const userId = (req as AuthedRequest).userId!;
       const sourceDatabaseId = String(req.params.id);

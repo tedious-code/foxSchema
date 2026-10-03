@@ -16,7 +16,7 @@ process.env.APP_DB_PATH = ':memory:';
 
 import { AuthModule, SignInLockedError } from './auth.service';
 import { getStore } from '../../database/store';
-import { MAX_FAILURES, LOCKOUT_MS, lockedFor, resetSignInThrottle } from './sign-in-throttle';
+import { MAX_EMAIL_FAILURES, MAX_FAILURES, LOCKOUT_MS, lockedFor, resetSignInThrottle } from './sign-in-throttle';
 import { hashSecretToken, normalizeAuthCode } from './auth-codes';
 
 const auth = new AuthModule();
@@ -141,7 +141,7 @@ describe('sign-in lockout', () => {
       await expect(auth.login('gil@example.com', 'wrong-password-1')).rejects.toThrow(/Invalid email or password/);
     }
     await expect(auth.login('gil@example.com', PASSWORD)).rejects.toBeInstanceOf(SignInLockedError);
-    expect(lockedFor('gil@example.com', Date.now() + LOCKOUT_MS + 1)).toBe(0);
+    expect(lockedFor('gil@example.com', '', Date.now() + LOCKOUT_MS + 1)).toBe(0);
   });
 
   it('locks an email with no account the same way, so the lockout reveals nothing', async () => {
@@ -151,6 +151,23 @@ describe('sign-in lockout', () => {
     const err = await auth.login('ghost@example.com', 'wrong-password-1').catch((e: unknown) => e);
     expect(err).toBeInstanceOf(SignInLockedError);
     expect((err as Error).message).toMatch(/Too many failed sign-ins/);
+  });
+
+  it("one address's failures lock out only that address, not the account's owner", async () => {
+    await auth.createUser('ida@example.com', PASSWORD, 'admin');
+    for (let i = 0; i < MAX_FAILURES; i++) {
+      await expect(auth.login('ida@example.com', 'wrong-password-1', '203.0.113.9')).rejects.toThrow(/Invalid email or password/);
+    }
+    await expect(auth.login('ida@example.com', PASSWORD, '203.0.113.9')).rejects.toBeInstanceOf(SignInLockedError);
+    await expect(auth.login('ida@example.com', PASSWORD, '198.51.100.7')).resolves.toBeTruthy();
+  });
+
+  it(`locks the email for everyone after ${MAX_EMAIL_FAILURES} failures from many addresses`, async () => {
+    await auth.createUser('jo@example.com', PASSWORD, 'admin');
+    for (let i = 0; i < MAX_EMAIL_FAILURES; i++) {
+      await auth.login('jo@example.com', 'wrong-password-1', `203.0.113.${i % 40}`).catch(() => {});
+    }
+    await expect(auth.login('jo@example.com', PASSWORD, '198.51.100.7')).rejects.toBeInstanceOf(SignInLockedError);
   });
 
   it('a correct password before the limit clears the count, and so does a reset', async () => {

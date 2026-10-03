@@ -19,6 +19,7 @@
  * do.
  */
 import { describe, expect, it } from 'vitest';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -181,5 +182,21 @@ describe('the e2e runner runs every e2e suite', () => {
       expect(fs.existsSync(path.join(e2e, file!)), `${file} does not exist`).toBe(true);
       expect(reason!.length, `${file} has no reason`).toBeGreaterThan(20);
     }
+  });
+});
+
+describe('Markdown is tracked unless it is a personal note', () => {
+  // A blanket `*.md` ignore once swallowed the dialect checklist and an example
+  // guide without anyone noticing; only named notes may be ignored.
+  const ignored = (file: string) => spawnSync('git', ['check-ignore', '-q', file], { cwd: repoRoot }).status === 0;
+
+  it('does not ignore a new doc, wherever it lives', () => {
+    for (const file of ['docs/a-new-guide.md', 'docs/examples/a-new-example.md', 'packages/sql/NOTES.md', 'README.md']) {
+      expect(ignored(file), file).toBe(false);
+    }
+  });
+
+  it('still ignores the personal working notes', () => {
+    for (const file of ['IMPLEMENTATION_STATE.md', 'docs/IMPLEMENTATION_HISTORY.md']) expect(ignored(file), file).toBe(true);
   });
 });

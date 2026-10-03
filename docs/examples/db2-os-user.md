@@ -1,0 +1,245 @@
+# Db2 OS users — create, list, assign (Docker)
+
+Db2 has no `CREATE USER`. Logins are Linux (or LDAP) accounts. Fox Schema only
+generates copy-paste steps; it never runs them and never stores the password.
+
+This matches **Access → User Management → Add user (OS)** against this repo’s
+`foxschema-db2` container (`docker-compose.yml` service `db2`).
+
+| Linux login (container) | Db2 authorization ID |
+| ----------------------- | -------------------- |
+| `report_user`           | `REPORT_USER`        |
+
+Names: start with a letter or `_`, then letters, digits, or `_` (max 32).
+
+---
+
+## 1. Start Db2
+
+```bash
+docker compose up -d db2
+docker inspect -f '{{.State.Health.Status}}' foxschema-db2
+# wait until: healthy  (first start can take a few minutes)
+```
+
+Optional seed (demo tables):
+
+```bash
+bash scripts/seed/seed-all.sh db2
+```
+
+---
+
+## 2. Connect in Fox Schema
+
+Save a connection:
+
+| Field    | Value        |
+| -------- | ------------ |
+| Dialect  | IBM Db2      |
+| Host     | `localhost`  |
+| Port     | `50000`      |
+| User     | `db2inst1`   |
+| Password | `foxpass`    |
+| Database | `foxdb`      |
+
+Open **Access → User Management** and select that connection.
+
+Instance owner: `db2inst1` / `foxpass`. New OS users connect with **their** Linux
+password after `GRANT CONNECT`.
+
+---
+
+## 3. Create a user
+
+### A. Helper script (fastest)
+
+```bash
+FOX_DB2_OS_PASSWORD='choose-a-password' bash scripts/seed/db2-os-user.sh report_user
+```
+
+That creates the Linux login, sets the password, grants `CONNECT` on `foxdb`,
+then lists OS + SQL.
+
+Assign a role in the same run (create the role first — step 5):
+
+```bash
+FOX_DB2_OS_PASSWORD='choose-a-password' bash scripts/seed/db2-os-user.sh report_user ANALYSTS
+```
+
+### B. UI (same commands, copy-paste)
+
+1. **Add user (OS)**
+2. Name: `report_user`
+3. Optional **Assign role** (role must already exist)
+4. Copy the preview. Replace `<password>` in `chpasswd` before running.
+
+Equivalent commands:
+
+```bash
+docker exec -u 0 foxschema-db2 bash -lc \
+  'id report_user >/dev/null 2>&1 || useradd -m -s /bin/bash report_user'
+
+docker exec -u 0 foxschema-db2 bash -lc \
+  'echo "report_user:<password>" | chpasswd'
+
+docker exec foxschema-db2 su - db2inst1 -c \
+  "db2 connect to foxdb && db2 'GRANT CONNECT ON DATABASE TO USER REPORT_USER'"
+```
+
+Fox Schema does not apply these. Run them in a terminal.
+
+---
+
+## 4. List
+
+Reload User Management. After `CONNECT`, **REPORT_USER** appears as a user
+(login Yes).
+
+OS:
+
+```bash
+docker exec -u 0 foxschema-db2 getent passwd report_user
+```
+
+SQL Editor as `db2inst1`:
+
+```sql
+SELECT TRIM(GRANTEE) AS authid, CONNECTAUTH
+FROM SYSCAT.DBAUTH
+WHERE GRANTEETYPE = 'U' AND TRIM(GRANTEE) = 'REPORT_USER';
+
+SELECT TRIM(ROLENAME) AS role
+FROM SYSCAT.ROLEAUTH
+WHERE GRANTEETYPE = 'U' AND TRIM(GRANTEE) = 'REPORT_USER';
+```
+
+`CONNECTAUTH` `Y` or `G` means the account can connect.
+
+---
+
+## 5. Assign a role
+
+Add role in User Management (this **is** SQL):
+
+```sql
+CREATE ROLE "ANALYSTS";
+```
+
+Copy, run as `db2inst1`, then:
+
+```bash
+docker exec foxschema-db2 su - db2inst1 -c \
+  "db2 connect to foxdb && db2 'GRANT ROLE ANALYSTS TO USER REPORT_USER'"
+```
+
+Or type `ANALYSTS` in **Assign role** on Add user (OS) and copy that line from
+the preview.
+
+Reload the list — **Roles** on `REPORT_USER` should show `ANALYSTS`.
+
+---
+
+## 6. Assign table privileges
+
+User Management → select `REPORT_USER` (or **Grant access next** after Add user)
+→ Permission Builder → pick tables (e.g. seed schema) → **SELECT** / presets →
+copy GRANT SQL and run as `db2inst1`.
+
+Example:
+
+```sql
+GRANT SELECT ON TABLE "DEMO_A"."ORDERS" TO USER "REPORT_USER";
+```
+
+(Use the real schema/table names from Schema explorer.)
+
+---
+
+## 7. Log in as the new user
+
+New Fox Schema connection (or SQL Editor destination):
+
+| Field    | Value                    |
+| -------- | ------------------------ |
+| Dialect  | IBM Db2                  |
+| Host     | `localhost`              |
+| Port     | `50000`                  |
+| User     | `report_user`            |
+| Password | the OS password you set  |
+| Database | `foxdb`                  |
+
+Until `GRANT CONNECT` succeeds, this login fails. Until table GRANTs exist,
+`SELECT` on demo tables fails with authorization.
+
+---
+
+## 8. Update password
+
+Db2 has no `ALTER USER … PASSWORD`. The password is the Linux password.
+
+```bash
+FOX_DB2_OS_PASSWORD='new-password' bash scripts/seed/db2-os-user.sh report_user --password
+```
+
+Or:
+
+```bash
+docker exec -u 0 foxschema-db2 bash -lc \
+  'echo "report_user:<password>" | chpasswd'
+
+docker exec -u 0 foxschema-db2 passwd -S report_user
+```
+
+In Fox Schema: User Management → select `REPORT_USER` → **Edit** → **Set password** →
+copy, replace `<password>`, run.
+
+`passwd -S` shows `P` (password set) or `L` (locked).
+
+---
+
+## 9. Disable (and enable)
+
+Two layers, both generated by **Edit → Disable login**:
+
+1. **OS lock** — `passwd -l` so authentication fails.
+2. **REVOKE CONNECT** — cannot attach to `foxdb` even if the OS lock is skipped.
+
+```bash
+bash scripts/seed/db2-os-user.sh report_user --disable
+```
+
+```bash
+docker exec -u 0 foxschema-db2 passwd -l report_user
+
+docker exec foxschema-db2 su - db2inst1 -c \
+  "db2 connect to foxdb && db2 'REVOKE CONNECT ON DATABASE FROM USER REPORT_USER'"
+```
+
+Turn it back on:
+
+```bash
+bash scripts/seed/db2-os-user.sh report_user --enable
+```
+
+```bash
+docker exec -u 0 foxschema-db2 passwd -u report_user
+
+docker exec foxschema-db2 su - db2inst1 -c \
+  "db2 connect to foxdb && db2 'GRANT CONNECT ON DATABASE TO USER REPORT_USER'"
+```
+
+Table GRANTs are **not** removed by disable. Revoke those in Permission Builder
+if you need that too.
+
+---
+
+## Notes
+
+- Password stays with you. Preview uses `<password>` only.
+- `canCreateUser` is still false — there is no `CREATE USER` statement.
+- `DROP USER` in the UI is SQL and usually wrong for an OS login; remove the
+  Linux account in the container if you need to delete it:
+  `docker exec -u 0 foxschema-db2 userdel -r report_user`
+- Override container/database for the script:
+  `FOX_DB2_CONTAINER` / `FOX_DB2_DATABASE`.

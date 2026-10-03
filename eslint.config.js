@@ -18,6 +18,12 @@ export default tseslint.config(
       '**/dist/**',
       '**/dist-bin/**',
       '**/node_modules/**',
+      // Build outputs under other names (bundles for npm and the CLI's UI copy).
+      // CI never has them, so they only slowed a local `npm run lint`: apps/cli
+      // alone took 35 s instead of 1 s, and the full run seemed to hang.
+      '**/npm-pack/**',
+      '**/ui-dist/**',
+      '**/.turbo/**',
       // Agent worktrees are whole checkouts of this repo (gitignored). Linting
       // them reports every finding twice, against code that may be days old.
       '.claude/**',

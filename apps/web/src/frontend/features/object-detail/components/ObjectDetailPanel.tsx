@@ -56,6 +56,7 @@ export const ObjectDetailPanel: React.FC = () => {
   const gitRepos = useGitStore((s) => s.repos);
   const loadGitRepos = useGitStore((s) => s.load);
   const requirement = useGitStore(commitRequirement);
+  const gitLoadError = useGitStore((s) => s.error);
   const commitRequired = requirement === 'required';
   const gitSettingsPending = canUseGit && requirement === 'unknown';
   const committedMigration = useSyncStore((s) => s.committedMigration);
@@ -647,7 +648,10 @@ export const ObjectDetailPanel: React.FC = () => {
     : hasNarrowingChanges && !narrowingAcked ? 'Acknowledge the narrowing type changes below before deploying'
     : hasDestructiveDrops && !destructiveDropsAcked ? 'Acknowledge the destructive drops below before deploying'
     : deploysRoutineToMySql && !mysqlRiskAcked ? 'Acknowledge the MySQL binlog privilege risk below before deploying'
-    : gitSettingsPending ? 'Checking whether migrations must be committed to Git first'
+    : gitSettingsPending
+      ? gitLoadError
+        ? 'Could not check whether migrations must be committed to Git first'
+        : 'Checking whether migrations must be committed to Git first'
     : commitRequired && !planIsCommitted ? 'This install runs only committed migrations — commit the plan to Git first'
     : null;
 

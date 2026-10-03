@@ -1,4 +1,4 @@
-import { randomBytes, scryptSync, timingSafeEqual, createCipheriv, createDecipheriv, hkdfSync } from 'node:crypto';
+import { randomBytes, scrypt, timingSafeEqual, createCipheriv, createDecipheriv, hkdfSync } from 'node:crypto';
 
 /**
  * Password hashing (scrypt, built into Node — no native dep) and AES-256-GCM
@@ -17,17 +17,28 @@ const SCRYPT_KEYLEN = 64;
 
 type KeyScheme = 'v1' | 'v2';
 
-export function hashPassword(password: string): string {
+/**
+ * scrypt on libuv's thread pool. The synchronous form held the event loop for
+ * each hash, so a burst of sign-in attempts stalled every other request,
+ * migration streams included.
+ */
+function scryptAsync(password: string, salt: Buffer, keylen: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    scrypt(password, salt, keylen, (error, key) => (error ? reject(error) : resolve(key)));
+  });
+}
+
+export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16);
-  const hash = scryptSync(password, salt, SCRYPT_KEYLEN);
+  const hash = await scryptAsync(password, salt, SCRYPT_KEYLEN);
   return `scrypt$${salt.toString('hex')}$${hash.toString('hex')}`;
 }
 
-export function verifyPassword(password: string, stored: string): boolean {
+export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const [scheme, saltHex, hashHex] = stored.split('$');
   if (scheme !== 'scrypt' || !saltHex || !hashHex) return false;
   const expected = Buffer.from(hashHex, 'hex');
-  const actual = scryptSync(password, Buffer.from(saltHex, 'hex'), expected.length);
+  const actual = await scryptAsync(password, Buffer.from(saltHex, 'hex'), expected.length);
   return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 

@@ -70,6 +70,9 @@ export const PERMISSIONS = [
   'workflow.design',
   'workflow.run',
   'workflow.admin',
+  // Migrations in Git
+  'git.view',
+  'git.manage',
   // Administration
   'admin.users',
   'admin.roles',
@@ -129,6 +132,8 @@ export const PERMISSION_META: PermissionMeta[] = [
   { id: 'workflow.design', group: 'Workflow', label: 'Design workflows', description: 'Edit workflow graphs in the Designer.' },
   { id: 'workflow.run', group: 'Workflow', label: 'Run workflows', description: 'Start workflow runs when the engine is enabled.' },
   { id: 'workflow.admin', group: 'Workflow', label: 'Workflow admin', description: 'Control panel: engine on/off, URL, and log sinks.' },
+  { id: 'git.view', group: 'Git', label: 'View migration repositories', description: 'See the Git repositories migrations are committed to, their branches and history, and fetch from them. Committing, pulling and pushing also need Execute migrations.' },
+  { id: 'git.manage', group: 'Git', label: 'Manage migration repositories', description: 'Add, edit and remove Git repositories, including their access tokens and whether a migration must be committed before it runs.' },
   { id: 'admin.users', group: 'Admin', label: 'Manage users', description: 'List FoxSchema logins, assign app roles, and activate or deactivate accounts. Not the same as database users on a connected server.' },
   { id: 'admin.roles', group: 'Admin', label: 'Configure roles', description: 'Edit which FoxSchema permissions each app role receives, including Grant privileges for database GRANT/REVOKE.' },
 ];
@@ -150,6 +155,7 @@ const VIEWER: Permission[] = [
   'access.inspector',
   'access.report',
   'workflow.access',
+  'git.view',
 ];
 
 const EDITOR: Permission[] = [

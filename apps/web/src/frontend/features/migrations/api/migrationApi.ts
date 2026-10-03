@@ -1,6 +1,8 @@
 import { api, type RequestOptions } from '@/shared/api/client';
 
-export type MigrationRunStatus = 'RUNNING' | 'SUCCESS' | 'PARTIAL_SUCCESS' | 'FAILED' | 'ROLLED_BACK';
+import type { MigrationRunStatus } from '@foxschema/shared';
+
+export type { MigrationRunStatus };
 
 export interface MigrationObjectResult {
   name: string;

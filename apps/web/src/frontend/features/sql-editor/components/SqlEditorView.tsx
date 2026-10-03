@@ -609,12 +609,29 @@ export const SqlEditorView: React.FC = () => {
           )}
           {orderedRail.map((item) => {
             const on = item.id === openRailId && !sidebarCollapsed;
+            // Only DOM-safe drag fields on the <div>; isDragging / isDragOver
+            // are React-only and must not land as unknown attributes.
+            const {
+              isDragging,
+              isDragOver,
+              draggable,
+              onDragStart,
+              onDragOver,
+              onDrop,
+              onDragEnd,
+            } = sidebarDragProps(sectionOrder.indexOf(item.id));
             return (
               <div
                 key={item.id}
                 data-testid={!on ? `sql-sidebar-${item.id}` : undefined}
-                className="flex w-full justify-center"
-                {...sidebarDragProps(sectionOrder.indexOf(item.id))}
+                className={`flex w-full justify-center ${isDragging ? 'opacity-50' : ''} ${
+                  isDragOver ? 'ring-1 ring-inset ring-cyan-500/40' : ''
+                }`}
+                draggable={draggable}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDrop={onDrop}
+                onDragEnd={onDragEnd}
               >
                 <button
                   type="button"

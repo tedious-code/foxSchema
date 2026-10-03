@@ -34,6 +34,7 @@
 import type { DbObjectType } from '../../interfaces/schema.interface.js';
 import type { MigrationStep } from './sql-generator.module.js';
 import { PASSWORD_PLACEHOLDER } from '../sql-text/password-placeholder.js';
+import { dialectFamily } from '../../providers/provider-settings.js';
 
 export const MIGRATION_FILE_VERSION = 1;
 
@@ -97,8 +98,12 @@ const DOLLAR_TAG = /\$(?:\$|[A-Za-z_]\w{0,63}\$)/y;
 /** `N'x'`, `E'x'`, `X'x'`, `U&'x'`: a string whose prefix belongs to it. */
 const STRING_PREFIX = /(?:[A-Za-z]|[Uu]&)(?=')/y;
 const CLOSING_QUOTE: Record<string, string> = { "'": "'", '"': '"', '`': '`', '[': ']' };
-/** Dialects where `#` starts a comment. Elsewhere it is an operator, or part of an Oracle name (`app#1`). */
-const HASH_COMMENT_DIALECTS = new Set(['mysql', 'mariadb', 'clickhouse']);
+/**
+ * Whether `#` starts a comment: in the MySQL family (MySQL, MariaDB, TiDB, by
+ * the dialect registry) and ClickHouse. Elsewhere it is an operator, or part
+ * of an Oracle name (`app#1`).
+ */
+const hasHashComments = (dialect: string) => ['mysql', 'clickhouse'].includes(dialectFamily(dialect));
 
 /** What a sticky pattern matches at `i`, or ''. */
 function matchAt(pattern: RegExp, text: string, i: number): string {
@@ -302,7 +307,7 @@ interface Edit {
  * length of `text`, however hostile.
  */
 export function scrubSecrets(text: string, dialect: string): ScrubbedText {
-  const hashComments = HASH_COMMENT_DIALECTS.has(dialect.toLowerCase());
+  const hashComments = hasHashComments(dialect);
   if (!isAccountStatement(leadingWords(text, hashComments))) return { text, replaced: 0, unreadable: [] };
 
   const all = [...sqlTokens(text, hashComments)];

@@ -35,6 +35,7 @@ import { makeCompareService } from '../features/compare/compare.service';
 import { createCompareRoutes } from '../features/compare/compare.routes';
 import { createAccessRoutes } from '../features/access/access.routes';
 import { createHistoryRoutes } from '../features/history/history.routes';
+import { gitServices } from '../features/git/git-migrations.service';
 import { LOKEE_FULL_SCOPE } from '../features/history/lokee-scope';
 import { createEditorRoutes } from '../features/sql-editor/editor.routes';
 import { createMigrationRoutes } from '../features/migration/migration.routes';
@@ -100,6 +101,7 @@ export function createApiRoutes(connectionModule: ConnectionModule, connectionSt
       resolveRef,
       migrationModule,
       loadScopedTables,
+      commitRequired: () => gitServices().migrations.commitRequired(),
     })
   );
 

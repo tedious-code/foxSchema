@@ -144,7 +144,10 @@ export const GitReposAdmin: React.FC = () => {
           </div>
           <label className="sm:col-span-2 inline-flex items-start gap-2 text-xs text-slate-300">
             <input type="checkbox" checked={!!form.requireCommit} onChange={set('requireCommit')} className="mt-0.5" />
-            <span>Require a commit: no migration runs on this install unless it was committed to Git first.</span>
+            <span>
+              Require a commit: no migration runs on this install unless it was committed to Git first, and schema
+              history revert and force-migrate are turned off. Statements run in the SQL editor or by workflows are not covered.
+            </span>
           </label>
           {error && (
             <div role="alert" className="sm:col-span-2 text-xs text-rose-300 border border-rose-500/30 bg-rose-950/30 rounded-md px-3 py-2">

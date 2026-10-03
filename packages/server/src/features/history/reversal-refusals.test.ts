@@ -45,7 +45,7 @@ function fakeReply() {
 }
 
 let dbSeq = 0;
-function deps(risk: 'safe' | 'lossy' | 'blocked') {
+function deps(risk: 'safe' | 'lossy' | 'blocked', commitRequired = false) {
   const plan = {
     steps: [{ objectName: 'T', objectType: 'TABLE', action: 'ALTER', statements: ['ALTER TABLE t DROP COLUMN c'] }],
     reversal: { risk },
@@ -67,12 +67,13 @@ function deps(risk: 'safe' | 'lossy' | 'blocked') {
     })),
     migrationModule: { execute } as never,
     loadScopedTables: vi.fn().mockResolvedValue({ tables: [] }),
+    commitRequired: vi.fn().mockResolvedValue(commitRequired),
   } satisfies HistoryRouteDeps;
   return { d, execute };
 }
 
-async function call(path: string, risk: 'safe' | 'lossy' | 'blocked', body: Record<string, unknown>) {
-  const { d, execute } = deps(risk);
+async function call(path: string, risk: 'safe' | 'lossy' | 'blocked', body: Record<string, unknown>, commitRequired = false) {
+  const { d, execute } = deps(risk, commitRequired);
   const { reply, sent } = fakeReply();
   await handlerFor(d, path)(
     { body: { connectionId: 'c', ...body }, params: { id: 'db1' }, userId: 'u1' } as never,
@@ -130,5 +131,17 @@ describe('force-migrate refusals', () => {
     const { sent, execute } = await call(FORCE, 'lossy', { versionId: 'v1', confirmLossy: true, confirmForce: true });
     expect(sent.status).not.toBe(409);
     expect(execute).toHaveBeenCalled();
+  });
+});
+
+describe('when the install requires migrations committed to Git', () => {
+  it.each([
+    ['revert', REVERT, { toVersionId: 'v1', confirmLossy: true }],
+    ['force-migrate', FORCE, { versionId: 'v1', confirmLossy: true, confirmForce: true }],
+  ] as const)('refuses %s and runs nothing, whatever was confirmed', async (_name, path, body) => {
+    const { sent, execute } = await call(path, 'safe', body, true);
+    expect(sent.status).toBe(403);
+    expect(JSON.stringify(sent.body)).toMatch(/committed to Git/);
+    expect(execute).not.toHaveBeenCalled();
   });
 });

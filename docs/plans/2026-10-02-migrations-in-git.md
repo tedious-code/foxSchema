@@ -6,8 +6,9 @@ and the end-to-end test + docs. Changes from the plan below:
 - What ran where is in its own table, `git_applied` (migration 22), not only on
   `migration_runs`: run history is pruned per user, which would have made old
   migrations look incoming again.
-- Password scrubbing touches only account statements (CREATE/ALTER USER, ROLE,
-  LOGIN); elsewhere `password` is ordinary SQL and is committed as written.
+- Password scrubbing touches only account and credential statements; elsewhere
+  `password` is ordinary SQL and is committed as written. It fails closed: a
+  password it cannot read refuses the commit, naming the line.
 - Execute with a commit runs the steps read from the file at that commit and
   ignores any steps sent alongside.
 
@@ -161,8 +162,12 @@ gitPath }` and refuses when the script does not match the file at that commit.
 - Tokens are encrypted with the install key, sent only to the remote as HTTPS
   basic auth, never logged (the request-URL redaction from #448 plus the logger
   redact paths), never returned.
-- Password literals are scrubbed from scripts before commit; a commit with a
-  credential left in it is refused.
+- Passwords are scrubbed from account statements (CREATE/ALTER USER, ROLE,
+  LOGIN, credentials, database links, SET PASSWORD, GRANT … IDENTIFIED BY)
+  before commit, however they are quoted. A password the scrubber cannot read
+  fails closed and refuses the commit, naming the line, as does any other
+  credential left in the file. Ordinary SQL that mentions a password column is
+  committed exactly as written.
 - Size and time limits on fetch/clone; a repository bigger than the limit is
   refused with a clear message.
 - The per-repository lock also bounds concurrent network operations.

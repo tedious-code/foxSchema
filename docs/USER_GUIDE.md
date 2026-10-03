@@ -159,7 +159,9 @@ When an admin has added a Git repository (**Access control → Git**), Migrate s
 3. Review the **file** Fox will add — `migrations/20261002-153012__your-note.sql`.
    It is plain SQL anyone can read and run; the plan's steps are kept in comments
    so Fox can run exactly those steps later. Passwords in account statements are
-   replaced with `<password>` and never reach the repository.
+   replaced with `<password>` and never reach the repository. If Fox cannot read
+   how a password is written, it refuses the commit and names the line; put
+   `<password>` there yourself.
 4. **Commit**, or **Commit & push** to send it to the remote for review.
 
 Execute then says **Execute committed abc1234** and runs the migration *from that

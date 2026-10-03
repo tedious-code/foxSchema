@@ -140,6 +140,25 @@ describe('committing a migration', () => {
     expect((screen.getByLabelText(/^branch$/i) as HTMLSelectElement).value).toBe('main');
   });
 
+  it("never offers the previous repository's branches after switching", async () => {
+    const other = { ...repo, id: 'r2', name: 'Other repo', defaultBranch: 'trunk' };
+    gitApi.listRepos.mockResolvedValue([repo, other]);
+    gitApi.branches.mockImplementation((id: string) =>
+      id === 'r1'
+        ? Promise.resolve([
+            { name: 'main', local: HEAD, remote: HEAD, ahead: 0, behind: 0 },
+            { name: 'feature/only-in-r1', local: HEAD, remote: HEAD, ahead: 0, behind: 0 },
+          ])
+        : Promise.reject(new Error('The remote refused the access token.'))
+    );
+    render(<CommitMigrationDialog open onClose={() => undefined} />);
+    await waitFor(() => expect((screen.getByLabelText(/^branch$/i) as HTMLSelectElement).value).toBe('main'));
+    fireEvent.change(screen.getByLabelText(/^repository$/i), { target: { value: 'r2' } });
+    await screen.findByText(/refused the access token/);
+    const names = [...(screen.getByLabelText(/^branch$/i) as HTMLSelectElement).options].map((o) => o.value);
+    expect(names).not.toContain('feature/only-in-r1');
+  });
+
   it('says what to do when no repository is set up', async () => {
     gitApi.listRepos.mockResolvedValue([]);
     render(<CommitMigrationDialog open onClose={() => undefined} />);
@@ -226,6 +245,46 @@ describe('the branch view', () => {
     await waitFor(() =>
       expect(runCommitted).toHaveBeenCalledWith({ repoId: 'r1', branch: 'dev', commit: DEV, path: 'migrations/2.sql' }, steps)
     );
+  });
+
+  it('starts one run however quickly Run is clicked again', async () => {
+    gitApi.migrations.mockResolvedValue(listing);
+    const fileRequests: Array<(f: object) => void> = [];
+    gitApi.file.mockImplementation(() => new Promise((resolve) => fileRequests.push(resolve)));
+    const runCommitted = vi.fn(async () => true);
+    useSyncStore.setState({ runCommittedMigration: runCommitted, isMigrating: false });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<GitBranchView open onClose={() => undefined} />);
+    const runBtn = await screen.findByTestId('git-run-2.sql');
+    fireEvent.click(runBtn);
+    fireEvent.click(runBtn); // while the file is still loading
+    for (const answer of fileRequests) answer({ content: 'x', header: { note: 'Add invoices', dialect: 'postgres' }, steps: [] });
+    await waitFor(() => expect(runCommitted).toHaveBeenCalledTimes(1));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(runCommitted).toHaveBeenCalledTimes(1);
+  });
+
+  it('after a pull, shows the branch selected now, not the one it started on', async () => {
+    const DEV = 'd'.repeat(40);
+    gitApi.branches.mockResolvedValue([
+      { name: 'main', local: HEAD, remote: HEAD, ahead: 0, behind: 1 },
+      { name: 'dev', local: DEV, remote: DEV, ahead: 0, behind: 0 },
+    ]);
+    gitApi.migrations.mockImplementation(async (_repo: string, branch: string) =>
+      branch === 'main' ? listing : { head: DEV, migrations: [{ ...listing.migrations[1], path: 'migrations/dev.sql', fileName: 'dev.sql' }] }
+    );
+    let finishPull: (v: object) => void = () => undefined;
+    gitApi.pull.mockImplementation(() => new Promise((resolve) => (finishPull = resolve)));
+    render(<GitBranchView open onClose={() => undefined} />);
+    await screen.findByTestId('git-run-2.sql');
+    fireEvent.click(screen.getByText('Pull'));
+    fireEvent.change(screen.getByLabelText('Branch'), { target: { value: 'dev' } });
+    await screen.findByTestId('git-run-dev.sql');
+    finishPull({ result: 'fast-forward', head: HEAD });
+    await waitFor(() => expect(gitApi.pull).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    await waitFor(() => expect(screen.queryByText(/No migrations on this branch yet/)).toBeNull());
+    expect(screen.getByTestId('git-run-dev.sql')).toBeTruthy();
   });
 
   it('lets a viewer review but not pull, push or run', async () => {

@@ -129,6 +129,9 @@ export const CommitMigrationDialog: React.FC<{ open: boolean; onClose: () => voi
     if (id === repoId) return;
     setRepoId(id);
     setBranch('');
+    // Not the previous repository's names while this one's load, or if it fails.
+    setBranches([]);
+    setError(null);
   };
 
   const commit = async (push: boolean) => {

@@ -37,6 +37,10 @@ export const GitBranchView: React.FC<{ open: boolean; onClose: () => void }> = (
   const [review, setReview] = useState<{ path: string; content: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // From the Run click until the run ends, file fetch and confirm included:
+  // isMigrating only starts once the run does, so a second Run could slip in.
+  const [running, setRunning] = useState(false);
+  const runningRef = useRef(false);
 
   const repo = repos.find((r) => r.id === repoId);
   const state = branches.find((b) => b.name === branch);
@@ -65,6 +69,12 @@ export const GitBranchView: React.FC<{ open: boolean; onClose: () => void }> = (
   useEffect(() => {
     if (open && repoId) refresh().catch((e: unknown) => setError(e instanceof Error ? e.message : 'Could not read the repository'));
   }, [open, repoId, branch, refresh]);
+  // Work that finishes later (pull, push, a run) refreshes what is selected
+  // THEN, not what was selected when it started.
+  const refreshRef = useRef(refresh);
+  useEffect(() => {
+    refreshRef.current = refresh;
+  }, [refresh]);
 
   if (!open) return null;
 
@@ -73,6 +83,8 @@ export const GitBranchView: React.FC<{ open: boolean; onClose: () => void }> = (
     if (id === repoId) return;
     setRepoId(id);
     setBranch('');
+    setBranches([]);
+    setError(null);
   };
 
   const act = async (label: string, fn: () => Promise<unknown>, done?: string) => {
@@ -80,7 +92,7 @@ export const GitBranchView: React.FC<{ open: boolean; onClose: () => void }> = (
     setError(null);
     try {
       await fn();
-      await refresh();
+      await refreshRef.current();
       if (done) toast({ tone: 'success', title: done });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : `${label} failed`);
@@ -95,13 +107,22 @@ export const GitBranchView: React.FC<{ open: boolean; onClose: () => void }> = (
   const migrations = shown?.migrations ?? [];
 
   const run = async (m: MigrationListing) => {
-    if (!shown?.head) return;
-    const ref = { repoId: shown.repoId, branch: shown.branch, commit: shown.head, path: m.path };
-    const file = await gitApi.file(ref.repoId, ref.commit, ref.path);
-    if (!window.confirm(`Run "${file.header.note.split('\n')[0]}" (${file.steps.length} step(s)) against ${targetConfig.option.database ?? ''}.${targetConfig.schema}?`)) return;
-    const ok = await runCommittedMigration(ref, file.steps);
-    toast({ tone: ok ? 'success' : 'warning', title: ok ? `Applied ${m.fileName}` : `${m.fileName} did not apply — see the migration progress` });
-    await refresh();
+    if (!shown?.head || runningRef.current) return;
+    runningRef.current = true;
+    setRunning(true);
+    try {
+      const ref = { repoId: shown.repoId, branch: shown.branch, commit: shown.head, path: m.path };
+      const file = await gitApi.file(ref.repoId, ref.commit, ref.path);
+      if (!window.confirm(`Run "${file.header.note.split('\n')[0]}" (${file.steps.length} step(s)) against ${targetConfig.option.database ?? ''}.${targetConfig.schema}?`)) return;
+      const ok = await runCommittedMigration(ref, file.steps);
+      toast({ tone: ok ? 'success' : 'warning', title: ok ? `Applied ${m.fileName}` : `${m.fileName} did not apply — see the migration progress` });
+      await refreshRef.current();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : `Could not run ${m.fileName}`);
+    } finally {
+      runningRef.current = false;
+      setRunning(false);
+    }
   };
 
   const incoming = migrations.filter((m) => m.incoming);
@@ -203,7 +224,7 @@ export const GitBranchView: React.FC<{ open: boolean; onClose: () => void }> = (
                       type="button"
                       data-testid={`git-run-${m.fileName}`}
                       className={btn}
-                      disabled={isMigrating || !targetConnected}
+                      disabled={isMigrating || running || !targetConnected}
                       onClick={() => void run(m).catch((e: unknown) => setError(e instanceof Error ? e.message : 'Run failed'))}
                     >
                       <Play className="w-3.5 h-3.5" /> Run

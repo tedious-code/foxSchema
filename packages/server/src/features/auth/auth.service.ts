@@ -38,10 +38,11 @@ function validateCredentials(email: string, password: string): void {
 /**
  * Checked against when the email has no account, so a wrong email costs the
  * same scrypt time as a wrong password and response time does not reveal
- * which emails exist. Made once, on the first sign-in.
+ * which emails exist. Started at load, on the thread pool, so it is ready
+ * before the first sign-in: made lazily, the first unknown email paid for two
+ * hashes and stood out.
  */
-let dummyHash: Promise<string> | undefined;
-const dummy = () => (dummyHash ??= hashPassword(randomUUID()));
+const DUMMY_HASH = hashPassword(randomUUID());
 
 /** Thrown when an account is locked after too many failed sign-ins. */
 export class SignInLockedError extends Error {
@@ -331,7 +332,7 @@ export class AuthModule {
 
     // Same error, and the same scrypt time, whether the email or the password
     // is wrong (no account enumeration).
-    const matches = await verifyPassword(password ?? '', row?.password_hash ?? (await dummy()));
+    const matches = await verifyPassword(password ?? '', row?.password_hash ?? (await DUMMY_HASH));
     if (!row || !matches) {
       recordFailure(normalized);
       throw new Error('Invalid email or password.');

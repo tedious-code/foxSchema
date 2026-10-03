@@ -125,6 +125,7 @@ database/    The metadata store and its migrations.
 | `connections` | Saved database connections (`authMethod` / `domain` on encrypted `ConnectionOptions`; NTLM is adapter-side) |
 | `data-migrate` | Moving data between databases |
 | `files` | File uploads and querying an uploaded file |
+| `git` | Git repositories migrations are committed to: bare local copies through isomorphic-git, branches, fetch / pull / push, and the guarded HTTP client that refuses private addresses. Plan: [plans/2026-10-02-migrations-in-git.md](plans/2026-10-02-migrations-in-git.md) |
 | `history` | Schema history and revert (Lokee Weave) |
 | `import-process` | Parsers, column detection and the worker pool used by imports |
 | `migration` | Applying DDL migrations, and their run history |

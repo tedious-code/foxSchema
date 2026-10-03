@@ -29,6 +29,7 @@ import { defaultApiRateLimit } from '../platform/guards/rate-limit';
 import { createAuthRoutes, authGuard } from '../features/auth/auth.routes';
 import { createSsoRoutes } from '../features/auth/sso.routes';
 import { createSignInSettingsRoutes } from '../features/auth/sign-in-settings.routes';
+import { createGitRoutes } from '../features/git/git.routes';
 import { createConnectionStoreRoutes } from '../features/connections/connections.routes';
 import { createAppSecretsRoutes } from '../features/admin/app-secrets.routes';
 import { createUserRoutes } from '../features/users/user.routes';
@@ -90,6 +91,7 @@ export function buildApiRoutes(): RouteDefinition[] {
   root.use('/api/user', userGuard, createUserRoutes(new UserModule()));
   root.use('/api/admin/sign-in', userGuard, createSignInSettingsRoutes());
   root.use('/api/admin', userGuard, createAdminRoutes());
+  root.use('/api/git', userGuard, createGitRoutes());
   // FoxWorkflow control plane (settings + engine health proxy).
   root.use('/api/workflow', userGuard, createWorkflowRoutes());
   // CSV / JSON / fixed-width text → temp SQLite credential for SQL Editor.

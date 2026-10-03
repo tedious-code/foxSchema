@@ -13,7 +13,7 @@
     "node": ">=18"
   },
   "private": true,
-  "//": "`private` and the TS-source `exports` follow packages/sql \u2014 see the note there. One entry on purpose: the six deep subpaths this replaced had to be kept in sync by hand in two files, and a move that updated only one typechecked clean and failed in the CLI tests. A single barrel makes that failure impossible to express.",
+  "//": "`private` and the TS-source `exports` follow packages/sql — see the note there. One entry on purpose: the six deep subpaths this replaced had to be kept in sync by hand in two files, and a move that updated only one typechecked clean and failed in the CLI tests. A single barrel makes that failure impossible to express.",
   "exports": {
     ".": "./src/index.ts"
   },
@@ -25,6 +25,7 @@
     "@foxschema/sql": "*",
     "@foxschema/workflow-contract": "*",
     "fastify": "5.12.5",
+    "isomorphic-git": "1.42.6",
     "pino": "10.3.1",
     "tsx": "4.23.15"
   }

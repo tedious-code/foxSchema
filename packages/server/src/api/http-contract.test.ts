@@ -119,6 +119,16 @@ const ROUTES: RouteExpectation[] = [
   { method: 'DELETE', path: '/api/files/sessions/:id', status: 200 },
   { method: 'PUT', path: '/api/files/sessions/:id/chunk', status: 400 },
   { method: 'POST', path: '/api/files/sessions/:id/commit', status: 404 },
+  { method: 'GET', path: '/api/git/repos', status: 200 },
+  { method: 'POST', path: '/api/git/repos', status: 400 },
+  { method: 'DELETE', path: '/api/git/repos/:id', status: 404 },
+  { method: 'PUT', path: '/api/git/repos/:id', status: 404 },
+  { method: 'GET', path: '/api/git/repos/:id/branches', status: 404 },
+  { method: 'POST', path: '/api/git/repos/:id/branches', status: 404 },
+  { method: 'POST', path: '/api/git/repos/:id/fetch', status: 404 },
+  { method: 'GET', path: '/api/git/repos/:id/log', status: 404 },
+  { method: 'POST', path: '/api/git/repos/:id/pull', status: 404 },
+  { method: 'POST', path: '/api/git/repos/:id/push', status: 404 },
   { method: 'POST', path: '/api/lokee/capture', status: 400 },
   { method: 'GET', path: '/api/lokee/databases', status: 200 },
   { method: 'GET', path: '/api/lokee/databases/:id/compare', status: 400 },
@@ -246,7 +256,9 @@ describe('HTTP contract', () => {
       // invite or reset code, and the sign-in settings screen (/api/admin/sign-in).
       //
       // 95 -> 97: the Fox sign-in service switch and its callback.
-      expect(ROUTES.length).toBe(97);
+      //
+      // 97 -> 107: migration repositories (/api/git).
+      expect(ROUTES.length).toBe(107);
       expect(new Set(ROUTES.map((r) => `${r.method} ${r.path}`)).size).toBe(ROUTES.length);
     });
 

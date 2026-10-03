@@ -491,6 +491,35 @@ const MIGRATIONS: Migration[] = [
       ];
     },
   },
+  {
+    id: 21,
+    name: 'git_repos_and_migration_commits',
+    statements: (d) => {
+      const t = types(d);
+      return [
+        // A Git repository migrations are committed to. The access token is
+        // encrypted with the install key and never returned by the API.
+        `CREATE TABLE IF NOT EXISTS git_repos (
+           id ${t.id} PRIMARY KEY,
+           name ${t.str} NOT NULL,
+           remote_url ${t.big} NOT NULL,
+           default_branch ${t.str} NOT NULL,
+           folder ${t.str} NOT NULL,
+           auth_username ${t.str},
+           encrypted_token ${t.big},
+           require_commit ${t.int} NOT NULL DEFAULT 0,
+           created_by ${t.id},
+           created_at ${t.ts} NOT NULL,
+           updated_at ${t.ts} NOT NULL
+         )`,
+        // Which commit a migration run applied, when it came from Git.
+        `ALTER TABLE migration_runs ADD COLUMN git_repo_id ${t.id}`,
+        `ALTER TABLE migration_runs ADD COLUMN git_branch ${t.str}`,
+        `ALTER TABLE migration_runs ADD COLUMN git_commit ${t.str}`,
+        `ALTER TABLE migration_runs ADD COLUMN git_path ${t.big}`,
+      ];
+    },
+  },
 ];
 
 const SIGNUP_WIZARD_SHOWN_KEY = 'signup.wizard_shown';

@@ -1,6 +1,8 @@
 import type { FastifyReply } from 'fastify';
 import type { AuthedRequest, Middleware, NextFunction } from '../../platform/http/types';
 import {
+  PEER_FACTOR,
+  peerRateLimitKey,
   RateLimitCore,
   RATE_LIMIT_MESSAGE,
   rateLimitKey,
@@ -25,6 +27,7 @@ export function rateLimit(options: RateLimitOptions): Middleware {
   const { windowMs, max, name = 'default' } = options;
   const message = options.message ?? RATE_LIMIT_MESSAGE;
   const core = new RateLimitCore({ windowMs, max });
+  const peers = new RateLimitCore({ windowMs, max: max * PEER_FACTOR });
 
   return (req: AuthedRequest, res: FastifyReply, next: NextFunction): void => {
     // Signed-in callers get their own bucket; anonymous ones share by IP.
@@ -33,9 +36,13 @@ export function rateLimit(options: RateLimitOptions): Middleware {
     res.header('RateLimit-Limit', String(decision.limit));
     res.header('RateLimit-Remaining', String(decision.remaining));
 
-    if (!decision.allowed) {
-      res.header('Retry-After', String(decision.retryAfterSec));
-      res.header('RateLimit-Reset', String(decision.retryAfterSec));
+    // A forwarded address is only a claim: the connection that made it pays too.
+    const peerKey = decision.allowed ? peerRateLimitKey(name, req.userId, req.ip, req.raw?.socket?.remoteAddress) : undefined;
+    const blocked = !decision.allowed ? decision : peerKey ? peers.consume(peerKey) : undefined;
+
+    if (blocked && !blocked.allowed) {
+      res.header('Retry-After', String(blocked.retryAfterSec));
+      res.header('RateLimit-Reset', String(blocked.retryAfterSec));
       sendError(res, 'rate_limited', message);
       return;
     }

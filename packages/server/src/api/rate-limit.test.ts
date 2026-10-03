@@ -117,4 +117,21 @@ describe('rate limit', () => {
     vi.advanceTimersByTime(1001);
     expect(run(mw, reqOf()).passed).toBe(true);
   });
+
+  it('charges the connection too when it claims a forwarded address', () => {
+    // One private-network peer claiming a fresh X-Forwarded-For each time.
+    const mw = rateLimit({ windowMs: 1000, max: 2, name: 't' });
+    const viaPeer = (n: number) => reqOf({ ip: `10.9.0.${n}`, raw: { socket: { remoteAddress: '192.168.1.50' } } } as never);
+    let passed = 0;
+    for (let n = 0; n < 40; n++) if (run(mw, viaPeer(n)).passed) passed += 1;
+    expect(passed).toBe(20); // PEER_FACTOR × max, not 40
+  });
+
+  it('leaves direct clients and signed-in users to their own buckets', () => {
+    const mw = rateLimit({ windowMs: 1000, max: 2, name: 't' });
+    const direct = (n: number) => reqOf({ ip: `10.9.1.${n}`, raw: { socket: { remoteAddress: `10.9.1.${n}` } } } as never);
+    for (let n = 0; n < 40; n++) expect(run(mw, direct(n)).passed).toBe(true);
+    const user = (n: number) => reqOf({ userId: `u${n}`, ip: `10.9.2.${n}`, raw: { socket: { remoteAddress: '192.168.1.51' } } } as never);
+    for (let n = 0; n < 40; n++) expect(run(mw, user(n)).passed).toBe(true);
+  });
 });

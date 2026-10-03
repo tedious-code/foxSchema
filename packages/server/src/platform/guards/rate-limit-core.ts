@@ -134,5 +134,30 @@ export function rateLimitKey(scope: string, userId: string | undefined, ip: stri
   return userId ? `${scope}:u:${userId}` : `${scope}:ip:${ip || 'unknown'}`;
 }
 
+/**
+ * How many clients' allowance one connection may spend when it speaks for
+ * others: a reverse proxy, or anyone in a range `trustProxy` believes.
+ */
+export const PEER_FACTOR = 10;
+
+/**
+ * The bucket for the connection itself, when an anonymous request names a
+ * client other than the peer that sent it; undefined otherwise.
+ *
+ * `trustProxy` believes `X-Forwarded-For` from private-network peers, so one
+ * such peer can claim a new address on every request and never meet its
+ * per-address limit. Charging its own connection as well bounds that at
+ * `PEER_FACTOR` clients' worth, while a real proxy's users share that much.
+ */
+export function peerRateLimitKey(
+  scope: string,
+  userId: string | undefined,
+  ip: string | undefined,
+  peer: string | undefined
+): string | undefined {
+  if (userId || !peer || peer === ip) return undefined;
+  return `${scope}:peer:${peer}`;
+}
+
 export const RATE_LIMIT_MESSAGE =
   'Too many requests to the Fox Schema API. Please slow down and try again.';

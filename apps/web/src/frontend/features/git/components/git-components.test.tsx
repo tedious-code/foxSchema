@@ -130,6 +130,16 @@ describe('committing a migration', () => {
     expect(commitBtn().disabled).toBe(false);
   });
 
+  it('keeps the branch when the same repository is chosen again', async () => {
+    gitApi.preview.mockResolvedValue({ fileName: 'x.sql', path: 'migrations/x.sql', content: 'x', scrubbed: 0 });
+    render(<CommitMigrationDialog open onClose={() => undefined} />);
+    await waitFor(() => expect((screen.getByLabelText(/^branch$/i) as HTMLSelectElement).value).toBe('main'));
+    fireEvent.change(screen.getByLabelText(/^repository$/i), { target: { value: 'r1' } });
+    fireEvent.change(screen.getByLabelText(/note/i), { target: { value: 'Add orders' } });
+    await waitFor(() => expect((screen.getByTestId('git-commit-push') as HTMLButtonElement).disabled).toBe(false));
+    expect((screen.getByLabelText(/^branch$/i) as HTMLSelectElement).value).toBe('main');
+  });
+
   it('says what to do when no repository is set up', async () => {
     gitApi.listRepos.mockResolvedValue([]);
     render(<CommitMigrationDialog open onClose={() => undefined} />);

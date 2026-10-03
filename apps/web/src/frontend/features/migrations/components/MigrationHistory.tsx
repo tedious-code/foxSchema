@@ -1,6 +1,8 @@
 import React, { useEffect, useState, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
-import { X, History, RefreshCw, Trash2, Download, Database, CheckSquare, Square } from 'lucide-react';
+import { X, History, RefreshCw, Trash2, Download, Database, CheckSquare, Square, GitBranch } from 'lucide-react';
+import { useAuthStore } from '@/app/store/authStore';
+import { GitBranchView } from '@/features/git';
 import {
   apiListMigrations,
   apiGetMigration,
@@ -46,6 +48,8 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
   // Multi-select for bulk delete (keyed by run id).
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [confirmClear, setConfirmClear] = useState(false);
+  const canViewGit = useAuthStore((s) => s.can('git.view'));
+  const [showGit, setShowGit] = useState(false);
 
   const loadList = async () => {
     setLoading(true);
@@ -144,6 +148,17 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
             </div>
           </div>
           <div className="flex items-center gap-1">
+            {canViewGit && (
+              <button
+                type="button"
+                data-testid="applies-git-btn"
+                onClick={() => setShowGit(true)}
+                title="Migrations in Git: fetch, pull, push, incoming"
+                className="flex items-center gap-1 px-2 py-1 hover:bg-slate-800 rounded text-xs text-slate-300 hover:text-slate-100 transition"
+              >
+                <GitBranch className="w-4 h-4" /> Git
+              </button>
+            )}
             <button onClick={loadList} title="Refresh" className="p-1.5 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition">
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
@@ -257,6 +272,15 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
                         {detail.dialect.toUpperCase()}
                       </span>
                       <span className="text-xs text-slate-400">{detail.objectCount} object(s)</span>
+                      {detail.git && (
+                        <span
+                          data-testid="applies-git-commit"
+                          title={`${detail.git.path} on ${detail.git.branch ?? ''}`}
+                          className="inline-flex items-center gap-1 font-mono text-[11px] text-slate-300 border border-slate-700 rounded px-1.5 py-0.5"
+                        >
+                          <GitBranch className="w-3 h-3" /> {detail.git.commit.slice(0, 7)}
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm text-slate-200 font-mono mt-2 break-all">
                       {detail.host} / {detail.database}{detail.schema ? ` / ${detail.schema}` : ''}
@@ -336,6 +360,7 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
           </div>
         </div>
       </div>
+      <GitBranchView open={showGit} onClose={() => setShowGit(false)} />
     </div>,
     document.body
   );

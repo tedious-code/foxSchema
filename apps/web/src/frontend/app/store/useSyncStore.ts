@@ -17,7 +17,8 @@ import {
   apiUpdateConnection,
   apiDeleteConnection,
 } from '@/shared/api/authApi';
-import type { ConnectionConfig, SyncState } from './sync-types';
+import type { CommittedMigrationRef, ConnectionConfig, SyncState } from './sync-types';
+import type { MigrationStep } from '@foxschema/sql';
 import { sqlGeneratorModule, buildRef, buildMapping, regenerateSql, buildIncludedDiffs } from './sync-helpers';
 import { toast } from './toastStore';
 import { useUiStore } from './uiStore';
@@ -39,7 +40,82 @@ export type { MigrationProgressItem } from './sync-types';
 
 export const useSyncStore = create<SyncState>()(
   persist(
-    (set, get) => ({
+    (set, get) => {
+    /**
+     * Run `plan` against the target and report progress into the store.
+     * With `git`, the server runs that committed file instead of `plan`
+     * (which then only seeds the progress list). True when it succeeded.
+     */
+    const runPlan = async (
+      plan: MigrationStep[],
+      git?: CommittedMigrationRef
+    ): Promise<boolean> => {
+      const { targetConfig, continueOnError } = get();
+      set({
+        isMigrating: true,
+        migrationError: null,
+        migrationRolledBack: false,
+        snapshotDdl: null,
+        migrationProgress: plan.map((s) => ({
+          objectName: s.objectName,
+          objectType: s.objectType,
+          action: s.action,
+          status: 'PENDING' as const,
+        })),
+      });
+
+      let migrationSucceeded = false;
+      try {
+        await executeMigration(
+          buildRef(targetConfig),
+          plan,
+          (event) => {
+            if (event.type === 'snapshot') {
+              set({ snapshotDdl: event.ddl });
+            } else if (event.type === 'lokee') {
+              useUiStore.getState().bumpLokeeEpoch();
+              if (event.error) {
+                toast({
+                  tone: 'warning',
+                  title: 'History snapshot failed',
+                  body: String(event.error),
+                });
+              } else if (event.phase === 'after' && event.changed) {
+                toast({
+                  tone: 'success',
+                  title: `History v${event.versionNumber}`,
+                  body: `Migration snapshot · ${event.changeCount} object change(s)`,
+                });
+              }
+            } else if (event.type === 'object') {
+              set({
+                migrationProgress: get().migrationProgress.map((item) =>
+                  item.objectName === event.objectName && item.action === event.action
+                    ? { ...item, status: event.status, error: event.error }
+                    : item
+                ),
+              });
+            } else if (event.type === 'done') {
+              migrationSucceeded = event.success && !event.rolledBack;
+              set({
+                migrationExecuted: event.success,
+                migrationError: event.error ?? null,
+                migrationRolledBack: event.rolledBack,
+              });
+            }
+          },
+          continueOnError,
+          git
+        );
+      } catch (e: any) {
+        set({ migrationError: e.message || 'Migration failed' });
+      } finally {
+        set({ isMigrating: false });
+      }
+      return migrationSucceeded;
+    };
+
+    return {
   // --- Initial States ---
   sourceConfig: {
     dialect: 'postgres',
@@ -98,6 +174,7 @@ export const useSyncStore = create<SyncState>()(
   snapshotDdl: null,
   migrationError: null,
   migrationRolledBack: false,
+  committedMigration: null,
 
   // --- Actions ---
   loadConnections: async () => {
@@ -678,14 +755,24 @@ export const useSyncStore = create<SyncState>()(
       snapshotDdl: null,
       migrationExecuted: false,
     });
+    // A committed plan without this object is a different migration: it runs
+    // from Git only once that plan is reviewed and committed too.
+    const committed = s.committedMigration;
+    if (committed) {
+      toast({
+        tone: 'warning',
+        title: `Skipped ${objectName}`,
+        body: `The plan no longer matches commit ${committed.commit.slice(0, 7)}. Commit it again, then Execute.`,
+      });
+      return;
+    }
     await get().applyMigration();
   },
 
-  applyMigration: async () => {
+  currentMigrationPlan: () => {
     const s = get();
-    const { compareResult, targetConfig, continueOnError } = s;
-    if (!compareResult) return;
-
+    const { compareResult, targetConfig } = s;
+    if (!compareResult) return [];
     // The same diffs the preview was built from. This used to filter the raw
     // tables by object selection alone, so Execute ignored every finer opt-in
     // and opt-out — role members and index opt-ins already, and now columns and
@@ -698,80 +785,42 @@ export const useSyncStore = create<SyncState>()(
       columnSelection: s.columnSelection,
       triggerSelection: s.triggerSelection,
     });
-    const plan = sqlGeneratorModule.generateMigrationPlan(
+    return sqlGeneratorModule.generateMigrationPlan(
       includedDiffs,
       targetConfig.dialect,
       buildMapping(get()),
       compareResult.tables
     );
+  },
+
+  setCommittedMigration: (ref) =>
+    set({ committedMigration: ref ? { ...ref, planKey: JSON.stringify(get().currentMigrationPlan()) } : null }),
+
+  commitMatchesPlan: () => {
+    const c = get().committedMigration;
+    return !!c && c.planKey === JSON.stringify(get().currentMigrationPlan());
+  },
+
+  applyMigration: async () => {
+    const plan = get().currentMigrationPlan();
     if (plan.length === 0) return;
-
-    set({
-      isMigrating: true,
-      migrationError: null,
-      migrationRolledBack: false,
-      snapshotDdl: null,
-      migrationProgress: plan.map((s) => ({
-        objectName: s.objectName,
-        objectType: s.objectType,
-        action: s.action,
-        status: 'PENDING' as const,
-      })),
-    });
-
-    let migrationSucceeded = false;
-    try {
-      await executeMigration(
-        buildRef(targetConfig),
-        plan,
-        (event) => {
-          if (event.type === 'snapshot') {
-            set({ snapshotDdl: event.ddl });
-          } else if (event.type === 'lokee') {
-            useUiStore.getState().bumpLokeeEpoch();
-            if (event.error) {
-              toast({
-                tone: 'warning',
-                title: 'History snapshot failed',
-                body: String(event.error),
-              });
-            } else if (event.phase === 'after' && event.changed) {
-              toast({
-                tone: 'success',
-                title: `History v${event.versionNumber}`,
-                body: `Migration snapshot · ${event.changeCount} object change(s)`,
-              });
-            }
-          } else if (event.type === 'object') {
-            set({
-              migrationProgress: get().migrationProgress.map((item) =>
-                item.objectName === event.objectName && item.action === event.action
-                  ? { ...item, status: event.status, error: event.error }
-                  : item
-              ),
-            });
-          } else if (event.type === 'done') {
-            migrationSucceeded = event.success && !event.rolledBack;
-            set({
-              migrationExecuted: event.success,
-              migrationError: event.error ?? null,
-              migrationRolledBack: event.rolledBack,
-            });
-          }
-        },
-        continueOnError
-      );
-    } catch (e: any) {
-      set({ migrationError: e.message || 'Migration failed' });
-    } finally {
-      set({ isMigrating: false });
-    }
-
+    // Committed and unchanged since: run it from its commit, so what reaches
+    // the database is exactly what was reviewed (the server reads the file).
+    const c = get().committedMigration;
+    const git = c && get().commitMatchesPlan() ? { repoId: c.repoId, branch: c.branch, commit: c.commit, path: c.path } : undefined;
+    const ok = await runPlan(plan, git);
+    // The committed plan has run; running a teammate's migration from the Git
+    // view (runCommittedMigration) leaves it alone.
+    if (ok) set({ committedMigration: null });
     // Auto-refresh the comparison so the diff list reflects what was just applied.
     // migrationProgress and migration result state are preserved across the refresh.
-    if (migrationSucceeded) {
-      await get().runSchemaComparison();
-    }
+    if (ok) await get().runSchemaComparison();
+  },
+
+  runCommittedMigration: async (ref, steps) => {
+    const ok = await runPlan(steps, ref);
+    if (ok && get().compareResult) await get().runSchemaComparison();
+    return ok;
   },
 
   resetSync: () => {
@@ -783,9 +832,11 @@ export const useSyncStore = create<SyncState>()(
       syncSelection: {},
       browseMode: false,
       browseSide: null,
+      committedMigration: null,
     });
   },
-    }),
+    };
+    },
     {
       name: 'schema-sync-storage',
       version: 5,

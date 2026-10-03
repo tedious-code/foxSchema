@@ -7,7 +7,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, ChevronRight, KeyRound, Loader2, LogIn, Mail, Shield, UserCog, Users, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, GitBranch, KeyRound, Loader2, LogIn, Mail, Shield, UserCog, Users, X } from 'lucide-react';
 import { passwordProblem } from '@foxschema/shared';
 import {
   apiAdminCreateUser,
@@ -23,6 +23,7 @@ import {
 } from '@/shared/api/authApi';
 import { IssuedCodeNotice } from './IssuedCodeNotice';
 import { SignInSettingsPanel } from './SignInSettingsPanel';
+import { GitReposAdmin } from '@/features/git';
 import {
   groupPermissionsForDisplay,
   groupUsersByRole,
@@ -42,7 +43,7 @@ import { PasswordInput } from '@/shared/components/PasswordInput';
 import { AccessReport } from '@/features/access/components/AccessReport';
 import { sectionLabelCls } from '@/shared/components/surfaces';
 
-type Tab = 'users' | 'roles' | 'users-roles' | 'sign-in';
+type Tab = 'users' | 'roles' | 'users-roles' | 'sign-in' | 'git';
 
 type AdminUserRow = {
   id: string;
@@ -64,6 +65,7 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
   const canUsers = useAuthStore((s) => s.can('admin.users'));
   const canRoles = useAuthStore((s) => s.can('admin.roles'));
   const canUsersRoles = useAuthStore((s) => s.can('utility.access'));
+  const canGit = useAuthStore((s) => s.can('git.manage'));
   const [tab, setTab] = useState<Tab>('users');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -388,6 +390,19 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
             >
               <LogIn className="w-3.5 h-3.5 inline mr-1" />
               Sign-in
+            </button>
+          )}
+          {canGit && (
+            <button
+              type="button"
+              data-testid="admin-tab-git"
+              onClick={() => setTab('git')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md ${
+                tab === 'git' ? 'bg-slate-800 text-slate-100' : 'text-slate-400'
+              }`}
+            >
+              <GitBranch className="w-3.5 h-3.5 inline mr-1" />
+              Git
             </button>
           )}
           {canUsersRoles && (
@@ -807,6 +822,8 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
           )}
 
           {tab === 'sign-in' && canUsers && <SignInSettingsPanel />}
+
+          {tab === 'git' && canGit && <GitReposAdmin />}
         </div>
 
         {tab === 'roles' && canRoles && (

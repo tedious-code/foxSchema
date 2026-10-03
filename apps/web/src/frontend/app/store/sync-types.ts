@@ -1,6 +1,15 @@
 import type { ConnectionOptions, Dialect } from '@/shared/lib/provider-settings';
 import type { DbObjectType, SchemaCompareResult, TableDiff } from '@/shared/lib/types';
 import type { SavedConnectionSummary } from '@/shared/api/authApi';
+import type { MigrationStep } from '@foxschema/sql';
+
+/** A committed migration Execute will run: the file at that commit, not the live plan. */
+export interface CommittedMigrationRef {
+  repoId: string;
+  branch?: string;
+  commit: string;
+  path: string;
+}
 
 export interface MigrationProgressItem {
   objectName: string;
@@ -140,6 +149,12 @@ export interface SyncState {
   snapshotDdl: string | null;
   migrationError: string | null;
   migrationRolledBack: boolean;
+  /**
+   * The current plan, committed to Git. Tied to the plan it was made from
+   * (`planKey`): change the selection and the commit no longer describes it,
+   * so Execute stops using it.
+   */
+  committedMigration: (CommittedMigrationRef & { planKey: string }) | null;
   clearMigrationProgress: () => void;
   /** Deselect a failed object and re-run the migration with the remaining selection. */
   skipObjectAndRetry: (objectName: string) => Promise<void>;
@@ -158,5 +173,13 @@ export interface SyncState {
   testTargetConnection: () => Promise<void>;
   runSchemaComparison: () => Promise<void>;
   applyMigration: () => Promise<void>;
+  /** The plan Execute would run now — the same one the SQL tab previews. */
+  currentMigrationPlan: () => MigrationStep[];
+  /** Remember that the current plan was committed (or forget it). */
+  setCommittedMigration: (ref: CommittedMigrationRef | null) => void;
+  /** Whether `committedMigration` still describes the current plan. */
+  commitMatchesPlan: () => boolean;
+  /** Run a committed migration (for example a teammate's, from the Git view) against the target. */
+  runCommittedMigration: (ref: CommittedMigrationRef, steps: MigrationStep[]) => Promise<boolean>;
   resetSync: () => void;
 }

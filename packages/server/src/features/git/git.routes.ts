@@ -39,7 +39,7 @@ async function authorOf(req: AuthedRequest): Promise<GitAuthor> {
 }
 
 export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices()): Router {
-  const { repos: store, git: service, migrations } = services;
+  const { repos: store, git: service, migrations, activity } = services;
   const router = Router();
   const view = requirePermissions('git.view');
   const manage = requirePermissions('git.manage');
@@ -59,6 +59,7 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
   router.post('/repos', manage, async (req: AuthedRequest, res: FastifyReply) => {
     try {
       const repo = await store.create((req.body ?? {}) as GitRepoInput, req.userId ?? '', service.allowsInsecureHttp);
+      await activity.record(repo.id, 'repo.added', req.userId, { name: repo.name, remoteUrl: repo.remoteUrl, requireCommit: repo.requireCommit });
       res.send({ repo });
     } catch (error) {
       fail(res, error);
@@ -67,11 +68,18 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
 
   router.put('/repos/:id', manage, async (req: AuthedRequest, res: FastifyReply) => {
     try {
-      const repo = await store.update(String(req.params.id), (req.body ?? {}) as GitRepoInput, service.allowsInsecureHttp);
-      if (!repo) {
+      const id = String(req.params.id);
+      const before = await store.get(id);
+      const input = (req.body ?? {}) as GitRepoInput;
+      const repo = await store.update(id, input, service.allowsInsecureHttp);
+      if (!repo || !before) {
         sendError(res, 'not_found', 'Repository not found.');
         return;
       }
+      const fields = ['name', 'remoteUrl', 'defaultBranch', 'folder', 'authUsername', 'requireCommit'] as const;
+      const changed = Object.fromEntries(fields.filter((f) => before[f] !== repo[f]).map((f) => [f, { from: before[f], to: repo[f] }]));
+      const tokenReplaced = !!(input.token ?? '').trim();
+      await activity.record(id, 'repo.edited', req.userId, { ...changed, ...(tokenReplaced ? { tokenReplaced } : {}) });
       res.send({ repo });
     } catch (error) {
       fail(res, error);
@@ -80,11 +88,13 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
 
   router.delete('/repos/:id', manage, async (req: AuthedRequest, res: FastifyReply) => {
     const id = String(req.params.id);
+    const repo = await store.get(id);
     if (!(await store.remove(id))) {
       sendError(res, 'not_found', 'Repository not found.');
       return;
     }
     await service.removeLocal(id);
+    await activity.record(id, 'repo.removed', req.userId, { name: repo?.name, remoteUrl: repo?.remoteUrl });
     res.send({ ok: true });
   });
 
@@ -107,7 +117,9 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
   router.post('/repos/:id/branches', migrate, async (req: AuthedRequest, res: FastifyReply) => {
     const { name, from } = (req.body ?? {}) as { name?: string; from?: string };
     try {
-      res.send({ branches: await service.createBranch(String(req.params.id), name ?? '', from || undefined) });
+      const branches = await service.createBranch(String(req.params.id), name ?? '', from || undefined);
+      await activity.record(String(req.params.id), 'branch.created', req.userId, { branch: name, from: from || null });
+      res.send({ branches });
     } catch (error) {
       fail(res, error);
     }
@@ -116,7 +128,9 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
   router.post('/repos/:id/pull', migrate, network, async (req: AuthedRequest, res: FastifyReply) => {
     const { branch } = (req.body ?? {}) as { branch?: string };
     try {
-      res.send(await service.pull(String(req.params.id), branch ?? '', await authorOf(req)));
+      const pulled = await service.pull(String(req.params.id), branch ?? '', await authorOf(req));
+      await activity.record(String(req.params.id), 'pulled', req.userId, { branch, result: pulled.result, head: pulled.head });
+      res.send(pulled);
     } catch (error) {
       fail(res, error);
     }
@@ -125,10 +139,17 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
   router.post('/repos/:id/push', migrate, network, async (req: AuthedRequest, res: FastifyReply) => {
     const { branch } = (req.body ?? {}) as { branch?: string };
     try {
-      res.send(await service.push(String(req.params.id), branch ?? ''));
+      const pushed = await service.push(String(req.params.id), branch ?? '');
+      await activity.record(String(req.params.id), 'pushed', req.userId, { branch });
+      res.send(pushed);
     } catch (error) {
       fail(res, error);
     }
+  });
+
+  /** Who changed the repository or moved its branches, newest first. Admins only. */
+  router.get('/repos/:id/activity', manage, async (req: AuthedRequest, res: FastifyReply) => {
+    res.send({ activity: await activity.list(String(req.params.id), Number(req.query.limit) || 100) });
   });
 
   router.get('/repos/:id/log', view, async (req: AuthedRequest, res: FastifyReply) => {
@@ -153,7 +174,15 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
   /** Commit a migration plan to a branch (and push when asked). */
   router.post('/repos/:id/commit', migrate, async (req: AuthedRequest, res: FastifyReply) => {
     try {
-      res.send(await migrations.commit(String(req.params.id), (req.body ?? {}) as CommitInput, await authorOf(req)));
+      const input = (req.body ?? {}) as CommitInput;
+      const committed = await migrations.commit(String(req.params.id), input, await authorOf(req));
+      await activity.record(String(req.params.id), 'committed', req.userId, {
+        branch: input.branch,
+        commit: committed.commit,
+        path: committed.path,
+        pushed: committed.pushed,
+      });
+      res.send(committed);
     } catch (error) {
       fail(res, error);
     }

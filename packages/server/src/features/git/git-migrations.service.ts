@@ -22,6 +22,7 @@ import {
 import { getStore } from '../../database/store';
 import { GitRepoService, GitOperationError, type GitAuthor } from './git-repo.service';
 import { GitReposStore } from './git-repos.store';
+import { GitActivityStore } from './git-activity.store';
 
 export interface PlanInput {
   steps: MigrationStep[];
@@ -187,7 +188,7 @@ export class GitMigrationsService {
   }
 }
 
-let shared: { repos: GitReposStore; git: GitRepoService; migrations: GitMigrationsService } | null = null;
+let shared: { repos: GitReposStore; git: GitRepoService; migrations: GitMigrationsService; activity: GitActivityStore } | null = null;
 
 /**
  * The one set of Git services the app uses. One instance matters: the
@@ -198,7 +199,7 @@ export function gitServices() {
   if (!shared) {
     const repos = new GitReposStore();
     const git = new GitRepoService(repos);
-    shared = { repos, git, migrations: new GitMigrationsService(repos, git) };
+    shared = { repos, git, migrations: new GitMigrationsService(repos, git), activity: new GitActivityStore() };
   }
   return shared;
 }

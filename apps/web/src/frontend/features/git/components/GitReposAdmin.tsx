@@ -10,11 +10,44 @@
 import React, { useEffect, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { PasswordInput } from '@/shared/components/PasswordInput';
-import { gitApi, type GitRepo, type GitRepoInput } from '../api/gitApi';
+import { gitApi, type GitActivity, type GitRepo, type GitRepoInput } from '../api/gitApi';
 import { useGitStore } from '../store/useGitStore';
 
 const inputCls = 'w-full rounded-md border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs outline-none accent-focus';
 const labelCls = 'text-[10px] font-semibold uppercase tracking-wider text-slate-400';
+const FIELD_NAMES: Record<string, string> = {
+  name: 'name',
+  remoteUrl: 'URL',
+  defaultBranch: 'default branch',
+  folder: 'folder',
+  authUsername: 'user name',
+  requireCommit: 'Require a commit',
+};
+
+/** One line of a repository's activity, in words. */
+function describeActivity(a: GitActivity): string {
+  const d = a.detail as Record<string, any>;
+  switch (a.action) {
+    case 'repo.added':
+      return 'added the repository';
+    case 'repo.removed':
+      return 'removed the repository';
+    case 'repo.edited': {
+      const fields = Object.keys(d).filter((k) => k !== 'tokenReplaced').map((k) => FIELD_NAMES[k] ?? k);
+      const parts = [...(fields.length ? [`changed ${fields.join(', ')}`] : []), ...(d.tokenReplaced ? ['replaced the token'] : [])];
+      return parts.join(' and ') || 'saved the repository unchanged';
+    }
+    case 'branch.created':
+      return `created branch ${d.branch}`;
+    case 'committed':
+      return `committed ${String(d.commit ?? '').slice(0, 7)} to ${d.branch}${d.pushed ? ' and pushed' : ''}`;
+    case 'pushed':
+      return `pushed ${d.branch}`;
+    case 'pulled':
+      return `pulled ${d.branch} (${d.result})`;
+  }
+}
+
 const EMPTY: GitRepoInput = { name: '', remoteUrl: '', defaultBranch: 'main', folder: 'migrations', authUsername: '', token: '', requireCommit: false };
 
 export const GitReposAdmin: React.FC = () => {
@@ -24,6 +57,7 @@ export const GitReposAdmin: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [activity, setActivity] = useState<{ repoId: string; entries: GitActivity[] } | null>(null);
 
   useEffect(() => {
     void load();
@@ -95,12 +129,40 @@ export const GitReposAdmin: React.FC = () => {
               </span>
             )}
             {!r.hasToken && <span className="text-[10px] text-slate-500">no token</span>}
+            <button
+              type="button"
+              data-testid={`admin-git-activity-${r.id}`}
+              onClick={() => {
+                if (activity?.repoId === r.id) {
+                  setActivity(null);
+                  return;
+                }
+                gitApi
+                  .activity(r.id)
+                  .then((entries) => setActivity({ repoId: r.id, entries }))
+                  .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Could not read the activity'));
+              }}
+              className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:text-white"
+            >
+              Activity
+            </button>
             <button type="button" onClick={() => open(r)} className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:text-white">
               Edit
             </button>
             <button type="button" aria-label={`Remove ${r.name}`} onClick={() => void remove(r)} className="p-1 text-slate-500 hover:text-rose-300">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
+            {activity?.repoId === r.id && (
+              <ol data-testid="admin-git-activity" className="basis-full space-y-0.5 pt-1 text-[11px] text-slate-400">
+                {activity.entries.length === 0 && <li>No activity recorded yet.</li>}
+                {activity.entries.map((a) => (
+                  <li key={a.id}>
+                    <span className="text-slate-500">{new Date(a.at).toLocaleString()}</span> · {a.userEmail ?? 'someone since removed'}{' '}
+                    {describeActivity(a)}
+                  </li>
+                ))}
+              </ol>
+            )}
           </li>
         ))}
       </ul>

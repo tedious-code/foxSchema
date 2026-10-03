@@ -22,6 +22,7 @@ const gitApi = vi.hoisted(() => ({
   pull: vi.fn(),
   push: vi.fn(),
   log: vi.fn(),
+  activity: vi.fn(),
   preview: vi.fn(),
   commit: vi.fn(),
   migrations: vi.fn(),
@@ -178,6 +179,22 @@ describe('managing repositories', () => {
     await waitFor(() =>
       expect(gitApi.createRepo).toHaveBeenCalledWith(expect.objectContaining({ name: 'DB migrations', remoteUrl: 'https://github.com/acme/db.git', token: 'ghp_secret' }))
     );
+  });
+
+  it("shows who changed a repository and moved its branches", async () => {
+    gitApi.activity.mockResolvedValue([
+      { id: 'a3', action: 'pushed', detail: { branch: 'main' }, userEmail: 'ana@example.com', at: '2026-10-03T10:02:00Z' },
+      { id: 'a2', action: 'repo.edited', detail: { remoteUrl: { from: 'x', to: 'y' }, tokenReplaced: true }, userEmail: 'boss@example.com', at: '2026-10-03T10:01:00Z' },
+      { id: 'a1', action: 'committed', detail: { branch: 'main', commit: HEAD, pushed: false }, userEmail: 'ana@example.com', at: '2026-10-03T10:00:00Z' },
+    ]);
+    render(<GitReposAdmin />);
+    fireEvent.click(await screen.findByTestId('admin-git-activity-r1'));
+    const list = await screen.findByTestId('admin-git-activity');
+    expect(gitApi.activity).toHaveBeenCalledWith('r1');
+    const lines = [...list.querySelectorAll('li')].map((li) => li.textContent);
+    expect(lines[0]).toContain('ana@example.com pushed main');
+    expect(lines[1]).toContain('boss@example.com changed URL and replaced the token');
+    expect(lines[2]).toContain(`ana@example.com committed ${HEAD.slice(0, 7)} to main`);
   });
 
   it('never shows a stored token, and keeps it when saved with the field empty', async () => {

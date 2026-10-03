@@ -65,6 +65,15 @@ export interface PlanInput {
   source?: string;
 }
 
+/** Who changed a repository or moved its branches (admins only). */
+export interface GitActivity {
+  id: string;
+  action: 'repo.added' | 'repo.edited' | 'repo.removed' | 'branch.created' | 'committed' | 'pushed' | 'pulled';
+  detail: Record<string, unknown>;
+  userEmail: string | null;
+  at: string;
+}
+
 const base = (id: string) => `/git/repos/${encodeURIComponent(id)}`;
 
 export const gitApi = {
@@ -82,6 +91,7 @@ export const gitApi = {
   pull: (id: string, branch: string) =>
     api.post<{ result: 'up-to-date' | 'fast-forward' | 'merged' | 'created'; head: string | null }>(`${base(id)}/pull`, { branch }),
   push: (id: string, branch: string) => api.post<{ head: string }>(`${base(id)}/push`, { branch }),
+  activity: async (id: string) => (await api.get<{ activity: GitActivity[] }>(`${base(id)}/activity`)).activity,
   log: async (id: string, branch: string, limit = 50) =>
     (await api.get<{ commits: CommitInfo[] }>(`${base(id)}/log`, { query: { branch, limit } })).commits,
 

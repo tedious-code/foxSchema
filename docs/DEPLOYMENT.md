@@ -119,6 +119,8 @@ docker compose -f docker-compose.app.yml up -d
 | `APP_VERSION` | from `package.json` | Running version compared against the feed. The CLI sets this from the installed npm package. |
 | `FOXSCHEMA_SELF_UPDATE` | `true` via CLI open | When `true`, UI can run `npm install -g foxschema@latest`. Off in Docker / set `false` to require a manual terminal upgrade. |
 | `ALLOW_HOST_CLOUD_CREDENTIALS` | off | When `true`, cloud secret resolve may use the host IAM/ADC chain without saved user credentials. **Keep off** on multi-user hosts. |
+| `LISTEN_HOST` | `0.0.0.0` with `NODE_ENV=production`, else `127.0.0.1` | Address the server listens on. Outside production, a network address is refused at startup unless `FOX_INSECURE_DEV=1`. |
+| `FOX_INSECURE_DEV` | off | `1` lets a development server (no `NODE_ENV=production`) listen on a network address. Such a server encrypts saved credentials with a development key when `APP_ENCRYPTION_KEY` is unset and sends its session cookie without the Secure flag, so use it only on a network you trust. |
 | `SSO_*` | — | OAuth for Google / Microsoft / GitHub (see below). Can also be set under Access control → Sign-in. |
 | `APP_PUBLIC_URL` | — | The URL people reach Fox at (`https://fox.example.com`). Invite and reset emails link here; SSO callbacks use it. `SSO_REDIRECT_BASE` is read as a fallback. Can also be set on the Sign-in screen. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | — | Relay for invite and password-reset emails. `SMTP_SECURITY` is `tls` (465), `starttls` (587, default) or `none`. Needs at least `SMTP_HOST` and `SMTP_FROM`. See [Email for invites and resets](#email-for-invites-and-resets). |
@@ -127,8 +129,6 @@ docker compose -f docker-compose.app.yml up -d
 | `FOX_GIT_DIR` | beside the metadata DB (`<dir>/git`), else `~/.foxschema/git` | Where Fox keeps local copies of the Git repositories migrations are committed to (bare clones; safe to delete — they are fetched again). |
 | `FOX_GIT_ALLOW_HTTP` | off | Development only: accept `http://` Git remotes. Ignored when `NODE_ENV=production`; production remotes are always `https://`. |
 | `FOX_TRUST_PROXY` | `loopback, linklocal, uniquelocal` | Which peers' `X-Forwarded-*` headers are believed. Only a proxy may say who the client is; trusting everyone let any client pick its own address and skip rate limits. Set to your proxy's address or CIDR if it is on a public IP, or `true` / `false`. |
-| `LISTEN_HOST` | `0.0.0.0` with `NODE_ENV=production`, else `127.0.0.1` | Address the server listens on. Outside production, a network address is refused at startup unless `FOX_INSECURE_DEV=1`. |
-| `FOX_INSECURE_DEV` | off | `1` lets a development server (no `NODE_ENV=production`) listen on a network address. Such a server encrypts saved credentials with a development key when `APP_ENCRYPTION_KEY` is unset and sends its session cookie without the Secure flag, so use it only on a network you trust. |
 | `FOX_SETUP_ALLOW_LOCAL_WITHOUT_CODE` | off | Skip the first-run setup code for a direct loopback request. The `foxschema open` launcher sets this because it binds only to loopback. Never enable it behind a reverse proxy: an unlabelled proxy request is indistinguishable from a local one. |
 | `NODE_ENV` | `production` | Set in the image; enforces that `APP_ENCRYPTION_KEY` is present. |
 | `FOX_ALLOWED_ORIGINS` | — | Comma-separated browser origins allowed to call the API with cookies. When set, it is the entire allowlist. See [Origin policy](#origin-policy). |

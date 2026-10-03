@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/app/store/authStore';
 import { Play, RefreshCw, FileText, CheckCircle2, Copy, AlertTriangle, GitCommitHorizontal } from 'lucide-react';
 import { CommitMigrationDialog, commitRequirement, useGitStore } from '@/features/git';
+import { executeGate } from '../lib/executeGate';
 import { SqlGeneratorModule } from '@/shared/lib/sql-generator';
 import { findDropDependencies } from '@foxschema/sql';
 import { findMissingFkTargets, findNarrowingTypeChanges, extractReviewNotices, resolveDialect } from '@/shared/lib/migration-validation';
@@ -639,21 +640,21 @@ export const ObjectDetailPanel: React.FC = () => {
   // Committed, and the plan unchanged since: Execute runs it from that commit.
   const planIsCommitted = !!committedMigration && commitMatchesPlan();
 
-  const executeBlockReason: string | null =
-    !canMigrate ? 'Your role cannot execute migrations'
-    : includedCount === 0 ? 'No objects selected for deployment'
-    : !targetConnected ? 'Target connection is not healthy — reconnect before deploying'
-    : hasMissingFkTargets ? `${missingFkIssues.length} foreign key(s) reference a table that won't exist in the target — resolve the conflicts below`
-    : hasUnresolvedDropDeps ? `${liveDropDeps.length} dependent object(s) would break — resolve the conflicts below`
-    : hasNarrowingChanges && !narrowingAcked ? 'Acknowledge the narrowing type changes below before deploying'
-    : hasDestructiveDrops && !destructiveDropsAcked ? 'Acknowledge the destructive drops below before deploying'
-    : deploysRoutineToMySql && !mysqlRiskAcked ? 'Acknowledge the MySQL binlog privilege risk below before deploying'
-    : gitSettingsPending
-      ? gitLoadError
-        ? 'Could not check whether migrations must be committed to Git first'
-        : 'Checking whether migrations must be committed to Git first'
-    : commitRequired && !planIsCommitted ? 'This install runs only committed migrations — commit the plan to Git first'
-    : null;
+  const { reason: executeBlockReason, disabled: executeDisabled } = executeGate({
+    canMigrate,
+    busy: isComparing || isMigrating || migrationExecuted,
+    includedCount,
+    targetConnected,
+    missingFkTargets: missingFkIssues.length,
+    unresolvedDropDeps: liveDropDeps.length,
+    narrowingUnacked: hasNarrowingChanges && !narrowingAcked,
+    destructiveDropsUnacked: hasDestructiveDrops && !destructiveDropsAcked,
+    mysqlRoutineRiskUnacked: deploysRoutineToMySql && !mysqlRiskAcked,
+    gitPending: gitSettingsPending,
+    gitLoadFailed: !!gitLoadError,
+    commitRequired,
+    planIsCommitted,
+  });
 
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-slate-900 h-full">
@@ -697,14 +698,7 @@ export const ObjectDetailPanel: React.FC = () => {
           <button
             data-testid="execute-btn"
             onClick={handleExecuteClick}
-            disabled={
-              !canMigrate ||
-              isComparing || isMigrating || migrationExecuted || includedCount === 0 ||
-              !targetConnected || hasUnresolvedDropDeps ||
-              (hasDestructiveDrops && !destructiveDropsAcked) ||
-              (deploysRoutineToMySql && !mysqlRiskAcked) ||
-              gitSettingsPending || (commitRequired && !planIsCommitted)
-            }
+            disabled={executeDisabled}
             title={executeBlockReason ?? `Deploy ${includedCount} object(s) to target`}
             className={`flex items-center gap-1.5 px-4 py-1.5 rounded text-xs font-bold transition shadow ${
               migrationExecuted

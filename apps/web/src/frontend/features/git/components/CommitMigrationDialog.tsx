@@ -124,6 +124,13 @@ export const CommitMigrationDialog: React.FC<{ open: boolean; onClose: () => voi
   const previewIsCurrent = !!preview && preview.repoId === repoId && preview.input === planInput;
   const canCommit = !!repo && !!targetBranch && previewIsCurrent && !busy;
 
+  // Another repository starts over on its default branch; the same one changes nothing.
+  const chooseRepo = (id: string) => {
+    if (id === repoId) return;
+    setRepoId(id);
+    setBranch('');
+  };
+
   const commit = async (push: boolean) => {
     if (!repo) return;
     setBusy(true);
@@ -169,7 +176,7 @@ export const CommitMigrationDialog: React.FC<{ open: boolean; onClose: () => voi
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="flex flex-col gap-1">
                   <label htmlFor="git-commit-repo" className={labelCls}>Repository</label>
-                  <select id="git-commit-repo" value={repoId} onChange={(e) => { setRepoId(e.target.value); setBranch(''); }} className={inputCls}>
+                  <select id="git-commit-repo" value={repoId} onChange={(e) => chooseRepo(e.target.value)} className={inputCls}>
                     {repos.map((r) => (
                       <option key={r.id} value={r.id}>{r.name}</option>
                     ))}

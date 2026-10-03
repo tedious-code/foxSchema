@@ -68,6 +68,13 @@ export const GitBranchView: React.FC<{ open: boolean; onClose: () => void }> = (
 
   if (!open) return null;
 
+  // Another repository starts over on its default branch; the same one changes nothing.
+  const chooseRepo = (id: string) => {
+    if (id === repoId) return;
+    setRepoId(id);
+    setBranch('');
+  };
+
   const act = async (label: string, fn: () => Promise<unknown>, done?: string) => {
     setBusy(label);
     setError(null);
@@ -119,7 +126,7 @@ export const GitBranchView: React.FC<{ open: boolean; onClose: () => void }> = (
         ) : (
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <select aria-label="Repository" value={repoId} onChange={(e) => { setRepoId(e.target.value); setBranch(''); }} className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-xs">
+              <select aria-label="Repository" value={repoId} onChange={(e) => chooseRepo(e.target.value)} className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-xs">
                 {repos.map((r) => (
                   <option key={r.id} value={r.id}>{r.name}</option>
                 ))}

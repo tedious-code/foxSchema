@@ -241,14 +241,28 @@ describe('the branch view', () => {
 });
 
 describe('whether a commit is required', () => {
-  it('is unknown until the repositories load, and a failed reload keeps what was known', async () => {
+  it('is unknown until a listing succeeds, and a failed reload keeps what was known', async () => {
     expect(commitRequirement(useGitStore.getState())).toBe('unknown');
+    gitApi.listRepos.mockRejectedValue(new Error('offline'));
+    await useGitStore.getState().load();
+    // A failed first load must not read the empty list as "not required".
+    expect(useGitStore.getState().loaded).toBe(false);
+    expect(commitRequirement(useGitStore.getState())).toBe('unknown');
+    expect(useGitStore.getState().error).toBe('offline');
+
     gitApi.listRepos.mockResolvedValue([{ ...repo, requireCommit: true }]);
     await useGitStore.getState().load();
     expect(commitRequirement(useGitStore.getState())).toBe('required');
+
     gitApi.listRepos.mockRejectedValue(new Error('offline'));
     await useGitStore.getState().load();
     expect(commitRequirement(useGitStore.getState())).toBe('required');
     expect(useGitStore.getState().error).toBe('offline');
+  });
+
+  it('is not required only after a successful empty listing', async () => {
+    gitApi.listRepos.mockResolvedValue([]);
+    await useGitStore.getState().load();
+    expect(commitRequirement(useGitStore.getState())).toBe('not required');
   });
 });

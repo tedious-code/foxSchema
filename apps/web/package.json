@@ -1,7 +1,7 @@
 {
   "name": "@foxschema/web",
   "private": true,
-  "version": "0.2.275",
+  "version": "0.2.277",
   "type": "module",
   "exports": {
     "./package.json": "./package.json"

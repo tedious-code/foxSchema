@@ -71,45 +71,157 @@ export function migrationFileName(note: string, when: Date = new Date()): string
 }
 
 /**
- * Password literals in DDL, by the shapes the dialects use:
- * `PASSWORD 'x'`, `PASSWORD = N'x'`, `IDENTIFIED BY 'x'` / `"x"` / x,
- * `IDENTIFIED WITH plugin BY 'x'`.
+ * Statements that create or change an account — the only place a password
+ * literal is a credential. Anywhere else (`WHERE password = 'x'` in a view,
+ * `SET password = ...` in a procedure) it is ordinary SQL and is left exactly
+ * as written: the committed file is what runs.
  */
-const SECRET_PATTERNS: RegExp[] = [
-  /(\bPASSWORD\s*(?:=\s*)?)N?'(?:[^']|'')*'/gi,
-  /(\bIDENTIFIED(?:\s+WITH\s+[\w$]+)?\s+(?:BY|AS)\s+)N?'(?:[^']|'')*'/gi,
-  /(\bIDENTIFIED(?:\s+WITH\s+[\w$]+)?\s+(?:BY|AS)\s+)"(?:[^"]|"")*"/gi,
-  /(\bIDENTIFIED\s+BY\s+)(?!['"]|PASSWORD\b|VALUES\b)[^\s;'"]+/gi,
-];
+function isAccountDdl(text: string): boolean {
+  const words = text.trimStart().slice(0, 64).split(/\s+/).map((w) => w.toUpperCase());
+  if (words[0] !== 'CREATE' && words[0] !== 'ALTER') return false;
+  const kind = words[1] === 'OR' && words[2] === 'REPLACE' ? words[3] : words[1];
+  return kind === 'USER' || kind === 'ROLE' || kind === 'LOGIN';
+}
 
-/** `text` with every password literal replaced by the placeholder, and how many were. */
+/** End of the quoted literal starting at `start` (the opening quote), honouring doubled quotes. */
+function literalEnd(text: string, start: number): number {
+  const q = text[start]!;
+  let i = start + 1;
+  while (i < text.length) {
+    if (text[i] === q) {
+      if (text[i + 1] === q) {
+        i += 2;
+        continue;
+      }
+      return i + 1;
+    }
+    i += 1;
+  }
+  return -1;
+}
+
+const skipSpace = (text: string, i: number) => {
+  while (i < text.length && /\s/.test(text[i]!)) i += 1;
+  return i;
+};
+
+const wordAt = (text: string, i: number, word: string) =>
+  text.slice(i, i + word.length).toUpperCase() === word && !/[\w$]/.test(text[i + word.length] ?? '');
+
+/**
+ * `text` with every password literal in an account statement replaced by
+ * the placeholder, and how many were: `PASSWORD 'x'`, `PASSWORD = N'x'`,
+ * `IDENTIFIED BY 'x'` / `"x"` / `x`, `IDENTIFIED WITH plugin BY 'x'`.
+ * A small scanner rather than regular expressions, which on this kind of
+ * input can backtrack catastrophically.
+ */
 export function scrubSecrets(text: string): { text: string; replaced: number } {
+  if (!isAccountDdl(text)) return { text, replaced: 0 };
+  let out = '';
   let replaced = 0;
-  let out = text;
-  SECRET_PATTERNS.forEach((pattern, i) => {
-    out = out.replace(pattern, (whole: string, lead: string) => {
-      const literal = whole.slice(lead.length);
-      if (literal.includes(PASSWORD_PLACEHOLDER)) return whole;
+  let i = 0;
+  while (i < text.length) {
+    const c = text[i]!;
+    // Skip string literals and quoted identifiers whole, so keywords inside them are not read.
+    if (c === "'" || c === '"') {
+      const end = literalEnd(text, i);
+      const stop = end === -1 ? text.length : end;
+      out += text.slice(i, stop);
+      i = stop;
+      continue;
+    }
+    const atWordStart = !/[\w$]/.test(text[i - 1] ?? '');
+    let valueAt = -1;
+    if (atWordStart && wordAt(text, i, 'PASSWORD')) {
+      let j = skipSpace(text, i + 'PASSWORD'.length);
+      if (text[j] === '=') j = skipSpace(text, j + 1);
+      if ((text[j] === 'N' || text[j] === 'n') && text[j + 1] === "'") j += 1;
+      if (text[j] === "'") valueAt = j;
+      if (valueAt !== -1) out += text.slice(i, valueAt);
+    } else if (atWordStart && wordAt(text, i, 'IDENTIFIED')) {
+      let j = skipSpace(text, i + 'IDENTIFIED'.length);
+      if (wordAt(text, j, 'WITH')) {
+        j = skipSpace(text, j + 4);
+        while (j < text.length && /[\w$]/.test(text[j]!)) j += 1;
+        j = skipSpace(text, j);
+      }
+      if (wordAt(text, j, 'BY') || wordAt(text, j, 'AS')) {
+        j = skipSpace(text, j + 2);
+        if ((text[j] === 'N' || text[j] === 'n') && text[j + 1] === "'") j += 1;
+        // IDENTIFIED BY PASSWORD 'hash' / BY VALUES '...' are hashes, still credentials.
+        if (wordAt(text, j, 'PASSWORD') || wordAt(text, j, 'VALUES')) {
+          const k = skipSpace(text, j + (wordAt(text, j, 'PASSWORD') ? 8 : 6));
+          if (text[k] === "'") j = k;
+        }
+        valueAt = j;
+        out += text.slice(i, valueAt);
+      }
+    }
+    if (valueAt === -1) {
+      out += c;
+      i += 1;
+      continue;
+    }
+    const q = text[valueAt];
+    let end: number;
+    let quote = '';
+    if (q === "'" || q === '"') {
+      end = literalEnd(text, valueAt);
+      if (end === -1) end = text.length;
+      quote = q;
+    } else {
+      end = valueAt;
+      while (end < text.length && !/[\s;]/.test(text[end]!)) end += 1;
+    }
+    const value = text.slice(valueAt, end);
+    if (value.includes(PASSWORD_PLACEHOLDER) || end === valueAt) {
+      out += value;
+    } else {
+      out += quote ? `${quote}${PASSWORD_PLACEHOLDER}${quote}` : PASSWORD_PLACEHOLDER;
       replaced += 1;
-      return i === 2 ? `${lead}"${PASSWORD_PLACEHOLDER}"` : i === 3 ? `${lead}${PASSWORD_PLACEHOLDER}` : `${lead}'${PASSWORD_PLACEHOLDER}'`;
-    });
-  });
+    }
+    i = end;
+  }
   return { text: out, replaced };
 }
 
+/** The contents of every single-quoted string literal in `line`. */
+function stringLiterals(line: string): string[] {
+  const out: string[] = [];
+  let i = 0;
+  while (i < line.length) {
+    if (line[i] === "'") {
+      const end = literalEnd(line, i);
+      if (end === -1) {
+        out.push(line.slice(i + 1));
+        break;
+      }
+      out.push(line.slice(i + 1, end - 1));
+      i = end;
+    } else {
+      i += 1;
+    }
+  }
+  return out;
+}
+
+const CREDENTIAL_URL = /\b[a-z][a-z0-9+.-]{0,30}:\/\/[^\s/:@'"]{1,200}:[^\s/@'"]{1,200}@/i;
+const SECRET_PAIR = /\b(?:pwd|password|passwd|secret|api[_-]?key|access[_-]?token)\s{0,5}=\s{0,5}([^\s;'"&]{3,})/i;
+
 /**
- * Lines that still look like they carry a credential after scrubbing (a
- * connection string with a password, a key=value secret). Empty when clean.
+ * Lines that still carry a credential after scrubbing: a URL with a password
+ * in it, or a `password=...`-style pair inside a string literal (a connection
+ * string). SQL that merely mentions a password column is not flagged.
  */
 export function findLeftoverSecrets(text: string): number[] {
-  const suspicious = [
-    /\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@'"]+:[^\s/@'"]+@/i, // scheme://user:pass@host
-    /\b(?:pwd|password|passwd|secret|api[_-]?key|access[_-]?token)\s*=\s*(?!['"]?<password>)['"]?[^\s;'"]{3,}/i,
-  ];
   const lines: number[] = [];
   text.split('\n').forEach((line, i) => {
     if (line.startsWith(MARK)) return;
-    if (suspicious.some((re) => re.test(line))) lines.push(i + 1);
+    const leaky = CREDENTIAL_URL.test(line) || stringLiterals(line).some((lit) => {
+      const m = SECRET_PAIR.exec(lit);
+      return !!m && !m[1]!.includes(PASSWORD_PLACEHOLDER);
+    });
+    if (leaky) lines.push(i + 1);
   });
   return lines;
 }

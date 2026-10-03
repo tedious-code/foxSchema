@@ -69,12 +69,40 @@ describe('secrets', () => {
       ["CREATE USER app IDENTIFIED BY 'p@ss';", "CREATE USER app IDENTIFIED BY '<password>';"],
       ['CREATE USER app IDENTIFIED BY "Oracle#1";', 'CREATE USER app IDENTIFIED BY "<password>";'],
       ['ALTER USER app IDENTIFIED BY Plain123;', 'ALTER USER app IDENTIFIED BY <password>;'],
-      ["CREATE LOGIN app WITH PASSWORD = N'Sql!Server1';", "CREATE LOGIN app WITH PASSWORD = '<password>';"],
+      ["CREATE LOGIN app WITH PASSWORD = N'Sql!Server1';", "CREATE LOGIN app WITH PASSWORD = N'<password>';"],
       ["CREATE USER app IDENTIFIED WITH sha256_password BY 'ch';", "CREATE USER app IDENTIFIED WITH sha256_password BY '<password>';"],
       ["ALTER USER app PASSWORD 'it''s';", "ALTER USER app PASSWORD '<password>';"],
     ];
     for (const [input, output] of cases) expect(scrubSecrets(input), input).toEqual({ text: output, replaced: 1 });
     expect(scrubSecrets("CREATE ROLE app PASSWORD '<password>';").replaced).toBe(0);
+  });
+
+  it('leaves ordinary SQL that mentions passwords exactly as written', () => {
+    const ordinary = [
+      "CREATE VIEW stale AS SELECT id FROM users WHERE password = 'changeme'",
+      "CREATE PROCEDURE reset_pw() BEGIN UPDATE users SET password = 'reset'; END",
+      "UPDATE settings SET value = 'x' WHERE name = 'password'",
+      "CREATE TABLE t (password varchar(100) DEFAULT 'none')",
+    ];
+    for (const sql of ordinary) expect(scrubSecrets(sql), sql).toEqual({ text: sql, replaced: 0 });
+    const built = buildMigrationFile(header, ordinary.map((sql, i) => ({ action: 'CREATE' as const, objectType: 'VIEW' as const, objectName: `v${i}`, statements: [sql] })));
+    expect(built.scrubbed).toBe(0);
+    expect(parseMigrationFile(built.content).steps.map((s) => s.statements[0])).toEqual(ordinary);
+  });
+
+  it('does not read keywords inside string literals or quoted names', () => {
+    expect(scrubSecrets(`CREATE USER "PASSWORD 'x'" IDENTIFIED BY 'real';`)).toEqual({
+      text: `CREATE USER "PASSWORD 'x'" IDENTIFIED BY '<password>';`,
+      replaced: 1,
+    });
+  });
+
+  it('handles hostile input in linear time', () => {
+    const hostile = 'CREATE USER a PASSWORD ' + "'".repeat(1) + "''".repeat(50000);
+    const t0 = Date.now();
+    scrubSecrets(hostile);
+    findLeftoverSecrets('x'.repeat(100000) + "'password=" + 'a'.repeat(100000));
+    expect(Date.now() - t0).toBeLessThan(1000);
   });
 
   it('commits a scrubbed plan, and says how many it scrubbed', () => {
@@ -92,7 +120,9 @@ describe('secrets', () => {
     // Where that statement lands: after the header (3 note lines here) and the step marker.
     const line = buildMigrationFile(header, [{ ...leaky[0]!, statements: ['SELECT 1;'] }]).content.split('\n').indexOf('SELECT 1;') + 1;
     expect(() => buildMigrationFile(header, leaky)).toThrow(new RegExp(`Line ${line} .*credential`));
+    expect(findLeftoverSecrets("SELECT 'Server=db;User Id=app;Password=hunter2;'")).toEqual([1]);
     expect(findLeftoverSecrets("SELECT 'api_key=abc123def'")).toEqual([1]);
     expect(findLeftoverSecrets("CREATE ROLE r PASSWORD '<password>';")).toEqual([]);
+    expect(findLeftoverSecrets("SELECT * FROM users WHERE password = 'x'")).toEqual([]);
   });
 });

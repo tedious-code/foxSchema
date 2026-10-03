@@ -99,6 +99,14 @@ describe('sign-in lockout over HTTP', () => {
   });
 });
 
+describe('a malformed session cookie', () => {
+  it('reads as signed out, not as a server error', async () => {
+    const bad = 'sid=%E0%A4%A';
+    expect(await call('GET', '/auth/me', undefined, bad)).toMatchObject({ status: 200, json: { user: null } });
+    expect((await call('GET', '/connections', undefined, bad)).status).toBe(401);
+  });
+});
+
 describe('invites over HTTP', () => {
   it('an admin invites without a password; the code signs the person up once', async () => {
     const invited = await call('POST', '/admin/users', { email: 'new@example.com', role: 'viewer' }, admin);

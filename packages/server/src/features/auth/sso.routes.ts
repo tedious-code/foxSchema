@@ -20,6 +20,27 @@ function sameText(a: string, b: string): boolean {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
+/**
+ * What the Fox sign-in service says when it sends someone back without an
+ * assertion. Only these reach the sign-in page: the `error` query is in the
+ * URL, so anyone can craft a link that carries their own words.
+ */
+const BROKER_ERRORS = new Set([
+  'Too many sign-in attempts. Try again in a few minutes.',
+  'That sign-in method is not available on the Fox sign-in service.',
+  'That sign-in method is no longer available.',
+  'Sign-in was cancelled.',
+  'The provider sent no sign-in code.',
+  'The provider did not accept the sign-in. Try again.',
+  'Google did not return an email address.',
+  'Google has not verified this email address.',
+  'Your GitHub account has no verified primary email address.',
+]);
+
+export function brokerErrorMessage(error: string): string {
+  return BROKER_ERRORS.has(error) ? error : 'The Fox sign-in service could not sign you in. Start the sign-in again.';
+}
+
 /** The callback path segment for sign-ins through the Fox sign-in service. */
 export const BROKER_CALLBACK = 'broker';
 
@@ -98,7 +119,7 @@ export function createSsoRoutes(
       const state = typeof req.query.state === 'string' ? req.query.state : '';
       const [nonce = '', kind = ''] = (readCookie(req, STATE_COOKIE) ?? '').split('.');
       clearCookie(res, STATE_COOKIE, { path: STATE_PATH });
-      if (error) throw new Error(error);
+      if (error) throw new Error(brokerErrorMessage(error));
       if (!assertion || !state || !nonce || kind !== 'broker' || !sameText(state, nonce)) {
         throw new Error('Invalid or expired SSO state. Start the sign-in again.');
       }

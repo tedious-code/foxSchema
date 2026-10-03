@@ -7,22 +7,39 @@ beforeAll(() => {
 });
 
 describe('password hashing', () => {
-  it('verifies a correct password', () => {
-    const stored = hashPassword('s3cret-pass');
-    expect(verifyPassword('s3cret-pass', stored)).toBe(true);
+  it('verifies a correct password', async () => {
+    const stored = await hashPassword('s3cret-pass');
+    expect(await verifyPassword('s3cret-pass', stored)).toBe(true);
   });
 
-  it('rejects a wrong password', () => {
-    const stored = hashPassword('s3cret-pass');
-    expect(verifyPassword('wrong', stored)).toBe(false);
+  it('rejects a wrong password', async () => {
+    const stored = await hashPassword('s3cret-pass');
+    expect(await verifyPassword('wrong', stored)).toBe(false);
   });
 
-  it('produces a different hash each time (random salt)', () => {
-    expect(hashPassword('same')).not.toEqual(hashPassword('same'));
+  it('produces a different hash each time (random salt)', async () => {
+    expect(await hashPassword('same')).not.toEqual(await hashPassword('same'));
   });
 
-  it('rejects a malformed stored hash', () => {
-    expect(verifyPassword('x', 'not-a-valid-hash')).toBe(false);
+  it('rejects a malformed stored hash', async () => {
+    expect(await verifyPassword('x', 'not-a-valid-hash')).toBe(false);
+  });
+
+  it('hashes off the event loop, so other work runs meanwhile', async () => {
+    let otherWorkRan = false;
+    const hashing = hashPassword('s3cret-pass').then(() => otherWorkRan);
+    setImmediate(() => {
+      otherWorkRan = true;
+    });
+    expect(await hashing).toBe(true);
+  });
+
+  it('still verifies a hash written by the synchronous version', async () => {
+    // The format is unchanged: scrypt$<salt hex>$<64-byte key hex>.
+    const { scryptSync } = await import('node:crypto');
+    const salt = Buffer.alloc(16, 7);
+    const legacy = `scrypt$${salt.toString('hex')}$${scryptSync('s3cret-pass', salt, 64).toString('hex')}`;
+    expect(await verifyPassword('s3cret-pass', legacy)).toBe(true);
   });
 });
 

@@ -38,9 +38,10 @@ function validateCredentials(email: string, password: string): void {
 /**
  * Checked against when the email has no account, so a wrong email costs the
  * same scrypt time as a wrong password and response time does not reveal
- * which emails exist.
+ * which emails exist. Made once, on the first sign-in.
  */
-const DUMMY_HASH = hashPassword(randomUUID());
+let dummyHash: Promise<string> | undefined;
+const dummy = () => (dummyHash ??= hashPassword(randomUUID()));
 
 /** Thrown when an account is locked after too many failed sign-ins. */
 export class SignInLockedError extends Error {
@@ -124,7 +125,7 @@ export class AuthModule {
   async createUser(email: string, password: string, role: AppRole): Promise<AuthUser> {
     const normalized = (email ?? '').trim().toLowerCase();
     validateCredentials(normalized, password);
-    return this.insertUser(normalized, hashPassword(password), role, true);
+    return this.insertUser(normalized, await hashPassword(password), role, true);
   }
 
   /**
@@ -135,7 +136,7 @@ export class AuthModule {
     const normalized = (email ?? '').trim().toLowerCase();
     assertEmail(normalized);
     // A password nobody knows until the invite is redeemed.
-    const user = await this.insertUser(normalized, hashPassword(randomUUID()), role, false);
+    const user = await this.insertUser(normalized, await hashPassword(randomUUID()), role, false);
     return { user, invite: await this.issueCode(user.id, 'invite') };
   }
 
@@ -235,7 +236,7 @@ export class AuthModule {
       throw new Error('This code is wrong or has expired. Ask for a new one.');
     }
     await store.run('UPDATE users SET password_hash = ?, password_set = 1 WHERE id = ?', [
-      hashPassword(password),
+      await hashPassword(password),
       found.user_id,
     ]);
     await store.run('DELETE FROM sessions WHERE user_id = ?', [found.user_id]);
@@ -304,13 +305,13 @@ export class AuthModule {
       onboarded = local.onboarding_completed;
       await store.run(
         "UPDATE users SET email = ?, password_hash = ?, app_role = 'admin', active = 1, password_set = 1 WHERE id = ?",
-        [normalized, hashPassword(password), id]
+        [normalized, await hashPassword(password), id]
       );
     } else {
       id = randomUUID();
       await store.run(
         "INSERT INTO users (id, email, password_hash, created_at, app_role, password_set) VALUES (?, ?, ?, ?, 'admin', 1)",
-        [id, normalized, hashPassword(password), new Date().toISOString()]
+        [id, normalized, await hashPassword(password), new Date().toISOString()]
       );
     }
     const user = await this.toAuthUser({ id, email: normalized, onboarding_completed: onboarded, app_role: 'admin' });
@@ -330,7 +331,7 @@ export class AuthModule {
 
     // Same error, and the same scrypt time, whether the email or the password
     // is wrong (no account enumeration).
-    const matches = verifyPassword(password ?? '', row?.password_hash ?? DUMMY_HASH);
+    const matches = await verifyPassword(password ?? '', row?.password_hash ?? (await dummy()));
     if (!row || !matches) {
       recordFailure(normalized);
       throw new Error('Invalid email or password.');
@@ -352,7 +353,7 @@ export class AuthModule {
     if (!exists) throw new Error('User not found.');
     assertPasswordAcceptable(password, exists.email);
     await store.run('UPDATE users SET password_hash = ?, password_set = 1 WHERE id = ?', [
-      hashPassword(password),
+      await hashPassword(password),
       userId,
     ]);
     await store.run('DELETE FROM sessions WHERE user_id = ?', [userId]);
@@ -403,7 +404,7 @@ export class AuthModule {
     const email = bound || LEGACY_LOCAL_EMAIL;
     await store.run(
       "INSERT INTO users (id, email, password_hash, created_at, app_role) VALUES (?, ?, ?, ?, 'admin')",
-      [id, email, hashPassword(randomUUID()), new Date().toISOString()]
+      [id, email, await hashPassword(randomUUID()), new Date().toISOString()]
     );
     return this.toAuthUser({ id, email, onboarding_completed: 0, app_role: 'admin' });
   }

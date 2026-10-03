@@ -184,6 +184,13 @@ describe('remote access', () => {
       true
     );
     await expect(guarded.fetch(byName.id)).rejects.toThrow(/resolves to a private address/);
+    // 127.0.0.1 spelled as an IPv4-mapped IPv6 literal skips DNS; still refused.
+    const mapped = await store.create(
+      { name: 'Mapped', remoteUrl: server.url.replace('127.0.0.1', '[::ffff:7f00:1]'), defaultBranch: 'main', token: server.token },
+      'user-1',
+      true
+    );
+    await expect(guarded.fetch(mapped.id)).rejects.toThrow(/private address/);
     await expect(service.fetch(byName.id)).resolves.toBeTruthy();
     const httpsOnly = new GitRepoService(store, { ...POLICY, allowInsecureHttp: false }, dataDir);
     await expect(httpsOnly.fetch(id)).rejects.toThrow(/https/);

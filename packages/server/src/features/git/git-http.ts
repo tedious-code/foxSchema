@@ -67,19 +67,51 @@ export function isPrivateAddress(address: string): boolean {
     });
   }
   if (family === 6) {
-    const a = address.toLowerCase();
-    const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(a);
-    if (mapped) return isPrivateAddress(mapped[1]!);
+    const h = ipv6Hextets(address);
+    if (!h) return true;
+    const v4 = (hi: number, lo: number) => `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+    const zeroUntil = (n: number) => h.slice(0, n).every((x) => x === 0);
+    if (h.every((x) => x === 0)) return true; // ::
+    if (zeroUntil(7) && h[7] === 1) return true; // ::1, in any spelling
+    // IPv4 inside IPv6 reaches the IPv4 address: judge that address.
+    if (zeroUntil(5) && h[5] === 0xffff) return isPrivateAddress(v4(h[6]!, h[7]!)); // ::ffff:a.b.c.d mapped
+    if (zeroUntil(6)) return isPrivateAddress(v4(h[6]!, h[7]!)); // ::a.b.c.d compatible
+    if (h[0] === 0x64 && h[1] === 0xff9b && h.slice(2, 6).every((x) => x === 0)) return isPrivateAddress(v4(h[6]!, h[7]!)); // NAT64
+    if (h[0] === 0x2002) return isPrivateAddress(v4(h[1]!, h[2]!)); // 6to4
+    const first = h[0]!;
     return (
-      a === '::' ||
-      a === '::1' ||
-      a.startsWith('fc') ||
-      a.startsWith('fd') || // unique local fc00::/7
-      /^fe[89ab]/.test(a) || // link-local fe80::/10
-      a.startsWith('ff') // multicast
+      (first & 0xfe00) === 0xfc00 || // unique local fc00::/7
+      (first & 0xffc0) === 0xfe80 || // link-local fe80::/10
+      (first & 0xffc0) === 0xfec0 || // site-local fec0::/10 (deprecated)
+      (first & 0xff00) === 0xff00 // multicast ff00::/8
     );
   }
   return true; // not an IP at all: refuse rather than guess
+}
+
+/**
+ * An IPv6 address as eight 16-bit numbers, whatever its spelling: compressed
+ * or full, any case, with an embedded dotted IPv4 tail, or a zone id. Null
+ * when it does not parse. Comparing strings ("::1") misses `0:0:0:0:0:0:0:1`
+ * and `::ffff:7f00:1`, which reach the same hosts.
+ */
+export function ipv6Hextets(address: string): number[] | null {
+  let a = address.toLowerCase().replace(/^\[|\]$/g, '').replace(/%.*$/, '');
+  const dotted = /(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(a);
+  if (dotted) {
+    const o = dotted.slice(1).map(Number);
+    if (o.some((n) => n > 255)) return null;
+    a = a.slice(0, dotted.index) + ((o[0]! << 8) | o[1]!).toString(16) + ':' + ((o[2]! << 8) | o[3]!).toString(16);
+  }
+  const halves = a.split('::');
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(':') : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  const missing = 8 - head.length - tail.length;
+  if (halves.length === 1 ? missing !== 0 : missing < 1) return null;
+  const parts = [...head, ...Array(halves.length === 2 ? missing : 0).fill('0'), ...tail];
+  if (parts.length !== 8 || parts.some((p) => !/^[0-9a-f]{1,4}$/.test(p))) return null;
+  return parts.map((p) => parseInt(p, 16));
 }
 
 /** A DNS lookup that refuses non-public addresses when the policy says so. */

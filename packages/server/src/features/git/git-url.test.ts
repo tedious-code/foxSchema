@@ -54,7 +54,26 @@ describe('private addresses', () => {
       expect(isPrivateAddress(a), a).toBe(true);
   });
 
+  it('sees through other spellings of the same IPv6 addresses', () => {
+    for (const a of [
+      '0:0:0:0:0:0:0:1', // loopback, written out
+      '0000:0000:0000:0000:0000:0000:0000:0001',
+      '::ffff:7f00:1', // 127.0.0.1 mapped, in hex
+      '::ffff:a9fe:a9fe', // 169.254.169.254 (cloud metadata) mapped, in hex
+      '0:0:0:0:0:ffff:10.0.0.1',
+      '::10.0.0.1', // IPv4-compatible
+      '64:ff9b::a9fe:a9fe', // NAT64 to the metadata address
+      '2002:7f00:1::', // 6to4 of 127.0.0.1
+      'FE80::1%en0',
+      '[::1]',
+      'fec0::1',
+      'not-an-ip',
+    ])
+      expect(isPrivateAddress(a), a).toBe(true);
+  });
+
   it('allows public addresses', () => {
-    for (const a of ['140.82.112.3', '8.8.8.8', '172.32.0.1', '2606:50c0:8000::153']) expect(isPrivateAddress(a), a).toBe(false);
+    for (const a of ['140.82.112.3', '8.8.8.8', '172.32.0.1', '2606:50c0:8000::153', '::ffff:8c52:7003', '2002:8c52:7003::1', '64:ff9b::808:808'])
+      expect(isPrivateAddress(a), a).toBe(false);
   });
 });

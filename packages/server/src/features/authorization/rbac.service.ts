@@ -208,7 +208,49 @@ const BACKFILL_RULES: Array<{
   },
 ];
 
+/**
+ * One-time grants for permissions added after roles may have been saved.
+ *
+ * Unlike BACKFILL_RULES (re-checked on every boot), each runs once per
+ * install, recorded in app_settings, so an admin who later removes the
+ * permission from a role does not see it come back on the next restart.
+ */
+const ONE_TIME_GRANTS: Array<{
+  key: string;
+  perms: Permission[];
+  when: (granted: Set<string>) => boolean;
+}> = [
+  {
+    // Migrations in Git (#450): roles that could already look at schemas may
+    // look at the repositories migrations are committed to.
+    key: 'rbac.grant.git.view',
+    perms: ['git.view'],
+    when: (p) => p.has('schema.browse') || p.has('schema.compare'),
+  },
+];
+
+async function applyOneTimeGrants(store: MetadataStore): Promise<void> {
+  for (const grant of ONE_TIME_GRANTS) {
+    const done = await store.get<{ value: string | null }>('SELECT "value" FROM app_settings WHERE "key" = ?', [grant.key]);
+    if (done?.value === 'done') continue;
+    for (const role of APP_ROLES) {
+      if (role === 'admin') continue;
+      const rows = await store.all<{ permission: string }>('SELECT permission FROM role_permissions WHERE role = ?', [role]);
+      if (rows.length === 0) continue; // unseeded → defaults (which include it) apply on read
+      const perms = new Set(rows.map((r) => r.permission));
+      if (perms.size === 1 && perms.has(EMPTY_ROLE_PERMISSIONS_SENTINEL)) continue;
+      if (!grant.when(perms)) continue;
+      for (const p of grant.perms) {
+        if (perms.has(p) || !DEFAULT_ROLE_PERMISSIONS[role].includes(p)) continue;
+        await store.run('INSERT INTO role_permissions (role, permission) VALUES (?, ?)', [role, p]);
+      }
+    }
+    await store.upsert('app_settings', ['key'], { key: grant.key, value: 'done', updated_at: new Date().toISOString() }, ['value', 'updated_at']);
+  }
+}
+
 export async function backfillDatagridRolePermissions(store: MetadataStore): Promise<void> {
+  await applyOneTimeGrants(store);
   for (const role of APP_ROLES) {
     if (role === 'admin') continue;
     const rows = await store.all<{ permission: string }>(

@@ -1,14 +1,17 @@
 /**
  * Access Assistant · all configured dialects.
  *
- * Non-destructive: loads user catalog, opens Permission Builder / Diff tabs,
- * verifies SQL preview renders for richer grant scopes.
+ * Non-destructive: loads the user catalog, previews GRANT SQL from the
+ * Principals → Grants stage and the Permission Diff tab, and DENY on the SQL
+ * Server family. Fox Schema generates this SQL; nothing here applies it.
  */
 import { describe, it, beforeAll, beforeEach, afterAll, afterEach, expect } from 'vitest';
 import type { Page } from 'playwright';
 import { buildDriver, quitDriver } from '../helpers/driver.js';
 import { getSourceConfig, hasConfig } from '../helpers/db-config.js';
+import { clickRateLimited } from '../helpers/rate-limited.js';
 import { saveScreenshot } from '../helpers/screenshot.js';
+import { byTestId } from '../helpers/test-ids.js';
 import { deleteSavedConnections } from '../helpers/sql-exec.js';
 import { AppPage } from '../pages/AppPage.js';
 import { SqlEditorPage } from '../pages/SqlEditorPage.js';
@@ -249,9 +252,7 @@ describe.skipIf(configured.length === 0)('Access Assistant (all configured diale
           `${dialect}: Permission Diff produced neither a comparison nor an answer within 150s`
         ).toBe(true);
 
-        const failed = driver.locator(
-          '[data-testid="diff-load-error"]'
-        );
+        const failed = driver.locator('[data-testid="diff-load-error"]');
         if ((await failed.count()) > 0) {
           // A container that is down, or a catalog this account cannot read,
           // says so. Anything else is the diff itself being broken.
@@ -283,6 +284,93 @@ describe.skipIf(configured.length === 0)('Access Assistant (all configured diale
 
         await saveScreenshot(driver, `access-diff-${dialect}`);
       }, 200_000);
+
+      it('Principals → Grants previews GRANT SQL for a preset', async () => {
+        if (!SUPPORTS_GRANT_BUILDER.includes(dialect)) return;
+
+        await driver.locator(byTestId('access-tab-permission')).click();
+        await driver.waitForSelector(byTestId('access-permission-panel'), { timeout: 15_000 });
+        await selectConnection(dialect);
+        // Wait for the load to finish (Reload is enabled again) and an answer:
+        // rows, or why there are none.
+        const settle = () =>
+          driver.waitForFunction(
+            () => {
+              const reload = document.querySelector('[data-testid="access-permission-reload"]');
+              if (!(reload instanceof HTMLButtonElement) || reload.disabled) return false;
+              return (
+                document.querySelector('[data-testid^="access-permission-row-"]') !== null ||
+                document.querySelector('[data-testid="access-permission-unsupported"]') !== null ||
+                document.querySelector('[data-testid="access-permission-error"]') !== null
+              );
+            },
+            undefined,
+            { timeout: 120_000 }
+          );
+        await settle();
+        const rows = driver.locator('[data-testid^="access-permission-row-"]');
+        if ((await rows.count()) === 0) {
+          // The catalog read is limited to 20 a minute, and this suite reads it
+          // three times per engine. Read again, waiting out a refusal.
+          await clickRateLimited(driver, {
+            click: () => driver.locator(byTestId('access-permission-reload')).click(),
+            path: /^\/api\/schema\/db-access$/,
+            label: 'Principals reload',
+            returnErrors: true,
+          });
+          await settle();
+        }
+        if ((await rows.count()) === 0) {
+          const said = await driver.locator(byTestId('access-permission-panel')).innerText();
+          expect.fail(`${dialect}: no users or roles to grant to. The panel said: ${said.slice(0, 400)}`);
+        }
+        await rows.first().click();
+
+        await driver.locator(byTestId('access-permission-stage-grants')).click();
+        await driver.locator(byTestId('access-grants-preset-read-only')).click();
+        // The preset ticks SELECT on the schema's objects once they are read;
+        // a principal that already has them gets "matches the live catalog".
+        // A statement starts a line: the empty placeholder ("Tick objects and
+        // privileges to generate GRANT SQL.") says GRANT too.
+        const settled = await driver
+          .waitForFunction(
+            () =>
+              /^(GRANT|REVOKE)\s|matches the live catalog/im.test(
+                document.querySelector('[data-testid="access-grants-sql"] pre')?.textContent ?? ''
+              ),
+            undefined,
+            { timeout: 60_000 }
+          )
+          .then(() => true)
+          .catch(() => false);
+        const sql = await driver.locator(`${byTestId('access-grants-sql')} pre`).innerText();
+        expect(settled, `${dialect}: the read-only preset produced no SQL: ${sql}`).toBe(true);
+        await saveScreenshot(driver, `access-grants-${dialect}`);
+      }, 200_000);
+
+      if (dialect === 'sqlserver' || dialect === 'azuresql') {
+        it('Permission Diff writes DENY for the SQL Server family', async () => {
+          await driver.locator(byTestId('access-tab-diff')).click();
+          await driver.waitForSelector(byTestId('permission-diff'), { timeout: 15_000 });
+          await selectConnection(dialect);
+          await driver.locator(byTestId('diff-principal-name')).fill('report_user');
+          await driver.locator(byTestId('diff-action-0-deny')).click();
+          const schema = driver.locator(byTestId('diff-schema-0'));
+          if ((await schema.count()) > 0) await schema.fill(getSourceConfig(dialect)!.schema || 'dbo');
+          await driver.locator(byTestId('diff-load-catalog')).click();
+
+          const denied = await driver
+            .waitForFunction(
+              () => /\bDENY\b/.test(document.querySelector('[data-testid="diff-sql-preview"]')?.textContent ?? ''),
+              undefined,
+              { timeout: 150_000 }
+            )
+            .then(() => true)
+            .catch(() => false);
+          const preview = await driver.locator(byTestId('diff-sql-preview')).innerText().catch(() => '(no SQL preview)');
+          expect(denied, `${dialect}: a Deny row produced no DENY: ${preview}`).toBe(true);
+        }, 200_000);
+      }
     });
   }
 });

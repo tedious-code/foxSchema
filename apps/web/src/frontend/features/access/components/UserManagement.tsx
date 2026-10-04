@@ -317,6 +317,13 @@ export const UserManagement: React.FC<{
     () => principals.filter((p) => p.kind !== 'user').map((p) => ({ value: p.name, hint: 'role' })),
     [principals]
   );
+  /** The roles the account being edited is in now, as the catalog lists them. */
+  const currentRoles = useMemo(() => selected?.memberOf ?? [], [selected]);
+  // Opening "Roles it belongs to" starts from those roles, ticked — an
+  // existing account's memberships must not look empty.
+  useEffect(() => {
+    if (mode === 'edit' && alteration === 'membership') setMemberRoles([...currentRoles]);
+  }, [mode, alteration, currentRoles]);
 
   const action: UserAction =
     mode === 'add' ? 'create' : mode === 'drop' ? 'drop' : mode === 'edit' ? 'alter' : 'create';
@@ -334,8 +341,15 @@ export const UserManagement: React.FC<{
       host: isMysqlFamily ? host : undefined,
       cascade,
       roles: action === 'create' ? memberRoles : undefined,
+      // Editing memberships sends the difference from what the account is in now.
+      ...(action === 'alter' && alteration === 'membership'
+        ? {
+            rolesToAdd: memberRoles.filter((r) => !currentRoles.includes(r)),
+            rolesToRemove: currentRoles.filter((r) => !memberRoles.includes(r)),
+          }
+        : {}),
     }),
-    [action, principalType, name, newName, alteration, validUntil, host, isMysqlFamily, cascade, memberRoles]
+    [action, principalType, name, newName, alteration, validUntil, host, isMysqlFamily, cascade, memberRoles, currentRoles]
   );
 
   const generated = useMemo(() => {
@@ -1262,6 +1276,22 @@ export const UserManagement: React.FC<{
                       This engine has no edit actions for this account type. Use Drop, or manage it
                       outside Fox Schema.
                     </p>
+                  )}
+
+                  {mode === 'edit' && alteration === 'membership' && (
+                    <Field
+                      label="Roles and groups it belongs to"
+                      hint="Ticked: it is a member now. Tick to join, untick to leave; only the changes become SQL."
+                    >
+                      <ObjectPicker
+                        label="Roles and groups"
+                        testId="user-membership"
+                        items={roleOptions.map((o) => o.value).filter((v) => v !== selected?.name)}
+                        selected={memberRoles}
+                        onChange={setMemberRoles}
+                        emptyHint="No roles or groups listed for this connection."
+                      />
+                    </Field>
                   )}
 
                   {mode === 'edit' && alteration === 'rename' && support.canRename && (

@@ -412,7 +412,8 @@ export const AccessPermissionPanel: React.FC<{
             </div>
           </aside>
 
-          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          {/* min-w-0: a flex item is otherwise as wide as its widest content, so a wide grid pushed this pane past the window instead of scrolling inside it. */}
+          <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
             {selected && (
               <header className="shrink-0 px-4 pt-3 pb-1 border-b border-slate-800/80">
                 <div className="flex flex-wrap items-center gap-2">

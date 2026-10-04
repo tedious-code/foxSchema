@@ -345,15 +345,17 @@ describe.skipIf(configured.length === 0)('Access Assistant (all configured diale
           .then(() => true)
           .catch(() => false);
         expect(loaded, `${dialect}: the grid never listed any objects`).toBe(true);
+        // Before any preset: the grid shows what this principal holds now.
+        await saveScreenshot(driver, `access-grants-held-${dialect}`);
         await driver.locator(byTestId('access-grants-preset-read-only')).click();
-        // The preset ticks SELECT on the schema's objects once they are read;
-        // a principal that already has them gets "matches the live catalog".
-        // A statement starts a line: the empty placeholder ("Tick objects and
-        // privileges to generate GRANT SQL.") says GRANT too.
+        // The grid opens on what the principal holds; the preset makes every
+        // object SELECT-only, so the SQL grants what is missing and revokes
+        // what goes beyond it — or says there is nothing to change. A
+        // statement starts a line: the placeholder text says "grant" too.
         const settled = await driver
           .waitForFunction(
             () =>
-              /^(GRANT|REVOKE)\s|matches the live catalog/im.test(
+              /^(GRANT|REVOKE)\s|Nothing to change/m.test(
                 document.querySelector('[data-testid="access-grants-sql"] pre')?.textContent ?? ''
               ),
             undefined,

@@ -452,6 +452,9 @@ export {
   GRID_COLUMNS,
   cellSupport,
   compileObjectGrid,
+  compileGridChanges,
+  gridObjectKey,
+  heldGridPermissions,
   expandToInstance,
   accessStatementPlace,
   qualifyDatabaseSql,
@@ -459,6 +462,7 @@ export {
   prunedPermissions,
   type CellSupport,
   type CompileGridOptions,
+  type GridChanges,
   type GridObjectKind,
   type GridRow,
 } from './modules/access/object-grid.js';

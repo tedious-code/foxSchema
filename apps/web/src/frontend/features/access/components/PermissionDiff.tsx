@@ -379,10 +379,10 @@ export const PermissionDiff: React.FC<{
                   {diff.summary.match} match
                 </span>
                 <span className="rounded px-2 py-0.5 border border-amber-500/30 text-amber-200">
-                  {diff.summary.missing} missing
+                  {diff.summary.missing} missing — will be granted
                 </span>
                 <span className="rounded px-2 py-0.5 border border-rose-500/30 text-rose-200">
-                  {diff.summary.extra} extra
+                  {diff.summary.extra} extra — will be revoked
                 </span>
               </div>
 

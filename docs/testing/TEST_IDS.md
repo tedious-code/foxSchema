@@ -13,14 +13,15 @@ Every control has a test ID: **924** buttons, text boxes, selects and textareas.
 ## access
 
 - **AccessGrantsStage** · `features/access/components/AccessGrantsStage.tsx`
+  - `access-grants-change-{action}` · li
   - `access-grants-copy` · button · Copy
   - `access-grants-diff` · ul
   - `access-grants-mode` · div in Segmented
   - `access-grants-mode-{value}` · button in Segmented
   - `access-grants-open-sql` · button · Open in SQL Editor
   - `access-grants-preset-{p}` · button
-  - `access-grants-preset-clear` · button · Custom
   - `access-grants-presets` · div
+  - `access-grants-reset` · button · Reset to current
   - `access-grants-sql` · div · Grant SQL
   - `access-grants-stage` · div · Grant SQL
 - **AccessPermissionPanel** · `features/access/components/AccessPermissionPanel.tsx`
@@ -179,11 +180,12 @@ Every control has a test ID: **924** buttons, text boxes, selects and textareas.
   - `matrix-add-section-{k}` · button
   - `matrix-cell-{id}-{permission}` · input
   - `matrix-col-{kind}-{permission}` · button
-  - `matrix-name-{id}` · input
+  - `matrix-legend` · div
+  - `matrix-name-{id}` · span
   - `matrix-name-{id}-option-{value}` · button in Autocomplete
   - `matrix-name-{id}-toggle` · button in Autocomplete
   - `matrix-remove-{id}` · button · Remove this row
-  - `matrix-row-all-{id}` · button · All / none:
+  - `matrix-row-all-{id}` · button · All
   - `matrix-schema-{id}` · span · Schema this object belongs to
   - `matrix-section-{kind}` · div
   - `matrix-summary` · div
@@ -247,6 +249,10 @@ Every control has a test ID: **924** buttons, text boxes, selects and textareas.
   - `user-member-of-filter` · input in ObjectPicker · Search…
   - `user-member-of-item-{name}` · input in ObjectPicker
   - `user-member-of-list` · div in ObjectPicker
+  - `user-membership` · div in ObjectPicker
+  - `user-membership-filter` · input in ObjectPicker · Search…
+  - `user-membership-item-{name}` · input in ObjectPicker
+  - `user-membership-list` · div in ObjectPicker
   - `user-name` · input
   - `user-name-option-{value}` · button in Autocomplete
   - `user-name-toggle` · button in Autocomplete

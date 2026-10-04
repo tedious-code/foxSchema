@@ -263,6 +263,26 @@ describe('AccessView — User Management list + Builder handoff', () => {
     expect(screen.getByTestId('user-sql').textContent).toMatch(/passwd -u report_user/i);
   });
 
+  it('shows an existing account’s roles ticked, and turns changes into GRANT and REVOKE', async () => {
+    render(<AccessView />);
+    fireEvent.click(screen.getByTestId('access-tab-users'));
+    fireEvent.change(screen.getByTestId('access-connection'), { target: { value: 'c1' } });
+    await waitFor(() => expect(screen.getByTestId('user-row-alice')).toBeTruthy());
+
+    fireEvent.click(screen.getByTestId('user-row-alice'));
+    fireEvent.click(screen.getByTestId('user-edit-selected'));
+    fireEvent.click(screen.getByTestId('user-alteration-membership'));
+    const readonly = screen.getByTestId('user-membership-item-readonly') as HTMLInputElement;
+    expect(readonly.checked).toBe(true);
+    // Nothing changed yet, so nothing to run — and it says so.
+    expect(screen.queryByTestId('user-sql')).toBeNull();
+    expect(screen.getByTestId('user-error').textContent).toMatch(/Nothing to change/);
+
+    fireEvent.click(readonly);
+    expect(screen.getByTestId('user-sql').textContent).toMatch(/REVOKE "readonly" FROM "alice";/);
+    expect(screen.getByTestId('user-sql').textContent).not.toMatch(/GRANT/);
+  });
+
   it('hands off Grant access from a selected list row', async () => {
     render(<AccessView />);
     fireEvent.click(screen.getByTestId('access-tab-users'));

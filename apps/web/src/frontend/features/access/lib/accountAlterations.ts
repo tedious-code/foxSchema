@@ -27,6 +27,7 @@ export const ALTERATION_LABEL: Record<UserAlteration, string> = {
   disable: 'Disable login',
   enable: 'Enable login',
   expire: 'Expire password / account',
+  membership: 'Roles it belongs to',
 };
 
 /**
@@ -48,6 +49,8 @@ export function availableAlterations(
   if (support.canExpire && principalType === 'user') {
     opts.push('expire');
   }
+  // Where roles exist, any account can join and leave them.
+  if (support.canCreateRole) opts.push('membership');
   return opts;
 }
 

@@ -188,6 +188,26 @@ export {
   lookupIndexSizeRow,
 } from './modules/utilities/dba-utilities.js';
 export { dbaPrivilegeRemedy } from './modules/utilities/dba-utility-remedy.js';
+export {
+  BACKUP_SCOPES,
+  backupSupport,
+  defaultBackupSettings,
+  normalizeBackupSettings,
+  backupFileName,
+  parseTableList,
+  buildBackupCommands,
+} from './modules/utilities/backup.js';
+export type {
+  BackupCommands,
+  BackupConnection,
+  BackupDialect,
+  BackupFolder,
+  BackupFormatOption,
+  BackupRequest,
+  BackupRunsOn,
+  BackupScope,
+  BackupSettings,
+} from './modules/utilities/backup.js';
 export type {
   DbaProbeMode,
   DbaUtilityKind,

@@ -164,6 +164,8 @@ const ROUTES: RouteExpectation[] = [
   { method: 'POST', path: '/api/sql/execute', status: 400 },
   { method: 'POST', path: '/api/updates/apply', status: 403 },
   { method: 'GET', path: '/api/updates/check', status: 200 },
+  { method: 'GET', path: '/api/backup-settings', status: 200 },
+  { method: 'PUT', path: '/api/backup-settings/:dialect', status: 400 },
   { method: 'GET', path: '/api/user/preferences', status: 200 },
   { method: 'PUT', path: '/api/user/preferences', status: 200 },
 ];
@@ -270,7 +272,7 @@ describe('HTTP contract', () => {
       // 111 -> 112: who changed a Git repository (/api/git/repos/:id/activity).
       //
       // 112 -> 113: sign out other sessions (/api/auth/sign-out-others).
-      expect(ROUTES.length).toBe(113);
+      expect(ROUTES.length).toBe(115);
       expect(new Set(ROUTES.map((r) => `${r.method} ${r.path}`)).size).toBe(ROUTES.length);
     });
 

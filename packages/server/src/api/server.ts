@@ -34,6 +34,7 @@ import { makeConnectionResolver } from '../platform/db/resolve';
 import { createConnectionStoreRoutes } from '../features/connections/connections.routes';
 import { createAppSecretsRoutes } from '../features/admin/app-secrets.routes';
 import { createUserRoutes } from '../features/users/user.routes';
+import { createBackupSettingsRoutes } from '../features/backup/backup-settings.routes';
 import { createAdminRoutes } from '../features/admin/admin.routes';
 import { createSignupRoutes } from '../features/users/signup-wizard.routes';
 import { createFileQueryRoutes } from '../features/files/files.routes';
@@ -91,6 +92,7 @@ export function buildApiRoutes(): RouteDefinition[] {
   root.use('/api/connections', userGuard, createConnectionStoreRoutes(connectionStore));
   root.use('/api/app-secrets', userGuard, createAppSecretsRoutes(new AppSecretsStore()));
   root.use('/api/user', userGuard, createUserRoutes(new UserModule()));
+  root.use('/api/backup-settings', userGuard, createBackupSettingsRoutes());
   root.use('/api/admin/sign-in', userGuard, createSignInSettingsRoutes());
   root.use('/api/admin', userGuard, createAdminRoutes());
   root.use('/api/git', userGuard, createGitRoutes(makeConnectionResolver(connectionModule, connectionStore).resolveRef));

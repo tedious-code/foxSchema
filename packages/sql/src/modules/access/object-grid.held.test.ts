@@ -72,6 +72,18 @@ describe('heldGridPermissions', () => {
     expect(held.size).toBe(0);
   });
 
+  it('matches a schema-qualified grant to a catalog row that has no schema', () => {
+    const held = heldGridPermissions([priv('SELECT', 'shop', 'orders')], [{ schema: '', kind: 'table', name: 'orders' }], 'mysql');
+    expect(held.get(gridObjectKey({ schema: '', kind: 'table', name: 'orders' }))).toEqual(['read']);
+  });
+
+  it('keys a schema-less row with the grid’s fallback schema, as the grid looks it up', () => {
+    const held = heldGridPermissions([priv('SELECT', 'shop', 'orders')], [{ schema: '', kind: 'table', name: 'orders' }], 'mysql', 'shop');
+    expect(held.get(gridObjectKey({ schema: 'shop', kind: 'table', name: 'orders' }))).toEqual(['read']);
+    // A known schema that disagrees is a different table.
+    expect(heldGridPermissions([priv('SELECT', 'other', 'orders')], [{ schema: '', kind: 'table', name: 'orders' }], 'mysql', 'shop').size).toBe(0);
+  });
+
   it('matches a grant without a schema by name, in every schema that has the object', () => {
     const held = heldGridPermissions([priv('SELECT', null, 'orders')], objects, 'mysql');
     expect(held.get(gridObjectKey(objects[0]!))).toEqual(['read']);

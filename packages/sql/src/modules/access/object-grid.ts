@@ -353,27 +353,34 @@ const EVERY_PRIVILEGE = new Set(['ALL', 'ALL PRIVILEGES', 'CONTROL']);
  * schema-wide or database-wide grant is a different scope, and a privilege the
  * grid has no column for is not this grid's to display or to revoke. DENY rows
  * are not held. `privileges` is expected to be this principal's already.
+ * `fallbackSchema` is the one the grid gives a row with none of its own, so
+ * the keys here are the keys the grid looks up.
  */
 export function heldGridPermissions(
   privileges: readonly DbPrivilege[],
   objects: readonly { schema?: string | null; kind: GridObjectKind; name: string }[],
-  dialect: string
+  dialect: string,
+  fallbackSchema = ''
 ): Map<string, AccessPermission[]> {
   // A privilege row names schema and object; the grid knows the kind. Rows
   // whose schema is not reported (MySQL's by-name grants) match on name alone.
-  const byName = new Map<string, { schema?: string | null; kind: GridObjectKind; name: string }[]>();
+  const byName = new Map<string, { schema: string; kind: GridObjectKind; name: string }[]>();
   for (const o of objects) {
     const n = o.name.trim().toLowerCase();
-    byName.set(n, [...(byName.get(n) ?? []), o]);
+    byName.set(n, [...(byName.get(n) ?? []), { ...o, schema: o.schema?.trim() || fallbackSchema }]);
   }
   const held = new Map<string, AccessPermission[]>();
   for (const p of privileges) {
     if (p.state === 'deny' || !p.objectName) continue;
     const privilege = (p.privilege || '').trim().toUpperCase();
     const schema = (p.objectSchema ?? '').trim().toLowerCase();
-    const candidates = (byName.get(p.objectName.trim().toLowerCase()) ?? []).filter(
-      (o) => !schema || (o.schema ?? '').trim().toLowerCase() === schema
-    );
+    // Either side may not know the schema: MySQL-family grants name the
+    // database, while a catalog read with no schema list keeps its rows
+    // schema-less. Only two schemas that are both known must agree.
+    const candidates = (byName.get(p.objectName.trim().toLowerCase()) ?? []).filter((o) => {
+      const own = (o.schema ?? '').trim().toLowerCase();
+      return !schema || !own || own === schema;
+    });
     for (const o of candidates) {
       const cells = prunedPermissions(
         dialect,

@@ -108,8 +108,8 @@ export const AccessGrantsStage: React.FC<{
 
   /** What this principal holds on the grid's objects, so the grid opens on it. */
   const held = useMemo(
-    () => heldGridPermissions(privileges, catalog.objects, dialect),
-    [privileges, catalog.objects, dialect]
+    () => heldGridPermissions(privileges, catalog.objects, dialect, defaultSchema || ''),
+    [privileges, catalog.objects, dialect, defaultSchema]
   );
   const onChanges = useCallback((next: GridChanges) => setChanges(next), []);
 

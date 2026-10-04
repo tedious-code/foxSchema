@@ -193,7 +193,7 @@ export interface SignInSettingsState {
   providers: SsoProviderSettings[];
   mail: MailSettings;
   /** Google / GitHub through the Fox sign-in service on foxschema.com. */
-  broker: { enabled: boolean; source: SettingSource | null; url: string };
+  broker: { enabled: boolean; source: SettingSource | null; url: string; admins: boolean; adminsSource: SettingSource | null };
 }
 
 export async function apiSignInSettings(): Promise<SignInSettingsState> {
@@ -232,6 +232,11 @@ export async function apiSendTestEmail(to: string): Promise<void> {
 
 export async function apiSetSignInService(enabled: boolean): Promise<void> {
   await api.put('/admin/sign-in/broker', { enabled }, EMPTY_OK);
+}
+
+/** Whether admin accounts may sign in through the Fox sign-in service. */
+export async function apiSetSignInServiceAdmins(admins: boolean): Promise<void> {
+  await api.put('/admin/sign-in/broker', { admins }, EMPTY_OK);
 }
 
 export async function apiSavePublicUrl(url: string): Promise<void> {

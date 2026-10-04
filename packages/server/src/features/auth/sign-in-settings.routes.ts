@@ -86,13 +86,14 @@ export function createSignInSettingsRoutes(settings = new SignInSettings(), mail
 
   /** Turn Google / GitHub through the Fox sign-in service on or off. */
   router.put('/broker', guard, async (req: AuthedRequest, res: FastifyReply) => {
-    const { enabled } = (req.body ?? {}) as { enabled?: unknown };
-    if (typeof enabled !== 'boolean') {
-      sendError(res, 'invalid_input', 'enabled must be true or false.');
+    const { enabled, admins } = (req.body ?? {}) as { enabled?: unknown; admins?: unknown };
+    if ((enabled !== undefined && typeof enabled !== 'boolean') || (admins !== undefined && typeof admins !== 'boolean') || (enabled === undefined && admins === undefined)) {
+      sendError(res, 'invalid_input', 'enabled and admins must be true or false.');
       return;
     }
     try {
-      await settings.setBroker(enabled);
+      if (typeof enabled === 'boolean') await settings.setBroker(enabled);
+      if (typeof admins === 'boolean') await settings.setBrokerAdmins(admins);
       res.send({ ok: true });
     } catch (error: unknown) {
       fail(res, error);

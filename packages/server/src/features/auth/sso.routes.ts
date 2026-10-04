@@ -128,7 +128,7 @@ export function createSsoRoutes(
         audience: redirectUri(req, BROKER_CALLBACK, url),
         nonce,
       });
-      const { token } = await auth.loginWithEmail(email);
+      const { token } = await auth.loginWithEmail(email, { allowAdmins: (await settings.brokerAdmins()).allowed });
       setSessionCookie(res, token);
       res.redirect('/');
     } catch (error: unknown) {

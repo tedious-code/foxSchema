@@ -20,6 +20,7 @@ import {
   apiSaveSsoProvider,
   apiSendTestEmail,
   apiSetSignInService,
+  apiSetSignInServiceAdmins,
   apiSignInSettings,
   type MailSettings,
   type SignInSettingsState,
@@ -191,6 +192,33 @@ const SignInServiceSection: React.FC<{ state: SignInSettingsState; run: Run }> =
         </label>
       )}
       {locked && <p className="text-[11px] text-slate-500">Set on the server (FOX_SSO_BROKER).</p>}
+      {enabled && (
+        <div className="space-y-1">
+          {state.broker.adminsSource !== 'env' ? (
+            <label className="inline-flex items-center gap-2 text-xs text-slate-200 cursor-pointer">
+              <input
+                type="checkbox"
+                data-testid="sign-in-service-admins"
+                checked={state.broker.admins}
+                onChange={(e) =>
+                  void run(
+                    () => apiSetSignInServiceAdmins(e.target.checked),
+                    e.target.checked ? 'Admins can sign in through foxschema.com.' : 'Admins now sign in with a password or this install’s own apps.'
+                  )
+                }
+              />
+              Let admin accounts sign in through it
+            </label>
+          ) : (
+            <p className="text-[11px] text-slate-500">
+              Admin accounts {state.broker.admins ? 'may' : 'may not'} use it (FOX_SSO_BROKER_ADMINS).
+            </p>
+          )}
+          <p className="text-[11px] text-slate-500 leading-snug">
+            Off, whoever controls foxschema.com or its signing key cannot sign in as an admin here.
+          </p>
+        </div>
+      )}
     </section>
   );
 };

@@ -379,7 +379,7 @@ export class AuthModule {
    * proves who someone is; whether they may use this install is still an
    * admin's decision, so only an existing account signs in.
    */
-  async loginWithEmail(email: string): Promise<{ user: AuthUser; token: string }> {
+  async loginWithEmail(email: string, options: { allowAdmins?: boolean } = {}): Promise<{ user: AuthUser; token: string }> {
     const store = await getStore();
     const normalized = (email ?? '').trim().toLowerCase();
     if (!normalized.includes('@')) throw new Error('SSO did not return a valid email.');
@@ -391,6 +391,9 @@ export class AuthModule {
       throw new Error(`No account for ${normalized}. Ask an administrator to add you.`);
     }
     assertUserActive(row);
+    if (options.allowAdmins === false && toAppRole(row.app_role) === 'admin') {
+      throw new Error('Admin accounts cannot sign in through this service here. Use your password or this install’s own sign-in.');
+    }
     return { user: await this.toAuthUser(row), token: await this.createSession(row.id) };
   }
 

@@ -14,6 +14,7 @@ const apiSignInSettings = vi.fn();
 const apiSaveSsoProvider = vi.fn();
 const apiSaveMailSettings = vi.fn();
 const apiSetSignInService = vi.fn();
+const apiSetSignInServiceAdmins = vi.fn();
 
 vi.mock('@/shared/api/authApi', () => ({
   apiSignInSettings: (...a: unknown[]) => apiSignInSettings(...a),
@@ -24,6 +25,7 @@ vi.mock('@/shared/api/authApi', () => ({
   apiSavePublicUrl: vi.fn(),
   apiSendTestEmail: vi.fn(),
   apiSetSignInService: (...a: unknown[]) => apiSetSignInService(...a),
+  apiSetSignInServiceAdmins: (...a: unknown[]) => apiSetSignInServiceAdmins(...a),
 }));
 
 import { SignInSettingsPanel } from './SignInSettingsPanel';
@@ -52,7 +54,7 @@ beforeEach(() => {
       provider('github', 'GitHub', { configured: true, source: 'app', clientId: 'gh', hasSecret: true }),
     ],
     mail: { configured: false, source: null, host: '', port: 587, security: 'starttls', username: '', hasPassword: false, from: '' },
-    broker: { enabled: false, source: null, url: 'https://foxschema.com/wp-json/foxschema/v1/sso' },
+    broker: { enabled: false, source: null, url: 'https://foxschema.com/wp-json/foxschema/v1/sso', admins: true, adminsSource: null },
   });
   apiSetSignInService.mockReset().mockResolvedValue(undefined);
 });
@@ -104,5 +106,17 @@ describe('sign-in settings', () => {
     expect(toggle.checked).toBe(false);
     fireEvent.click(toggle);
     await waitFor(() => expect(apiSetSignInService).toHaveBeenCalledWith(true));
+  });
+
+  it('lets an admin keep admin accounts off the Fox sign-in service while it is on', async () => {
+    apiSignInSettings.mockResolvedValue({
+      ...(await apiSignInSettings()),
+      broker: { enabled: true, source: 'app', url: 'https://foxschema.com/wp-json/foxschema/v1/sso', admins: true, adminsSource: null },
+    });
+    render(<SignInSettingsPanel />);
+    const admins = (await screen.findByTestId('sign-in-service-admins')) as HTMLInputElement;
+    expect(admins.checked).toBe(true);
+    fireEvent.click(admins);
+    await waitFor(() => expect(apiSetSignInServiceAdmins).toHaveBeenCalledWith(false));
   });
 });

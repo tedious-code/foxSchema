@@ -586,6 +586,25 @@ const MIGRATIONS: Migration[] = [
       return [`ALTER TABLE sessions ADD COLUMN last_seen_at ${t.ts}`];
     },
   },
+  {
+    id: 26,
+    name: 'backup_settings',
+    statements: (d) => {
+      const t = types(d);
+      // Each user's backup defaults per engine — folder, format, scope —
+      // as JSON the backup module re-validates on every read. No passwords:
+      // the commands never carry one.
+      return [
+        `CREATE TABLE IF NOT EXISTS backup_settings (
+           user_id ${t.id} NOT NULL,
+           dialect ${t.id} NOT NULL,
+           settings ${t.big} NOT NULL,
+           updated_at ${t.ts} NOT NULL,
+           PRIMARY KEY (user_id, dialect)
+         )`,
+      ];
+    },
+  },
 ];
 
 const SIGNUP_WIZARD_SHOWN_KEY = 'signup.wizard_shown';

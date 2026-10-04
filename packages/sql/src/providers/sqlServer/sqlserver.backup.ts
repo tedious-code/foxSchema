@@ -1,0 +1,54 @@
+/**
+ * Fox Schema (@foxschema/sql)
+ * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * SQL Server backup and restore: BACKUP DATABASE and RESTORE DATABASE.
+ *
+ * The server writes the .bak itself, so the folder is a path on the database
+ * server and the service account must be able to write there. COPY_ONLY keeps
+ * this backup out of the log-backup chain a DBA's schedule depends on.
+ */
+import type { BackupCommands, BackupConnection, BackupDialect, BackupRequest } from '../../modules/utilities/backup.types.js';
+import { joinPath } from '../../modules/utilities/backup-helpers.js';
+
+const bracket = (name: string) => `[${name.replace(/]/g, ']]')}]`;
+const nString = (value: string) => `N'${value.replace(/'/g, "''")}'`;
+
+function build(conn: BackupConnection, req: BackupRequest): BackupCommands {
+  const db = bracket(conn.database);
+  const location = joinPath(req.folder, `${req.fileName}.bak`);
+  const options = ['COPY_ONLY', 'INIT', 'CHECKSUM', ...(req.compress ? ['COMPRESSION'] : []), 'STATS = 10'];
+  return {
+    language: 'sql',
+    backup: `BACKUP DATABASE ${db}\n  TO DISK = ${nString(location)}\n  WITH ${options.join(', ')};`,
+    restore: [
+      'USE [master];',
+      `ALTER DATABASE ${db} SET SINGLE_USER WITH ROLLBACK IMMEDIATE;`,
+      `RESTORE DATABASE ${db}\n  FROM DISK = ${nString(location)}\n  WITH REPLACE, RECOVERY, STATS = 10;`,
+      `ALTER DATABASE ${db} SET MULTI_USER;`,
+    ].join('\n'),
+    location,
+    notes: [
+      'The restore overwrites the database (REPLACE) and first disconnects everyone in it.',
+      ...(req.compress ? ['Express edition cannot compress backups; untick compression there.'] : []),
+    ],
+  };
+}
+
+export const sqlServerBackup: BackupDialect = {
+  tool: 'BACKUP / RESTORE DATABASE (T-SQL)',
+  runsOn: 'server',
+  folder: {
+    label: 'Folder on the database server',
+    hint: 'SQL Server writes the file itself: /var/opt/mssql/backups on Linux, C:\\Backups on Windows. The folder must exist, and the service account needs write access.',
+    defaultValue: '/var/opt/mssql/backups',
+  },
+  formats: [{ id: 'bak', label: 'Full backup (.bak)', hint: 'Schema and data, restorable to any SQL Server of the same or a newer version.' }],
+  scopes: ['full'],
+  compression: true,
+  tables: false,
+  schemaLimit: false,
+  passwordNote: 'Runs as SQL on this connection; the login needs BACKUP DATABASE (db_backupoperator) and, to restore, dbcreator.',
+  build,
+};

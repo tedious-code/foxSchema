@@ -14,6 +14,7 @@ import {
   Copy,
   Cpu,
   Database,
+  DatabaseBackup,
   FileSpreadsheet,
   HardDrive,
   KeyRound,
@@ -24,6 +25,7 @@ import { useSyncStore } from '@/app/store/useSyncStore';
 import { useUiStore } from '@/app/store/uiStore';
 import { FileImportsPanel } from '@/features/sql-editor/components/FileImportsPanel';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
+import { BackupRestorePanel } from './BackupRestorePanel';
 import { CloneTableModal } from './CloneTableModal';
 import { DatabaseAccessModal } from './DatabaseAccessModal';
 import { FileQueryModal } from './FileQueryModal';
@@ -34,6 +36,7 @@ import { connectionOptionLabel } from '@/shared/lib/dialectLabel';
 
 export type UtilityTool =
   | 'indexes'
+  | 'backup'
   | 'dbAccess'
   | 'clone'
   | 'files'
@@ -60,6 +63,14 @@ const TOOLS: {
     group: 'Maintenance',
     blurb: 'Fragmentation, unused indexes, rebuild / reorg / drop.',
     icon: Database,
+  },
+  {
+    id: 'backup',
+    testId: 'utilities-backup',
+    label: 'Backup & Restore',
+    group: 'Maintenance',
+    blurb: 'Backup and restore commands for this engine, with your saved folder and format.',
+    icon: DatabaseBackup,
   },
   {
     id: 'clone',
@@ -275,6 +286,7 @@ export const UtilitiesView: React.FC = () => {
               <IndexManagementModal open embedded lockedConnectionId={lockedId} />
             </div>
           )}
+          {tool === 'backup' && <BackupRestorePanel lockedConnectionId={lockedId} />}
           {tool === 'clone' && (
             <CloneTableModal
               open

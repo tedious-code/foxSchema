@@ -179,6 +179,24 @@ const ALWAYS = [
           // the teammate's run); the 300s default would kill it mid-run.
           timeoutMs: 720_000,
         },
+        // Backup & Restore: the panel against a saved Postgres connection
+        // (and SQL Server's SQL editor hand-off when configured).
+        {
+          key: 'backup-ui',
+          file: 'src/tests/backup-restore-ui.test.ts',
+          label: 'Backup & Restore',
+        },
+      ]
+    : []),
+  // The SQL-language backups (SQL Server, CockroachDB, ClickHouse, DuckDB),
+  // run for real against whichever of those engines are configured.
+  ...(configured.length
+    ? [
+        {
+          key: 'backup-commands',
+          file: 'src/tests/backup-commands-dialects.test.ts',
+          label: 'Backup commands',
+        },
       ]
     : []),
 ];

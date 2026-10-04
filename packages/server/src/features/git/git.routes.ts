@@ -14,6 +14,7 @@ import type { FastifyReply } from 'fastify';
 import { Router } from '../../platform/http/router';
 import type { AuthedRequest } from '../auth/auth.routes';
 import { requirePermissions } from '../authorization/rbac.guard';
+import { canSeeRepo } from './git-access';
 import { sendError } from '../../platform/http/respond';
 import { rateLimit } from '../../platform/guards/rate-limit';
 import { getStore } from '../../database/store';
@@ -47,13 +48,23 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
   // Network operations reach a remote host: bounded per person.
   const network = rateLimit({ name: 'git-network', windowMs: 60 * 1000, max: 30 });
 
+  // A repository this person may not see answers as if it did not exist.
+  const visible = async (req: AuthedRequest, res: FastifyReply, next: () => void) => {
+    const repo = await store.get(String(req.params.id));
+    if (!repo || !canSeeRepo(repo, req)) {
+      sendError(res, 'not_found', 'Repository not found.');
+      return;
+    }
+    next();
+  };
+
   const fail = (res: FastifyReply, error: unknown) => {
     const message = error instanceof GitOperationError || error instanceof Error ? error.message : gitErrorMessage(error);
     sendError(res, message === 'Repository not found.' ? 'not_found' : 'invalid_input', message);
   };
 
-  router.get('/repos', view, async (_req: AuthedRequest, res: FastifyReply) => {
-    res.send({ repos: await store.list() });
+  router.get('/repos', view, async (req: AuthedRequest, res: FastifyReply) => {
+    res.send({ repos: (await store.list()).filter((r) => canSeeRepo(r, req)) });
   });
 
   router.post('/repos', manage, async (req: AuthedRequest, res: FastifyReply) => {
@@ -66,7 +77,7 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
     }
   });
 
-  router.put('/repos/:id', manage, async (req: AuthedRequest, res: FastifyReply) => {
+  router.put('/repos/:id', manage, visible, async (req: AuthedRequest, res: FastifyReply) => {
     try {
       const id = String(req.params.id);
       const before = await store.get(id);
@@ -76,8 +87,9 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
         sendError(res, 'not_found', 'Repository not found.');
         return;
       }
-      const fields = ['name', 'remoteUrl', 'defaultBranch', 'folder', 'authUsername', 'requireCommit'] as const;
-      const changed = Object.fromEntries(fields.filter((f) => before[f] !== repo[f]).map((f) => [f, { from: before[f], to: repo[f] }]));
+      const fields = ['name', 'remoteUrl', 'defaultBranch', 'folder', 'authUsername', 'requireCommit', 'roles'] as const;
+      const differs = (f: (typeof fields)[number]) => JSON.stringify(before[f]) !== JSON.stringify(repo[f]);
+      const changed = Object.fromEntries(fields.filter(differs).map((f) => [f, { from: before[f], to: repo[f] }]));
       const tokenReplaced = !!(input.token ?? '').trim();
       await activity.record(id, 'repo.edited', req.userId, { ...changed, ...(tokenReplaced ? { tokenReplaced } : {}) });
       res.send({ repo });
@@ -86,7 +98,7 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
     }
   });
 
-  router.delete('/repos/:id', manage, async (req: AuthedRequest, res: FastifyReply) => {
+  router.delete('/repos/:id', manage, visible, async (req: AuthedRequest, res: FastifyReply) => {
     const id = String(req.params.id);
     const repo = await store.get(id);
     if (!(await store.remove(id))) {
@@ -98,7 +110,7 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
     res.send({ ok: true });
   });
 
-  router.get('/repos/:id/branches', view, async (req: AuthedRequest, res: FastifyReply) => {
+  router.get('/repos/:id/branches', view, visible, async (req: AuthedRequest, res: FastifyReply) => {
     try {
       res.send({ branches: await service.branches(String(req.params.id)) });
     } catch (error) {
@@ -106,7 +118,7 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
     }
   });
 
-  router.post('/repos/:id/fetch', view, network, async (req: AuthedRequest, res: FastifyReply) => {
+  router.post('/repos/:id/fetch', view, visible, network, async (req: AuthedRequest, res: FastifyReply) => {
     try {
       res.send({ branches: await service.fetch(String(req.params.id)) });
     } catch (error) {
@@ -114,7 +126,7 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
     }
   });
 
-  router.post('/repos/:id/branches', migrate, async (req: AuthedRequest, res: FastifyReply) => {
+  router.post('/repos/:id/branches', migrate, visible, async (req: AuthedRequest, res: FastifyReply) => {
     const { name, from } = (req.body ?? {}) as { name?: string; from?: string };
     try {
       const branches = await service.createBranch(String(req.params.id), name ?? '', from || undefined);
@@ -125,7 +137,7 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
     }
   });
 
-  router.post('/repos/:id/pull', migrate, network, async (req: AuthedRequest, res: FastifyReply) => {
+  router.post('/repos/:id/pull', migrate, visible, network, async (req: AuthedRequest, res: FastifyReply) => {
     const { branch } = (req.body ?? {}) as { branch?: string };
     try {
       const pulled = await service.pull(String(req.params.id), branch ?? '', await authorOf(req));
@@ -136,7 +148,7 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
     }
   });
 
-  router.post('/repos/:id/push', migrate, network, async (req: AuthedRequest, res: FastifyReply) => {
+  router.post('/repos/:id/push', migrate, visible, network, async (req: AuthedRequest, res: FastifyReply) => {
     const { branch } = (req.body ?? {}) as { branch?: string };
     try {
       const pushed = await service.push(String(req.params.id), branch ?? '');
@@ -148,11 +160,12 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
   });
 
   /** Who changed the repository or moved its branches, newest first. Admins only. */
+  // No `visible`: admins see every repository, and the record outlives a removed one.
   router.get('/repos/:id/activity', manage, async (req: AuthedRequest, res: FastifyReply) => {
     res.send({ activity: await activity.list(String(req.params.id), Number(req.query.limit) || 100) });
   });
 
-  router.get('/repos/:id/log', view, async (req: AuthedRequest, res: FastifyReply) => {
+  router.get('/repos/:id/log', view, visible, async (req: AuthedRequest, res: FastifyReply) => {
     const branch = typeof req.query.branch === 'string' ? req.query.branch : '';
     const limit = Number(req.query.limit) || 50;
     try {
@@ -163,7 +176,7 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
   });
 
   /** The file a commit would add, for review before committing. */
-  router.post('/repos/:id/preview', view, async (req: AuthedRequest, res: FastifyReply) => {
+  router.post('/repos/:id/preview', view, visible, async (req: AuthedRequest, res: FastifyReply) => {
     try {
       res.send(await migrations.preview(String(req.params.id), (req.body ?? {}) as PlanInput, await authorOf(req)));
     } catch (error) {
@@ -172,7 +185,7 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
   });
 
   /** Commit a migration plan to a branch (and push when asked). */
-  router.post('/repos/:id/commit', migrate, async (req: AuthedRequest, res: FastifyReply) => {
+  router.post('/repos/:id/commit', migrate, visible, async (req: AuthedRequest, res: FastifyReply) => {
     try {
       const input = (req.body ?? {}) as CommitInput;
       const committed = await migrations.commit(String(req.params.id), input, await authorOf(req));
@@ -192,7 +205,7 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
    * Migration files on a branch; with a connection in the body, which have
    * been applied to that database and which are incoming.
    */
-  router.post('/repos/:id/migrations', view, async (req: AuthedRequest, res: FastifyReply) => {
+  router.post('/repos/:id/migrations', view, visible, async (req: AuthedRequest, res: FastifyReply) => {
     const { branch, ...ref } = (req.body ?? {}) as { branch?: string } & ConnectionRef;
     try {
       let target: { key: string; dialect: string } | undefined;
@@ -209,7 +222,7 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
   });
 
   /** One committed migration: header, steps and the file itself. */
-  router.get('/repos/:id/file', view, async (req: AuthedRequest, res: FastifyReply) => {
+  router.get('/repos/:id/file', view, visible, async (req: AuthedRequest, res: FastifyReply) => {
     const ref = typeof req.query.ref === 'string' ? req.query.ref : '';
     const path = typeof req.query.path === 'string' ? req.query.path : '';
     try {

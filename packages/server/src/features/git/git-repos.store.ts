@@ -12,6 +12,8 @@ import { randomUUID } from 'node:crypto';
 import { getStore } from '../../database/store';
 import { decryptSecret, encryptSecret } from '../../platform/crypto/crypto';
 import { normalizeBranchName, normalizeFolder, normalizeRemoteUrl } from './git-url';
+import { normalizeRepoRoles } from './git-access';
+import type { AppRole } from '@foxschema/shared';
 
 export interface GitRepoSummary {
   id: string;
@@ -22,6 +24,8 @@ export interface GitRepoSummary {
   authUsername: string;
   hasToken: boolean;
   requireCommit: boolean;
+  /** The app roles that may see it; null for everyone with git.view. */
+  roles: AppRole[] | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -40,6 +44,8 @@ export interface GitRepoInput {
   /** Empty or absent on update keeps the stored token, unless the remote moves to another server. */
   token?: string;
   requireCommit?: boolean;
+  /** Limit it to these app roles; null or empty for everyone with git.view. Absent on update keeps it. */
+  roles?: AppRole[] | null;
 }
 
 interface Row {
@@ -51,12 +57,13 @@ interface Row {
   auth_username: string | null;
   encrypted_token: string | null;
   require_commit: number;
+  roles: string | null;
   created_at: string;
   updated_at: string;
 }
 
 const COLUMNS =
-  'id, name, remote_url, default_branch, folder, auth_username, encrypted_token, require_commit, created_at, updated_at';
+  'id, name, remote_url, default_branch, folder, auth_username, encrypted_token, require_commit, roles, created_at, updated_at';
 
 /** Usernames hosts expect alongside a token; most accept anything. */
 export const DEFAULT_AUTH_USERNAME = 'x-access-token';
@@ -71,6 +78,7 @@ function toSummary(r: Row): GitRepoSummary {
     authUsername: r.auth_username || DEFAULT_AUTH_USERNAME,
     hasToken: !!r.encrypted_token,
     requireCommit: Number(r.require_commit) === 1,
+    roles: r.roles ? (JSON.parse(r.roles) as AppRole[]) : null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -112,12 +120,13 @@ export class GitReposStore {
     const defaultBranch = normalizeBranchName(input.defaultBranch || 'main');
     const folder = normalizeFolder(input.folder ?? 'migrations');
     const token = (input.token ?? '').trim();
+    const roles = normalizeRepoRoles(input.roles);
     const now = new Date().toISOString();
     const id = randomUUID();
     const store = await getStore();
     await store.run(
-      `INSERT INTO git_repos (id, name, remote_url, default_branch, folder, auth_username, encrypted_token, require_commit, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO git_repos (id, name, remote_url, default_branch, folder, auth_username, encrypted_token, require_commit, roles, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         name,
@@ -127,6 +136,7 @@ export class GitReposStore {
         (input.authUsername ?? '').trim() || null,
         token ? encryptSecret(token) : null,
         input.requireCommit ? 1 : 0,
+        roles ? JSON.stringify(roles) : null,
         userId,
         now,
         now,
@@ -141,6 +151,7 @@ export class GitReposStore {
     const store = await getStore();
     const token = (input.token ?? '').trim();
     const remoteUrl = input.remoteUrl !== undefined ? normalizeRemoteUrl(input.remoteUrl, allowInsecureHttp) : current.remoteUrl;
+    const roles = input.roles !== undefined ? normalizeRepoRoles(input.roles) : current.roles;
     // A stored token goes only to the server it was entered for. Moving the
     // remote to another server without entering it again would hand it to
     // whoever runs that server on the next fetch.
@@ -149,7 +160,7 @@ export class GitReposStore {
     }
     await store.run(
       `UPDATE git_repos SET name = ?, remote_url = ?, default_branch = ?, folder = ?, auth_username = ?,
-         require_commit = ?, updated_at = ?${token ? ', encrypted_token = ?' : ''} WHERE id = ?`,
+         require_commit = ?, roles = ?, updated_at = ?${token ? ', encrypted_token = ?' : ''} WHERE id = ?`,
       [
         (input.name ?? current.name).trim() || current.name,
         remoteUrl,
@@ -157,6 +168,7 @@ export class GitReposStore {
         input.folder !== undefined ? normalizeFolder(input.folder) : current.folder,
         input.authUsername !== undefined ? input.authUsername.trim() || null : current.authUsername === DEFAULT_AUTH_USERNAME ? null : current.authUsername,
         (input.requireCommit ?? current.requireCommit) ? 1 : 0,
+        roles ? JSON.stringify(roles) : null,
         new Date().toISOString(),
         ...(token ? [encryptSecret(token)] : []),
         id,

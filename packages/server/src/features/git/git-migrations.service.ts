@@ -22,6 +22,7 @@ import {
 import { getStore } from '../../database/store';
 import { GitRepoService, GitOperationError, type GitAuthor } from './git-repo.service';
 import { GitReposStore } from './git-repos.store';
+import { canSeeRepo, type RepoViewer } from './git-access';
 import { GitActivityStore } from './git-activity.store';
 
 export interface PlanInput {
@@ -180,6 +181,12 @@ export class GitMigrationsService {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [randomUUID(), input.repoId, input.path, input.commit, input.targetKey, input.status, input.runId, input.userId, new Date().toISOString()]
     );
+  }
+
+  /** Whether `who` may see the repository at all (see git-access). */
+  async canSee(repoId: string, who: RepoViewer): Promise<boolean> {
+    const repo = await this.repos.get(repoId);
+    return !!repo && canSeeRepo(repo, who);
   }
 
   /** Whether some repository makes committing required before a migration runs. */

@@ -10,6 +10,7 @@
 import React, { useEffect, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { PasswordInput } from '@/shared/components/PasswordInput';
+import type { AppRole } from '@foxschema/shared';
 import { gitApi, type GitActivity, type GitRepo, type GitRepoInput } from '../api/gitApi';
 import { useGitStore } from '../store/useGitStore';
 
@@ -22,7 +23,11 @@ const FIELD_NAMES: Record<string, string> = {
   folder: 'folder',
   authUsername: 'user name',
   requireCommit: 'Require a commit',
+  roles: 'who can see it',
 };
+
+/** Roles a repository can be limited to; admins always see every repository. */
+const LIMITABLE_ROLES: AppRole[] = ['viewer', 'editor', 'owner'];
 
 /** One line of a repository's activity, in words. */
 function describeActivity(a: GitActivity): string {
@@ -48,7 +53,7 @@ function describeActivity(a: GitActivity): string {
   }
 }
 
-const EMPTY: GitRepoInput = { name: '', remoteUrl: '', defaultBranch: 'main', folder: 'migrations', authUsername: '', token: '', requireCommit: false };
+const EMPTY: GitRepoInput = { name: '', remoteUrl: '', defaultBranch: 'main', folder: 'migrations', authUsername: '', token: '', requireCommit: false, roles: null };
 
 export const GitReposAdmin: React.FC = () => {
   const { repos, load } = useGitStore();
@@ -69,7 +74,7 @@ export const GitReposAdmin: React.FC = () => {
     setForm(
       repo === 'new'
         ? EMPTY
-        : { name: repo.name, remoteUrl: repo.remoteUrl, defaultBranch: repo.defaultBranch, folder: repo.folder, authUsername: repo.authUsername, token: '', requireCommit: repo.requireCommit }
+        : { name: repo.name, remoteUrl: repo.remoteUrl, defaultBranch: repo.defaultBranch, folder: repo.folder, authUsername: repo.authUsername, token: '', requireCommit: repo.requireCommit, roles: repo.roles }
     );
   };
 
@@ -123,6 +128,11 @@ export const GitReposAdmin: React.FC = () => {
                 {r.remoteUrl} · {r.defaultBranch} · /{r.folder}
               </div>
             </div>
+            {r.roles && (
+              <span data-testid={`admin-git-roles-${r.id}`} className="text-[10px] text-slate-400 border border-slate-700 rounded-full px-1.5 py-0.5">
+                Only {r.roles.join(', ')}
+              </span>
+            )}
             {r.requireCommit && (
               <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-300 border border-amber-500/30 rounded-full px-1.5 py-0.5">
                 Commit required
@@ -211,6 +221,28 @@ export const GitReposAdmin: React.FC = () => {
               history revert and force-migrate are turned off. Statements run in the SQL editor or by workflows are not covered.
             </span>
           </label>
+          <fieldset className="sm:col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-300">
+            <legend className={labelCls}>Who can see it</legend>
+            {LIMITABLE_ROLES.map((role) => (
+              <label key={role} className="flex items-center gap-1.5 capitalize">
+                <input
+                  type="checkbox"
+                  data-testid={`admin-git-role-${role}`}
+                  checked={!!form.roles?.includes(role)}
+                  onChange={(e) =>
+                    setForm((f) => {
+                      const next = e.target.checked ? [...(f.roles ?? []), role] : (f.roles ?? []).filter((x) => x !== role);
+                      return { ...f, roles: next.length ? next : null };
+                    })
+                  }
+                />
+                {role}
+              </label>
+            ))}
+            <span className="text-slate-500">
+              {form.roles ? 'Only these roles, and admins.' : 'None ticked: everyone with Git access.'}
+            </span>
+          </fieldset>
           {error && (
             <div role="alert" className="sm:col-span-2 text-xs text-rose-300 border border-rose-500/30 bg-rose-950/30 rounded-md px-3 py-2">
               {error}

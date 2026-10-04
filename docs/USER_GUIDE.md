@@ -191,7 +191,9 @@ shows up as incoming again.
 **Activity** next to a repository in **Access control → Git** shows admins who
 added or changed it (a replaced token is noted, never shown), created branches,
 committed, pushed and pulled. Everyone pushes with the repository's one token,
-so this is the record of who acted.
+so this is the record of who acted. **Who can see it** limits a repository to
+some app roles: for everyone else it does not exist, in the lists and when a
+migration from it is run. Admins see every repository.
 
 ## SQL Editor
 

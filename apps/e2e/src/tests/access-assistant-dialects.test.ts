@@ -327,6 +327,24 @@ describe.skipIf(configured.length === 0)('Access Assistant (all configured diale
         await rows.first().click();
 
         await driver.locator(byTestId('access-permission-stage-grants')).click();
+        // The grid loads every schema's objects, Oracle's and Db2's slowly, and a
+        // preset ticks the rows loaded when it is clicked. Wait for all of them.
+        const loaded = await driver
+          .waitForFunction(
+            () => {
+              const stage = document.querySelector('[data-testid="access-grants-stage"]');
+              return (
+                stage !== null &&
+                !/Reading schema objects/.test(stage.textContent ?? '') &&
+                document.querySelector('[data-testid^="matrix-cell-"]') !== null
+              );
+            },
+            undefined,
+            { timeout: 120_000 }
+          )
+          .then(() => true)
+          .catch(() => false);
+        expect(loaded, `${dialect}: the grid never listed any objects`).toBe(true);
         await driver.locator(byTestId('access-grants-preset-read-only')).click();
         // The preset ticks SELECT on the schema's objects once they are read;
         // a principal that already has them gets "matches the live catalog".

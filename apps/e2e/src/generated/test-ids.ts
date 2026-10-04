@@ -2622,6 +2622,60 @@ export const TestIds = {
     },
   },
   utilities: {
+    BackupRestorePanel: {
+      /** section · Backup */
+      backupCommand: 'backup-command',
+      /** button · Backup */
+      backupCommandCopy: 'backup-command-copy',
+      /** button · Open in SQL Editor */
+      backupCommandOpenSql: 'backup-command-open-sql',
+      /** pre · Backup */
+      backupCommandText: 'backup-command-text',
+      /** input */
+      backupCompress: 'backup-compress',
+      /** p */
+      backupError: 'backup-error',
+      /** input */
+      backupFileName: 'backup-file-name',
+      /** input */
+      backupFolder: 'backup-folder',
+      /** div */
+      backupFormat: 'backup-format',
+      /** button */
+      backupFormatForValue: (value: string | number) => `backup-format-${value}`,
+      /** input */
+      backupLimitSchema: 'backup-limit-schema',
+      /** div · Choose a connection */
+      backupNoConnection: 'backup-no-connection',
+      /** ul */
+      backupNotes: 'backup-notes',
+      /** div */
+      backupPanel: 'backup-panel',
+      /** button */
+      backupReset: 'backup-reset',
+      /** div */
+      backupRunsOn: 'backup-runs-on',
+      /** button · Save as my default for */
+      backupSaveDefault: 'backup-save-default',
+      /** span */
+      backupSaveStatus: 'backup-save-status',
+      /** div */
+      backupScope: 'backup-scope',
+      /** button */
+      backupScopeForValue: (value: string | number) => `backup-scope-${value}`,
+      /** textarea · orders, customers */
+      backupTables: 'backup-tables',
+      /** div · No backup commands */
+      backupUnsupported: 'backup-unsupported',
+      /** section · Restore */
+      restoreCommand: 'restore-command',
+      /** button · Restore */
+      restoreCommandCopy: 'restore-command-copy',
+      /** button · Open in SQL Editor */
+      restoreCommandOpenSql: 'restore-command-open-sql',
+      /** pre · Restore */
+      restoreCommandText: 'restore-command-text',
+    },
     CloneTableModal: {
       /** button · Apply clone */
       cloneApply: 'clone-apply',
@@ -2907,6 +2961,8 @@ export const TestIds = {
       indexManagementModal: 'index-management-modal',
       /** nav · Database utilities */
       sqlSidebarUtilities: 'sql-sidebar-utilities',
+      /** data · Backup & Restore */
+      utilitiesBackup: 'utilities-backup',
       /** data · Clone Table */
       utilitiesCloneTable: 'utilities-clone-table',
       /** select */
@@ -3405,6 +3461,28 @@ export type TestId =
   | `auth-sso-buttons-continue-${string}`
   | 'backend-offline-banner'
   | 'backend-offline-retry'
+  | 'backup-command'
+  | 'backup-command-copy'
+  | 'backup-command-open-sql'
+  | 'backup-command-text'
+  | 'backup-compress'
+  | 'backup-error'
+  | 'backup-file-name'
+  | 'backup-folder'
+  | 'backup-format'
+  | `backup-format-${string}`
+  | 'backup-limit-schema'
+  | 'backup-no-connection'
+  | 'backup-notes'
+  | 'backup-panel'
+  | 'backup-reset'
+  | 'backup-runs-on'
+  | 'backup-save-default'
+  | 'backup-save-status'
+  | 'backup-scope'
+  | `backup-scope-${string}`
+  | 'backup-tables'
+  | 'backup-unsupported'
   | 'blueprint-add-column'
   | 'blueprint-add-fk'
   | 'blueprint-add-index'
@@ -4119,6 +4197,10 @@ export type TestId =
   | 'report-table'
   | 'report-tiles'
   | 'report-who'
+  | 'restore-command'
+  | 'restore-command-copy'
+  | 'restore-command-open-sql'
+  | 'restore-command-text'
   | `rf-kinds-${string}`
   | `rf-object-${string}-${string}`
   | `rf-version-${string}`
@@ -4595,6 +4677,7 @@ export type TestId =
   | 'user-unsupported'
   | 'user-valid-until'
   | 'user-warnings'
+  | 'utilities-backup'
   | 'utilities-clone-table'
   | 'utilities-connection'
   | 'utilities-connection-pool'

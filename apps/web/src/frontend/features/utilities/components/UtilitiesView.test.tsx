@@ -28,6 +28,13 @@ vi.mock('./IndexManagementModal', () => ({
       </div>
     ) : null,
 }));
+vi.mock('./BackupRestorePanel', () => ({
+  BackupRestorePanel: ({ lockedConnectionId }: { lockedConnectionId?: string }) => (
+    <div data-testid="backup-panel" data-locked={lockedConnectionId ?? ''}>
+      backup
+    </div>
+  ),
+}));
 vi.mock('./CloneTableModal', () => ({
   CloneTableModal: ({ open }: { open: boolean }) =>
     open ? <div data-testid="clone-table-modal">clone</div> : null,
@@ -61,6 +68,7 @@ vi.mock('@/features/sql-editor/components/FileImportsPanel', () => ({
 
 const UTILITY_BUTTONS = [
   'utilities-index-management',
+  'utilities-backup',
   'utilities-database-access',
   'utilities-clone-table',
   'utilities-query-files',
@@ -95,6 +103,12 @@ describe('UtilitiesView', () => {
     expect(screen.getByTestId('server-insights-modal')).toBeTruthy();
     expect(screen.getByTestId('server-insights-tab-system')).toBeTruthy();
     expect(screen.getByTestId('utilities-connection')).toBeTruthy();
+  });
+
+  it('opens Backup & Restore on the workspace credential', () => {
+    render(<UtilitiesView />);
+    fireEvent.click(screen.getByTestId('utilities-backup'));
+    expect(screen.getByTestId('backup-panel').getAttribute('data-locked')).toBe('c1');
   });
 
   it('opens Query files without a SQL Editor visit', () => {

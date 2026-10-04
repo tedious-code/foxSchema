@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **924** buttons, text boxes, selects and textareas.
+Every control has a test ID: **933** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1400,6 +1400,37 @@ Every control has a test ID: **924** buttons, text boxes, selects and textareas.
 
 ## utilities
 
+- **BackupRestorePanel** · `features/utilities/components/BackupRestorePanel.tsx`
+  - `{testId}` · section · passed in by the parent
+  - `{testId}-copy` · button · passed in by the parent
+  - `{testId}-open-sql` · button · Open in SQL Editor · passed in by the parent
+  - `{testId}-text` · pre · passed in by the parent
+  - `backup-command` · section in CommandBlock · Backup
+  - `backup-command-copy` · button in CommandBlock · Backup
+  - `backup-command-open-sql` · button in CommandBlock · Open in SQL Editor
+  - `backup-command-text` · pre in CommandBlock · Backup
+  - `backup-compress` · input
+  - `backup-error` · p
+  - `backup-file-name` · input
+  - `backup-folder` · input
+  - `backup-format` · div in Segmented
+  - `backup-format-{value}` · button in Segmented
+  - `backup-limit-schema` · input
+  - `backup-no-connection` · div in EmptyState · Choose a connection
+  - `backup-notes` · ul
+  - `backup-panel` · div
+  - `backup-reset` · button
+  - `backup-runs-on` · div
+  - `backup-save-default` · button · Save as my default for
+  - `backup-save-status` · span
+  - `backup-scope` · div in Segmented
+  - `backup-scope-{value}` · button in Segmented
+  - `backup-tables` · textarea · orders, customers
+  - `backup-unsupported` · div in EmptyState · No backup commands
+  - `restore-command` · section in CommandBlock · Restore
+  - `restore-command-copy` · button in CommandBlock · Restore
+  - `restore-command-open-sql` · button in CommandBlock · Open in SQL Editor
+  - `restore-command-text` · pre in CommandBlock · Restore
 - **CloneTableModal** · `features/utilities/components/CloneTableModal.tsx`
   - `clone-apply` · button · Apply clone
   - `clone-archive-preview` · p
@@ -1544,6 +1575,7 @@ Every control has a test ID: **924** buttons, text boxes, selects and textareas.
   - `db-access-modal` · div
   - `index-management-modal` · div
   - `sql-sidebar-utilities` · nav · Database utilities
+  - `utilities-backup` · data · Backup & Restore
   - `utilities-clone-table` · data · Clone Table
   - `utilities-connection` · select
   - `utilities-connection-pool` · data · Connection Pool

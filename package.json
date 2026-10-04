@@ -12,7 +12,7 @@
   ],
   "bugs": "https://github.com/tedious-code/foxschema/issues",
   "scripts": {
-    "typecheck": "tsc --noEmit -p apps/web/tsconfig.json",
+    "typecheck": "tsc --noEmit -p apps/web/tsconfig.json && tsc --noEmit -p apps/e2e/tsconfig.json",
     "lint": "eslint .",
     "lint:security": "eslint . --config eslint.security.config.js --max-warnings 0",
     "test-ids": "node scripts/test-ids/extract-test-ids.mjs --write",

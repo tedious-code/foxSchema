@@ -1,5 +1,6 @@
 import type { Page } from 'playwright';
 import { clickWhen, waitFor } from '../helpers/driver.js';
+import { byTestId } from '../helpers/test-ids.js';
 
 /**
  * Database Access Assistant (toolbar → Access) plus the SQL Editor
@@ -13,19 +14,19 @@ export class AccessPage {
   constructor(private page: Page) {}
 
   async openView(): Promise<void> {
-    await clickWhen(this.page, '[data-testid="view-access-btn"]');
-    await waitFor(this.page, '[data-testid="access-view"]', 20_000);
+    await clickWhen(this.page, byTestId('view-access-btn'));
+    await waitFor(this.page, byTestId('access-view'), 20_000);
   }
 
   async openTab(tab: 'permission' | 'users' | 'diff'): Promise<void> {
-    await clickWhen(this.page, `[data-testid="access-tab-${tab}"]`);
+    await clickWhen(this.page, byTestId(`access-tab-${tab}`));
   }
 
   /** Pick a saved credential in any Access / Database Access <select> by visible name.
    *  The Access workspace uses one chip (`access-connection`); panel-local
    *  dropdowns are used when a panel still has its own picker. */
   async selectConnection(selectTestId: string, nameSubstring: string): Promise<void> {
-    const workspace = this.page.locator('[data-testid="access-connection"]');
+    const workspace = this.page.locator(byTestId('access-connection'));
     const select = (await workspace.isVisible().catch(() => false))
       ? workspace
       : this.page.locator(`[data-testid="${selectTestId}"]`);

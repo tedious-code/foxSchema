@@ -1,5 +1,6 @@
 import type { Page } from 'playwright';
 import { waitFor, clickWhen } from '../helpers/driver.js';
+import { byTestId } from '../helpers/test-ids.js';
 
 /**
  * Page object covering the execute → progress → history flow.
@@ -19,7 +20,7 @@ export class MigrationPage {
 
   /** Check/uncheck the "No drops" (non-destructive) toggle in the tree header. */
   async setNonDestructive(check: boolean): Promise<void> {
-    const cb = this.page.locator('[data-testid="non-destructive-checkbox"]');
+    const cb = this.page.locator(byTestId('non-destructive-checkbox'));
     await cb.waitFor({ state: 'visible' });
     const current = await cb.isChecked();
     if (current !== check) await cb.click();
@@ -43,18 +44,18 @@ export class MigrationPage {
   // ── Execute button ──────────────────────────────────────────────────────
 
   async clickExecute(): Promise<void> {
-    await clickWhen(this.page, '[data-testid="execute-btn"]');
+    await clickWhen(this.page, byTestId('execute-btn'));
   }
 
   async isExecuteEnabled(): Promise<boolean> {
-    const btn = await waitFor(this.page, '[data-testid="execute-btn"]');
+    const btn = await waitFor(this.page, byTestId('execute-btn'));
     return !(await btn.isDisabled());
   }
 
   // ── Confirm dialog ─────────────────────────────────────────────────────
 
   async isConfirmDialogVisible(): Promise<boolean> {
-    return this.page.locator('[data-testid="deploy-confirm-dialog"]').isVisible();
+    return this.page.locator(byTestId('deploy-confirm-dialog')).isVisible();
   }
 
   /**
@@ -64,8 +65,8 @@ export class MigrationPage {
    * Throws if the dialog remains open after Confirm (deploy never started).
    */
   async confirmDeploy(): Promise<'confirmed' | 'skipped'> {
-    const dialog = this.page.locator('[data-testid="deploy-confirm-dialog"]');
-    const progressPanel = this.page.locator('[data-testid="migration-progress-panel"]');
+    const dialog = this.page.locator(byTestId('deploy-confirm-dialog'));
+    const progressPanel = this.page.locator(byTestId('migration-progress-panel'));
     // Dialog mounts after Execute. If the user previously chose "don't ask
     // again", it never appears — progress may already be on screen.
     const appeared = await dialog
@@ -75,7 +76,7 @@ export class MigrationPage {
     if (!appeared) {
       return 'skipped';
     }
-    await clickWhen(this.page, '[data-testid="deploy-confirm-btn"]');
+    await clickWhen(this.page, byTestId('deploy-confirm-btn'));
     // Confirm must either close the dialog or reveal the progress panel.
     await Promise.race([
       dialog.waitFor({ state: 'hidden', timeout: 15_000 }),
@@ -95,9 +96,9 @@ export class MigrationPage {
       '[data-testid="migration-progress-panel"], [data-testid="deploy-confirm-dialog"]',
       { timeout: timeoutMs }
     );
-    if (await this.page.locator('[data-testid="deploy-confirm-dialog"]').isVisible()) {
-      await clickWhen(this.page, '[data-testid="deploy-confirm-btn"]');
-      await this.page.waitForSelector('[data-testid="migration-progress-panel"]', {
+    if (await this.page.locator(byTestId('deploy-confirm-dialog')).isVisible()) {
+      await clickWhen(this.page, byTestId('deploy-confirm-btn'));
+      await this.page.waitForSelector(byTestId('migration-progress-panel'), {
         timeout: timeoutMs,
       });
     }
@@ -109,12 +110,12 @@ export class MigrationPage {
       '[data-testid="migration-complete"], [data-testid="migration-failed"]',
       { timeout: timeoutMs }
     );
-    const failed = await this.page.locator('[data-testid="migration-failed"]').count();
+    const failed = await this.page.locator(byTestId('migration-failed')).count();
     return failed > 0 ? 'failed' : 'complete';
   }
 
   async getMigrationProgressItems(): Promise<{ object: string | null; status: string | null }[]> {
-    const items = await this.page.locator('[data-testid="migration-progress-item"]').all();
+    const items = await this.page.locator(byTestId('migration-progress-item')).all();
     return Promise.all(items.map(async (el) => ({
       object: await el.getAttribute('data-object'),
       status: await el.getAttribute('data-status'),
@@ -123,7 +124,7 @@ export class MigrationPage {
 
   async getMigrationErrorText(): Promise<string> {
     try {
-      const panel = await waitFor(this.page, '[data-testid="migration-progress-panel"]', 3_000);
+      const panel = await waitFor(this.page, byTestId('migration-progress-panel'), 3_000);
       return (await panel.textContent()) ?? '';
     } catch {
       return '';
@@ -133,20 +134,20 @@ export class MigrationPage {
   // ── History ────────────────────────────────────────────────────────────
 
   async openHistory(): Promise<void> {
-    await clickWhen(this.page, '[data-testid="history-btn"]');
-    await waitFor(this.page, '[data-testid="history-dialog"]');
+    await clickWhen(this.page, byTestId('history-btn'));
+    await waitFor(this.page, byTestId('history-dialog'));
   }
 
   async isHistoryVisible(): Promise<boolean> {
-    return this.page.locator('[data-testid="history-dialog"]').isVisible();
+    return this.page.locator(byTestId('history-dialog')).isVisible();
   }
 
   async getHistoryRunCount(): Promise<number> {
-    return this.page.locator('[data-testid="history-run-item"]').count();
+    return this.page.locator(byTestId('history-run-item')).count();
   }
 
   async getLatestRunStatus(): Promise<string | null> {
-    return this.page.locator('[data-testid="history-run-item"]').first().getAttribute('data-status');
+    return this.page.locator(byTestId('history-run-item')).first().getAttribute('data-status');
   }
 
   /**
@@ -174,8 +175,8 @@ export class MigrationPage {
   }
 
   async closeHistory(): Promise<void> {
-    await this.page.locator('[data-testid="history-dialog-close-btn"]').click();
-    await this.page.waitForSelector('[data-testid="history-dialog"]', {
+    await this.page.locator(byTestId('history-dialog-close-btn')).click();
+    await this.page.waitForSelector(byTestId('history-dialog'), {
       state: 'detached',
       timeout: 5_000,
     });

@@ -3,7 +3,8 @@
  *
  * Every data-testid in the web app, by area and component:
  *   page.getByTestId(TestIds.git.CommitMigrationDialog.gitCommitPush)
- * An ID built at run time is a function of its parts. See docs/testing/TEST_IDS.md.
+ * An ID built at run time is a function of its parts. `TestId` is every ID as one type,
+ * for byTestId() in helpers/test-ids.ts. See docs/testing/WRITING_E2E.md.
  */
 export const TestIds = {
   access: {
@@ -12,6 +13,10 @@ export const TestIds = {
       accessGrantsCopy: 'access-grants-copy',
       /** ul */
       accessGrantsDiff: 'access-grants-diff',
+      /** div */
+      accessGrantsMode: 'access-grants-mode',
+      /** button */
+      accessGrantsModeForValue: (value: string | number) => `access-grants-mode-${value}`,
       /** button · Open in SQL Editor */
       accessGrantsOpenSql: 'access-grants-open-sql',
       /** button */
@@ -64,6 +69,8 @@ export const TestIds = {
       accessPermissionGroup: (kind: string | number) => `access-permission-group-${kind}`,
       /** p */
       accessPermissionHint: 'access-permission-hint',
+      /** div · Choose a connection */
+      accessPermissionNeedsConnection: 'access-permission-needs-connection',
       /** button · Open in SQL Editor */
       accessPermissionOpenSql: 'access-permission-open-sql',
       /** button · Open User Management */
@@ -78,8 +85,14 @@ export const TestIds = {
       accessPermissionRow: (name: string | number) => `access-permission-row-${name}`,
       /** h2 */
       accessPermissionSelectedName: 'access-permission-selected-name',
+      /** div */
+      accessPermissionStage: 'access-permission-stage',
+      /** button */
+      accessPermissionStageForValue: (value: string | number) => `access-permission-stage-${value}`,
       /** p */
       accessPermissionStatus: 'access-permission-status',
+      /** div · Catalog unavailable */
+      accessPermissionUnsupported: 'access-permission-unsupported',
       /** button · Add user */
       accessPrincipalsAddUser: 'access-principals-add-user',
       /** span */
@@ -121,15 +134,7 @@ export const TestIds = {
       /** div */
       accessView: 'access-view',
     },
-    controls: {
-      /** button */
-      id: (testId: string | number, value: string | number) => `${testId}-${value}`,
-    },
     DbAccessPermissionSections: {
-      /** button · Grant */
-      actionGrant: (prefix: string | number) => `${prefix}-action-grant`,
-      /** button · Revoke */
-      actionRevoke: (prefix: string | number) => `${prefix}-action-revoke`,
       /** button */
       dbAccessClose: 'db-access-close',
       /** button */
@@ -140,8 +145,16 @@ export const TestIds = {
       dbAccessExpand: (kind: string | number) => `db-access-expand-${kind}`,
       /** button · General permissions */
       dbAccessExpandGeneral: 'db-access-expand-general',
+      /** button · Grant */
+      dbAccessGeneralActionGrant: 'db-access-general-action-grant',
+      /** button · Revoke */
+      dbAccessGeneralActionRevoke: 'db-access-general-action-revoke',
       /** button · Edit */
       dbAccessGeneralEdit: (value: string | number) => `db-access-general-edit-${value}`,
+      /** div */
+      dbAccessGeneralEditor: 'db-access-general-editor',
+      /** button · Preview SQL */
+      dbAccessGeneralPreviewSql: 'db-access-general-preview-sql',
       /** button */
       dbAccessGeneralPriv: (p: string | number) => `db-access-general-priv-${p}`,
       /** div */
@@ -158,12 +171,20 @@ export const TestIds = {
       dbAccessGrantSqlOpen: 'db-access-grant-sql-open',
       /** tr */
       dbAccessObj: (schema: string | number, name: string | number) => `db-access-obj-${schema}-${name}`,
+      /** button · Grant */
+      dbAccessObjActionGrant: 'db-access-obj-action-grant',
+      /** button · Revoke */
+      dbAccessObjActionRevoke: 'db-access-obj-action-revoke',
       /** button · Revoke */
       dbAccessObjRevoke: (name: string | number) => `db-access-obj-revoke-${name}`,
+      /** div */
+      dbAccessObjectEditor: 'db-access-object-editor',
       /** div */
       dbAccessPermissionSections: 'db-access-permission-sections',
       /** input */
       dbAccessPick: (schema: string | number, name: string | number) => `db-access-pick-${schema}-${name}`,
+      /** button · Preview SQL */
+      dbAccessPreviewSql: 'db-access-preview-sql',
       /** button */
       dbAccessPriv: (p: string | number) => `db-access-priv-${p}`,
       /** section */
@@ -183,43 +204,73 @@ export const TestIds = {
       /** pre */
       dbAccessSqlModalSql: 'db-access-sql-modal-sql',
     },
-    ObjectPicker: {
-      /** input · Search… */
-      filter: (testId: string | number) => `${testId}-filter`,
-      /** input */
-      item: (testId: string | number, name: string | number) => `${testId}-item-${name}`,
-      /** div */
-      list: (testId: string | number) => `${testId}-list`,
-    },
     PermissionDiff: {
+      /** div */
+      diffAction: (index: string | number) => `diff-action-${index}`,
+      /** button */
+      diffActionForIndexAndValue: (index: string | number, value: string | number) => `diff-action-${index}-${value}`,
       /** button · Add desired grant */
       diffAddRow: 'diff-add-row',
+      /** div */
+      diffColumns: (index: string | number) => `diff-columns-${index}`,
+      /** input · Search… */
+      diffColumnsFilter: (index: string | number) => `diff-columns-${index}-filter`,
+      /** input */
+      diffColumnsItem: (index: string | number, name: string | number) => `diff-columns-${index}-item-${name}`,
+      /** div */
+      diffColumnsList: (index: string | number) => `diff-columns-${index}-list`,
       /** select · Choose a saved connection… */
       diffConnection: 'diff-connection',
       /** button · Copy SQL */
       diffCopySql: 'diff-copy-sql',
       /** div */
       diffDesired: (index: string | number) => `diff-desired-${index}`,
+      /** div */
+      diffEmpty: 'diff-empty',
       /** button · Load catalog */
       diffLoadCatalog: 'diff-load-catalog',
       /** span */
       diffLoadError: 'diff-load-error',
       /** input */
       diffPermission: (index: string | number, p: string | number) => `diff-permission-${index}-${p}`,
-      /** Autocomplete · report_user */
+      /** input · report_user */
       diffPrincipalName: 'diff-principal-name',
+      /** button · report_user */
+      diffPrincipalNameOption: (value: string | number) => `diff-principal-name-option-${value}`,
+      /** button · report_user */
+      diffPrincipalNameToggle: 'diff-principal-name-toggle',
+      /** div */
+      diffPrincipalType: 'diff-principal-type',
+      /** button */
+      diffPrincipalTypeForValue: (value: string | number) => `diff-principal-type-${value}`,
       /** button */
       diffRemove: (index: string | number) => `diff-remove-${index}`,
       /** tr */
       diffRow: (i: string | number) => `diff-row-${i}`,
-      /** Autocomplete · schema */
+      /** input · schema */
       diffSchema: (index: string | number) => `diff-schema-${index}`,
+      /** button · schema */
+      diffSchemaOption: (index: string | number, value: string | number) => `diff-schema-${index}-option-${value}`,
+      /** button · schema */
+      diffSchemaToggle: (index: string | number) => `diff-schema-${index}-toggle`,
+      /** div */
+      diffScope: (index: string | number) => `diff-scope-${index}`,
+      /** button */
+      diffScopeForIndexAndValue: (index: string | number, value: string | number) => `diff-scope-${index}-${value}`,
       /** pre */
       diffSqlPreview: 'diff-sql-preview',
       /** div */
       diffSummary: 'diff-summary',
       /** table */
       diffTable: 'diff-table',
+      /** div */
+      diffTables: (index: string | number) => `diff-tables-${index}`,
+      /** input · Search… */
+      diffTablesFilter: (index: string | number) => `diff-tables-${index}-filter`,
+      /** input */
+      diffTablesItem: (index: string | number, name: string | number) => `diff-tables-${index}-item-${name}`,
+      /** div */
+      diffTablesList: (index: string | number) => `diff-tables-${index}-list`,
       /** div */
       diffUnsupported: 'diff-unsupported',
       /** div · Permission Diff */
@@ -236,8 +287,12 @@ export const TestIds = {
       inspectorFindings: 'inspector-findings',
       /** button */
       inspectorLoad: 'inspector-load',
-      /** Autocomplete · Pick a user or role */
+      /** input · Pick a user or role */
       inspectorPrincipal: 'inspector-principal',
+      /** button · Pick a user or role */
+      inspectorPrincipalOption: (value: string | number) => `inspector-principal-option-${value}`,
+      /** button · Pick a user or role */
+      inspectorPrincipalToggle: 'inspector-principal-toggle',
       /** input */
       inspectorSchema: 'inspector-schema',
       /** div */
@@ -264,8 +319,12 @@ export const TestIds = {
       matrixCell: (id: string | number, permission: string | number) => `matrix-cell-${id}-${permission}`,
       /** button */
       matrixCol: (kind: string | number, permission: string | number) => `matrix-col-${kind}-${permission}`,
-      /** Autocomplete */
+      /** input */
       matrixName: (id: string | number) => `matrix-name-${id}`,
+      /** button */
+      matrixNameOption: (id: string | number, value: string | number) => `matrix-name-${id}-option-${value}`,
+      /** button */
+      matrixNameToggle: (id: string | number) => `matrix-name-${id}-toggle`,
       /** button · Remove this row */
       matrixRemove: (id: string | number) => `matrix-remove-${id}`,
       /** button · All / none: */
@@ -290,12 +349,30 @@ export const TestIds = {
       userAddUser: 'user-add-user',
       /** span */
       userAllowAll: (name: string | number) => `user-allow-all-${name}`,
+      /** div */
+      userAlteration: 'user-alteration',
+      /** button */
+      userAlterationForValue: (value: string | number) => `user-alteration-${value}`,
       /** button · Cancel */
       userCancelAction: 'user-cancel-action',
       /** input */
       userCascade: 'user-cascade',
-      /** CommandModeToggle */
+      /** div */
       userCommandMode: 'user-command-mode',
+      /** pre */
+      userCommandModeCommand: 'user-command-mode-command',
+      /** input · Container name */
+      userCommandModeContainer: 'user-command-mode-container',
+      /** button */
+      userCommandModeCopy: 'user-command-mode-copy',
+      /** p */
+      userCommandModeError: 'user-command-mode-error',
+      /** select · Command format */
+      userCommandModeFormat: 'user-command-mode-format',
+      /** p */
+      userCommandModeFormatError: 'user-command-mode-format-error',
+      /** button · Save .sh */
+      userCommandModeSave: 'user-command-mode-save',
       /** select · Select a connection… */
       userConnection: 'user-connection',
       /** button */
@@ -304,6 +381,10 @@ export const TestIds = {
       userCopyWithPassword: 'user-copy-with-password',
       /** p */
       userCreateBlocked: 'user-create-blocked',
+      /** div */
+      userCreateMode: 'user-create-mode',
+      /** button */
+      userCreateModeForValue: (value: string | number) => `user-create-mode-${value}`,
       /** span */
       userCreateModeOnly: 'user-create-mode-only',
       /** div */
@@ -328,14 +409,34 @@ export const TestIds = {
       userGeneratedPasswordDismiss: 'user-generated-password-dismiss',
       /** code */
       userGeneratedPasswordValue: 'user-generated-password-value',
+      /** div */
+      userGrantDatabases: 'user-grant-databases',
+      /** input · Search… */
+      userGrantDatabasesFilter: 'user-grant-databases-filter',
+      /** input */
+      userGrantDatabasesItem: (name: string | number) => `user-grant-databases-item-${name}`,
+      /** div */
+      userGrantDatabasesList: 'user-grant-databases-list',
       /** button · Grant access next */
       userGrantNext: 'user-grant-next',
+      /** div */
+      userGrantSchemas: 'user-grant-schemas',
+      /** input · Search… */
+      userGrantSchemasFilter: 'user-grant-schemas-filter',
+      /** input */
+      userGrantSchemasItem: (name: string | number) => `user-grant-schemas-item-${name}`,
+      /** div */
+      userGrantSchemasList: 'user-grant-schemas-list',
       /** button · Open Permission Builder for the selected (or newly named) account */
       userGrantSelected: 'user-grant-selected',
       /** input · % */
       userHost: 'user-host',
       /** div */
       userHowto: 'user-howto',
+      /** div */
+      userKindFilter: 'user-kind-filter',
+      /** button */
+      userKindFilterForValue: (value: string | number) => `user-kind-filter-${value}`,
       /** div */
       userList: 'user-list',
       /** button · Generate commands to list OS logins and Db2 authorization IDs */
@@ -346,16 +447,34 @@ export const TestIds = {
       userListError: 'user-list-error',
       /** div · SQL Preview */
       userManagement: 'user-management',
-      /** Autocomplete */
+      /** div */
+      userMemberOf: 'user-member-of',
+      /** input · Search… */
+      userMemberOfFilter: 'user-member-of-filter',
+      /** input */
+      userMemberOfItem: (name: string | number) => `user-member-of-item-${name}`,
+      /** div */
+      userMemberOfList: 'user-member-of-list',
+      /** input */
       userName: 'user-name',
+      /** button */
+      userNameOption: (value: string | number) => `user-name-option-${value}`,
+      /** button */
+      userNameToggle: 'user-name-toggle',
       /** input */
       userNewName: 'user-new-name',
-      /** PasswordInput · <password> */
+      /** input · <password> */
       userOsPassword: 'user-os-password',
       /** button · Generate */
       userOsPasswordGenerate: 'user-os-password-generate',
-      /** Autocomplete · ANALYSTS */
+      /** button · Hold to show password */
+      userOsPasswordReveal: 'user-os-password-reveal',
+      /** input · ANALYSTS */
       userOsRole: 'user-os-role',
+      /** button · ANALYSTS */
+      userOsRoleOption: (value: string | number) => `user-os-role-option-${value}`,
+      /** button · ANALYSTS */
+      userOsRoleToggle: 'user-os-role-toggle',
       /** div */
       userOsStep: (i: string | number) => `user-os-step-${i}`,
       /** div */
@@ -368,12 +487,18 @@ export const TestIds = {
       userRow: (name: string | number) => `user-row-${name}`,
       /** div */
       userSql: 'user-sql',
-      /** PasswordInput */
+      /** input */
       userSqlPassword: 'user-sql-password',
       /** button · Generate a 20-character random password */
       userSqlPasswordGenerate: 'user-sql-password-generate',
+      /** button · Hold to show password */
+      userSqlPasswordReveal: 'user-sql-password-reveal',
       /** div */
       userSqlserverHint: 'user-sqlserver-hint',
+      /** div */
+      userType: 'user-type',
+      /** button */
+      userTypeForValue: (value: string | number) => `user-type-${value}`,
       /** div */
       userUnsupported: 'user-unsupported',
       /** input */
@@ -400,16 +525,20 @@ export const TestIds = {
       adminChangePassword: (id: string | number) => `admin-change-password-${id}`,
       /** div · Change password */
       adminChangePasswordModal: 'admin-change-password-modal',
-      /** PasswordInput */
+      /** input */
       adminConfirmPassword: 'admin-confirm-password',
+      /** button · Hold to show password */
+      adminConfirmPasswordReveal: 'admin-confirm-password-reveal',
       /** button */
       adminEditRole: (r: string | number) => `admin-edit-role-${r}`,
       /** button */
       adminIssueCode: (id: string | number) => `admin-issue-code-${id}`,
       /** input · teammate@company.com */
       adminNewEmail: 'admin-new-email',
-      /** PasswordInput */
+      /** input */
       adminNewPassword: 'admin-new-password',
+      /** button · Hold to show password */
+      adminNewPasswordReveal: 'admin-new-password-reveal',
       /** select · Role */
       adminNewRole: 'admin-new-role',
       /** button */
@@ -546,8 +675,20 @@ export const TestIds = {
       historyBtn: 'history-btn',
       /** button · Home */
       homeOpenBtn: 'home-open-btn',
+      /** data · Snapshots */
+      syncPaneHistoryBtn: 'sync-pane-history-btn',
+      /** data */
+      viewAccessBtn: 'view-access-btn',
       /** button · Preferences */
       viewSettingsBtn: 'view-settings-btn',
+      /** data */
+      viewSqlEditorBtn: 'view-sql-editor-btn',
+      /** data */
+      viewSyncBtn: 'view-sync-btn',
+      /** data · Utils */
+      viewUtilitiesBtn: 'view-utilities-btn',
+      /** data */
+      viewWorkflowBtn: 'view-workflow-btn',
       /** nav · Workspace */
       workspaceSwitcher: 'workspace-switcher',
     },
@@ -596,6 +737,42 @@ export const TestIds = {
     ConnectionChips: {
       /** div */
       connectionChip: (side: string | number) => `connection-chip-${side}`,
+      /** button · Add or edit this connection's credentials */
+      sourceConfigBtn: 'source-config-btn',
+      /** button · Connect and load the schema list */
+      sourceConnectBtn: 'source-connect-btn',
+      /** button · Reconnect and refresh schema list */
+      sourceConnectedBtn: 'source-connected-btn',
+      /** div · Saved connections — search by name, host, database, user, or port */
+      sourceSavedSelectBackdrop: 'source-saved-select-backdrop',
+      /** button · Saved connections — search by name, host, database, user, or port */
+      sourceSavedSelectClear: 'source-saved-select-clear',
+      /** input · Saved connections — search by name, host, database, user, or port */
+      sourceSavedSelectFilter: 'source-saved-select-filter',
+      /** div · Saved connections — search by name, host, database, user, or port */
+      sourceSavedSelectGroup: (group: string | number) => `source-saved-select-group-${group}`,
+      /** data */
+      sourceSavedSelectOption: (id: string | number) => `source-saved-select-option-${id}`,
+      /** button · Saved connections — search by name, host, database, user, or port */
+      sourceSavedSelectTrigger: 'source-saved-select-trigger',
+      /** button · Add or edit this connection's credentials */
+      targetConfigBtn: 'target-config-btn',
+      /** button · Connect and load the schema list */
+      targetConnectBtn: 'target-connect-btn',
+      /** button · Reconnect and refresh schema list */
+      targetConnectedBtn: 'target-connected-btn',
+      /** div · Saved connections — search by name, host, database, user, or port */
+      targetSavedSelectBackdrop: 'target-saved-select-backdrop',
+      /** button · Saved connections — search by name, host, database, user, or port */
+      targetSavedSelectClear: 'target-saved-select-clear',
+      /** input · Saved connections — search by name, host, database, user, or port */
+      targetSavedSelectFilter: 'target-saved-select-filter',
+      /** div · Saved connections — search by name, host, database, user, or port */
+      targetSavedSelectGroup: (group: string | number) => `target-saved-select-group-${group}`,
+      /** data */
+      targetSavedSelectOption: (id: string | number) => `target-saved-select-option-${id}`,
+      /** button · Saved connections — search by name, host, database, user, or port */
+      targetSavedSelectTrigger: 'target-saved-select-trigger',
     },
     ErrorBoundary: {
       /** button · Dismiss */
@@ -852,16 +1029,22 @@ export const TestIds = {
       connModal: 'conn-modal',
       /** input · e.g. Prod DB2 */
       connNameInput: 'conn-name-input',
-      /** PasswordInput */
+      /** input */
       connPasswordInput: 'conn-password-input',
+      /** button · Hold to show password */
+      connPasswordInputReveal: 'conn-password-input-reveal',
       /** input */
       connPortInput: 'conn-port-input',
       /** button */
       connSaveBtn: 'conn-save-btn',
       /** input */
       connSavePassword: 'conn-save-password',
-      /** Autocomplete */
+      /** input */
       connSchemaInput: 'conn-schema-input',
+      /** button */
+      connSchemaInputOption: (value: string | number) => `conn-schema-input-option-${value}`,
+      /** button */
+      connSchemaInputToggle: 'conn-schema-input-toggle',
       /** textarea · Absolute path to .arm / .pem / .crt, or paste the PEM. Not a Java .jks. */
       connSslCaInput: 'conn-ssl-ca-input',
       /** input */
@@ -1173,6 +1356,12 @@ export const TestIds = {
     },
     VersionChangeChart: {
       /** div */
+      lokeeBriefingAdded: 'lokee-briefing-added',
+      /** div */
+      lokeeBriefingModified: 'lokee-briefing-modified',
+      /** div */
+      lokeeBriefingRemoved: 'lokee-briefing-removed',
+      /** div */
       lokeeChangeChart: 'lokee-change-chart',
       /** div */
       lokeeVersionBriefing: 'lokee-version-briefing',
@@ -1180,6 +1369,8 @@ export const TestIds = {
     VersionCompareModal: {
       /** span */
       lokeeCmpAlreadyHint: 'lokee-cmp-already-hint',
+      /** div · Object-level + / ~ / − — no extra query. */
+      lokeeCmpBriefing: 'lokee-cmp-briefing',
       /** input */
       lokeeCmpConfirmLossy: 'lokee-cmp-confirm-lossy',
       /** div */
@@ -1202,6 +1393,8 @@ export const TestIds = {
       lokeeCmpSelectNone: 'lokee-cmp-select-none',
       /** div */
       lokeeCmpSummary: 'lokee-cmp-summary',
+      /** button */
+      lokeeCmpTab: (id: string | number) => `lokee-cmp-tab-${id}`,
       /** button · Put Target back on the current database so this revert can run */
       lokeeCmpUseCurrentTarget: 'lokee-cmp-use-current-target',
       /** div · Compare versions */
@@ -1254,6 +1447,20 @@ export const TestIds = {
     BrowseBar: {
       /** div */
       browseBar: 'browse-bar',
+      /** data */
+      browseConnectionOption: (id: string | number) => `browse-connection-option-${id}`,
+      /** div · Read this database's objects — search by name, host, database, user, or port */
+      browseConnectionSelectBackdrop: 'browse-connection-select-backdrop',
+      /** button · Read this database's objects — search by name, host, database, user, or port */
+      browseConnectionSelectClear: 'browse-connection-select-clear',
+      /** input · Read this database's objects — search by name, host, database, user, or port */
+      browseConnectionSelectFilter: 'browse-connection-select-filter',
+      /** div · Read this database's objects — search by name, host, database, user, or port */
+      browseConnectionSelectGroup: (group: string | number) => `browse-connection-select-group-${group}`,
+      /** input · Read this database's objects — search by name, host, database, user, or port */
+      browseConnectionSelectOption: (id: string | number) => `browse-connection-select-option-${id}`,
+      /** button · Read this database's objects — search by name, host, database, user, or port */
+      browseConnectionSelectTrigger: 'browse-connection-select-trigger',
       /** button · Re-read this database */
       browseReloadBtn: 'browse-reload-btn',
     },
@@ -1339,21 +1546,25 @@ export const TestIds = {
     },
   },
   schemaDiff: {
-    DetailTabs: {
-      /** button */
-      tab: (testIdPrefix: string | number, id: string | number) => `${testIdPrefix}-tab-${id}`,
-    },
     DiffBriefingChips: {
       /** span */
       lokeeChangeTicks: 'lokee-change-ticks',
     },
     DiffBriefingPanel: {
+      /** button */
+      diffBriefingAdded: 'diff-briefing-added',
       /** p */
       diffBriefingEmpty: 'diff-briefing-empty',
+      /** button */
+      diffBriefingModified: 'diff-briefing-modified',
       /** div · What changed */
       diffBriefingPanel: 'diff-briefing-panel',
       /** button */
+      diffBriefingRemoved: 'diff-briefing-removed',
+      /** button */
       diffBriefingRow: (tableName: string | number) => `diff-briefing-row-${tableName}`,
+      /** button */
+      diffBriefingUnchanged: 'diff-briefing-unchanged',
     },
     SchemaBlueprint: {
       /** input */
@@ -1405,31 +1616,7 @@ export const TestIds = {
     },
   },
   shared: {
-    Autocomplete: {
-      /** button */
-      option: (testId: string | number, value: string | number) => `${testId}-option-${value}`,
-      /** button */
-      toggle: (testId: string | number) => `${testId}-toggle`,
-    },
-    CommandModeToggle: {
-      /** pre */
-      command: (testId: string | number) => `${testId}-command`,
-      /** input · Container name */
-      container: (testId: string | number) => `${testId}-container`,
-      /** button */
-      copy: (testId: string | number) => `${testId}-copy`,
-      /** p */
-      error: (testId: string | number) => `${testId}-error`,
-      /** select · Command format */
-      format: (testId: string | number) => `${testId}-format`,
-      /** p */
-      formatError: (testId: string | number) => `${testId}-format-error`,
-      /** button · Save .sh */
-      save: (testId: string | number) => `${testId}-save`,
-    },
     PasswordInput: {
-      /** button · Hold to show password */
-      reveal: (testId: string | number) => `${testId}-reveal`,
       /** button · Hold to show password */
       passwordReveal: 'password-reveal',
     },
@@ -1440,8 +1627,22 @@ export const TestIds = {
       sqlConnCheck: (value: string | number) => `sql-conn-check-${value}`,
       /** span */
       sqlDestGroup: (n: string | number) => `sql-dest-group-${n}`,
+      /** data */
+      sqlDestOption: (value: string | number) => `sql-dest-option-${value}`,
       /** div */
       sqlDestinationChips: 'sql-destination-chips',
+      /** div · Filter by name, host, database, user, port… */
+      sqlDestinationsBackdrop: 'sql-destinations-backdrop',
+      /** button · Filter by name, host, database, user, port… */
+      sqlDestinationsClear: 'sql-destinations-clear',
+      /** input · Filter by name, host, database, user, port… */
+      sqlDestinationsFilter: 'sql-destinations-filter',
+      /** div · Filter by name, host, database, user, port… */
+      sqlDestinationsGroup: (group: string | number) => `sql-destinations-group-${group}`,
+      /** input · Filter by name, host, database, user, port… */
+      sqlDestinationsOption: (id: string | number) => `sql-destinations-option-${id}`,
+      /** button · Filter by name, host, database, user, port… */
+      sqlDestinationsTrigger: 'sql-destinations-trigger',
       /** div · Password for “ ” */
       sqlSessionPassword: 'sql-session-password',
       /** button · Cancel */
@@ -1646,6 +1847,8 @@ export const TestIds = {
     DataPeekPanel: {
       /** div */
       dataPeek: 'data-peek',
+      /** data */
+      dataPeekForActionAndId: (action: string | number, id: string | number) => `data-peek-${action}-${id}`,
       /** button · Apply */
       dataPeekApply: (id: string | number) => `data-peek-apply-${id}`,
       /** div */
@@ -1745,6 +1948,16 @@ export const TestIds = {
       /** div */
       dataPeekInsight: 'data-peek-insight',
       /** div */
+      dataPeekInsightCardDistinct: 'data-peek-insight-card-distinct',
+      /** div */
+      dataPeekInsightCardNulls: 'data-peek-insight-card-nulls',
+      /** div */
+      dataPeekInsightCardOrphans: 'data-peek-insight-card-orphans',
+      /** div */
+      dataPeekInsightCardRows: 'data-peek-insight-card-rows',
+      /** div */
+      dataPeekInsightCardSize: 'data-peek-insight-card-size',
+      /** div */
       dataPeekInsightCards: 'data-peek-insight-cards',
       /** button */
       dataPeekInsightCheckOrphans: 'data-peek-insight-check-orphans',
@@ -1754,6 +1967,8 @@ export const TestIds = {
       dataPeekInsightColumns: 'data-peek-insight-columns',
       /** p */
       dataPeekInsightError: 'data-peek-insight-error',
+      /** div */
+      dataPeekInsightFk: (key: string | number) => `data-peek-insight-fk-${key}`,
       /** div */
       dataPeekInsightFks: 'data-peek-insight-fks',
       /** p */
@@ -1809,10 +2024,6 @@ export const TestIds = {
       /** button · Preview */
       peekRowSubmit: 'peek-row-submit',
     },
-    ResultChart: {
-      /** rect */
-      bar: (testId: string | number, i: string | number) => `${testId}-bar-${i}`,
-    },
     ResultsPanel: {
       /** button · Refresh this server */
       sqlCredRefresh: 'sql-cred-refresh',
@@ -1820,10 +2031,16 @@ export const TestIds = {
       sqlPaneResize: 'sql-pane-resize',
       /** button · Retry this server */
       sqlPaneRetry: (connectionId: string | number) => `sql-pane-retry-${connectionId}`,
+      /** data */
+      sqlResult: (statementIndex: string | number, action: string | number) => `sql-result-${statementIndex}-${action}`,
       /** span */
       sqlResultCollapsed: (statementIndex: string | number) => `sql-result-${statementIndex}-collapsed`,
       /** span */
       sqlResultReadonly: (statementIndex: string | number) => `sql-result-${statementIndex}-readonly`,
+      /** div */
+      sqlResultChart: (statementIndex: string | number) => `sql-result-chart-${statementIndex}`,
+      /** rect */
+      sqlResultChartBar: (statementIndex: string | number, i: string | number) => `sql-result-chart-${statementIndex}-bar-${i}`,
       /** input */
       sqlResultChartToggle: (statementIndex: string | number) => `sql-result-chart-toggle-${statementIndex}`,
       /** button · Close (Esc) */
@@ -2182,8 +2399,6 @@ export const TestIds = {
       sqlStatementValuesPopover: 'sql-statement-values-popover',
     },
     TableBlueprintModal: {
-      /** button */
-      toggle: (testId: string | number) => `${testId}-toggle`,
       /** button · Add column */
       blueprintAddColumn: 'blueprint-add-column',
       /** button · Add foreign key */
@@ -2252,8 +2467,12 @@ export const TestIds = {
       blueprintFkRefColumnDown: (name: string | number) => `blueprint-fk-ref-column-down-${name}`,
       /** button · Move up */
       blueprintFkRefColumnUp: (name: string | number) => `blueprint-fk-ref-column-up-${name}`,
-      /** Autocomplete · Type table name… */
+      /** input · Type table name… */
       blueprintFkRefTable: 'blueprint-fk-ref-table',
+      /** button · Type table name… */
+      blueprintFkRefTableOption: (value: string | number) => `blueprint-fk-ref-table-option-${value}`,
+      /** button · Type table name… */
+      blueprintFkRefTableToggle: 'blueprint-fk-ref-table-toggle',
       /** button · Add FK */
       blueprintFkSave: 'blueprint-fk-save',
       /** button · Undo */
@@ -2272,6 +2491,10 @@ export const TestIds = {
       blueprintFragRunCustom: 'blueprint-frag-run-custom',
       /** button · Cancel */
       blueprintIndexCancel: 'blueprint-index-cancel',
+      /** div */
+      blueprintIndexCols: (name: string | number) => `blueprint-index-cols-${name}`,
+      /** button */
+      blueprintIndexColsToggle: (name: string | number) => `blueprint-index-cols-${name}-toggle`,
       /** button */
       blueprintIndexColumn: (name: string | number) => `blueprint-index-column-${name}`,
       /** button · Move earlier */
@@ -2308,6 +2531,10 @@ export const TestIds = {
       blueprintInsertSql: 'blueprint-insert-sql',
       /** button · Remove */
       blueprintPendingFkRemove: (name: string | number) => `blueprint-pending-fk-remove-${name}`,
+      /** div */
+      blueprintPendingIndexCols: (i: string | number) => `blueprint-pending-index-cols-${i}`,
+      /** button */
+      blueprintPendingIndexColsToggle: (i: string | number) => `blueprint-pending-index-cols-${i}-toggle`,
       /** button · Edit */
       blueprintPendingIndexEdit: (name: string | number) => `blueprint-pending-index-edit-${name}`,
       /** button · Remove */
@@ -2422,8 +2649,12 @@ export const TestIds = {
       cloneTableLoad: 'clone-table-load',
       /** div */
       cloneTableModal: 'clone-table-modal',
-      /** Autocomplete */
+      /** input */
       cloneTableName: 'clone-table-name',
+      /** button */
+      cloneTableNameOption: (value: string | number) => `clone-table-name-option-${value}`,
+      /** button */
+      cloneTableNameToggle: 'clone-table-name-toggle',
       /** button · Unlock */
       cloneUnlock: 'clone-unlock',
     },
@@ -2482,8 +2713,10 @@ export const TestIds = {
       dbAccessOpenAppRoles: 'db-access-open-app-roles',
       /** div */
       dbAccessOverlay: 'db-access-overlay',
-      /** PasswordInput · •••••••• */
+      /** input · •••••••• */
       dbAccessPassword: 'db-access-password',
+      /** button · Hold to show password */
+      dbAccessPasswordReveal: 'db-access-password-reveal',
       /** button */
       dbAccessPrincipal: (name: string | number) => `db-access-principal-${name}`,
       /** tr */
@@ -2662,8 +2895,24 @@ export const TestIds = {
       indexManagementModal: 'index-management-modal',
       /** nav · Database utilities */
       sqlSidebarUtilities: 'sql-sidebar-utilities',
+      /** data · Clone Table */
+      utilitiesCloneTable: 'utilities-clone-table',
       /** select */
       utilitiesConnection: 'utilities-connection',
+      /** data · Connection Pool */
+      utilitiesConnectionPool: 'utilities-connection-pool',
+      /** data · DB users & grants */
+      utilitiesDatabaseAccess: 'utilities-database-access',
+      /** data · Index Management */
+      utilitiesIndexManagement: 'utilities-index-management',
+      /** data · Table & Index Size */
+      utilitiesObjectSizes: 'utilities-object-sizes',
+      /** data · Query files */
+      utilitiesQueryFiles: 'utilities-query-files',
+      /** data · System Info */
+      utilitiesSystemInfo: 'utilities-system-info',
+      /** data · User Connections */
+      utilitiesUserConnections: 'utilities-user-connections',
       /** div */
       utilitiesView: 'utilities-view',
     },
@@ -2838,6 +3087,18 @@ export const TestIds = {
       workflowHttpVariables: 'workflow-http-variables',
     },
     Inspector: {
+      /** div · Filter by name, kind, id… */
+      pipeCredentialBackdrop: 'pipe-credential-backdrop',
+      /** button · Filter by name, kind, id… */
+      pipeCredentialClear: 'pipe-credential-clear',
+      /** input · Filter by name, kind, id… */
+      pipeCredentialFilter: 'pipe-credential-filter',
+      /** div · Filter by name, kind, id… */
+      pipeCredentialGroup: (group: string | number) => `pipe-credential-group-${group}`,
+      /** data */
+      pipeCredentialOption: (id: string | number) => `pipe-credential-option-${id}`,
+      /** button · Filter by name, kind, id… */
+      pipeCredentialTrigger: 'pipe-credential-trigger',
       /** input */
       workflowInspectorConcurrency: 'workflow-inspector-concurrency',
       /** select */
@@ -2884,6 +3145,18 @@ export const TestIds = {
       workflowRunsLive: 'workflow-runs-live',
     },
     SqlPipeEditor: {
+      /** div · Filter by name, dialect, host… */
+      sqlPipeConnectionBackdrop: 'sql-pipe-connection-backdrop',
+      /** button · Filter by name, dialect, host… */
+      sqlPipeConnectionClear: 'sql-pipe-connection-clear',
+      /** input · Filter by name, dialect, host… */
+      sqlPipeConnectionFilter: 'sql-pipe-connection-filter',
+      /** div · Filter by name, dialect, host… */
+      sqlPipeConnectionGroup: (group: string | number) => `sql-pipe-connection-group-${group}`,
+      /** data */
+      sqlPipeConnectionOption: (id: string | number) => `sql-pipe-connection-option-${id}`,
+      /** button · Filter by name, dialect, host… */
+      sqlPipeConnectionTrigger: 'sql-pipe-connection-trigger',
       /** button */
       workflowSqlPipeBrowse: 'workflow-sql-pipe-browse',
       /** button */
@@ -2959,3 +3232,1496 @@ export const TestIds = {
     },
   },
 } as const;
+
+/** Any test ID in the web app; `${string}` is a part filled in at run time. */
+export type TestId =
+  | 'access-connection'
+  | 'access-grants-copy'
+  | 'access-grants-diff'
+  | 'access-grants-mode'
+  | `access-grants-mode-${string}`
+  | 'access-grants-open-sql'
+  | `access-grants-preset-${string}`
+  | 'access-grants-preset-clear'
+  | 'access-grants-presets'
+  | 'access-grants-sql'
+  | 'access-grants-stage'
+  | 'access-menu'
+  | 'access-permission-account'
+  | 'access-permission-account-alterations'
+  | 'access-permission-account-kind'
+  | 'access-permission-account-login'
+  | 'access-permission-account-memberof'
+  | 'access-permission-account-members'
+  | 'access-permission-account-name'
+  | 'access-permission-allow-all'
+  | `access-permission-alteration-${string}`
+  | 'access-permission-cancel'
+  | 'access-permission-confirm'
+  | 'access-permission-confirm-run'
+  | 'access-permission-connection'
+  | 'access-permission-drop-safety'
+  | 'access-permission-error'
+  | `access-permission-expanded-kinds-${string}`
+  | 'access-permission-filter'
+  | `access-permission-group-${string}`
+  | 'access-permission-hint'
+  | 'access-permission-needs-connection'
+  | 'access-permission-open-sql'
+  | 'access-permission-open-user-management'
+  | 'access-permission-panel'
+  | 'access-permission-principal'
+  | 'access-permission-reload'
+  | `access-permission-row-${string}`
+  | 'access-permission-selected-name'
+  | 'access-permission-stage'
+  | `access-permission-stage-${string}`
+  | 'access-permission-status'
+  | 'access-permission-unsupported'
+  | 'access-principals-add-user'
+  | 'access-principals-counts'
+  | `access-principals-filter-${string}`
+  | 'access-principals-sidebar'
+  | 'access-report'
+  | `access-tab-${string}`
+  | 'access-view'
+  | 'ack-destructive-drops'
+  | 'ack-mysql-binlog-risk'
+  | 'ack-narrowing-types'
+  | 'activity-indicator'
+  | 'activity-list'
+  | 'activity-toggle'
+  | 'admin-access-close'
+  | 'admin-access-denied'
+  | 'admin-access-layers'
+  | 'admin-access-panel'
+  | `admin-active-${string}`
+  | 'admin-add-user'
+  | `admin-change-password-${string}`
+  | 'admin-change-password-modal'
+  | 'admin-confirm-password'
+  | 'admin-confirm-password-reveal'
+  | `admin-edit-role-${string}`
+  | 'admin-git-activity'
+  | `admin-git-activity-${string}`
+  | 'admin-git-add'
+  | 'admin-git-cancel'
+  | `admin-git-edit-${string}`
+  | 'admin-git-form'
+  | 'admin-git-form-branch'
+  | 'admin-git-form-folder'
+  | 'admin-git-form-name'
+  | 'admin-git-form-url'
+  | 'admin-git-form-user'
+  | `admin-git-remove-${string}`
+  | `admin-git-repo-${string}`
+  | 'admin-git-repos'
+  | 'admin-git-require-commit'
+  | `admin-git-role-${string}`
+  | `admin-git-roles-${string}`
+  | 'admin-git-save'
+  | `admin-issue-code-${string}`
+  | 'admin-issued-code'
+  | 'admin-issued-code-copy'
+  | 'admin-issued-code-dismiss'
+  | 'admin-issued-code-value'
+  | 'admin-new-email'
+  | 'admin-new-password'
+  | 'admin-new-password-reveal'
+  | 'admin-new-role'
+  | 'admin-new-user-submit'
+  | 'admin-password-cancel'
+  | 'admin-password-close'
+  | `admin-perm-${string}`
+  | 'admin-perm-collapse-all'
+  | `admin-perm-count-${string}`
+  | 'admin-perm-expand-all'
+  | `admin-perm-group-${string}`
+  | 'admin-roles-hint'
+  | 'admin-save-password'
+  | 'admin-save-role-perms'
+  | 'admin-save-status'
+  | 'admin-sign-in-settings'
+  | 'admin-tab-git'
+  | 'admin-tab-roles'
+  | 'admin-tab-sign-in'
+  | 'admin-tab-users'
+  | 'admin-tab-users-roles'
+  | 'admin-unsaved'
+  | `admin-user-expand-${string}`
+  | `admin-user-group-${string}`
+  | `admin-user-group-empty-${string}`
+  | 'admin-user-groups'
+  | `admin-user-invited-${string}`
+  | `admin-user-perm-${string}-${string}`
+  | `admin-user-perm-count-${string}`
+  | `admin-user-perms-${string}`
+  | `admin-user-role-${string}`
+  | `admin-user-row-${string}`
+  | 'admin-users-roles-panel'
+  | 'app-error-boundary-dismiss'
+  | 'app-toast'
+  | 'applies-git-btn'
+  | 'applies-git-commit'
+  | 'auth-code'
+  | 'auth-code-back'
+  | 'auth-code-continue'
+  | 'auth-code-form'
+  | 'auth-forgot-back'
+  | 'auth-forgot-email'
+  | 'auth-forgot-form'
+  | 'auth-forgot-have-code'
+  | 'auth-forgot-link'
+  | 'auth-forgot-send'
+  | 'auth-forgot-sent'
+  | 'auth-have-code'
+  | 'auth-login-email'
+  | 'auth-login-form'
+  | 'auth-login-submit'
+  | 'auth-news-opt-in'
+  | 'auth-redeem-back'
+  | 'auth-redeem-email'
+  | 'auth-redeem-form'
+  | 'auth-redeem-submit'
+  | 'auth-sent-back'
+  | 'auth-sent-enter-code'
+  | 'auth-setup-code'
+  | 'auth-setup-email'
+  | 'auth-setup-form'
+  | 'auth-setup-submit'
+  | `auth-sso-buttons-continue-${string}`
+  | 'backend-offline-banner'
+  | 'backend-offline-retry'
+  | 'blueprint-add-column'
+  | 'blueprint-add-fk'
+  | 'blueprint-add-index'
+  | 'blueprint-add-trigger'
+  | `blueprint-ai-${string}`
+  | 'blueprint-all-columns-selected'
+  | 'blueprint-all-indexes-selected'
+  | 'blueprint-all-members-selected'
+  | 'blueprint-all-triggers-selected'
+  | 'blueprint-apply'
+  | 'blueprint-attributes'
+  | 'blueprint-auto-increment'
+  | 'blueprint-bool-default'
+  | 'blueprint-close'
+  | 'blueprint-column-cancel'
+  | `blueprint-column-check-${string}`
+  | 'blueprint-column-default'
+  | `blueprint-column-drop-${string}`
+  | `blueprint-column-edit-${string}`
+  | 'blueprint-column-form'
+  | 'blueprint-column-identity'
+  | 'blueprint-column-identity-generation'
+  | 'blueprint-column-name'
+  | 'blueprint-column-nullable'
+  | 'blueprint-column-save'
+  | `blueprint-column-undo-drop-${string}`
+  | 'blueprint-columns'
+  | 'blueprint-columns-all'
+  | 'blueprint-columns-whole-object'
+  | 'blueprint-drop-table'
+  | 'blueprint-error'
+  | 'blueprint-fk-cancel'
+  | `blueprint-fk-column-${string}`
+  | `blueprint-fk-column-down-${string}`
+  | `blueprint-fk-column-up-${string}`
+  | `blueprint-fk-drop-${string}`
+  | 'blueprint-fk-form'
+  | 'blueprint-fk-name'
+  | 'blueprint-fk-on-delete'
+  | 'blueprint-fk-on-update'
+  | `blueprint-fk-ref-column-${string}`
+  | `blueprint-fk-ref-column-down-${string}`
+  | `blueprint-fk-ref-column-up-${string}`
+  | 'blueprint-fk-ref-table'
+  | `blueprint-fk-ref-table-option-${string}`
+  | 'blueprint-fk-ref-table-toggle'
+  | 'blueprint-fk-save'
+  | `blueprint-fk-undo-drop-${string}`
+  | 'blueprint-footer-close'
+  | 'blueprint-foreign-keys'
+  | 'blueprint-frag-custom'
+  | 'blueprint-frag-custom-show'
+  | 'blueprint-frag-custom-sql'
+  | 'blueprint-frag-legend'
+  | 'blueprint-frag-run-custom'
+  | `blueprint-include-member-in-${string}`
+  | 'blueprint-index-cancel'
+  | `blueprint-index-cols-${string}`
+  | `blueprint-index-cols-${string}-toggle`
+  | `blueprint-index-column-${string}`
+  | `blueprint-index-column-earlier-${string}`
+  | `blueprint-index-column-later-${string}`
+  | `blueprint-index-column-order-${string}`
+  | 'blueprint-index-confirm-no-filter'
+  | `blueprint-index-defrag-${string}`
+  | `blueprint-index-drop-${string}`
+  | `blueprint-index-edit-${string}`
+  | 'blueprint-index-form'
+  | `blueprint-index-frag-${string}`
+  | 'blueprint-index-name'
+  | `blueprint-index-row-${string}`
+  | 'blueprint-index-save'
+  | `blueprint-index-undo-drop-${string}`
+  | 'blueprint-index-unique'
+  | 'blueprint-index-where'
+  | 'blueprint-indexes'
+  | 'blueprint-insert-sql'
+  | 'blueprint-parameters'
+  | `blueprint-pending-fk-remove-${string}`
+  | `blueprint-pending-index-cols-${string}`
+  | `blueprint-pending-index-cols-${string}-toggle`
+  | `blueprint-pending-index-edit-${string}`
+  | `blueprint-pending-index-remove-${string}`
+  | `blueprint-pending-trigger-remove-${string}`
+  | `blueprint-pk-column-${string}`
+  | `blueprint-pk-column-down-${string}`
+  | `blueprint-pk-column-up-${string}`
+  | 'blueprint-primary-key'
+  | 'blueprint-refresh-frag'
+  | 'blueprint-summary'
+  | 'blueprint-table-name'
+  | `blueprint-toggle-index-${string}`
+  | 'blueprint-trigger-cancel'
+  | `blueprint-trigger-check-${string}`
+  | 'blueprint-trigger-definition'
+  | `blueprint-trigger-drop-${string}`
+  | 'blueprint-trigger-event'
+  | `blueprint-trigger-expand-${string}`
+  | 'blueprint-trigger-form'
+  | 'blueprint-trigger-name'
+  | 'blueprint-trigger-save'
+  | 'blueprint-trigger-timing'
+  | `blueprint-trigger-undo-drop-${string}`
+  | 'blueprint-triggers'
+  | 'blueprint-triggers-all'
+  | 'blueprint-type-custom'
+  | 'blueprint-type-length'
+  | 'blueprint-type-precision'
+  | 'blueprint-type-scale'
+  | 'blueprint-type-select'
+  | 'blueprint-unique'
+  | 'browse-bar'
+  | 'browse-connection-card'
+  | `browse-connection-option-${string}`
+  | 'browse-connection-select-backdrop'
+  | 'browse-connection-select-clear'
+  | 'browse-connection-select-filter'
+  | `browse-connection-select-group-${string}`
+  | `browse-connection-select-option-${string}`
+  | 'browse-connection-select-trigger'
+  | 'browse-reload-btn'
+  | `browse-type-${string}`
+  | 'browse-type-filter'
+  | 'caps-lock-hint'
+  | 'clone-apply'
+  | 'clone-archive-preview'
+  | 'clone-close'
+  | 'clone-error'
+  | 'clone-inbound-warning'
+  | 'clone-insert-sql'
+  | 'clone-keep-fks'
+  | 'clone-keep-indexes'
+  | 'clone-password-draft'
+  | 'clone-plan-error'
+  | 'clone-sql-preview'
+  | 'clone-status'
+  | 'clone-suffix-auto'
+  | 'clone-suffix-fixed'
+  | 'clone-suffix-number'
+  | 'clone-table-close'
+  | 'clone-table-connection'
+  | 'clone-table-load'
+  | 'clone-table-modal'
+  | 'clone-table-name'
+  | `clone-table-name-option-${string}`
+  | 'clone-table-name-toggle'
+  | 'clone-unlock'
+  | 'cloud-cred-add'
+  | 'cloud-cred-cancel'
+  | `cloud-cred-card-${string}`
+  | 'cloud-cred-close-form'
+  | `cloud-cred-edit-${string}`
+  | `cloud-cred-field-${string}`
+  | 'cloud-cred-form'
+  | 'cloud-cred-name'
+  | 'cloud-cred-provider-select'
+  | `cloud-cred-remove-${string}`
+  | 'cloud-cred-save'
+  | `cloud-cred-status-${string}`
+  | 'cloud-provider-credentials'
+  | 'command-palette'
+  | 'command-palette-btn'
+  | 'command-palette-input'
+  | `command-palette-item-${string}`
+  | 'compare-btn'
+  | 'conn-auth-method'
+  | 'conn-cancel'
+  | 'conn-close'
+  | 'conn-database-browse'
+  | 'conn-database-input'
+  | 'conn-dialect-select'
+  | 'conn-domain-input'
+  | 'conn-host-input'
+  | 'conn-install-driver-package'
+  | 'conn-ldap-hint'
+  | 'conn-load-schema-btn'
+  | 'conn-modal'
+  | 'conn-name-input'
+  | 'conn-password-input'
+  | 'conn-password-input-reveal'
+  | 'conn-port-input'
+  | 'conn-save-btn'
+  | 'conn-save-password'
+  | 'conn-schema-input'
+  | `conn-schema-input-option-${string}`
+  | 'conn-schema-input-toggle'
+  | 'conn-ssl-ca-input'
+  | 'conn-ssl-enabled'
+  | `conn-test-${string}`
+  | 'conn-username-input'
+  | `connection-chip-${string}`
+  | 'continue-on-error-checkbox'
+  | 'cred-add-btn'
+  | 'cred-clear-filters'
+  | 'cred-close-btn'
+  | `cred-delete-${string}`
+  | 'cred-dialect-filter'
+  | `cred-edit-${string}`
+  | `cred-edit-credential-${string}`
+  | `cred-group-${string}`
+  | 'cred-manager'
+  | 'cred-search'
+  | 'cred-sort'
+  | 'cred-tab-cloud'
+  | 'cred-tab-database'
+  | 'credentials-btn'
+  | 'data-peek'
+  | `data-peek-${string}-${string}`
+  | `data-peek-apply-${string}`
+  | `data-peek-base-filter-${string}`
+  | `data-peek-base-filter-clear-${string}`
+  | `data-peek-clear-key-${string}`
+  | 'data-peek-close'
+  | `data-peek-close-panel-${string}`
+  | `data-peek-crumb-close-${string}`
+  | `data-peek-drag-${string}`
+  | `data-peek-filters-${string}`
+  | `data-peek-grid-${string}`
+  | 'data-peek-insight'
+  | 'data-peek-insight-card-distinct'
+  | 'data-peek-insight-card-nulls'
+  | 'data-peek-insight-card-orphans'
+  | 'data-peek-insight-card-rows'
+  | 'data-peek-insight-card-size'
+  | 'data-peek-insight-cards'
+  | 'data-peek-insight-check-orphans'
+  | `data-peek-insight-col-${string}`
+  | 'data-peek-insight-columns'
+  | 'data-peek-insight-error'
+  | `data-peek-insight-fk-${string}`
+  | 'data-peek-insight-fks'
+  | 'data-peek-insight-orphan-error'
+  | `data-peek-insight-peek-orphans-${string}`
+  | 'data-peek-insight-rows'
+  | `data-peek-limit-${string}`
+  | `data-peek-order-${string}`
+  | `data-peek-refby-${string}-${string}`
+  | `data-peek-referenced-by-${string}`
+  | `data-peek-resize-${string}`
+  | 'data-peek-scroll'
+  | `data-peek-tab-insight-${string}`
+  | `data-peek-tab-rows-${string}`
+  | `data-peek-tabs-${string}`
+  | `data-peek-where-${string}`
+  | `data-peek-where-clear-${string}`
+  | 'db-access-all-form'
+  | 'db-access-all-note'
+  | 'db-access-all-target'
+  | `db-access-allow-all-${string}`
+  | 'db-access-allow-all-banner'
+  | 'db-access-cancel-confirm'
+  | 'db-access-close'
+  | 'db-access-confirm'
+  | 'db-access-confirm-run'
+  | 'db-access-confirm-type'
+  | 'db-access-connection'
+  | 'db-access-db-users-close'
+  | `db-access-edit-${string}`
+  | 'db-access-editor-objects'
+  | 'db-access-embedded'
+  | 'db-access-error'
+  | `db-access-expand-${string}`
+  | 'db-access-expand-general'
+  | 'db-access-filter'
+  | 'db-access-general-action-grant'
+  | 'db-access-general-action-revoke'
+  | `db-access-general-edit-${string}`
+  | 'db-access-general-editor'
+  | 'db-access-general-preview-sql'
+  | `db-access-general-priv-${string}`
+  | 'db-access-general-privs'
+  | `db-access-general-row-${string}`
+  | 'db-access-general-schema'
+  | 'db-access-grant'
+  | `db-access-grant-${string}`
+  | 'db-access-grant-form'
+  | 'db-access-grant-general'
+  | 'db-access-grant-kind'
+  | 'db-access-grant-name'
+  | 'db-access-grant-role'
+  | 'db-access-grant-sql'
+  | 'db-access-grant-sql-open'
+  | 'db-access-grant-with-option'
+  | 'db-access-grantable'
+  | `db-access-group-${string}`
+  | 'db-access-load'
+  | 'db-access-memberships'
+  | 'db-access-modal'
+  | `db-access-obj-${string}-${string}`
+  | 'db-access-obj-action-grant'
+  | 'db-access-obj-action-revoke'
+  | `db-access-obj-revoke-${string}`
+  | 'db-access-object-editor'
+  | 'db-access-open-app-roles'
+  | 'db-access-overlay'
+  | 'db-access-password'
+  | 'db-access-password-reveal'
+  | 'db-access-permission-sections'
+  | `db-access-pick-${string}-${string}`
+  | 'db-access-preview-sql'
+  | `db-access-principal-${string}`
+  | `db-access-priv-${string}`
+  | `db-access-privgroup-${string}`
+  | `db-access-privgroup-toggle-${string}`
+  | 'db-access-privileges'
+  | `db-access-remove-member-${string}`
+  | `db-access-revoke-${string}`
+  | `db-access-revoke-all-${string}`
+  | 'db-access-save'
+  | `db-access-section-${string}`
+  | 'db-access-section-general'
+  | 'db-access-sql-copy'
+  | 'db-access-sql-modal'
+  | 'db-access-sql-modal-backdrop'
+  | 'db-access-sql-modal-cancel'
+  | 'db-access-sql-modal-run'
+  | 'db-access-sql-modal-sql'
+  | 'db-access-status'
+  | `db-access-toggle-group-${string}`
+  | 'db-access-unsupported'
+  | 'deploy-cancel-btn'
+  | 'deploy-confirm-btn'
+  | 'deploy-confirm-dialog'
+  | 'deploy-dont-ask-again'
+  | `diff-action-${string}`
+  | `diff-action-${string}-${string}`
+  | 'diff-add-row'
+  | 'diff-briefing-added'
+  | 'diff-briefing-empty'
+  | 'diff-briefing-modified'
+  | 'diff-briefing-open'
+  | 'diff-briefing-panel'
+  | 'diff-briefing-removed'
+  | `diff-briefing-row-${string}`
+  | 'diff-briefing-unchanged'
+  | `diff-columns-${string}`
+  | `diff-columns-${string}-filter`
+  | `diff-columns-${string}-item-${string}`
+  | `diff-columns-${string}-list`
+  | 'diff-connection'
+  | 'diff-copy-sql'
+  | `diff-desired-${string}`
+  | 'diff-empty'
+  | 'diff-item'
+  | 'diff-load-catalog'
+  | 'diff-load-error'
+  | `diff-permission-${string}-${string}`
+  | 'diff-principal-name'
+  | `diff-principal-name-option-${string}`
+  | 'diff-principal-name-toggle'
+  | 'diff-principal-type'
+  | `diff-principal-type-${string}`
+  | `diff-remove-${string}`
+  | `diff-row-${string}`
+  | `diff-schema-${string}`
+  | `diff-schema-${string}-option-${string}`
+  | `diff-schema-${string}-toggle`
+  | `diff-scope-${string}`
+  | `diff-scope-${string}-${string}`
+  | 'diff-sql-preview'
+  | 'diff-summary'
+  | 'diff-table'
+  | `diff-tables-${string}`
+  | `diff-tables-${string}-filter`
+  | `diff-tables-${string}-item-${string}`
+  | `diff-tables-${string}-list`
+  | `diff-tree-toggle-selection-${string}`
+  | 'diff-unsupported'
+  | 'dismiss-warnings-btn'
+  | 'error-banner'
+  | 'execute-btn'
+  | `file-import-${string}`
+  | 'file-import-csv-json'
+  | `file-import-delete-${string}`
+  | `file-import-use-${string}-${string}`
+  | `file-import-when-${string}`
+  | 'file-imports-clear-all'
+  | 'file-imports-import'
+  | 'file-imports-panel'
+  | 'file-imports-refresh'
+  | 'file-imports-table-head'
+  | 'file-picker'
+  | 'file-picker-cancel'
+  | 'file-picker-close'
+  | `file-picker-entry-${string}`
+  | 'file-picker-error'
+  | 'file-picker-home'
+  | 'file-picker-name'
+  | 'file-picker-refresh'
+  | 'file-picker-select'
+  | 'file-picker-up'
+  | 'file-query-cancel'
+  | 'file-query-clear'
+  | 'file-query-close'
+  | 'file-query-content'
+  | 'file-query-delimiter'
+  | 'file-query-delimiter-custom'
+  | 'file-query-dest-mode'
+  | 'file-query-format'
+  | 'file-query-has-header'
+  | 'file-query-import'
+  | 'file-query-input'
+  | 'file-query-json-shape'
+  | 'file-query-modal'
+  | 'file-query-offsets'
+  | 'file-query-replace-previous'
+  | 'file-query-replace-table'
+  | 'file-query-skip-lines'
+  | 'file-query-table'
+  | 'file-query-target-credential'
+  | 'file-query-workspace'
+  | 'file-query-workspace-name'
+  | 'force-migrate-apply'
+  | 'force-migrate-cancel'
+  | 'force-migrate-close'
+  | 'force-migrate-confirm-force'
+  | 'force-migrate-confirm-lossy'
+  | 'force-migrate-error'
+  | 'force-migrate-modal'
+  | 'force-migrate-preview'
+  | 'force-migrate-risk'
+  | 'force-migrate-target'
+  | 'force-migrate-version'
+  | 'git-ahead-behind'
+  | 'git-branch-view'
+  | 'git-branch-view-branch'
+  | 'git-branch-view-close'
+  | 'git-branch-view-fetch'
+  | 'git-branch-view-pull'
+  | 'git-branch-view-push'
+  | 'git-branch-view-repo'
+  | 'git-commit-branch'
+  | 'git-commit-btn'
+  | 'git-commit-cancel'
+  | 'git-commit-close'
+  | 'git-commit-dialog'
+  | 'git-commit-new-branch'
+  | 'git-commit-note'
+  | 'git-commit-only'
+  | 'git-commit-preview'
+  | 'git-commit-push'
+  | 'git-commit-repo'
+  | `git-migration-${string}`
+  | 'git-review'
+  | `git-review-${string}`
+  | 'git-review-close'
+  | `git-run-${string}`
+  | `grid-fk-link-${string}-${string}`
+  | 'history-btn'
+  | 'history-clear-all'
+  | 'history-clear-all-cancel'
+  | 'history-clear-all-confirm'
+  | 'history-delete-record'
+  | 'history-delete-selected'
+  | 'history-dialog'
+  | 'history-dialog-close-btn'
+  | 'history-download-pre-migration'
+  | 'history-refresh'
+  | 'history-run-item'
+  | `history-select-${string}`
+  | 'history-select-all'
+  | 'home-command-palette'
+  | `home-connection-${string}`
+  | 'home-connections'
+  | 'home-connections-count'
+  | `home-connections-group-${string}`
+  | 'home-continue'
+  | 'home-continue-snapshots'
+  | 'home-continue-sql'
+  | 'home-continue-sync'
+  | 'home-continue-utilities'
+  | 'home-open-btn'
+  | `home-recent-${string}`
+  | 'home-recents'
+  | 'home-recents-empty'
+  | 'home-view'
+  | 'index-management-embed'
+  | 'index-management-modal'
+  | 'index-management-overlay'
+  | 'index-mgmt-cancel'
+  | 'index-mgmt-close'
+  | 'index-mgmt-collapse-all'
+  | 'index-mgmt-confirm-defrag'
+  | 'index-mgmt-confirm-defrag-run'
+  | 'index-mgmt-confirm-drop'
+  | 'index-mgmt-confirm-drop-cancel'
+  | 'index-mgmt-confirm-drop-run'
+  | 'index-mgmt-connection'
+  | 'index-mgmt-defrag-filtered'
+  | 'index-mgmt-defrag-selected'
+  | `index-mgmt-defragment-${string}`
+  | `index-mgmt-drop-${string}`
+  | 'index-mgmt-drop-selected'
+  | 'index-mgmt-expand-all'
+  | 'index-mgmt-fetch-frag'
+  | `index-mgmt-group-${string}`
+  | 'index-mgmt-groups'
+  | `index-mgmt-last-used-${string}`
+  | 'index-mgmt-load'
+  | 'index-mgmt-min-frag'
+  | 'index-mgmt-no-defrag'
+  | 'index-mgmt-password'
+  | `index-mgmt-row-${string}`
+  | 'index-mgmt-save'
+  | 'index-mgmt-select-filtered'
+  | `index-mgmt-sort-${string}`
+  | 'index-mgmt-status'
+  | `index-mgmt-table-avg-frag-${string}`
+  | `index-mgmt-table-data-${string}`
+  | 'index-mgmt-table-filter'
+  | 'index-mgmt-table-header'
+  | `index-mgmt-table-index-count-${string}`
+  | `index-mgmt-table-index-size-${string}`
+  | `index-mgmt-table-last-used-${string}`
+  | `index-mgmt-table-rows-${string}`
+  | `index-mgmt-table-select-${string}`
+  | `index-mgmt-table-toggle-${string}`
+  | `index-mgmt-toggle-selected-${string}`
+  | 'inspector-chain'
+  | 'inspector-connection'
+  | 'inspector-error'
+  | 'inspector-findings'
+  | 'inspector-load'
+  | 'inspector-principal'
+  | `inspector-principal-option-${string}`
+  | 'inspector-principal-toggle'
+  | 'inspector-schema'
+  | 'inspector-summary'
+  | `inspector-summary-${string}`
+  | 'inspector-table'
+  | 'inspector-warnings'
+  | 'inspector-why-stack'
+  | 'inspector-why-toggle'
+  | 'lokee-briefing-added'
+  | 'lokee-briefing-modified'
+  | 'lokee-briefing-removed'
+  | 'lokee-capture-btn'
+  | 'lokee-capture-connection'
+  | 'lokee-change-chart'
+  | 'lokee-change-ticks'
+  | 'lokee-cmp-already-hint'
+  | 'lokee-cmp-briefing'
+  | 'lokee-cmp-confirm-lossy'
+  | 'lokee-cmp-ddl'
+  | 'lokee-cmp-ddl-diff'
+  | 'lokee-cmp-detail'
+  | 'lokee-cmp-export-report'
+  | 'lokee-cmp-identical'
+  | 'lokee-cmp-risk-chip'
+  | 'lokee-cmp-run-revert'
+  | 'lokee-cmp-select-all'
+  | 'lokee-cmp-select-none'
+  | 'lokee-cmp-summary'
+  | `lokee-cmp-tab-${string}`
+  | 'lokee-cmp-use-current-target'
+  | 'lokee-compare-versions-btn'
+  | 'lokee-database-select'
+  | 'lokee-empty-capture'
+  | 'lokee-empty-credential'
+  | 'lokee-force-migrate-btn'
+  | 'lokee-graph-toggle'
+  | 'lokee-history-compare-bar'
+  | 'lokee-history-swap-btn'
+  | 'lokee-inspector-blueprint'
+  | 'lokee-inspector-close'
+  | 'lokee-inspector-column-mutations'
+  | 'lokee-inspector-growth'
+  | 'lokee-inspector-history'
+  | 'lokee-inspector-script-diff'
+  | 'lokee-inspector-source'
+  | `lokee-inspector-version-${string}`
+  | 'lokee-minimap'
+  | 'lokee-object-inspector'
+  | 'lokee-original-version'
+  | 'lokee-refresh-btn'
+  | `lokee-rf-author-${string}`
+  | 'lokee-rf-capped'
+  | 'lokee-rf-changes-only'
+  | 'lokee-rf-clear-filters'
+  | 'lokee-rf-date-from'
+  | 'lokee-rf-date-to'
+  | 'lokee-rf-empty'
+  | 'lokee-rf-lock'
+  | 'lokee-rf-show-deleted'
+  | `lokee-rf-status-${string}`
+  | 'lokee-rf-tables-only-hint'
+  | `lokee-rf-type-${string}`
+  | `lokee-rf-version-${string}`
+  | 'lokee-rf-version-list'
+  | 'lokee-rf-wide-hint'
+  | `lokee-roadmap-gap-${string}`
+  | 'lokee-roadmap-toggle-all'
+  | 'lokee-script-maximize'
+  | 'lokee-script-modal'
+  | 'lokee-script-modal-close'
+  | 'lokee-sidebar'
+  | `lokee-sidebar-${string}`
+  | `lokee-sidebar-drag-${string}`
+  | 'lokee-sidebar-resize'
+  | 'lokee-snapshot-target-btn'
+  | 'lokee-summary'
+  | 'lokee-target-version'
+  | 'lokee-timeline'
+  | `lokee-timeline-v-${string}`
+  | 'lokee-try-again'
+  | 'lokee-version-briefing'
+  | 'lokee-version-close'
+  | 'lokee-version-compare'
+  | 'lokee-version-compare-close'
+  | 'lokee-version-description'
+  | 'lokee-version-editor'
+  | 'lokee-version-name'
+  | 'lokee-version-save'
+  | 'lokee-weave-page'
+  | 'lokee-weave-view'
+  | `matrix-add-${string}`
+  | `matrix-add-section-${string}`
+  | `matrix-cell-${string}-${string}`
+  | `matrix-col-${string}-${string}`
+  | `matrix-name-${string}`
+  | `matrix-name-${string}-option-${string}`
+  | `matrix-name-${string}-toggle`
+  | `matrix-remove-${string}`
+  | `matrix-row-all-${string}`
+  | `matrix-schema-${string}`
+  | `matrix-section-${string}`
+  | 'matrix-summary'
+  | 'migrate-copy-sql'
+  | 'migrate-cross-dialect-migration'
+  | 'migrate-cross-dialect-readiness-close'
+  | `migrate-dependency-${string}-${string}`
+  | 'migrate-dependency-warning-close'
+  | 'migrate-ignore-case'
+  | 'migrate-inline-diff'
+  | 'migrate-review-conflicts'
+  | 'migrate-review-dependencies'
+  | 'migrate-show-unchanged-detail'
+  | 'migrate-toggle-sync-selection'
+  | 'migrate-validation-warnings-close'
+  | 'migrate-view-details'
+  | 'migrate-view-notes'
+  | 'migration-clear-migration-progress'
+  | 'migration-complete'
+  | 'migration-download-pre-migration'
+  | 'migration-failed'
+  | 'migration-partial'
+  | 'migration-progress-item'
+  | 'migration-progress-panel'
+  | 'migration-running'
+  | `migration-skip-retry-${string}`
+  | 'migration-switch-non-destructive'
+  | 'non-destructive-checkbox'
+  | 'onboarding-back'
+  | 'onboarding-databases'
+  | `onboarding-db-${string}`
+  | `onboarding-goal-${string}`
+  | 'onboarding-skip'
+  | 'password-reveal'
+  | 'password-rules'
+  | `peek-date-day-${string}-${string}-${string}`
+  | 'peek-date-today'
+  | 'peek-date-view-toggle'
+  | 'peek-row-cancel'
+  | 'peek-row-close'
+  | `peek-row-col-${string}`
+  | 'peek-row-column-picker'
+  | `peek-row-datepicker-${string}`
+  | `peek-row-datepicker-pop-${string}`
+  | `peek-row-datetime-native-${string}`
+  | 'peek-row-discard'
+  | 'peek-row-editor'
+  | `peek-row-error-${string}`
+  | 'peek-row-error-summary'
+  | `peek-row-field-${string}`
+  | `peek-row-field-wrap-${string}`
+  | `peek-row-generate-${string}`
+  | `peek-row-generate-${string}-${string}`
+  | 'peek-row-generate-all'
+  | `peek-row-generate-menu-${string}`
+  | `peek-row-generate-suggested-${string}`
+  | 'peek-row-preview'
+  | 'peek-row-preview-error'
+  | 'peek-row-preview-sql'
+  | 'peek-row-save'
+  | 'peek-row-select-all-cols'
+  | 'peek-row-select-none-cols'
+  | 'peek-row-submit'
+  | `peek-row-time-${string}`
+  | 'permission-diff'
+  | 'permission-inspector'
+  | 'permission-matrix'
+  | 'pipe-credential-backdrop'
+  | 'pipe-credential-clear'
+  | 'pipe-credential-filter'
+  | `pipe-credential-group-${string}`
+  | `pipe-credential-option-${string}`
+  | 'pipe-credential-trigger'
+  | 'profile-access-control'
+  | 'profile-menu-dropdown'
+  | 'profile-menu-trigger'
+  | 'profile-preferences'
+  | 'profile-role'
+  | 'profile-sign-out'
+  | 'profile-sign-out-others'
+  | 'report-connection'
+  | 'report-error'
+  | 'report-findings'
+  | 'report-load'
+  | 'report-object-query'
+  | 'report-schema'
+  | 'report-table'
+  | 'report-tiles'
+  | 'report-who'
+  | `rf-kinds-${string}`
+  | `rf-object-${string}-${string}`
+  | `rf-version-${string}`
+  | `rf-version-applied-from-${string}`
+  | `rf-version-revert-${string}`
+  | 'schema-blueprint'
+  | `schema-status-filter-${string}`
+  | 'schema-tree'
+  | 'schema-tree-empty'
+  | 'server-insights-close'
+  | 'server-insights-connection'
+  | 'server-insights-modal'
+  | 'server-insights-password-draft'
+  | 'server-insights-refresh'
+  | 'server-insights-size-filter'
+  | 'server-insights-size-groups'
+  | `server-insights-tab-${string}`
+  | 'server-insights-unlock'
+  | `settings-accent-${string}`
+  | `settings-apply-preset-${string}`
+  | 'settings-close'
+  | `settings-font-${string}`
+  | 'settings-menu'
+  | 'settings-reset'
+  | `settings-tab-${string}`
+  | `settings-theme-mode-${string}`
+  | `settings-tone-${string}`
+  | 'settings-view'
+  | 'settings-workspace'
+  | 'sign-in-copy'
+  | 'sign-in-mail'
+  | 'sign-in-mail-from'
+  | 'sign-in-mail-host'
+  | 'sign-in-mail-port'
+  | `sign-in-mail-preset-${string}`
+  | 'sign-in-mail-save'
+  | 'sign-in-mail-security'
+  | 'sign-in-mail-test-send'
+  | 'sign-in-mail-test-to'
+  | 'sign-in-mail-turn-off'
+  | 'sign-in-mail-username'
+  | 'sign-in-microsoft-tenant'
+  | `sign-in-provider-${string}`
+  | `sign-in-provider-client-id-${string}`
+  | `sign-in-provider-save-${string}`
+  | `sign-in-provider-turn-off-${string}`
+  | 'sign-in-public-url'
+  | 'sign-in-public-url-save'
+  | 'sign-in-service'
+  | 'sign-in-service-admins'
+  | 'sign-in-service-toggle'
+  | 'signup-wizard'
+  | 'signup-wizard-email'
+  | 'signup-wizard-error'
+  | 'signup-wizard-skip'
+  | 'signup-wizard-submit'
+  | 'source-config-btn'
+  | 'source-connect-btn'
+  | 'source-connected-btn'
+  | 'source-saved-select-backdrop'
+  | 'source-saved-select-clear'
+  | 'source-saved-select-filter'
+  | `source-saved-select-group-${string}`
+  | `source-saved-select-option-${string}`
+  | 'source-saved-select-trigger'
+  | `sql-bookmark-delete-${string}`
+  | 'sql-bookmark-install-samples'
+  | `sql-bookmark-open-${string}`
+  | `sql-bookmark-rename-${string}`
+  | `sql-bookmark-rename-input-${string}`
+  | 'sql-bookmark-save'
+  | 'sql-bookmark-save-toolbar'
+  | 'sql-bookmark-toggle-samples'
+  | 'sql-bookmarks'
+  | 'sql-bookmarks-tab'
+  | 'sql-clear-results'
+  | 'sql-col-header'
+  | 'sql-col-resize'
+  | `sql-col-sort-${string}`
+  | `sql-col-source-${string}`
+  | 'sql-col-sync-header'
+  | `sql-conn-check-${string}`
+  | 'sql-cred-refresh'
+  | 'sql-data-grid'
+  | `sql-data-migrate-apply-${string}`
+  | `sql-data-migrate-backup-${string}`
+  | `sql-data-migrate-bar-${string}`
+  | `sql-data-migrate-chip-add-${string}`
+  | `sql-data-migrate-chip-delete-${string}`
+  | `sql-data-migrate-chip-edit-${string}`
+  | `sql-data-migrate-continue-${string}`
+  | `sql-data-migrate-delete-${string}`
+  | `sql-data-migrate-failures-${string}`
+  | `sql-data-migrate-history-${string}`
+  | 'sql-data-migrate-history-close'
+  | 'sql-data-migrate-history-modal'
+  | 'sql-data-migrate-history-restore'
+  | `sql-data-migrate-history-run-${string}`
+  | `sql-data-migrate-identity-${string}`
+  | `sql-data-migrate-insert-${string}`
+  | `sql-data-migrate-key-${string}-${string}`
+  | `sql-data-migrate-preview-${string}`
+  | 'sql-data-migrate-preview-close'
+  | 'sql-data-migrate-preview-modal'
+  | 'sql-data-migrate-progress'
+  | 'sql-data-migrate-progress-close'
+  | `sql-data-migrate-restore-${string}`
+  | `sql-data-migrate-route-${string}`
+  | 'sql-data-migrate-safe-cancel'
+  | `sql-data-migrate-safe-chip-${string}`
+  | 'sql-data-migrate-safe-confirm'
+  | 'sql-data-migrate-safe-confirm-apply'
+  | `sql-data-migrate-sync-all-${string}`
+  | `sql-data-migrate-tx-${string}`
+  | `sql-data-migrate-unresolved-${string}`
+  | `sql-data-migrate-update-${string}`
+  | `sql-dest-group-${string}`
+  | `sql-dest-option-${string}`
+  | 'sql-destination-chips'
+  | 'sql-destinations-backdrop'
+  | 'sql-destinations-clear'
+  | 'sql-destinations-filter'
+  | `sql-destinations-group-${string}`
+  | `sql-destinations-option-${string}`
+  | 'sql-destinations-trigger'
+  | 'sql-editor-loading'
+  | 'sql-editor-resize'
+  | 'sql-editor-tabs'
+  | 'sql-editor-view'
+  | `sql-explorer-col-insert-${string}-${string}`
+  | `sql-explorer-col-select-${string}-${string}`
+  | `sql-explorer-columns-toggle-${string}`
+  | `sql-explorer-from-${string}`
+  | `sql-explorer-index-${string}-${string}`
+  | `sql-explorer-indexes-${string}`
+  | `sql-explorer-indexes-toggle-${string}`
+  | `sql-explorer-object-${string}`
+  | `sql-explorer-param-insert-${string}-${string}`
+  | `sql-explorer-table-stats-${string}`
+  | `sql-explorer-toggle-${string}`
+  | `sql-filter-op-${string}`
+  | 'sql-filter-row'
+  | `sql-filter-value-${string}`
+  | 'sql-format-btn'
+  | 'sql-format-note'
+  | 'sql-grid-cancel'
+  | 'sql-grid-clear-view'
+  | 'sql-grid-context-menu'
+  | 'sql-grid-copy-btn'
+  | 'sql-grid-copy-choose-cols'
+  | `sql-grid-copy-col-${string}`
+  | 'sql-grid-copy-columns'
+  | 'sql-grid-copy-columns-all'
+  | 'sql-grid-copy-columns-close'
+  | 'sql-grid-copy-columns-headers'
+  | 'sql-grid-copy-columns-none'
+  | 'sql-grid-copy-columns-values'
+  | 'sql-grid-copy-headers'
+  | 'sql-grid-copy-headers-only'
+  | 'sql-grid-copy-menu'
+  | 'sql-grid-copy-menu-btn'
+  | 'sql-grid-copy-scope'
+  | 'sql-grid-copy-values'
+  | 'sql-grid-ctx-choose-cols'
+  | 'sql-grid-ctx-copy-cell'
+  | 'sql-grid-ctx-copy-column'
+  | 'sql-grid-ctx-copy-column-headers'
+  | 'sql-grid-ctx-copy-header'
+  | 'sql-grid-ctx-copy-headers'
+  | 'sql-grid-ctx-copy-headers-only'
+  | 'sql-grid-ctx-copy-values'
+  | 'sql-grid-ctx-open-row'
+  | 'sql-grid-export-btn'
+  | 'sql-grid-export-csv'
+  | 'sql-grid-export-json'
+  | 'sql-grid-export-menu'
+  | 'sql-grid-export-menu-btn'
+  | 'sql-grid-export-text'
+  | 'sql-grid-export-yaml'
+  | 'sql-grid-filter-toggle'
+  | 'sql-grid-save-cell-as'
+  | 'sql-grid-save-column-as'
+  | 'sql-grid-save-name'
+  | 'sql-grid-save-result-as'
+  | 'sql-grid-save-result-as-mode'
+  | 'sql-grid-view-scope'
+  | 'sql-layout-by-credential'
+  | 'sql-layout-side-by-side'
+  | 'sql-max-rows'
+  | 'sql-multi-table-threshold'
+  | 'sql-new-table'
+  | 'sql-new-table-empty'
+  | 'sql-open-blueprint'
+  | 'sql-open-object-source'
+  | 'sql-open-object-source-btn'
+  | 'sql-page-next'
+  | 'sql-page-prev'
+  | 'sql-pane-refresh'
+  | 'sql-pane-resize'
+  | `sql-pane-retry-${string}`
+  | 'sql-pipe-connection-backdrop'
+  | 'sql-pipe-connection-clear'
+  | 'sql-pipe-connection-filter'
+  | `sql-pipe-connection-group-${string}`
+  | `sql-pipe-connection-option-${string}`
+  | 'sql-pipe-connection-trigger'
+  | 'sql-readonly-write-warn'
+  | 'sql-recent-clear'
+  | 'sql-recent-list'
+  | `sql-recent-open-${string}`
+  | 'sql-recent-tab'
+  | 'sql-refresh-btn'
+  | 'sql-reload-schema'
+  | `sql-result-${string}-${string}`
+  | `sql-result-${string}-collapsed`
+  | `sql-result-${string}-readonly`
+  | `sql-result-chart-${string}`
+  | `sql-result-chart-${string}-bar-${string}`
+  | `sql-result-chart-toggle-${string}`
+  | `sql-result-close-${string}`
+  | `sql-result-compare-baseline-${string}`
+  | `sql-result-compare-close-${string}`
+  | `sql-result-compare-dest-${string}`
+  | `sql-result-compare-export-csv-${string}`
+  | `sql-result-compare-export-csv-modal-${string}`
+  | `sql-result-compare-hint-${string}`
+  | `sql-result-compare-legend-${string}`
+  | `sql-result-compare-maximize-${string}`
+  | `sql-result-compare-maximized-hint-${string}`
+  | `sql-result-compare-modal-${string}`
+  | `sql-result-compare-skip-trigger-${string}`
+  | `sql-result-compare-sync-scroll-${string}`
+  | `sql-result-compare-sync-scroll-modal-${string}`
+  | `sql-result-compare-toggle-${string}`
+  | `sql-result-compare-toolbar-${string}`
+  | `sql-result-cred-${string}`
+  | `sql-result-cred-close-${string}`
+  | `sql-result-cred-maximize-${string}`
+  | `sql-result-cred-maximized-hint-${string}`
+  | `sql-result-cred-modal-${string}`
+  | `sql-result-maximize-${string}`
+  | `sql-result-maximized-hint-${string}`
+  | `sql-result-modal-${string}`
+  | 'sql-result-pane-row'
+  | 'sql-result-pane-row-wrap'
+  | 'sql-result-pane-stack'
+  | 'sql-result-row-height-resize'
+  | 'sql-result-stack-height-resize'
+  | `sql-result-stack-item-${string}`
+  | `sql-result-stmt-${string}`
+  | 'sql-results-by-credential'
+  | 'sql-results-fk-hint'
+  | 'sql-results-peek-instruction'
+  | 'sql-results-running'
+  | 'sql-results-side-by-side'
+  | 'sql-results-warnings'
+  | `sql-row-${string}`
+  | 'sql-row-num'
+  | `sql-row-selected-${string}`
+  | `sql-row-sync-check-${string}`
+  | 'sql-run-btn'
+  | 'sql-runs-clear'
+  | 'sql-runs-close'
+  | 'sql-runs-drawer'
+  | 'sql-runs-drawer-btn'
+  | 'sql-runs-empty'
+  | 'sql-runs-list'
+  | `sql-runs-open-${string}`
+  | 'sql-safe-dml-warn'
+  | 'sql-safe-mode'
+  | 'sql-safe-multi-table-warn'
+  | 'sql-safe-no-where-ack'
+  | 'sql-safe-no-where-ack-check'
+  | 'sql-safe-no-where-warn'
+  | 'sql-schema-connection'
+  | 'sql-schema-empty'
+  | 'sql-schema-explorer'
+  | `sql-schema-group-${string}`
+  | `sql-schema-group-toggle-${string}`
+  | 'sql-schema-missing'
+  | 'sql-schema-new-table'
+  | 'sql-schema-tree-include-all'
+  | 'sql-schema-tree-search'
+  | 'sql-schema-tree-type-all'
+  | `sql-secret-${string}`
+  | 'sql-secret-add'
+  | 'sql-secret-cancel'
+  | 'sql-secret-cloud-id'
+  | `sql-secret-delete-secret-${string}`
+  | 'sql-secret-fetch'
+  | 'sql-secret-mode'
+  | 'sql-secret-name'
+  | 'sql-secret-provider'
+  | 'sql-secret-region'
+  | 'sql-secret-save'
+  | 'sql-secret-value'
+  | 'sql-secret-vault-url'
+  | 'sql-secret-version'
+  | 'sql-secrets'
+  | 'sql-secrets-error'
+  | 'sql-secrets-refresh'
+  | 'sql-select-all-star'
+  | 'sql-select-close'
+  | `sql-select-col-${string}`
+  | 'sql-select-column-picker'
+  | 'sql-select-remove-all'
+  | 'sql-session-password'
+  | 'sql-session-password-cancel'
+  | 'sql-session-password-input'
+  | 'sql-session-password-submit'
+  | 'sql-share-destinations'
+  | 'sql-share-destinations-chip'
+  | 'sql-sidebar'
+  | `sql-sidebar-${string}`
+  | 'sql-sidebar-collapse'
+  | 'sql-sidebar-collapsed'
+  | `sql-sidebar-drag-${string}`
+  | 'sql-sidebar-expand'
+  | 'sql-sidebar-resize'
+  | `sql-sidebar-resize-${string}`
+  | `sql-sidebar-toggle-${string}`
+  | 'sql-sidebar-utilities'
+  | `sql-statement-cell-${string}`
+  | 'sql-statement-copy'
+  | `sql-statement-copy-row-${string}`
+  | `sql-statement-include-${string}`
+  | `sql-statement-reveal-${string}`
+  | `sql-statement-run-${string}`
+  | 'sql-statement-strip'
+  | 'sql-statement-strip-resize'
+  | 'sql-statement-values-popover'
+  | 'sql-tab-add'
+  | `sql-tab-close-${string}`
+  | 'sql-tab-rename'
+  | `sql-tab-rename-btn-${string}`
+  | `sql-variable-${string}`
+  | 'sql-variable-add'
+  | 'sql-variable-add-confirm'
+  | 'sql-variable-cancel'
+  | `sql-variable-clear-override-${string}`
+  | `sql-variable-delete-${string}`
+  | 'sql-variable-export'
+  | 'sql-variable-import'
+  | 'sql-variable-import-file'
+  | `sql-variable-input-${string}`
+  | 'sql-variable-name-input'
+  | `sql-variable-overrides-${string}`
+  | `sql-variable-preview-table-${string}`
+  | 'sql-variable-save-confirm'
+  | 'sql-variable-save-dialog'
+  | `sql-variable-secret-${string}`
+  | 'sql-variable-secret-input'
+  | `sql-variable-value-${string}`
+  | `sql-variable-value-edit-${string}`
+  | 'sql-variable-value-input'
+  | 'sql-variables'
+  | 'sql-write-confirm'
+  | 'sql-write-confirm-btn'
+  | 'sql-write-confirm-cancel'
+  | 'sync-pane-browse-btn'
+  | 'sync-pane-compare-btn'
+  | 'sync-pane-history-btn'
+  | 'sync-pane-switcher'
+  | 'table-blueprint-indexes'
+  | 'table-blueprint-modal'
+  | 'target-config-btn'
+  | 'target-connect-btn'
+  | 'target-connected-btn'
+  | 'target-saved-select-backdrop'
+  | 'target-saved-select-clear'
+  | 'target-saved-select-filter'
+  | `target-saved-select-group-${string}`
+  | `target-saved-select-option-${string}`
+  | 'target-saved-select-trigger'
+  | 'toast-action-btn'
+  | 'toast-dismiss'
+  | 'toast-host'
+  | 'toolbar'
+  | 'toolbar-clear'
+  | 'toolbar-object-types-all'
+  | 'toolbar-password-cancel'
+  | 'toolbar-password-connect'
+  | 'toolbar-password-show'
+  | 'toolbar-swap-direction'
+  | `toolbar-toggle-object-type-${string}`
+  | `toolbar-toggle-type-filter-${string}`
+  | 'updates-apply-btn'
+  | 'updates-check-btn'
+  | 'updates-copy-cmd-btn'
+  | 'user-access-grants'
+  | 'user-action-form'
+  | 'user-add-role'
+  | 'user-add-user'
+  | `user-allow-all-${string}`
+  | 'user-alteration'
+  | `user-alteration-${string}`
+  | 'user-cancel-action'
+  | 'user-cascade'
+  | 'user-command-mode'
+  | 'user-command-mode-command'
+  | 'user-command-mode-container'
+  | 'user-command-mode-copy'
+  | 'user-command-mode-error'
+  | 'user-command-mode-format'
+  | 'user-command-mode-format-error'
+  | 'user-command-mode-save'
+  | 'user-connection'
+  | 'user-copy'
+  | 'user-copy-with-password'
+  | 'user-create-blocked'
+  | 'user-create-mode'
+  | `user-create-mode-${string}`
+  | 'user-create-mode-only'
+  | 'user-db2-hint'
+  | 'user-db2-run-mode'
+  | 'user-dialect-coach'
+  | 'user-drop-safety'
+  | 'user-drop-selected'
+  | 'user-edit-selected'
+  | 'user-error'
+  | 'user-filter'
+  | 'user-generated-password'
+  | 'user-generated-password-dismiss'
+  | 'user-generated-password-value'
+  | 'user-grant-databases'
+  | 'user-grant-databases-filter'
+  | `user-grant-databases-item-${string}`
+  | 'user-grant-databases-list'
+  | 'user-grant-next'
+  | 'user-grant-schemas'
+  | 'user-grant-schemas-filter'
+  | `user-grant-schemas-item-${string}`
+  | 'user-grant-schemas-list'
+  | 'user-grant-selected'
+  | 'user-host'
+  | 'user-howto'
+  | 'user-kind-filter'
+  | `user-kind-filter-${string}`
+  | 'user-list'
+  | 'user-list-commands'
+  | 'user-list-empty'
+  | 'user-list-error'
+  | 'user-management'
+  | 'user-member-of'
+  | 'user-member-of-filter'
+  | `user-member-of-item-${string}`
+  | 'user-member-of-list'
+  | 'user-name'
+  | `user-name-option-${string}`
+  | 'user-name-toggle'
+  | 'user-new-name'
+  | 'user-os-password'
+  | 'user-os-password-generate'
+  | 'user-os-password-reveal'
+  | 'user-os-role'
+  | `user-os-role-option-${string}`
+  | 'user-os-role-toggle'
+  | `user-os-step-${string}`
+  | 'user-password-hint'
+  | 'user-refresh'
+  | 'user-risk'
+  | `user-row-${string}`
+  | 'user-sql'
+  | 'user-sql-password'
+  | 'user-sql-password-generate'
+  | 'user-sql-password-reveal'
+  | 'user-sqlserver-hint'
+  | 'user-type'
+  | `user-type-${string}`
+  | 'user-unsupported'
+  | 'user-valid-until'
+  | 'user-warnings'
+  | 'utilities-clone-table'
+  | 'utilities-connection'
+  | 'utilities-connection-pool'
+  | 'utilities-database-access'
+  | 'utilities-index-management'
+  | 'utilities-object-sizes'
+  | 'utilities-query-files'
+  | 'utilities-system-info'
+  | 'utilities-user-connections'
+  | 'utilities-view'
+  | 'view-access-btn'
+  | 'view-settings-btn'
+  | 'view-sql-editor-btn'
+  | 'view-sync-btn'
+  | 'view-utilities-btn'
+  | 'view-workflow-btn'
+  | 'warning-banner'
+  | 'workflow-designer-breadcrumb-workflows'
+  | `workflow-designer-switch-pipeline-${string}`
+  | 'workflow-engine'
+  | `workflow-engine-${string}`
+  | 'workflow-engine-endpoint'
+  | 'workflow-engine-health'
+  | 'workflow-engine-max-parallel'
+  | 'workflow-engine-overlap'
+  | 'workflow-engine-refresh-health'
+  | 'workflow-engine-save'
+  | `workflow-engine-target-${string}`
+  | 'workflow-http-auth-credential'
+  | 'workflow-http-auth-key'
+  | 'workflow-http-auth-password'
+  | 'workflow-http-auth-placement'
+  | 'workflow-http-auth-token'
+  | 'workflow-http-auth-type'
+  | 'workflow-http-auth-username'
+  | 'workflow-http-auth-value'
+  | 'workflow-http-body-content-type'
+  | 'workflow-http-body-field-add'
+  | `workflow-http-body-field-enabled-${string}`
+  | `workflow-http-body-field-key-${string}`
+  | `workflow-http-body-field-remove-${string}`
+  | `workflow-http-body-field-type-${string}`
+  | `workflow-http-body-field-value-${string}`
+  | 'workflow-http-body-json'
+  | 'workflow-http-body-mode'
+  | 'workflow-http-body-raw'
+  | 'workflow-http-body-schema'
+  | 'workflow-http-body-schema-sample'
+  | 'workflow-http-kv-add'
+  | `workflow-http-kv-enabled-${string}`
+  | `workflow-http-kv-key-${string}`
+  | `workflow-http-kv-operator-${string}`
+  | `workflow-http-kv-remove-${string}`
+  | `workflow-http-kv-value-${string}`
+  | 'workflow-http-method'
+  | 'workflow-http-session'
+  | 'workflow-http-session-persist'
+  | `workflow-http-tab-${string}`
+  | 'workflow-http-timeout-ms'
+  | 'workflow-http-token-refresh'
+  | 'workflow-http-token-refresh-access-path'
+  | 'workflow-http-token-refresh-refresh-path'
+  | 'workflow-http-token-refresh-skew'
+  | 'workflow-http-token-refresh-url'
+  | 'workflow-http-url'
+  | 'workflow-http-variables'
+  | 'workflow-inspector-concurrency'
+  | `workflow-inspector-field-${string}`
+  | 'workflow-inspector-http-retry-attempts'
+  | 'workflow-inspector-intent'
+  | `workflow-inspector-json-${string}`
+  | 'workflow-inspector-open-in-trigger'
+  | 'workflow-inspector-pipe-id'
+  | 'workflow-inspector-retry-attempts'
+  | `workflow-inspector-sample-port-${string}`
+  | 'workflow-inspector-show-raw'
+  | 'workflow-inspector-sub-workflow-id'
+  | 'workflow-inspector-sub-workflow-version'
+  | `workflow-inspector-tab-${string}`
+  | 'workflow-inspector-trigger'
+  | 'workflow-inspector-type'
+  | 'workflow-list-file'
+  | `workflow-list-open-in-designer-${string}`
+  | 'workflow-menu'
+  | `workflow-multi-http-toggle-${string}`
+  | 'workflow-no-panes'
+  | 'workflow-palette-search-pipes'
+  | 'workflow-palette-show-advanced'
+  | `workflow-process-${string}`
+  | 'workflow-runs-live'
+  | `workflow-sink-${string}`
+  | 'workflow-source-add-column'
+  | 'workflow-source-add-delimiter'
+  | 'workflow-source-add-rule'
+  | `workflow-source-column-length-${string}`
+  | `workflow-source-column-name-${string}`
+  | `workflow-source-column-remove-${string}`
+  | `workflow-source-column-start-${string}`
+  | 'workflow-source-delimiter'
+  | `workflow-source-delimiter-${string}`
+  | 'workflow-source-field-names'
+  | 'workflow-source-format'
+  | 'workflow-source-header'
+  | 'workflow-source-offset'
+  | 'workflow-source-on-invalid'
+  | 'workflow-source-path'
+  | 'workflow-source-preview-file-head'
+  | 'workflow-source-preview-sample'
+  | 'workflow-source-record-delimiter'
+  | `workflow-source-remove-delimiter-${string}`
+  | 'workflow-source-row-schema'
+  | `workflow-source-rule-check-add-${string}`
+  | `workflow-source-rule-check-kind-${string}-${string}`
+  | `workflow-source-rule-check-pattern-${string}-${string}`
+  | `workflow-source-rule-check-remove-${string}-${string}`
+  | `workflow-source-rule-name-${string}`
+  | `workflow-source-rule-remove-${string}`
+  | `workflow-source-rule-required-${string}`
+  | `workflow-source-rule-type-${string}`
+  | 'workflow-source-sample'
+  | 'workflow-source-skip-empty'
+  | 'workflow-source-skip-lines'
+  | 'workflow-source-trim'
+  | 'workflow-sql-pipe-browse'
+  | `workflow-sql-pipe-table-${string}-${string}`
+  | `workflow-tab-${string}`
+  | `workflow-trigger-config-item-${string}`
+  | 'workflow-trigger-config-retry'
+  | `workflow-trigger-config-section-${string}`
+  | `workflow-trigger-config-workflow-${string}`
+  | 'workflow-trigger-settings-catch-up'
+  | 'workflow-trigger-settings-cron'
+  | 'workflow-trigger-settings-execution-type'
+  | 'workflow-trigger-settings-http-credential'
+  | 'workflow-trigger-settings-input'
+  | 'workflow-trigger-settings-max-backoff-duration'
+  | 'workflow-trigger-settings-max-body-bytes'
+  | 'workflow-trigger-settings-max-doublings'
+  | 'workflow-trigger-settings-max-retry-attempts'
+  | 'workflow-trigger-settings-max-retry-duration'
+  | 'workflow-trigger-settings-min-backoff-duration'
+  | 'workflow-trigger-settings-required-fields'
+  | 'workflow-trigger-settings-retry'
+  | 'workflow-trigger-settings-webhook-credential'
+  | `workflow-trigger-settings-workflow-${string}`
+  | `workflow-variables-environment-${string}`
+  | 'workflow-view'
+  | 'workspace-switcher';

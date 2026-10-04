@@ -44,7 +44,9 @@ jobs:
       - run: npm i -g npm@11
       - run: npm ci --ignore-scripts
       # apps/web's tsconfig covers the frontend, the backend, and — through the
-      # workspace path aliases — packages/sql, so this is the whole surface.
+      # workspace path aliases — packages/sql. apps/e2e's covers the Playwright
+      # suite, where byTestId() turns a selector for a removed test ID into a
+      # compile error.
       - run: npm run typecheck
 
   unit-tests:

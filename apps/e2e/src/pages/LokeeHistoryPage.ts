@@ -8,19 +8,20 @@
 import type { Page } from 'playwright';
 import { clickWhen, waitFor } from '../helpers/driver.js';
 import { clickRateLimited } from '../helpers/rate-limited.js';
+import { byTestId } from '../helpers/test-ids.js';
 
 export class LokeeHistoryPage {
   constructor(private page: Page) {}
 
   async openHistoryPane(): Promise<void> {
-    const historyView = this.page.locator('[data-testid="lokee-weave-view"]');
+    const historyView = this.page.locator(byTestId('lokee-weave-view'));
     if (await historyView.isVisible().catch(() => false)) return;
-    const syncBtn = this.page.locator('[data-testid="view-sync-btn"]');
+    const syncBtn = this.page.locator(byTestId('view-sync-btn'));
     if (await syncBtn.isVisible().catch(() => false)) {
-      await clickWhen(this.page, '[data-testid="view-sync-btn"]');
+      await clickWhen(this.page, byTestId('view-sync-btn'));
     }
-    await clickWhen(this.page, '[data-testid="sync-pane-history-btn"]');
-    await waitFor(this.page, '[data-testid="lokee-weave-view"]', 20_000);
+    await clickWhen(this.page, byTestId('sync-pane-history-btn'));
+    await waitFor(this.page, byTestId('lokee-weave-view'), 20_000);
   }
 
   async openComparePane(): Promise<void> {
@@ -29,11 +30,11 @@ export class LokeeHistoryPage {
     // selecting Sync first — reaching straight for the Compare pill waited 15s
     // for a control that is not on that screen, which is what failed this test
     // on every dialect at once.
-    const rail = this.page.locator('[data-testid="view-sync-btn"]');
+    const rail = this.page.locator(byTestId('view-sync-btn'));
     if (await rail.isVisible().catch(() => false)) {
-      await clickWhen(this.page, '[data-testid="view-sync-btn"]');
+      await clickWhen(this.page, byTestId('view-sync-btn'));
     }
-    await clickWhen(this.page, '[data-testid="sync-pane-compare-btn"]');
+    await clickWhen(this.page, byTestId('sync-pane-compare-btn'));
   }
 
   async snapshotTarget(): Promise<void> {
@@ -86,12 +87,12 @@ export class LokeeHistoryPage {
     // whether the graph is on screen: while a database's history is loading the
     // graph is absent either way, and a click made on that guess landed after
     // the load and switched a graph that was already on, off.
-    const toggle = this.page.locator('[data-testid="lokee-graph-toggle"]');
+    const toggle = this.page.locator(byTestId('lokee-graph-toggle'));
     await toggle.waitFor({ state: 'visible', timeout: timeoutMs });
     if ((await toggle.getAttribute('aria-pressed')) !== 'true') {
-      await clickWhen(this.page, '[data-testid="lokee-graph-toggle"]');
+      await clickWhen(this.page, byTestId('lokee-graph-toggle'));
     }
-    await waitFor(this.page, '[data-testid="lokee-weave-page"]', timeoutMs);
+    await waitFor(this.page, byTestId('lokee-weave-page'), timeoutMs);
     await this.page.locator('[data-testid^="rf-version-"]').first().waitFor({ timeout: timeoutMs });
   }
 
@@ -100,10 +101,10 @@ export class LokeeHistoryPage {
   }
 
   async selectSavedTargetByName(name: string): Promise<void> {
-    const trigger = this.page.locator('[data-testid="target-saved-select-trigger"]');
+    const trigger = this.page.locator(byTestId('target-saved-select-trigger'));
     await trigger.waitFor({ state: 'visible', timeout: 15_000 });
     await trigger.click();
-    const filter = this.page.locator('[data-testid="target-saved-select-filter"]');
+    const filter = this.page.locator(byTestId('target-saved-select-filter'));
     await filter.waitFor({ state: 'visible', timeout: 5_000 });
     await filter.fill(name);
     const option = this.page
@@ -155,7 +156,7 @@ export class LokeeHistoryPage {
 
   /** Sections render only once loaded, so callers must await the inspector first. */
   async inspectorHasSection(section: 'growth' | 'source' | 'history'): Promise<boolean> {
-    return this.page.locator(`[data-testid="lokee-inspector-${section}"]`).isVisible();
+    return this.page.locator(byTestId(`lokee-inspector-${section}`)).isVisible();
   }
 
   /**
@@ -166,19 +167,19 @@ export class LokeeHistoryPage {
   async blueprintHasSection(
     section: 'summary' | 'columns' | 'primary-key' | 'indexes' | 'foreign-keys' | 'triggers'
   ): Promise<boolean> {
-    return this.page.locator(`[data-testid="blueprint-${section}"]`).isVisible();
+    return this.page.locator(byTestId(`blueprint-${section}`)).isVisible();
   }
 
   async inspectorText(): Promise<string> {
-    return (await this.page.locator('[data-testid="lokee-object-inspector"]').innerText()) ?? '';
+    return (await this.page.locator(byTestId('lokee-object-inspector')).innerText()) ?? '';
   }
 
   async summaryText(): Promise<string> {
-    return (await this.page.locator('[data-testid="lokee-summary"]').innerText()) ?? '';
+    return (await this.page.locator(byTestId('lokee-summary')).innerText()) ?? '';
   }
 
   async selectHistoryDatabaseContaining(text: string): Promise<void> {
-    const select = this.page.locator('[data-testid="lokee-database-select"]');
+    const select = this.page.locator(byTestId('lokee-database-select'));
     await select.waitFor({ state: 'visible', timeout: 20_000 });
     const option = select.locator('option', { hasText: text });
     await option.waitFor({ state: 'attached', timeout: 20_000 });
@@ -194,11 +195,11 @@ export class LokeeHistoryPage {
   }
 
   async typeFilterVisible(type: string): Promise<boolean> {
-    return this.page.locator(`[data-testid="lokee-rf-type-${type}"]`).isVisible();
+    return this.page.locator(byTestId(`lokee-rf-type-${type}`)).isVisible();
   }
 
   async enableType(type: string): Promise<void> {
-    const box = this.page.locator(`[data-testid="lokee-rf-type-${type}"]`);
+    const box = this.page.locator(byTestId(`lokee-rf-type-${type}`));
     await box.waitFor({ state: 'visible', timeout: 10_000 });
     if (!(await box.isChecked())) await box.check();
   }
@@ -216,7 +217,7 @@ export class LokeeHistoryPage {
   }
 
   async selectTargetCurrent(): Promise<void> {
-    const select = this.page.locator('[data-testid="lokee-target-version"]');
+    const select = this.page.locator(byTestId('lokee-target-version'));
     await select.waitFor({ state: 'visible', timeout: 20_000 });
     await select.selectOption('');
   }
@@ -232,7 +233,7 @@ export class LokeeHistoryPage {
   }
 
   async originalVersionLabels(): Promise<string[]> {
-    const select = this.page.locator('[data-testid="lokee-original-version"]');
+    const select = this.page.locator(byTestId('lokee-original-version'));
     await select.waitFor({ state: 'visible', timeout: 20_000 });
     return select.locator('option').allTextContents();
   }
@@ -242,23 +243,23 @@ export class LokeeHistoryPage {
   }
 
   async compareVersionsButtonVisible(): Promise<boolean> {
-    return this.page.locator('[data-testid="lokee-compare-versions-btn"]').isVisible();
+    return this.page.locator(byTestId('lokee-compare-versions-btn')).isVisible();
   }
 
   async openCompareModal(): Promise<void> {
-    await clickWhen(this.page, '[data-testid="lokee-compare-versions-btn"]');
+    await clickWhen(this.page, byTestId('lokee-compare-versions-btn'));
     await this.page.waitForSelector('[data-testid="lokee-version-compare"][data-state="ready"]', {
       timeout: 30_000,
     });
   }
 
   async compareTab(tab: 'DIFF' | 'DDL_DIFF' | 'SQL'): Promise<void> {
-    await clickWhen(this.page, `[data-testid="lokee-cmp-tab-${tab}"]`);
+    await clickWhen(this.page, byTestId(`lokee-cmp-tab-${tab}`));
   }
 
   async migrationSqlText(): Promise<string> {
     await this.compareTab('SQL');
-    const pane = this.page.locator('[data-testid="lokee-cmp-ddl"]');
+    const pane = this.page.locator(byTestId('lokee-cmp-ddl'));
     await pane.waitFor({ state: 'visible', timeout: 20_000 });
     return pane.innerText();
   }
@@ -269,7 +270,7 @@ export class LokeeHistoryPage {
    * then press it again. A safe plan runs on the first press.
    */
   async executeRevert(): Promise<void> {
-    const run = this.page.locator('[data-testid="lokee-cmp-run-revert"]');
+    const run = this.page.locator(byTestId('lokee-cmp-run-revert'));
     await clickRateLimited(this.page, {
       label: 'Revert',
       path: /\/api\/lokee\/databases\/[^/]+\/revert$/,
@@ -287,7 +288,7 @@ export class LokeeHistoryPage {
         // box already ticked and the button ready to run.
         if ((await run.innerText()).includes('Review data loss')) {
           await run.click();
-          const ack = this.page.locator('[data-testid="lokee-cmp-confirm-lossy"]');
+          const ack = this.page.locator(byTestId('lokee-cmp-confirm-lossy'));
           await ack.waitFor({ state: 'visible', timeout: 10_000 });
           await ack.check();
         }
@@ -298,7 +299,7 @@ export class LokeeHistoryPage {
 
   /** Visible toast text, so a failed revert reports the driver's reason. */
   async toastText(): Promise<string> {
-    const toasts = this.page.locator('[data-testid="app-toast"]');
+    const toasts = this.page.locator(byTestId('app-toast'));
     const count = await toasts.count();
     const parts: string[] = [];
     for (let i = 0; i < count; i++) {
@@ -308,26 +309,26 @@ export class LokeeHistoryPage {
   }
 
   async compareModalOpen(): Promise<boolean> {
-    return this.page.locator('[data-testid="lokee-version-compare"]').isVisible();
+    return this.page.locator(byTestId('lokee-version-compare')).isVisible();
   }
 
   async closeCompareModal(): Promise<void> {
     if (!(await this.compareModalOpen())) return;
-    await clickWhen(this.page, '[data-testid="lokee-version-compare-close"]');
-    await this.page.waitForSelector('[data-testid="lokee-version-compare"]', {
+    await clickWhen(this.page, byTestId('lokee-version-compare-close'));
+    await this.page.waitForSelector(byTestId('lokee-version-compare'), {
       state: 'detached',
       timeout: 15_000,
     });
   }
 
   async compareSummaryText(): Promise<string> {
-    const el = this.page.locator('[data-testid="lokee-cmp-summary"]');
+    const el = this.page.locator(byTestId('lokee-cmp-summary'));
     await el.waitFor({ state: 'visible', timeout: 20_000 });
     return (await el.innerText()) ?? '';
   }
 
   async compareIdenticalVisible(): Promise<boolean> {
-    return this.page.locator('[data-testid="lokee-cmp-identical"]').isVisible();
+    return this.page.locator(byTestId('lokee-cmp-identical')).isVisible();
   }
 
   /**
@@ -350,7 +351,7 @@ export class LokeeHistoryPage {
    * a tick can catch "Planning…" instead of the decision.
    */
   async settledRunRevertLabel(timeout = 30_000): Promise<string> {
-    const run = this.page.locator('[data-testid="lokee-cmp-run-revert"]');
+    const run = this.page.locator(byTestId('lokee-cmp-run-revert'));
     await run.waitFor({ state: 'visible', timeout: 20_000 });
     const deadline = Date.now() + timeout;
     let label = (await run.innerText()) ?? '';
@@ -362,13 +363,13 @@ export class LokeeHistoryPage {
   }
 
   async runRevertButtonText(): Promise<string> {
-    const run = this.page.locator('[data-testid="lokee-cmp-run-revert"]');
+    const run = this.page.locator(byTestId('lokee-cmp-run-revert'));
     await run.waitFor({ state: 'visible', timeout: 20_000 });
     return (await run.innerText()) ?? '';
   }
 
   async runRevertDisabled(): Promise<boolean> {
-    const run = this.page.locator('[data-testid="lokee-cmp-run-revert"]');
+    const run = this.page.locator(byTestId('lokee-cmp-run-revert'));
     await run.waitFor({ state: 'visible', timeout: 20_000 });
     return run.isDisabled();
   }
@@ -388,11 +389,11 @@ export class LokeeHistoryPage {
    * used to revert an entire database from a dialog with nothing selected.
    */
   async selectAllCompareObjects(): Promise<void> {
-    await clickWhen(this.page, '[data-testid="lokee-cmp-select-all"]');
+    await clickWhen(this.page, byTestId('lokee-cmp-select-all'));
   }
 
   async compareObjectNames(): Promise<string[]> {
-    const items = this.page.locator('[data-testid="diff-item"]');
+    const items = this.page.locator(byTestId('diff-item'));
     try {
       await items.first().waitFor({ state: 'visible', timeout: 20_000 });
     } catch (error) {

@@ -606,7 +606,7 @@ const PaneBody: React.FC<{
         {onRefresh && (
           <button
             type="button"
-            data-testid="sql-pane-refresh"
+            data-testid={`sql-pane-retry-${item.connectionId}`}
             title="Retry this server"
             disabled={refreshing}
             onClick={() => onRefresh(item.connectionId)}

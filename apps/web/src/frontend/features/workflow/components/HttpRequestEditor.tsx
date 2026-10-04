@@ -197,7 +197,7 @@ export function HttpRequestEditor({
   return (
     <div className={`http-request-editor${compact ? ' compact' : ''}`}>
       <div className="http-request-line">
-        <select
+        <select data-testid="workflow-http-method"
           value={value.method}
           onChange={(event) =>
             patch({ method: event.target.value as HttpRequestValue['method'] })
@@ -209,7 +209,7 @@ export function HttpRequestEditor({
             </option>
           ))}
         </select>
-        <input
+        <input data-testid="workflow-http-url"
           type="text"
           placeholder="https://api.example.com/users/{{vars.userId}}"
           value={value.url}
@@ -236,7 +236,7 @@ export function HttpRequestEditor({
             ['session', 'Session'],
           ] as const
         ).map(([id, label]) => (
-          <button
+          <button data-testid={`workflow-http-tab-${id}`}
             key={id}
             type="button"
             className={tab === id ? 'active' : ''}
@@ -301,7 +301,7 @@ export function HttpRequestEditor({
       {!compact && (
         <>
           <label>Timeout (ms)</label>
-          <input
+          <input data-testid="workflow-http-timeout-ms"
             type="number"
             min={1}
             max={600_000}
@@ -359,7 +359,7 @@ function KvEditor({
             key={index}
             className={`http-kv-row${withOp ? ' with-op' : ''}`}
           >
-            <input
+            <input data-testid={`workflow-http-kv-enabled-${index}`}
               type="checkbox"
               checked={row.enabled}
               onChange={(event) =>
@@ -367,14 +367,14 @@ function KvEditor({
               }
               title="Enabled"
             />
-            <input
+            <input data-testid={`workflow-http-kv-key-${index}`}
               type="text"
               placeholder={keyPlaceholder}
               value={row.key}
               onChange={(event) => update(index, { key: event.target.value })}
             />
             {withOp && (
-              <select
+              <select data-testid={`workflow-http-kv-operator-${index}`}
                 value={op}
                 title="Condition operator"
                 onChange={(event) =>
@@ -393,7 +393,7 @@ function KvEditor({
                 ))}
               </select>
             )}
-            <input
+            <input data-testid={`workflow-http-kv-value-${index}`}
               type="text"
               placeholder={
                 withOp ? OP_META[op].placeholder : 'value or {{vars.x}}'
@@ -407,7 +407,7 @@ function KvEditor({
                 })
               }
             />
-            <button
+            <button data-testid={`workflow-http-kv-remove-${index}`}
               type="button"
               className="linkish"
               onClick={() => onChange(rows.filter((_, i) => i !== index))}
@@ -417,7 +417,7 @@ function KvEditor({
           </div>
         );
       })}
-      <button
+      <button data-testid="workflow-http-kv-add"
         type="button"
         className="linkish"
         onClick={() =>
@@ -448,7 +448,7 @@ function AuthEditor({
   return (
     <div className="http-auth-editor">
       <label>Type</label>
-      <select
+      <select data-testid="workflow-http-auth-type"
         value={value.type}
         onChange={(event) => {
           const type = event.target.value as HttpAuth['type'];
@@ -481,7 +481,7 @@ function AuthEditor({
       {value.type === 'bearer' && (
         <>
           <label>Token</label>
-          <input
+          <input data-testid="workflow-http-auth-token"
             type="text"
             placeholder="token or {{secrets.accessToken}}"
             value={value.token}
@@ -494,7 +494,7 @@ function AuthEditor({
       {value.type === 'basic' && (
         <>
           <label>Username</label>
-          <input
+          <input data-testid="workflow-http-auth-username"
             type="text"
             value={value.username}
             onChange={(event) =>
@@ -502,7 +502,7 @@ function AuthEditor({
             }
           />
           <label>Password</label>
-          <input
+          <input data-testid="workflow-http-auth-password"
             type="password"
             value={value.password}
             onChange={(event) =>
@@ -514,13 +514,13 @@ function AuthEditor({
       {value.type === 'apiKey' && (
         <>
           <label>Key</label>
-          <input
+          <input data-testid="workflow-http-auth-key"
             type="text"
             value={value.key}
             onChange={(event) => onChange({ ...value, key: event.target.value })}
           />
           <label>Value</label>
-          <input
+          <input data-testid="workflow-http-auth-value"
             type="text"
             value={value.value}
             onChange={(event) =>
@@ -528,7 +528,7 @@ function AuthEditor({
             }
           />
           <label>Add to</label>
-          <select
+          <select data-testid="workflow-http-auth-placement"
             value={value.in}
             onChange={(event) =>
               onChange({
@@ -545,7 +545,7 @@ function AuthEditor({
       {value.type === 'credential' && (
         <>
           <label>Credential</label>
-          <select
+          <select data-testid="workflow-http-auth-credential"
             value={value.credentialId}
             onChange={(event) =>
               onChange({ ...value, credentialId: event.target.value })
@@ -567,7 +567,7 @@ function AuthEditor({
       )}
 
       <label className="checkbox-row">
-        <input
+        <input data-testid="workflow-http-token-refresh"
           type="checkbox"
           checked={refresh.enabled}
           onChange={(event) =>
@@ -582,7 +582,7 @@ function AuthEditor({
       {refresh.enabled && (
         <>
           <label>Refresh URL</label>
-          <input
+          <input data-testid="workflow-http-token-refresh-url"
             type="text"
             value={refresh.url}
             onChange={(event) =>
@@ -590,7 +590,7 @@ function AuthEditor({
             }
           />
           <label>Access token path</label>
-          <input
+          <input data-testid="workflow-http-token-refresh-access-path"
             type="text"
             value={refresh.accessTokenPath}
             onChange={(event) =>
@@ -601,7 +601,7 @@ function AuthEditor({
             }
           />
           <label>Refresh token path (optional)</label>
-          <input
+          <input data-testid="workflow-http-token-refresh-refresh-path"
             type="text"
             value={refresh.refreshTokenPath ?? ''}
             onChange={(event) =>
@@ -612,7 +612,7 @@ function AuthEditor({
             }
           />
           <label>Skew seconds (proactive refresh)</label>
-          <input
+          <input data-testid="workflow-http-token-refresh-skew"
             type="number"
             min={0}
             value={refresh.skewSeconds}
@@ -644,7 +644,7 @@ function SessionEditor({
   return (
     <div className="http-session-editor">
       <label className="checkbox-row">
-        <input
+        <input data-testid="workflow-http-session"
           type="checkbox"
           checked={value.enabled}
           onChange={(event) =>
@@ -658,7 +658,7 @@ function SessionEditor({
         requests so the app does not need to re-login.
       </div>
       <label className="checkbox-row">
-        <input
+        <input data-testid="workflow-http-session-persist"
           type="checkbox"
           checked={value.persistToCredential}
           disabled={!value.enabled}
@@ -690,7 +690,7 @@ function VariablesEditor({
         <code>{'{{key}}'}</code>. Trigger payload is{' '}
         <code>{'{{trigger.*}}'}</code>.
       </div>
-      <textarea
+      <textarea data-testid="workflow-http-variables"
         rows={8}
         value={text}
         onChange={(event) => {
@@ -901,7 +901,7 @@ function BodyEditor({
   return (
     <div className="http-body-editor">
       <label>Mode</label>
-      <select
+      <select data-testid="workflow-http-body-mode"
         value={value.mode}
         onChange={(event) => switchMode(event.target.value as HttpBody['mode'])}
       >
@@ -931,7 +931,7 @@ function BodyEditor({
           )}
           {value.fields.map((field, index) => (
             <div key={index} className="http-kv-row with-op">
-              <input
+              <input data-testid={`workflow-http-body-field-enabled-${index}`}
                 type="checkbox"
                 checked={field.enabled}
                 onChange={(event) =>
@@ -939,13 +939,13 @@ function BodyEditor({
                 }
                 title="Enabled"
               />
-              <input
+              <input data-testid={`workflow-http-body-field-key-${index}`}
                 type="text"
                 placeholder="attribute"
                 value={field.key}
                 onChange={(event) => patchField(index, { key: event.target.value })}
               />
-              <select
+              <select data-testid={`workflow-http-body-field-type-${index}`}
                 value={field.type}
                 title="Value type"
                 onChange={(event) =>
@@ -960,7 +960,7 @@ function BodyEditor({
                   </option>
                 ))}
               </select>
-              <input
+              <input data-testid={`workflow-http-body-field-value-${index}`}
                 type="text"
                 placeholder={
                   field.type === 'boolean'
@@ -974,7 +974,7 @@ function BodyEditor({
                   patchField(index, { value: event.target.value })
                 }
               />
-              <button
+              <button data-testid={`workflow-http-body-field-remove-${index}`}
                 type="button"
                 className="linkish"
                 onClick={() =>
@@ -988,7 +988,7 @@ function BodyEditor({
               </button>
             </div>
           ))}
-          <button
+          <button data-testid="workflow-http-body-field-add"
             type="button"
             className="linkish"
             onClick={() =>
@@ -1007,7 +1007,7 @@ function BodyEditor({
       )}
 
       {value.mode === 'json' && (
-        <textarea
+        <textarea data-testid="workflow-http-body-json"
           rows={6}
           value={jsonText}
           onChange={(event) => {
@@ -1026,14 +1026,14 @@ function BodyEditor({
       {value.mode === 'raw' && (
         <>
           <label>Content-Type</label>
-          <input
+          <input data-testid="workflow-http-body-content-type"
             type="text"
             value={value.contentType}
             onChange={(event) =>
               onChange({ ...value, contentType: event.target.value })
             }
           />
-          <textarea
+          <textarea data-testid="workflow-http-body-raw"
             rows={6}
             value={value.raw}
             onChange={(event) =>
@@ -1137,7 +1137,7 @@ function BodySchemaEditor({
         </a>
         , optional)
       </label>
-      <textarea
+      <textarea data-testid="workflow-http-body-schema"
         rows={5}
         className="code"
         spellCheck={false}
@@ -1174,7 +1174,7 @@ function BodySchemaEditor({
       {schema && (
         <>
           <label>Test with sample data (JSON)</label>
-          <textarea
+          <textarea data-testid="workflow-http-body-schema-sample"
             rows={4}
             className="code"
             spellCheck={false}

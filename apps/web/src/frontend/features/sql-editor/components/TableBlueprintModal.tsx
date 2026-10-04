@@ -175,7 +175,7 @@ function IndexColumnsLine(props: {
         ) : null}
       </div>
       {needsCollapse && (
-        <button
+        <button data-testid={`${testId}-toggle`}
           type="button"
           onClick={onToggle}
           className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] font-bold text-sky-300/90 hover:text-sky-200"
@@ -1094,7 +1094,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                       <div className="flex flex-col justify-end gap-1">
                         {indexSupport.unique && indexSupport.acceptDuplicates ? (
                           <label className="flex items-center gap-2 text-[12px] text-slate-300 cursor-pointer select-none px-1 py-1.5">
-                            <input
+                            <input data-testid="blueprint-index-unique"
                               type="checkbox"
                               checked={indexForm.unique}
                               onChange={(e) => {
@@ -1151,7 +1151,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                                   : 'border-slate-700 bg-slate-900/50 text-slate-400'
                               }`}
                             >
-                              <button
+                              <button data-testid={`blueprint-index-column-${c.name}`}
                                 type="button"
                                 onClick={() => toggleIndexColumn(c.name)}
                                 className="px-2 py-1"
@@ -1161,7 +1161,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                               {on && (
                                 <>
                                   {indexSupport.columnOrder && (
-                                    <button
+                                    <button data-testid={`blueprint-index-column-order-${c.name}`}
                                       type="button"
                                       title={`Order: ${ord} (click to toggle)`}
                                       onClick={() =>
@@ -1175,7 +1175,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                                       {ord}
                                     </button>
                                   )}
-                                  <button
+                                  <button data-testid={`blueprint-index-column-earlier-${c.name}`}
                                     type="button"
                                     title="Move earlier"
                                     onClick={() => moveIndexColumn(c.name, -1)}
@@ -1186,7 +1186,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                                       strokeWidth={SQL_ICON_STROKE}
                                     />
                                   </button>
-                                  <button
+                                  <button data-testid={`blueprint-index-column-later-${c.name}`}
                                     type="button"
                                     title="Move later"
                                     onClick={() => moveIndexColumn(c.name, 1)}
@@ -1225,7 +1225,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                           <span className="text-[10px] font-bold uppercase text-slate-500">
                             Filter (optional)
                           </span>
-                          <input
+                          <input data-testid="blueprint-index-where"
                             value={indexForm.filter ?? ''}
                             onChange={(e) => {
                               setIndexForm({ ...indexForm, filter: e.target.value });
@@ -1246,7 +1246,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                               predicate if it is partial, or confirm it has none before saving.
                             </p>
                             <label className="flex items-center gap-2 text-[12px] text-amber-50/90 cursor-pointer select-none">
-                              <input
+                              <input data-testid="blueprint-index-confirm-no-filter"
                                 type="checkbox"
                                 checked={confirmNoFilter}
                                 onChange={(e) => setConfirmNoFilter(e.target.checked)}
@@ -1260,7 +1260,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                     )}
 
                     <div className="flex justify-end gap-1.5">
-                      <button
+                      <button data-testid="blueprint-index-cancel"
                         type="button"
                         onClick={closeIndexForm}
                         className="px-2.5 py-1 text-[11px] font-semibold text-slate-400"
@@ -1340,7 +1340,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                   <span className="text-sky-500/60 font-mono normal-case">({draft.length})</span>
                 </h3>
                 {!adding && (
-                  <button
+                  <button data-testid="blueprint-add-column"
                     type="button"
                     onClick={() => {
                       setAdding(true);
@@ -1428,7 +1428,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                           )}
                           <div className="ml-auto flex items-center gap-0.5 shrink-0">
                             {isDropped ? (
-                              <button
+                              <button data-testid={`blueprint-column-undo-drop-${col.name}`}
                                 type="button"
                                 title="Undo drop"
                                 onClick={() => undoDrop(col.name)}
@@ -1438,7 +1438,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                               </button>
                             ) : (
                               <>
-                                <button
+                                <button data-testid={`blueprint-column-edit-${col.name}`}
                                   type="button"
                                   title="Edit column"
                                   onClick={() => startEdit(col)}
@@ -1446,7 +1446,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                                 >
                                   <Pencil className="w-3.5 h-3.5" strokeWidth={SQL_ICON_STROKE} />
                                 </button>
-                                <button
+                                <button data-testid={`blueprint-column-drop-${col.name}`}
                                   type="button"
                                   title="Drop column"
                                   onClick={() => markDrop(col.name)}
@@ -1507,7 +1507,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                           className="flex items-center gap-2 text-[12.5px] font-mono"
                         >
                           <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
-                            <input
+                            <input data-testid={`blueprint-pk-column-${col.name}`}
                               type="checkbox"
                               checked={on}
                               onChange={() => togglePkColumn(col.name)}
@@ -1521,7 +1521,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                               <span className="text-[10px] text-amber-400/80 font-bold w-4 text-center">
                                 {pkIndex + 1}
                               </span>
-                              <button
+                              <button data-testid={`blueprint-pk-column-up-${col.name}`}
                                 type="button"
                                 title="Move up in key"
                                 disabled={pkIndex <= 0}
@@ -1530,7 +1530,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                               >
                                 <ArrowUp className="w-3 h-3" strokeWidth={SQL_ICON_STROKE} />
                               </button>
-                              <button
+                              <button data-testid={`blueprint-pk-column-down-${col.name}`}
                                 type="button"
                                 title="Move down in key"
                                 disabled={pkIndex >= draftPk.length - 1}
@@ -1555,7 +1555,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
             </section>
 
             {/* Indexes */}
-            <section data-testid="blueprint-indexes">
+            <section data-testid="table-blueprint-indexes">
               <div className="flex items-center justify-between gap-2 mb-2.5">
                 <div className="min-w-0">
                   <h3 className="text-xs font-bold text-sky-300/90 uppercase tracking-wider flex items-center gap-2">
@@ -1623,7 +1623,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                     <span className="font-mono text-slate-300">fragmentation_percent</span>
                     {fragSupport.customSqlHint ? `. ${fragSupport.customSqlHint}` : '.'}
                   </p>
-                  <button
+                  <button data-testid="blueprint-frag-custom-show"
                     type="button"
                     className="text-[11px] font-bold text-sky-300 hover:text-sky-200"
                     onClick={() => {
@@ -1781,7 +1781,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                               ) : null}
                               <div className="flex items-center gap-0.5 shrink-0">
                                 {indexSupport.create && (
-                                  <button
+                                  <button data-testid={`blueprint-index-edit-${idx.name}`}
                                     type="button"
                                     title="Edit index"
                                     onClick={() => openEditExistingIndex(idx)}
@@ -1791,7 +1791,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                                   </button>
                                 )}
                                 {indexSupport.drop && (
-                                  <button
+                                  <button data-testid={`blueprint-index-drop-${idx.name}`}
                                     type="button"
                                     title="Drop index"
                                     onClick={() =>
@@ -1807,7 +1807,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                           )}
                           {mode !== 'edit' && indexSupport.create && (
                             <div className="flex items-center gap-0.5 shrink-0">
-                              <button
+                              <button data-testid={`blueprint-index-edit-${idx.name}`}
                                 type="button"
                                 title="Edit index"
                                 onClick={() => openEditExistingIndex(idx)}
@@ -1844,7 +1844,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                       >
                         <span className="line-through font-mono">{n}</span>
                         <span className="text-[10px] font-bold uppercase">drop</span>
-                        <button
+                        <button data-testid={`blueprint-index-undo-drop-${n}`}
                           type="button"
                           className="ml-auto text-[10px] font-bold text-slate-300"
                           onClick={() => {
@@ -1890,7 +1890,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                             </span>
                           </div>
                           <div className="flex items-center gap-0.5 shrink-0">
-                            <button
+                            <button data-testid={`blueprint-pending-index-edit-${idx.name}`}
                               type="button"
                               title="Edit"
                               onClick={() => openEditPendingIndex(i)}
@@ -1898,7 +1898,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                             >
                               <Pencil className="w-3.5 h-3.5" strokeWidth={SQL_ICON_STROKE} />
                             </button>
-                            <button
+                            <button data-testid={`blueprint-pending-index-remove-${idx.name}`}
                               type="button"
                               title="Remove"
                               onClick={() => {
@@ -1956,7 +1956,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                   </span>
                 </h3>
                 {!addingFk && (fkSupport.alterAdd || fkSupport.createInline) && (
-                  <button
+                  <button data-testid="blueprint-add-fk"
                     type="button"
                     onClick={() => {
                       setAddingFk(true);
@@ -1998,7 +1998,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                           </span>
                         </div>
                         {mode === 'edit' && (
-                          <button
+                          <button data-testid={`blueprint-fk-drop-${fk.name}`}
                             type="button"
                             title="Drop foreign key"
                             onClick={() =>
@@ -2018,7 +2018,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                       >
                         <span className="line-through font-mono">{n}</span>
                         <span className="text-[10px] font-bold uppercase">drop</span>
-                        <button
+                        <button data-testid={`blueprint-fk-undo-drop-${n}`}
                           type="button"
                           className="ml-auto text-[10px] font-bold text-slate-300"
                           onClick={() =>
@@ -2049,7 +2049,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                             {(fk.referencedColumns ?? []).join(', ')})
                           </span>
                         </div>
-                        <button
+                        <button data-testid={`blueprint-pending-fk-remove-${fk.name}`}
                           type="button"
                           title="Remove"
                           onClick={() =>
@@ -2078,7 +2078,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                         <span className="text-[10px] font-bold text-violet-300/70 uppercase">
                           Constraint name
                         </span>
-                        <input
+                        <input data-testid="blueprint-fk-name"
                           value={fkForm.name}
                           onChange={(e) => setFkForm({ ...fkForm, name: e.target.value })}
                           placeholder={suggestFkName(tableName || 'table', fkForm.columns)}
@@ -2102,7 +2102,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                                   className="flex items-center gap-1.5 text-[12px] font-mono"
                                 >
                                   <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
-                                    <input
+                                    <input data-testid={`blueprint-fk-column-${c.name}`}
                                       type="checkbox"
                                       checked={on}
                                       onChange={() => toggleFkLocalColumn(c.name)}
@@ -2116,7 +2116,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                                       <span className="text-[10px] text-violet-300/80 font-bold w-4 text-center">
                                         {idx + 1}
                                       </span>
-                                      <button
+                                      <button data-testid={`blueprint-fk-column-up-${c.name}`}
                                         type="button"
                                         title="Move up"
                                         disabled={idx <= 0}
@@ -2125,7 +2125,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                                       >
                                         <ArrowUp className="w-3 h-3" strokeWidth={SQL_ICON_STROKE} />
                                       </button>
-                                      <button
+                                      <button data-testid={`blueprint-fk-column-down-${c.name}`}
                                         type="button"
                                         title="Move down"
                                         disabled={idx >= fkForm.columns.length - 1}
@@ -2194,7 +2194,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                                       className="flex items-center gap-1.5 text-[12px] font-mono"
                                     >
                                       <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
-                                        <input
+                                        <input data-testid={`blueprint-fk-ref-column-${c.name}`}
                                           type="checkbox"
                                           checked={on}
                                           onChange={() => toggleFkRefColumn(c.name)}
@@ -2211,7 +2211,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                                           <span className="text-[10px] text-violet-300/80 font-bold w-4 text-center">
                                             {idx + 1}
                                           </span>
-                                          <button
+                                          <button data-testid={`blueprint-fk-ref-column-up-${c.name}`}
                                             type="button"
                                             title="Move up"
                                             disabled={idx <= 0}
@@ -2223,7 +2223,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                                               strokeWidth={SQL_ICON_STROKE}
                                             />
                                           </button>
-                                          <button
+                                          <button data-testid={`blueprint-fk-ref-column-down-${c.name}`}
                                             type="button"
                                             title="Move down"
                                             disabled={
@@ -2253,7 +2253,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                             <span className="text-[10px] font-bold text-violet-300/70 uppercase">
                               On delete
                             </span>
-                            <select
+                            <select data-testid="blueprint-fk-on-delete"
                               value={fkForm.onDelete ?? 'NO ACTION'}
                               onChange={(e) =>
                                 setFkForm({
@@ -2274,7 +2274,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                             <span className="text-[10px] font-bold text-violet-300/70 uppercase">
                               On update
                             </span>
-                            <select
+                            <select data-testid="blueprint-fk-on-update"
                               value={fkForm.onUpdate ?? 'NO ACTION'}
                               onChange={(e) =>
                                 setFkForm({
@@ -2295,14 +2295,14 @@ export const TableBlueprintModal: React.FC<Props> = ({
                       )}
                     </div>
                     <div className="flex justify-end gap-1.5">
-                      <button
+                      <button data-testid="blueprint-fk-cancel"
                         type="button"
                         onClick={() => setAddingFk(false)}
                         className="px-2.5 py-1 text-[11px] font-semibold text-slate-400"
                       >
                         Cancel
                       </button>
-                      <button
+                      <button data-testid="blueprint-fk-save"
                         type="button"
                         onClick={saveFk}
                         className="px-2.5 py-1 text-[11px] font-bold rounded border border-purple-500/40 text-purple-200 bg-purple-950/50"
@@ -2326,7 +2326,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                   </span>
                 </h3>
                 {!addingTrigger && (
-                  <button
+                  <button data-testid="blueprint-add-trigger"
                     type="button"
                     onClick={() => {
                       setAddingTrigger(true);
@@ -2362,7 +2362,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                       return (
                         <li key={trg.name}>
                           <div className="flex items-center gap-1">
-                            <button
+                            <button data-testid={`blueprint-trigger-expand-${trg.name}`}
                               type="button"
                               onClick={() =>
                                 setExpandedTrig((m) => ({ ...m, [trg.name]: !open }))
@@ -2388,7 +2388,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                               </span>
                             </button>
                             {mode === 'edit' && (
-                              <button
+                              <button data-testid={`blueprint-trigger-drop-${trg.name}`}
                                 type="button"
                                 title="Drop trigger"
                                 onClick={() =>
@@ -2415,7 +2415,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                       >
                         <span className="line-through font-mono">{n}</span>
                         <span className="text-[10px] font-bold uppercase">drop</span>
-                        <button
+                        <button data-testid={`blueprint-trigger-undo-drop-${n}`}
                           type="button"
                           className="ml-auto text-[10px] font-bold text-slate-300"
                           onClick={() =>
@@ -2444,7 +2444,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                             {trg.timing} {trg.event}
                           </span>
                         </div>
-                        <button
+                        <button data-testid={`blueprint-pending-trigger-remove-${trg.name}`}
                           type="button"
                           onClick={() =>
                             setPendingTriggers((list) => list.filter((_, j) => j !== i))
@@ -2466,7 +2466,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <label className="flex flex-col gap-0.5 sm:col-span-1">
                         <span className="text-[10px] font-bold text-slate-500 uppercase">Name</span>
-                        <input
+                        <input data-testid="blueprint-trigger-name"
                           value={triggerForm.name}
                           onChange={(e) =>
                             setTriggerForm({ ...triggerForm, name: e.target.value })
@@ -2478,7 +2478,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                         <span className="text-[10px] font-bold text-slate-500 uppercase">
                           Timing
                         </span>
-                        <select
+                        <select data-testid="blueprint-trigger-timing"
                           value={triggerForm.timing}
                           onChange={(e) =>
                             setTriggerForm({
@@ -2506,7 +2506,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                         <span className="text-[10px] font-bold text-slate-500 uppercase">
                           Event
                         </span>
-                        <select
+                        <select data-testid="blueprint-trigger-event"
                           value={triggerForm.event}
                           onChange={(e) =>
                             setTriggerForm({
@@ -2533,7 +2533,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                     </div>
                     <label className="flex flex-col gap-0.5">
                       <span className="text-[10px] font-bold text-slate-500 uppercase">Body</span>
-                      <textarea
+                      <textarea data-testid="blueprint-trigger-definition"
                         value={triggerForm.definition}
                         onChange={(e) =>
                           setTriggerForm({ ...triggerForm, definition: e.target.value })
@@ -2544,14 +2544,14 @@ export const TableBlueprintModal: React.FC<Props> = ({
                       />
                     </label>
                     <div className="flex justify-end gap-1.5">
-                      <button
+                      <button data-testid="blueprint-trigger-cancel"
                         type="button"
                         onClick={() => setAddingTrigger(false)}
                         className="px-2.5 py-1 text-[11px] font-semibold text-slate-400"
                       >
                         Cancel
                       </button>
-                      <button
+                      <button data-testid="blueprint-trigger-save"
                         type="button"
                         onClick={saveTrigger}
                         className="px-2.5 py-1 text-[11px] font-bold rounded border border-amber-500/40 text-amber-200 bg-amber-950/50"
@@ -2602,7 +2602,7 @@ export const TableBlueprintModal: React.FC<Props> = ({
                   Drop table
                 </button>
               )}
-              <button
+              <button data-testid="blueprint-footer-close"
                 type="button"
                 onClick={onClose}
                 className="px-3 py-1.5 text-[12px] font-semibold text-slate-400 hover:text-slate-200 rounded-md ml-auto"
@@ -2739,7 +2739,7 @@ const ColumnForm: React.FC<{
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <label className="flex flex-col gap-0.5 min-w-0">
           <span className="text-[10px] font-bold text-slate-500 uppercase">Name</span>
-          <input
+          <input data-testid="blueprint-column-name"
             value={value.name}
             disabled={nameLocked}
             onChange={(e) => onChange({ ...value, name: e.target.value })}
@@ -2811,7 +2811,7 @@ const ColumnForm: React.FC<{
         ) : (
           <label className="flex flex-col gap-0.5 min-w-0">
             <span className="text-[10px] font-bold text-slate-500 uppercase">Default</span>
-            <input
+            <input data-testid="blueprint-column-default"
               value={value.defaultValue ?? ''}
               onChange={(e) =>
                 onChange({
@@ -2898,7 +2898,7 @@ const ColumnForm: React.FC<{
           data-testid="blueprint-auto-increment"
         >
           <label className="flex items-center gap-2 text-[12px] text-violet-100 font-semibold cursor-pointer">
-            <input
+            <input data-testid="blueprint-column-identity"
               type="checkbox"
               checked={!!value.identity}
               onChange={(e) => onChange(withAutoIncrement(value, e.target.checked))}
@@ -2910,7 +2910,7 @@ const ColumnForm: React.FC<{
             </span>
           </label>
           {value.identity && identityUi.generations && (
-            <select
+            <select data-testid="blueprint-column-identity-generation"
               value={value.identityGeneration ?? 'ALWAYS'}
               onChange={(e) =>
                 onChange({
@@ -2934,7 +2934,7 @@ const ColumnForm: React.FC<{
       <div className="flex items-center gap-3 flex-wrap">
         {constraints.notNull && (
           <label className="flex items-center gap-1.5 text-[12px] text-slate-300 font-medium cursor-pointer">
-            <input
+            <input data-testid="blueprint-column-nullable"
               type="checkbox"
               checked={!value.nullable}
               onChange={(e) => onChange({ ...value, nullable: !e.target.checked })}
@@ -2956,14 +2956,14 @@ const ColumnForm: React.FC<{
           </label>
         )}
         <div className="ml-auto flex gap-1.5">
-          <button
+          <button data-testid="blueprint-column-cancel"
             type="button"
             onClick={onCancel}
             className="px-2.5 py-1 text-[11px] font-semibold text-slate-400 hover:text-slate-200"
           >
             Cancel
           </button>
-          <button
+          <button data-testid="blueprint-column-save"
             type="button"
             onClick={onSave}
             className="px-2.5 py-1 text-[11px] font-bold rounded border border-cyan-500/35 text-cyan-300 bg-cyan-950/40"

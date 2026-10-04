@@ -134,7 +134,7 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
           // after every keystroke.
           <div key={index} className="multi-http-row">
             <div className="multi-http-row-head">
-              <button
+              <button data-testid={`workflow-multi-http-toggle-${index}`}
                 type="button"
                 className="multi-http-toggle"
                 onClick={() =>

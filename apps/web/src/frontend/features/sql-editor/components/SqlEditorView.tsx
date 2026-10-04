@@ -879,7 +879,7 @@ export const SqlEditorView: React.FC = () => {
           </span>
           <div className="flex-1" />
           {results && results.runs.length > 0 && (
-            <button
+            <button data-testid="sql-clear-results"
               onClick={clearResults}
               className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-semibold text-slate-500 hover:text-slate-300 transition"
             >

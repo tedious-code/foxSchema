@@ -65,10 +65,10 @@ export const ForgotPasswordView: React.FC<NavProps & { initialEmail: string; onH
             )}
           </p>
         </div>
-        <button type="button" onClick={onHaveCode} className={authSubmitCls}>
+        <button data-testid="auth-sent-enter-code" type="button" onClick={onHaveCode} className={authSubmitCls}>
           I have a code
         </button>
-        <button type="button" onClick={onBack} className={authLinkCls}>
+        <button data-testid="auth-sent-back" type="button" onClick={onBack} className={authLinkCls}>
           Back to sign in
         </button>
       </div>
@@ -82,7 +82,7 @@ export const ForgotPasswordView: React.FC<NavProps & { initialEmail: string; onH
         <label htmlFor="auth-forgot-email" className={authLabelCls}>
           Email
         </label>
-        <input
+        <input data-testid="auth-forgot-email"
           id="auth-forgot-email"
           type="email"
           required
@@ -94,15 +94,15 @@ export const ForgotPasswordView: React.FC<NavProps & { initialEmail: string; onH
         />
       </div>
       <AuthError message={error} />
-      <button type="submit" disabled={busy} className={authSubmitCls}>
+      <button data-testid="auth-forgot-send" type="submit" disabled={busy} className={authSubmitCls}>
         {busy && <Loader2 className="w-4 h-4 animate-spin" />}
         Send reset code
       </button>
       <div className="flex justify-between">
-        <button type="button" onClick={onBack} className={authLinkCls}>
+        <button data-testid="auth-forgot-back" type="button" onClick={onBack} className={authLinkCls}>
           Back to sign in
         </button>
-        <button type="button" onClick={onHaveCode} className={authLinkCls}>
+        <button data-testid="auth-forgot-have-code" type="button" onClick={onHaveCode} className={authLinkCls}>
           I have a code
         </button>
       </div>
@@ -159,7 +159,7 @@ export const RedeemCodeView: React.FC<NavProps & { initialCode?: string }> = ({ 
           <label htmlFor="auth-code" className={authLabelCls}>
             Code
           </label>
-          <input
+          <input data-testid="auth-code"
             id="auth-code"
             required
             value={code}
@@ -171,11 +171,11 @@ export const RedeemCodeView: React.FC<NavProps & { initialCode?: string }> = ({ 
           />
         </div>
         <AuthError message={codeError} />
-        <button type="submit" disabled={checking} className={authSubmitCls}>
+        <button data-testid="auth-code-continue" type="submit" disabled={checking} className={authSubmitCls}>
           {checking && <Loader2 className="w-4 h-4 animate-spin" />}
           Continue
         </button>
-        <button type="button" onClick={onBack} className={authLinkCls}>
+        <button data-testid="auth-code-back" type="button" onClick={onBack} className={authLinkCls}>
           Back to sign in
         </button>
       </form>
@@ -201,7 +201,7 @@ export const RedeemCodeView: React.FC<NavProps & { initialCode?: string }> = ({ 
         <label htmlFor="auth-redeem-email" className={authLabelCls}>
           Email
         </label>
-        <input
+        <input data-testid="auth-redeem-email"
           id="auth-redeem-email"
           type="email"
           readOnly
@@ -221,11 +221,11 @@ export const RedeemCodeView: React.FC<NavProps & { initialCode?: string }> = ({ 
       />
       {target.purpose === 'invite' && <NewsOptIn checked={news} onChange={setNews} />}
       <AuthError message={error} />
-      <button type="submit" disabled={busy || (attempted && !!problem)} className={authSubmitCls}>
+      <button data-testid="auth-redeem-submit" type="submit" disabled={busy || (attempted && !!problem)} className={authSubmitCls}>
         {busy && <Loader2 className="w-4 h-4 animate-spin" />}
         {target.purpose === 'invite' ? 'Create my account' : 'Set new password'}
       </button>
-      <button type="button" onClick={onBack} className={authLinkCls}>
+      <button data-testid="auth-redeem-back" type="button" onClick={onBack} className={authLinkCls}>
         Back to sign in
       </button>
     </form>

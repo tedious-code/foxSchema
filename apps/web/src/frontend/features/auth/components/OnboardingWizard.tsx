@@ -140,7 +140,7 @@ export const OnboardingWizard: React.FC = () => {
 
         <div className="mt-6 flex items-center justify-center gap-6">
           {step > 0 && (
-            <button
+            <button data-testid="onboarding-back"
               type="button"
               disabled={busy}
               onClick={() => setStep(step - 1)}

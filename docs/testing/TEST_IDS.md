@@ -6,7 +6,7 @@ Every `data-testid` in the web app, by area and component. In Playwright, use
 `page.getByTestId(...)` with the ID, or `TestIds` from `apps/e2e/src/generated/test-ids.ts`
 for the same tree with autocomplete. `{name}` marks a part filled in at run time.
 
-Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the end.
+Every control has a test ID: **924** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -29,11 +29,13 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `access-permission-account-name` · dd
   - `access-permission-allow-all` · p
   - `access-permission-alteration-{a}` · li
+  - `access-permission-cancel` · button · Cancel
   - `access-permission-confirm` · div
   - `access-permission-confirm-run` · button
   - `access-permission-connection` · select · Choose a saved connection…
   - `access-permission-drop-safety` · div
   - `access-permission-error` · p
+  - `access-permission-expanded-kinds-{kind}` · button
   - `access-permission-filter` · input · Filter users & roles
   - `access-permission-group-{kind}` · section
   - `access-permission-hint` · p
@@ -72,6 +74,7 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `{prefix}-action-grant` · button · Grant
   - `{prefix}-action-revoke` · button · Revoke
   - `{testId}` · button · Preview SQL · passed in by the parent
+  - `db-access-close` · button
   - `db-access-edit-{name}` · button
   - `db-access-editor-objects` · ul
   - `db-access-expand-{kind}` · button
@@ -81,10 +84,9 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `db-access-general-privs` · div
   - `db-access-general-row-{value}` · div
   - `db-access-general-schema` · select
-  - `db-access-grant` · button
   - `db-access-grant-{kind}` · button · Grant
   - `db-access-grant-general` · button · New
-  - `db-access-grant-sql` · pre
+  - `db-access-grant-sql-open` · button
   - `db-access-obj-{schema}-{name}` · tr
   - `db-access-obj-revoke-{name}` · button · Revoke
   - `db-access-permission-sections` · div
@@ -95,6 +97,9 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `db-access-sql-copy` · button
   - `db-access-sql-modal` · div
   - `db-access-sql-modal-backdrop` · div
+  - `db-access-sql-modal-cancel` · button · Cancel
+  - `db-access-sql-modal-run` · button
+  - `db-access-sql-modal-sql` · pre
 - **ObjectPicker** · `features/access/components/ObjectPicker.tsx`
   - `{testId}` · div · passed in by the parent
   - `{testId}-filter` · input · Search…
@@ -107,7 +112,9 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `diff-desired-{index}` · div
   - `diff-load-catalog` · button · Load catalog
   - `diff-load-error` · span
+  - `diff-permission-{index}-{p}` · input
   - `diff-principal-name` · Autocomplete · report_user
+  - `diff-remove-{index}` · button
   - `diff-row-{i}` · tr
   - `diff-schema-{index}` · Autocomplete · schema
   - `diff-sql-preview` · pre
@@ -197,6 +204,7 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
 ## admin
 
 - **AdminAccessPanel** · `features/admin/components/AdminAccessPanel.tsx`
+  - `admin-access-close` · button
   - `admin-access-denied` · p
   - `admin-access-layers` · p
   - `admin-access-panel` · div · Access control
@@ -207,7 +215,12 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `admin-confirm-password` · PasswordInput
   - `admin-edit-role-{r}` · button
   - `admin-issue-code-{id}` · button
+  - `admin-new-email` · input · teammate@company.com
   - `admin-new-password` · PasswordInput
+  - `admin-new-role` · select · Role
+  - `admin-new-user-submit` · button
+  - `admin-password-cancel` · button · Cancel
+  - `admin-password-close` · button
   - `admin-perm-{id}` · input
   - `admin-perm-collapse-all` · button · Collapse all
   - `admin-perm-count-{group}` · span
@@ -236,11 +249,30 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `admin-users-roles-panel` · div
 - **IssuedCodeNotice** · `features/admin/components/IssuedCodeNotice.tsx`
   - `admin-issued-code` · div
+  - `admin-issued-code-copy` · button
+  - `admin-issued-code-dismiss` · button · Dismiss
   - `admin-issued-code-value` · code
 - **SignInSettingsPanel** · `features/admin/components/SignInSettingsPanel.tsx`
   - `admin-sign-in-settings` · div · Sign in with…
+  - `sign-in-copy` · button · Copy
   - `sign-in-mail` · section · Email for invites and password resets
+  - `sign-in-mail-from` · input · Fox &lt;fox@example.com>
+  - `sign-in-mail-host` · input · smtp.example.com
+  - `sign-in-mail-port` · input · Port
+  - `sign-in-mail-preset-{label}` · button
+  - `sign-in-mail-save` · button · Save
+  - `sign-in-mail-security` · select · TLS (465) STARTTLS (587) None (local relay)
+  - `sign-in-mail-test-send` · button · Send test email
+  - `sign-in-mail-test-to` · input · Send a test to
+  - `sign-in-mail-turn-off` · button · Turn off
+  - `sign-in-mail-username` · input · Username
+  - `sign-in-microsoft-tenant` · input · common
   - `sign-in-provider-{id}` · div
+  - `sign-in-provider-client-id-{id}` · input
+  - `sign-in-provider-save-{id}` · button · Save
+  - `sign-in-provider-turn-off-{id}` · button · Turn off
+  - `sign-in-public-url` · input · https://fox.example.com
+  - `sign-in-public-url-save` · button · Save
   - `sign-in-service` · section · Google and GitHub through foxschema.com
   - `sign-in-service-admins` · input
   - `sign-in-service-toggle` · input
@@ -263,12 +295,17 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `backend-offline-retry` · button · Retry now
 - **CloudProviderCredentialsSection** · `app/settings/CloudProviderCredentialsSection.tsx`
   - `cloud-cred-add` · button · Add cloud credential
+  - `cloud-cred-cancel` · button · Cancel
   - `cloud-cred-card-{id}` · div
+  - `cloud-cred-close-form` · button
+  - `cloud-cred-edit-{id}` · button · Edit
   - `cloud-cred-field-{key}` · textarea
   - `cloud-cred-form` · div
   - `cloud-cred-name` · input · Name (e.g. Prod AWS)
   - `cloud-cred-provider-select` · select
+  - `cloud-cred-remove-{id}` · button · Remove
   - `cloud-cred-save` · button · Save
+  - `cloud-cred-status-{id}` · button · Updated
   - `cloud-provider-credentials` · div
 - **CommandPalette** · `app/shell/CommandPalette.tsx`
   - `command-palette` · div
@@ -279,6 +316,8 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `{connectTestId}` · button · Connect and load the schema list · passed in by the parent
   - `{editTestId}` · button · Add or edit this connection's credentials · passed in by the parent
   - `connection-chip-{side}` · div
+- **ErrorBoundary** · `app/shell/ErrorBoundary.tsx`
+  - `app-error-boundary-dismiss` · button · Dismiss
 - **HomeView** · `app/shell/HomeView.tsx`
   - `home-command-palette` · button · Search workspaces and recents ⌘K
   - `home-connection-{id}` · button
@@ -300,15 +339,24 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `profile-menu-trigger` · button
   - `profile-preferences` · button · Preferences
   - `profile-role` · p
+  - `profile-sign-out` · button · Sign out
   - `profile-sign-out-others` · button · Sign out other sessions
 - **SettingsPanel** · `app/settings/SettingsPanel.tsx`
+  - `settings-accent-{id}` · button
+  - `settings-apply-preset-{id}` · button · ·
+  - `settings-close` · button
+  - `settings-font-{id}` · button · Aa
   - `settings-menu` · nav · Preferences
+  - `settings-reset` · button · Reset
   - `settings-tab-{id}` · button
+  - `settings-theme-mode-{id}` · button
+  - `settings-tone-{id}` · button
   - `settings-view` · div · Preferences
   - `settings-workspace` · div
 - **ToastHost** · `app/shell/ToastHost.tsx`
   - `app-toast` · div
   - `toast-action-btn` · button
+  - `toast-dismiss` · button · Dismiss
   - `toast-host` · div
 - **TopToolbar** · `app/shell/TopToolbar.tsx`
   - `command-palette-btn` · button · Command palette (⌘K)
@@ -318,6 +366,14 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `sync-pane-compare-btn` · button · Compare
   - `sync-pane-switcher` · div
   - `toolbar` · header
+  - `toolbar-clear` · button · Clear
+  - `toolbar-object-types-all` · button · All
+  - `toolbar-password-cancel` · button · Cancel
+  - `toolbar-password-connect` · button · Connect
+  - `toolbar-password-show` · button
+  - `toolbar-swap-direction` · button · Swap Original Server and Target (reverse migration direction)
+  - `toolbar-toggle-object-type-{type}` · button
+  - `toolbar-toggle-type-filter-{type}` · button
 - **UpdatesSettings** · `app/settings/UpdatesSettings.tsx`
   - `updates-apply-btn` · button · Update now
   - `updates-check-btn` · button · Check
@@ -335,40 +391,61 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
 - **AuthPage** · `features/auth/components/AuthPage.tsx`
   - `auth-forgot-link` · button · Forgot password?
   - `auth-have-code` · button · Have an invite or reset code?
+  - `auth-login-email` · input · your@email.com
   - `auth-login-form` · form
+  - `auth-login-submit` · button · Sign in
+  - `auth-setup-code` · input · ABCD-EFGH
+  - `auth-setup-email` · input · your@email.com
   - `auth-setup-form` · form
+  - `auth-setup-submit` · button · Create account
 - **NewPasswordFields** · `features/auth/components/NewPasswordFields.tsx`
   - `auth-news-opt-in` · input
   - `caps-lock-hint` · p
   - `password-rules` · ul
 - **OnboardingWizard** · `features/auth/components/OnboardingWizard.tsx`
-  - `{undefined}` · div · passed in by the parent
+  - `onboarding-back` · button · ← Back
   - `onboarding-databases` · div
   - `onboarding-db-{opt}` · button
   - `onboarding-goal-{id}` · button
   - `onboarding-skip` · button
 - **PasswordRecovery** · `features/auth/components/PasswordRecovery.tsx`
+  - `auth-code` · input · ABCD-EFGH-JKMN
+  - `auth-code-back` · button · Back to sign in
+  - `auth-code-continue` · button · Continue
   - `auth-code-form` · form
+  - `auth-forgot-back` · button · Back to sign in
+  - `auth-forgot-email` · input · your@email.com
   - `auth-forgot-form` · form
+  - `auth-forgot-have-code` · button · I have a code
+  - `auth-forgot-send` · button · Send reset code
   - `auth-forgot-sent` · div
+  - `auth-redeem-back` · button · Back to sign in
+  - `auth-redeem-email` · input · Email
   - `auth-redeem-form` · form
+  - `auth-redeem-submit` · button
+  - `auth-sent-back` · button · Back to sign in
+  - `auth-sent-enter-code` · button · I have a code
 - **SignupWizard** · `features/auth/components/SignupWizard.tsx`
   - `signup-wizard` · div · Get product updates
   - `signup-wizard-email` · input · your@email.com
   - `signup-wizard-error` · div
   - `signup-wizard-skip` · button
   - `signup-wizard-submit` · button · Subscribe & continue
+- **SsoButtons** · `features/auth/components/SsoButtons.tsx`
+  - `auth-sso-buttons-continue-{id}` · button · Continue with
 
 ## connections
 
 - **ConnectionModal** · `features/connections/components/ConnectionModal.tsx`
   - `conn-auth-method` · select
+  - `conn-cancel` · button · Cancel
   - `conn-close` · button · Close
   - `conn-database-browse` · button · Pick a database file on the server
   - `conn-database-input` · input
   - `conn-dialect-select` · select
   - `conn-domain-input` · input · CONTOSO
   - `conn-host-input` · input · localhost
+  - `conn-install-driver-package` · button · Install the driver package on the server
   - `conn-ldap-hint` · p
   - `conn-load-schema-btn` · button · Connect and list available schemas
   - `conn-modal` · div
@@ -384,8 +461,12 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `conn-username-input` · input
 - **CredentialManager** · `features/connections/components/CredentialManager.tsx`
   - `cred-add-btn` · button · Add Credential
+  - `cred-clear-filters` · button · Clear filters
   - `cred-close-btn` · button
+  - `cred-delete-{id}` · button · Delete
   - `cred-dialect-filter` · select · Filter by provider
+  - `cred-edit-{id}` · button · Edit
+  - `cred-edit-credential-{id}` · button · Edit credential
   - `cred-group-{dialect}` · div
   - `cred-manager` · div · Saved Credentials
   - `cred-search` · input · Search name, host, database, user, port…
@@ -407,30 +488,55 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
 ## git
 
 - **CommitMigrationDialog** · `features/git/components/CommitMigrationDialog.tsx`
+  - `git-commit-branch` · select · New branch…
+  - `git-commit-cancel` · button · Cancel
+  - `git-commit-close` · button · Close
   - `git-commit-dialog` · div · Commit migration to Git
+  - `git-commit-new-branch` · input · feature/orders-index
+  - `git-commit-note` · textarea · What this migration does and why
   - `git-commit-only` · button · Commit
   - `git-commit-preview` · pre
   - `git-commit-push` · button · Commit & push
+  - `git-commit-repo` · select · Repository
 - **GitBranchView** · `features/git/components/GitBranchView.tsx`
   - `git-ahead-behind` · span
   - `git-branch-view` · div · Migrations in Git
+  - `git-branch-view-branch` · select · Branch
+  - `git-branch-view-close` · button · Close
+  - `git-branch-view-fetch` · button · Fetch
+  - `git-branch-view-pull` · button · Pull
+  - `git-branch-view-push` · button · Push
+  - `git-branch-view-repo` · select · Repository
   - `git-migration-{fileName}` · li
   - `git-review` · pre
+  - `git-review-{fileName}` · button · Review
+  - `git-review-close` · button · Close review
   - `git-run-{fileName}` · button · Run
 - **GitReposAdmin** · `features/git/components/GitReposAdmin.tsx`
   - `admin-git-activity` · ol
   - `admin-git-activity-{id}` · button · Activity
   - `admin-git-add` · button · Add repository
+  - `admin-git-cancel` · button · Cancel
+  - `admin-git-edit-{id}` · button · Edit
   - `admin-git-form` · form · Who can see it
+  - `admin-git-form-branch` · input · Default branch
+  - `admin-git-form-folder` · input · migrations
+  - `admin-git-form-name` · input · DB migrations
+  - `admin-git-form-url` · input · https://github.com/acme/db-migrations.git
+  - `admin-git-form-user` · input · x-access-token
+  - `admin-git-remove-{id}` · button
   - `admin-git-repo-{id}` · li
   - `admin-git-repos` · div · Who can see it
+  - `admin-git-require-commit` · input
   - `admin-git-role-{role}` · input
   - `admin-git-roles-{id}` · span
+  - `admin-git-save` · button
 
 ## lokee-weave
 
 - **ForceMigrateModal** · `features/lokee-weave/components/ForceMigrateModal.tsx`
   - `force-migrate-apply` · button
+  - `force-migrate-cancel` · button · Cancel
   - `force-migrate-close` · button · Close
   - `force-migrate-confirm-force` · input
   - `force-migrate-confirm-lossy` · input
@@ -499,6 +605,7 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `lokee-empty-credential` · select · Choose a database…
   - `lokee-force-migrate-btn` · button · Apply a stored version to a database it was not captured from
   - `lokee-graph-toggle` · button · Graph
+  - `lokee-try-again` · button · Try again
   - `lokee-weave-view` · div
 - **nodes** · `features/lokee-weave/components/nodes.tsx`
   - `rf-kinds-{objectKey}` · div
@@ -535,26 +642,45 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
 - **MigrationHistory** · `features/migrations/components/MigrationHistory.tsx`
   - `applies-git-btn` · button · Migrations in Git: fetch, pull, push, incoming
   - `applies-git-commit` · span
+  - `history-clear-all` · button · Clear all records
+  - `history-clear-all-cancel` · button · Cancel
+  - `history-clear-all-confirm` · button · Clear all
+  - `history-delete-record` · button · Delete this record
+  - `history-delete-selected` · button · Delete selected records
   - `history-dialog` · div · Migration History
   - `history-dialog-close-btn` · button
+  - `history-download-pre-migration` · button · Download pre-migration snapshot
+  - `history-refresh` · button · Refresh
   - `history-run-item` · div
+  - `history-select-{id}` · input · Select this record
+  - `history-select-all` · button
 
 ## object-detail
 
 - **BrowseBar** · `features/object-detail/components/BrowseBar.tsx`
   - `browse-bar` · div
   - `browse-reload-btn` · button · Re-read this database
+- **CrossDialectReadinessDialog** · `features/object-detail/components/CrossDialectReadinessDialog.tsx`
+  - `migrate-cross-dialect-readiness-close` · button · Close
+- **DependencyWarningDialog** · `features/object-detail/components/DependencyWarningDialog.tsx`
+  - `migrate-dependency-{dependentType}-{dependentName}` · button
+  - `migrate-dependency-warning-close` · button · Close
 - **DeployConfirmDialog** · `features/object-detail/components/DeployConfirmDialog.tsx`
   - `deploy-cancel-btn` · button · Cancel
   - `deploy-confirm-btn` · button · Execute
   - `deploy-confirm-dialog` · div · Execute sync script?
+  - `deploy-dont-ask-again` · input
 - **MigrationProgressPanel** · `features/object-detail/components/MigrationProgressPanel.tsx`
+  - `migration-clear-migration-progress` · button
   - `migration-complete` · h4
+  - `migration-download-pre-migration` · button · Download pre-migration schema snapshot
   - `migration-failed` · h4
   - `migration-partial` · h4
   - `migration-progress-item` · div
   - `migration-progress-panel` · div
   - `migration-running` · h4
+  - `migration-skip-retry-{objectName}` · button · Skip & retry
+  - `migration-switch-non-destructive` · button · Switch to non-destructive
 - **ObjectDetailPanel** · `features/object-detail/components/ObjectDetailPanel.tsx`
   - `ack-destructive-drops` · input
   - `ack-mysql-binlog-risk` · input
@@ -562,12 +688,23 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `browse-connection-card` · dl
   - `execute-btn` · button
   - `git-commit-btn` · button
+  - `migrate-copy-sql` · button
+  - `migrate-cross-dialect-migration` · button · Cross-dialect migration — click for a per-object-type breakdown of what's translated vs. flagged for manual review
+  - `migrate-ignore-case` · input
+  - `migrate-inline-diff` · button
+  - `migrate-review-conflicts` · button · Review conflicts
+  - `migrate-review-dependencies` · button · Review conflicts
+  - `migrate-show-unchanged-detail` · input
+  - `migrate-toggle-sync-selection` · input
+  - `migrate-view-details` · button · view details
+  - `migrate-view-notes` · button · View notes
+- **ValidationWarningsDialog** · `features/object-detail/components/ValidationWarningsDialog.tsx`
+  - `migrate-validation-warnings-close` · button · Close
 
 ## schema-diff
 
 - **DetailTabs** · `features/schema-diff/components/DetailTabs.tsx`
   - `{testIdPrefix}-tab-{id}` · button
-  - `{undefined}` · button · passed in by the parent
 - **DiffBriefingChips** · `features/schema-diff/components/DiffBriefingChips.tsx`
   - `{testId}` · div · Object-level + / ~ / − — no extra query. · passed in by the parent
   - `lokee-change-ticks` · span
@@ -577,16 +714,22 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `diff-briefing-panel` · div · What changed
   - `diff-briefing-row-{tableName}` · button
 - **SchemaBlueprint** · `features/schema-diff/components/SchemaBlueprint.tsx`
+  - `blueprint-all-columns-selected` · input
+  - `blueprint-all-indexes-selected` · input
+  - `blueprint-all-members-selected` · input
+  - `blueprint-all-triggers-selected` · input
   - `blueprint-attributes` · div
   - `blueprint-column-check-{name}` · input
   - `blueprint-columns` · div
   - `blueprint-columns-all` · label · Include/exclude every changed column in the deploy script
   - `blueprint-columns-whole-object` · span
   - `blueprint-foreign-keys` · div
+  - `blueprint-include-member-in-{name}` · input · Include this member in the deploy script
   - `blueprint-indexes` · div
   - `blueprint-parameters` · div · Parameters
   - `blueprint-primary-key` · div
   - `blueprint-summary` · div
+  - `blueprint-toggle-index-{name}` · input
   - `blueprint-trigger-check-{name}` · input · Migrate this trigger
   - `blueprint-triggers` · div
   - `blueprint-triggers-all` · label · Include/exclude every changed trigger in the deploy script
@@ -595,13 +738,14 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `{testId}` · table · passed in by the parent
 - **SchemaDiffTree** · `features/schema-diff/components/SchemaDiffTree.tsx`
   - `diff-item` · div
+  - `diff-tree-toggle-selection-{tableName}` · input
 
 ## shared
 
 - **Autocomplete** · `shared/components/Autocomplete.tsx`
   - `{testId}` · input · passed in by the parent
+  - `{testId}-option-{value}` · button
   - `{testId}-toggle` · button
-  - `{undefined}` · button · passed in by the parent
 - **CommandModeToggle** · `shared/components/CommandModeToggle.tsx`
   - `{testId}` · div · passed in by the parent
   - `{testId}-command` · pre
@@ -614,9 +758,11 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
 - **FilterPicker** · `shared/components/FilterPicker.tsx`
   - `{option.testId}` · label · passed in by the parent
   - `{part('backdrop')}` · div · passed in by the parent
+  - `{part('clear')}` · button · passed in by the parent
   - `{part('filter')}` · input · passed in by the parent
   - `{part('trigger')}` · button · passed in by the parent
   - `{part(`group-${option.group}`)}` · div · passed in by the parent
+  - `{part(`option-${option.id}`)}` · input · passed in by the parent
 - **PasswordInput** · `shared/components/PasswordInput.tsx`
   - `{testId}` · input · passed in by the parent
   - `{testId}-reveal` · button · Hold to show password
@@ -627,7 +773,6 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
 ## sql-editor
 
 - **ConnectionChecklist** · `features/sql-editor/components/ConnectionChecklist.tsx`
-  - `{undefined}` · span · passed in by the parent
   - `sql-conn-check-{value}` · input
   - `sql-dest-group-{n}` · span
   - `sql-destination-chips` · div
@@ -648,6 +793,7 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `sql-filter-op-{colIdx}` · select · has = ≠ starts ends > ≥ &lt; ≤ is null not null
   - `sql-filter-row` · tr
   - `sql-filter-value-{colIdx}` · input · filter…
+  - `sql-grid-cancel` · button · Cancel
   - `sql-grid-clear-view` · button · Clear sort and filters
   - `sql-grid-context-menu` · div
   - `sql-grid-copy-btn` · button · Copy selected cells, or all rows (Cmd/Ctrl-C in the grid)
@@ -682,6 +828,11 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `sql-grid-export-text` · button · Export text (aligned)
   - `sql-grid-export-yaml` · button · Export YAML
   - `sql-grid-filter-toggle` · button · Filter and sort the rows on this page
+  - `sql-grid-save-cell-as` · button · Save cell as variable…
+  - `sql-grid-save-column-as` · button · Save column as list…
+  - `sql-grid-save-name` · input · variable_name
+  - `sql-grid-save-result-as` · button · Save result as table…
+  - `sql-grid-save-result-as-mode` · button · Save result as table…
   - `sql-grid-view-scope` · span
   - `sql-page-next` · button
   - `sql-page-prev` · button · Prev
@@ -703,16 +854,21 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `sql-data-migrate-delete-{statementIndex}` · input
   - `sql-data-migrate-failures-{statementIndex}` · div
   - `sql-data-migrate-history-{statementIndex}` · button · History
+  - `sql-data-migrate-history-close` · button
   - `sql-data-migrate-history-modal` · div
   - `sql-data-migrate-history-restore` · button · Restore from this backup
+  - `sql-data-migrate-history-run-{id}` · button
   - `sql-data-migrate-identity-{statementIndex}` · input
   - `sql-data-migrate-insert-{statementIndex}` · input
   - `sql-data-migrate-key-{col}-{statementIndex}` · input
   - `sql-data-migrate-preview-{statementIndex}` · button · Preview the INSERT / UPDATE / DELETE SQL before applying
+  - `sql-data-migrate-preview-close` · button · Close
   - `sql-data-migrate-preview-modal` · div · Preview migrate SQL
   - `sql-data-migrate-progress` · div
+  - `sql-data-migrate-progress-close` · button
   - `sql-data-migrate-restore-{statementIndex}` · button · Reverse successful ops from the last Backup snapshot
   - `sql-data-migrate-route-{statementIndex}` · span
+  - `sql-data-migrate-safe-cancel` · button · Cancel
   - `sql-data-migrate-safe-chip-{statementIndex}` · span · SQL Editor Safe mode is on — Apply will ask for confirmation
   - `sql-data-migrate-safe-confirm` · div · Safe mode is on
   - `sql-data-migrate-safe-confirm-apply` · button · Apply ops
@@ -751,6 +907,7 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `sql-tab-rename-btn-{id}` · button · Rename query
 - **FileImportsPanel** · `features/sql-editor/components/FileImportsPanel.tsx`
   - `file-import-{id}` · div
+  - `file-import-csv-json` · button · Import CSV, JSON, or fixed-width text
   - `file-import-delete-{id}` · button · Remove this import
   - `file-import-use-{id}-{tableName}` · button
   - `file-import-when-{id}` · span
@@ -760,6 +917,9 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `file-imports-refresh` · button · Refresh
   - `file-imports-table-head` · div
 - **PeekDatePicker** · `features/sql-editor/components/PeekDatePicker.tsx`
+  - `peek-date-day-{y}-{m}-{day}` · button
+  - `peek-date-today` · button · ›
+  - `peek-date-view-toggle` · button · ‹
   - `peek-row-datepicker-{fieldName}` · button
   - `peek-row-datepicker-pop-{fieldName}` · div
   - `peek-row-datetime-native-{fieldName}` · input
@@ -777,6 +937,8 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `data-peek-insight-peek-orphans-{key}` · button · Peek orphans
   - `data-peek-insight-rows` · p
 - **PeekRowEditor** · `features/sql-editor/components/PeekRowEditor.tsx`
+  - `peek-row-cancel` · button · Cancel
+  - `peek-row-close` · button · Close
   - `peek-row-col-{name}` · input
   - `peek-row-column-picker` · div
   - `peek-row-discard` · button · Discard
@@ -802,8 +964,8 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `{testId}-bar-{i}` · rect
 - **ResultsPanel** · `features/sql-editor/components/ResultsPanel.tsx`
   - `sql-cred-refresh` · button · Refresh this server
-  - `sql-pane-refresh` · button · Retry this server
   - `sql-pane-resize` · div · Drag to resize this table
+  - `sql-pane-retry-{connectionId}` · button · Retry this server
   - `sql-result-{statementIndex}-collapsed` · span
   - `sql-result-{statementIndex}-readonly` · span
   - `sql-result-chart-toggle-{statementIndex}` · input
@@ -850,10 +1012,15 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `continue-on-error-checkbox` · input
   - `diff-briefing-open` · button · Briefing
   - `non-destructive-checkbox` · input
+  - `schema-status-filter-{status}` · button
   - `schema-tree` · div
   - `schema-tree-empty` · div
+  - `sql-schema-tree-include-all` · input
+  - `sql-schema-tree-search` · input · Search objects, columns, indexes...
+  - `sql-schema-tree-type-all` · button · All
 - **SelectColumnPicker** · `features/sql-editor/components/SelectColumnPicker.tsx`
   - `sql-select-all-star` · button · SELECT *
+  - `sql-select-close` · button · Close
   - `sql-select-col-{key}` · input
   - `sql-select-column-picker` · div
   - `sql-select-remove-all` · button · Clear SELECT list
@@ -861,6 +1028,8 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `sql-bookmark-delete-{id}` · button · Delete bookmark
   - `sql-bookmark-install-samples` · button · Install built-in JS/TS/Node code-cell examples you can open later
   - `sql-bookmark-open-{id}` · button
+  - `sql-bookmark-rename-{id}` · button · Rename bookmark
+  - `sql-bookmark-rename-input-{id}` · input
   - `sql-bookmark-toggle-samples` · button
   - `sql-bookmarks` · div
   - `sql-bookmarks-tab` · button · Bookmarks
@@ -869,9 +1038,9 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `sql-recent-open-{id}` · button
   - `sql-recent-tab` · button · Recent
 - **SqlEditorView** · `features/sql-editor/components/SqlEditorView.tsx`
-  - `{undefined}` · div · passed in by the parent
   - `sql-bookmark-save` · button · Save current query as a bookmark (uses the tab title)
   - `sql-bookmark-save-toolbar` · button · Bookmark this query (uses the tab title)
+  - `sql-clear-results` · button · Clear results
   - `sql-editor-loading` · div
   - `sql-editor-resize` · div · Resize editor and results
   - `sql-editor-view` · div
@@ -902,32 +1071,44 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `sql-runs-list` · ul
   - `sql-runs-open-{id}` · button
 - **SqlSchemaExplorer** · `features/sql-editor/components/SqlSchemaExplorer.tsx`
+  - `sql-explorer-col-insert-{name}-{name2}` · button
   - `sql-explorer-col-select-{name}-{name2}` · button · Sel
+  - `sql-explorer-columns-toggle-{name}` · button · Columns ( )
   - `sql-explorer-from-{name}` · button · From
   - `sql-explorer-index-{name}-{name2}` · button
   - `sql-explorer-indexes-{name}` · div
+  - `sql-explorer-indexes-toggle-{name}` · button · Indexes ( )
   - `sql-explorer-object-{name}` · button
+  - `sql-explorer-param-insert-{name}-{name2}` · button
   - `sql-explorer-table-stats-{name}` · span
+  - `sql-explorer-toggle-{name}` · button
   - `sql-new-table` · button · Create new table (opens table blueprint)
   - `sql-new-table-empty` · button · Create table
   - `sql-open-blueprint` · button · Open table blueprint — add/edit columns
   - `sql-open-object-source` · button
   - `sql-open-object-source-btn` · button · Open source script in the editor (view only)
+  - `sql-reload-schema` · button · Reload schema
   - `sql-schema-connection` · select · Schema connection
   - `sql-schema-empty` · div
   - `sql-schema-explorer` · div
   - `sql-schema-group-{type}` · div
+  - `sql-schema-group-toggle-{type}` · button · ( )
   - `sql-schema-missing` · p
 - **SqlSecretsPanel** · `features/sql-editor/components/SqlSecretsPanel.tsx`
   - `sql-secret-{name}` · li
   - `sql-secret-add` · button · Add secret
+  - `sql-secret-cancel` · button · Cancel
   - `sql-secret-cloud-id` · input
+  - `sql-secret-delete-secret-{id}` · button · Delete secret
   - `sql-secret-fetch` · button
   - `sql-secret-mode` · select · Fetch from cloud Manual (enter secret key)
   - `sql-secret-name` · input · variable name (e.g. apiToken)
   - `sql-secret-provider` · select
+  - `sql-secret-region` · input · region (optional)
   - `sql-secret-save` · button · Add
   - `sql-secret-value` · input · secret value (won’t be shown again)
+  - `sql-secret-vault-url` · input · https://….vault.azure.net
+  - `sql-secret-version` · input · version (optional)
   - `sql-secrets` · div
   - `sql-secrets-error` · p
 - **SqlSidebarSection** · `features/sql-editor/components/SqlSidebarSection.tsx`
@@ -939,54 +1120,122 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `sql-variable-{name}` · li
   - `sql-variable-add` · button · Add variable
   - `sql-variable-add-confirm` · button · Save
+  - `sql-variable-cancel` · button · Cancel
+  - `sql-variable-clear-override-{id}` · button · Clear override
   - `sql-variable-delete-{name}` · button · Delete variable
   - `sql-variable-export` · button · Export variables as JSON
   - `sql-variable-import` · button · Import variables from JSON
+  - `sql-variable-import-file` · input
+  - `sql-variable-input-{id}` · input
   - `sql-variable-name-input` · input · name
+  - `sql-variable-overrides-{name}` · button · …
+  - `sql-variable-preview-table-{name}` · button · Preview table
+  - `sql-variable-secret-{name}` · input
+  - `sql-variable-secret-input` · input
+  - `sql-variable-value-{name}` · button · Edit value
+  - `sql-variable-value-edit-{name}` · input
   - `sql-variable-value-input` · input · value
   - `sql-variables` · div
 - **StatementStrip** · `features/sql-editor/components/StatementStrip.tsx`
   - `sql-statement-cell-{i}` · div
   - `sql-statement-copy` · button
   - `sql-statement-copy-row-{i}` · button
+  - `sql-statement-include-{i}` · input
+  - `sql-statement-reveal-{i}` · button · In [ ]:
   - `sql-statement-run-{i}` · button
   - `sql-statement-strip` · div
   - `sql-statement-strip-resize` · div · Resize statement list
   - `sql-statement-values-popover` · div
 - **TableBlueprintModal** · `features/sql-editor/components/TableBlueprintModal.tsx`
   - `{testId}` · div · passed in by the parent
+  - `{testId}-toggle` · button
+  - `blueprint-add-column` · button · Add column
+  - `blueprint-add-fk` · button · Add foreign key
   - `blueprint-add-index` · button · Add index
+  - `blueprint-add-trigger` · button · Create trigger
   - `blueprint-ai-{name}` · input
   - `blueprint-apply` · button · Apply
   - `blueprint-auto-increment` · div
   - `blueprint-bool-default` · select
   - `blueprint-close` · button · Close
+  - `blueprint-column-cancel` · button · Cancel
+  - `blueprint-column-default` · input · —
+  - `blueprint-column-drop-{name}` · button · Drop column
+  - `blueprint-column-edit-{name}` · button · Edit column
   - `blueprint-column-form` · div
+  - `blueprint-column-identity` · input
+  - `blueprint-column-identity-generation` · select
+  - `blueprint-column-name` · input
+  - `blueprint-column-nullable` · input
+  - `blueprint-column-save` · button · Save
+  - `blueprint-column-undo-drop-{name}` · button · Undo drop
   - `blueprint-drop-table` · button · Drop table
   - `blueprint-error` · p
+  - `blueprint-fk-cancel` · button · Cancel
+  - `blueprint-fk-column-{name}` · input
+  - `blueprint-fk-column-down-{name}` · button · Move down
+  - `blueprint-fk-column-up-{name}` · button · Move up
+  - `blueprint-fk-drop-{name}` · button · Drop foreign key
   - `blueprint-fk-form` · div
+  - `blueprint-fk-name` · input
+  - `blueprint-fk-on-delete` · select
+  - `blueprint-fk-on-update` · select
+  - `blueprint-fk-ref-column-{name}` · input
+  - `blueprint-fk-ref-column-down-{name}` · button · Move down
+  - `blueprint-fk-ref-column-up-{name}` · button · Move up
   - `blueprint-fk-ref-table` · Autocomplete · Type table name…
+  - `blueprint-fk-save` · button · Add FK
+  - `blueprint-fk-undo-drop-{n}` · button · Undo
+  - `blueprint-footer-close` · button · Close
   - `blueprint-frag-custom` · div
+  - `blueprint-frag-custom-show` · button
   - `blueprint-frag-custom-sql` · textarea
   - `blueprint-frag-legend` · p
   - `blueprint-frag-run-custom` · button · Run custom probe
+  - `blueprint-index-cancel` · button · Cancel
+  - `blueprint-index-column-{name}` · button
+  - `blueprint-index-column-earlier-{name}` · button · Move earlier
+  - `blueprint-index-column-later-{name}` · button · Move later
+  - `blueprint-index-column-order-{name}` · button
+  - `blueprint-index-confirm-no-filter` · input
   - `blueprint-index-defrag-{name}` · button · Defrag
+  - `blueprint-index-drop-{name}` · button · Drop index
+  - `blueprint-index-edit-{name}` · button · Edit index
   - `blueprint-index-form` · div
   - `blueprint-index-frag-{name}` · div
   - `blueprint-index-name` · input
   - `blueprint-index-row-{name}` · li
   - `blueprint-index-save` · button
-  - `blueprint-indexes` · section · Indexes ( )
+  - `blueprint-index-undo-drop-{n}` · button · Undo
+  - `blueprint-index-unique` · input
+  - `blueprint-index-where` · input · e.g. status = 'active' AND deleted_at IS NULL
   - `blueprint-insert-sql` · button · Insert SQL
+  - `blueprint-pending-fk-remove-{name}` · button · Remove
+  - `blueprint-pending-index-edit-{name}` · button · Edit
+  - `blueprint-pending-index-remove-{name}` · button · Remove
+  - `blueprint-pending-trigger-remove-{name}` · button
+  - `blueprint-pk-column-{name}` · input
+  - `blueprint-pk-column-down-{name}` · button · Move down in key
+  - `blueprint-pk-column-up-{name}` · button · Move up in key
   - `blueprint-refresh-frag` · button · Refresh index fragmentation
   - `blueprint-table-name` · input · new_table_name
+  - `blueprint-trigger-cancel` · button · Cancel
+  - `blueprint-trigger-definition` · textarea
+  - `blueprint-trigger-drop-{name}` · button · Drop trigger
+  - `blueprint-trigger-event` · select
+  - `blueprint-trigger-expand-{name}` · button
   - `blueprint-trigger-form` · div
+  - `blueprint-trigger-name` · input
+  - `blueprint-trigger-save` · button · Add trigger
+  - `blueprint-trigger-timing` · select
+  - `blueprint-trigger-undo-drop-{n}` · button · Undo
   - `blueprint-type-custom` · input · custom type
   - `blueprint-type-length` · input · e.g. 255
   - `blueprint-type-precision` · input · 10
   - `blueprint-type-scale` · input · 2
   - `blueprint-type-select` · select · Custom…
   - `blueprint-unique` · input
+  - `table-blueprint-indexes` · section · Indexes ( )
   - `table-blueprint-modal` · div · Columns ( )
 - **usePeekGridCrud** · `features/sql-editor/components/usePeekGridCrud.tsx`
   - `{testId('add')}` · button · Add row · passed in by the parent
@@ -1000,40 +1249,48 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `sql-safe-dml-warn` · div
   - `sql-safe-multi-table-warn` · div
   - `sql-safe-no-where-ack` · label
+  - `sql-safe-no-where-ack-check` · input
   - `sql-safe-no-where-warn` · div
   - `sql-write-confirm` · div
   - `sql-write-confirm-btn` · button · Run anyway
+  - `sql-write-confirm-cancel` · button · Cancel
 
 ## utilities
 
 - **CloneTableModal** · `features/utilities/components/CloneTableModal.tsx`
   - `clone-apply` · button · Apply clone
   - `clone-archive-preview` · p
+  - `clone-close` · button · Close
   - `clone-error` · p
   - `clone-inbound-warning` · p
   - `clone-insert-sql` · button · Insert SQL
   - `clone-keep-fks` · input
   - `clone-keep-indexes` · input
+  - `clone-password-draft` · input
   - `clone-plan-error` · p
   - `clone-sql-preview` · pre
   - `clone-status` · p
   - `clone-suffix-auto` · input
   - `clone-suffix-fixed` · input
   - `clone-suffix-number` · input
+  - `clone-table-close` · button · Close
   - `clone-table-connection` · select
   - `clone-table-load` · button · Load tables
   - `clone-table-modal` · div
   - `clone-table-name` · Autocomplete
+  - `clone-unlock` · button · Unlock
 - **DatabaseAccessModal** · `features/utilities/components/DatabaseAccessModal.tsx`
   - `db-access-all-form` · div
   - `db-access-all-note` · p
   - `db-access-all-target` · select
   - `db-access-allow-all-{name}` · span
   - `db-access-allow-all-banner` · p
+  - `db-access-cancel-confirm` · button · Cancel
   - `db-access-confirm` · div
   - `db-access-confirm-run` · button · Run
   - `db-access-confirm-type` · input
   - `db-access-connection` · select · — Select credential —
+  - `db-access-db-users-close` · button · Close
   - `db-access-embedded` · div
   - `db-access-error` · p
   - `db-access-filter` · input · Filter users or groups
@@ -1043,12 +1300,13 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `db-access-grant-name` · input · role name
   - `db-access-grant-role` · select · Other… (type a name)
   - `db-access-grant-sql` · pre
+  - `db-access-grant-with-option` · input
   - `db-access-grantable` · span · May pass this privilege on to others (WITH GRANT OPTION)
   - `db-access-group-{kind}` · section
   - `db-access-load` · button · Load users
   - `db-access-memberships` · div
-  - `db-access-modal` · div
   - `db-access-open-app-roles` · button · Open App roles
+  - `db-access-overlay` · div
   - `db-access-password` · PasswordInput · ••••••••
   - `db-access-principal-{name}` · button
   - `db-access-privgroup-{index}` · tr
@@ -1057,10 +1315,14 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `db-access-remove-member-{i}` · button · Remove
   - `db-access-revoke-{i}` · button · Revoke
   - `db-access-revoke-all-{index}` · button · Revoke all
+  - `db-access-save` · button · Save
   - `db-access-status` · p
+  - `db-access-toggle-group-{kind}` · button
   - `db-access-unsupported` · p
 - **FileQueryModal** · `features/utilities/components/FileQueryModal.tsx`
+  - `file-query-cancel` · button · Cancel
   - `file-query-clear` · button · Clear file imports
+  - `file-query-close` · button · Close
   - `file-query-content` · textarea · Paste file contents here, or choose a file above…
   - `file-query-delimiter` · select · Comma (,) Tab (TSV) Semicolon (;) Pipe (\|) Custom…
   - `file-query-delimiter-custom` · input · e.g. \|\| or :
@@ -1069,26 +1331,31 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `file-query-has-header` · input
   - `file-query-import` · button · Import & open
   - `file-query-input` · input
+  - `file-query-json-shape` · select · Array of objects NDJSON (one object per line)
   - `file-query-modal` · div
   - `file-query-offsets` · textarea
   - `file-query-replace-previous` · input
   - `file-query-replace-table` · input
+  - `file-query-skip-lines` · input
   - `file-query-table` · input · data
   - `file-query-target-credential` · select · Select credential…
   - `file-query-workspace` · select · Select workspace…
   - `file-query-workspace-name` · input · Uses the file name when empty
 - **IndexManagementModal** · `features/utilities/components/IndexManagementModal.tsx`
-  - `{undefined}` · label · passed in by the parent
   - `index-management-embed` · div
-  - `index-management-modal` · div
+  - `index-management-overlay` · div
+  - `index-mgmt-cancel` · button · Cancel
+  - `index-mgmt-close` · button · Close
   - `index-mgmt-collapse-all` · button · Collapse tables
   - `index-mgmt-confirm-defrag` · div · Confirm defragment
   - `index-mgmt-confirm-defrag-run` · button · Run defragment
   - `index-mgmt-confirm-drop` · div · Confirm drop index
+  - `index-mgmt-confirm-drop-cancel` · button · Cancel
   - `index-mgmt-confirm-drop-run` · button · Drop indexes
   - `index-mgmt-connection` · select · — Select credential —
   - `index-mgmt-defrag-filtered` · button · filtered ( )
   - `index-mgmt-defrag-selected` · button · selected ( )
+  - `index-mgmt-defragment-{key}` · button · Defragment
   - `index-mgmt-drop-{key}` · button · Drop
   - `index-mgmt-drop-selected` · button · Drop selected ( )
   - `index-mgmt-expand-all` · button · Expand tables
@@ -1101,6 +1368,7 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `index-mgmt-no-defrag` · span
   - `index-mgmt-password` · input · ••••••••
   - `index-mgmt-row-{key}` · tr
+  - `index-mgmt-save` · button · Save
   - `index-mgmt-select-filtered` · button
   - `index-mgmt-sort-{column}` · button
   - `index-mgmt-status` · p
@@ -1112,13 +1380,19 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `index-mgmt-table-index-size-{tableName}` · td
   - `index-mgmt-table-last-used-{tableName}` · td · Most recent index usage on this table
   - `index-mgmt-table-rows-{tableName}` · td
+  - `index-mgmt-table-select-{tableName}` · button
+  - `index-mgmt-table-toggle-{tableName}` · button
+  - `index-mgmt-toggle-selected-{key}` · button
   - `server-insights-size-filter` · label
   - `server-insights-size-groups` · div
 - **ServerInsightsModal** · `features/utilities/components/ServerInsightsModal.tsx`
+  - `server-insights-close` · button · Close
   - `server-insights-connection` · select
   - `server-insights-modal` · div
+  - `server-insights-password-draft` · input · ••••••••
   - `server-insights-refresh` · button · Refresh
   - `server-insights-tab-{id}` · button
+  - `server-insights-unlock` · button · Unlock
 - **UtilitiesView** · `features/utilities/components/UtilitiesView.tsx`
   - `{t.testId}` · button · passed in by the parent
   - `db-access-modal` · div
@@ -1129,6 +1403,39 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
 
 ## workflow
 
+- **DelimitedSourceEditor** · `features/workflow/components/DelimitedSourceEditor.tsx`
+  - `workflow-source-add-column` · button · Add column
+  - `workflow-source-add-delimiter` · button · Add delimiter
+  - `workflow-source-add-rule` · button · Add column rule
+  - `workflow-source-column-length-{index}` · input · Length
+  - `workflow-source-column-name-{index}` · input · name
+  - `workflow-source-column-remove-{index}` · button · Remove column
+  - `workflow-source-column-start-{index}` · input · Start (1-based)
+  - `workflow-source-delimiter` · input
+  - `workflow-source-delimiter-{index}` · input
+  - `workflow-source-field-names` · input · id, name, email — extras become field_N
+  - `workflow-source-format` · select · Delimited Fixed width (offsets)
+  - `workflow-source-header` · select · No header — every line is data Always skip the first line Auto — sk…
+  - `workflow-source-offset` · input
+  - `workflow-source-on-invalid` · select · Fail the run Skip the row Route to the rejects output
+  - `workflow-source-path` · input
+  - `workflow-source-preview-file-head` · button · Preview file head
+  - `workflow-source-preview-sample` · button · Preview sample
+  - `workflow-source-record-delimiter` · input · optional, e.g. \|
+  - `workflow-source-remove-delimiter-{index}` · button · Remove delimiter
+  - `workflow-source-row-schema` · textarea · z.object({ email: z.string().regex(/^\S+@\S+$/), id: z.string().regex(/^\d+$/) })
+  - `workflow-source-rule-check-add-{name}` · button · Add regex
+  - `workflow-source-rule-check-kind-{name}-{index}` · select · Check purpose (shown in error messages)
+  - `workflow-source-rule-check-pattern-{name}-{index}` · input · Regex the raw text must match
+  - `workflow-source-rule-check-remove-{name}-{index}` · button · Remove regex check
+  - `workflow-source-rule-name-{name}` · input · Field name this rule applies to
+  - `workflow-source-rule-remove-{name}` · button · Remove rule
+  - `workflow-source-rule-required-{name}` · input
+  - `workflow-source-rule-type-{name}` · select · Value type — validated and converted
+  - `workflow-source-sample` · textarea
+  - `workflow-source-skip-empty` · input
+  - `workflow-source-skip-lines` · input
+  - `workflow-source-trim` · input
 - **EnginePanel** · `features/workflow/components/EnginePanel.tsx`
   - `workflow-engine` · div
   - `workflow-engine-{id}` · button
@@ -1138,487 +1445,111 @@ Controls with a test ID: **529 of 924** (57.3%). Without one: 395, listed at the
   - `workflow-engine-overlap` · select · skip queue parallel
   - `workflow-engine-refresh-health` · button · Refresh health
   - `workflow-engine-save` · button
+  - `workflow-engine-target-{kind}` · input · target
   - `workflow-process-{id}` · li
   - `workflow-sink-{kind}` · input
+- **HttpRequestEditor** · `features/workflow/components/HttpRequestEditor.tsx`
+  - `workflow-http-auth-credential` · select · Select…
+  - `workflow-http-auth-key` · input
+  - `workflow-http-auth-password` · input
+  - `workflow-http-auth-placement` · select · Header Query
+  - `workflow-http-auth-token` · input · token or {{secrets.accessToken}}
+  - `workflow-http-auth-type` · select · No auth Bearer token Basic API key Stored credential
+  - `workflow-http-auth-username` · input
+  - `workflow-http-auth-value` · input
+  - `workflow-http-body-content-type` · input
+  - `workflow-http-body-field-add` · button · + Add attribute
+  - `workflow-http-body-field-enabled-{index}` · input · Enabled
+  - `workflow-http-body-field-key-{index}` · input · attribute
+  - `workflow-http-body-field-remove-{index}` · button · ×
+  - `workflow-http-body-field-type-{index}` · select · Value type
+  - `workflow-http-body-field-value-{index}` · input
+  - `workflow-http-body-json` · textarea
+  - `workflow-http-body-mode` · select · None JSON builder (typed attributes) JSON Raw x-www-form-urlencoded
+  - `workflow-http-body-raw` · textarea
+  - `workflow-http-body-schema` · textarea · z.object({ orderId: z.number(), note: z.string().optional() })
+  - `workflow-http-body-schema-sample` · textarea · {"orderId": 42}
+  - `workflow-http-kv-add` · button · + Add
+  - `workflow-http-kv-enabled-{index}` · input · Enabled
+  - `workflow-http-kv-key-{index}` · input
+  - `workflow-http-kv-operator-{index}` · select · Condition operator
+  - `workflow-http-kv-remove-{index}` · button · ×
+  - `workflow-http-kv-value-{index}` · input
+  - `workflow-http-method` · select
+  - `workflow-http-session` · input
+  - `workflow-http-session-persist` · input
+  - `workflow-http-tab-{id}` · button
+  - `workflow-http-timeout-ms` · input
+  - `workflow-http-token-refresh` · input
+  - `workflow-http-token-refresh-access-path` · input
+  - `workflow-http-token-refresh-refresh-path` · input
+  - `workflow-http-token-refresh-skew` · input
+  - `workflow-http-token-refresh-url` · input
+  - `workflow-http-url` · input · https://api.example.com/users/{{vars.userId}}
+  - `workflow-http-variables` · textarea
+- **Inspector** · `features/workflow/components/Inspector.tsx`
+  - `workflow-inspector-concurrency` · input
+  - `workflow-inspector-field-{name}` · select
+  - `workflow-inspector-http-retry-attempts` · input
+  - `workflow-inspector-intent` · input
+  - `workflow-inspector-json-{name}` · textarea
+  - `workflow-inspector-open-in-trigger` · button · Open in trigger dialog
+  - `workflow-inspector-pipe-id` · input
+  - `workflow-inspector-retry-attempts` · input
+  - `workflow-inspector-sample-port-{port}` · button
+  - `workflow-inspector-show-raw` · button
+  - `workflow-inspector-sub-workflow-id` · select
+  - `workflow-inspector-sub-workflow-version` · input · latest
+  - `workflow-inspector-tab-{id}` · button
+  - `workflow-inspector-trigger` · select
+  - `workflow-inspector-type` · select
+- **MultiHttpEditor** · `features/workflow/components/MultiHttpEditor.tsx`
+  - `workflow-multi-http-toggle-{index}` · button
+- **Palette** · `features/workflow/components/Palette.tsx`
+  - `workflow-palette-search-pipes` · input · Search pipes
+  - `workflow-palette-show-advanced` · input
+- **RunsPanel** · `features/workflow/components/RunsPanel.tsx`
+  - `workflow-runs-live` · input
+- **SqlPipeEditor** · `features/workflow/components/SqlPipeEditor.tsx`
+  - `workflow-sql-pipe-browse` · button
+  - `workflow-sql-pipe-table-{objectType}-{name}` · button
+- **TriggerConfigurationDialog** · `features/workflow/components/TriggerConfigurationDialog.tsx`
+  - `workflow-trigger-config-item-{id}` · button
+  - `workflow-trigger-config-retry` · input
+  - `workflow-trigger-config-section-{item}` · button
+  - `workflow-trigger-config-workflow-{id}` · input
+- **TriggerInlineSettings** · `features/workflow/components/TriggerInlineSettings.tsx`
+  - `workflow-trigger-settings-catch-up` · select · No catch-up One missed run All missed runs
+  - `workflow-trigger-settings-cron` · input
+  - `workflow-trigger-settings-execution-type` · select
+  - `workflow-trigger-settings-http-credential` · select · Select credential
+  - `workflow-trigger-settings-input` · textarea · [{ "id": 1 }]
+  - `workflow-trigger-settings-max-backoff-duration` · input
+  - `workflow-trigger-settings-max-body-bytes` · input
+  - `workflow-trigger-settings-max-doublings` · input
+  - `workflow-trigger-settings-max-retry-attempts` · input
+  - `workflow-trigger-settings-max-retry-duration` · input
+  - `workflow-trigger-settings-min-backoff-duration` · input
+  - `workflow-trigger-settings-required-fields` · input
+  - `workflow-trigger-settings-retry` · input
+  - `workflow-trigger-settings-webhook-credential` · select · Select credential
+  - `workflow-trigger-settings-workflow-{id}` · input
+- **VariablesPanel** · `features/workflow/components/VariablesPanel.tsx`
+  - `workflow-variables-environment-{id}` · button
+- **WorkflowDesigner** · `features/workflow/components/WorkflowDesigner.tsx`
+  - `workflow-designer-breadcrumb-workflows` · button · Workflows
+  - `workflow-designer-switch-pipeline-{id}` · button
+- **WorkflowsPanel** · `features/workflow/components/WorkflowsPanel.tsx`
+  - `workflow-list-file` · input
+  - `workflow-list-open-in-designer-{id}` · button · Open in designer
 - **WorkflowView** · `features/workflow/components/WorkflowView.tsx`
   - `workflow-menu` · nav · Workflow
   - `workflow-no-panes` · p
   - `workflow-tab-{id}` · button
   - `workflow-view` · div
 
-## Used in more than one place
+## Shared on purpose
 
-A selector finds the first; give each its own ID.
+One thing on screen, drawn by whichever component is showing.
 
-- `blueprint-indexes`: `features/schema-diff/components/SchemaBlueprint.tsx:796`, `features/sql-editor/components/TableBlueprintModal.tsx:1558`
-- `db-access-grant`: `features/access/components/DbAccessPermissionSections.tsx:871`, `features/utilities/components/DatabaseAccessModal.tsx:917`, `features/utilities/components/DatabaseAccessModal.tsx:997`
-- `db-access-grant-sql`: `features/access/components/DbAccessPermissionSections.tsx:848`, `features/utilities/components/DatabaseAccessModal.tsx:907`, `features/utilities/components/DatabaseAccessModal.tsx:987`
-- `db-access-modal`: `features/utilities/components/DatabaseAccessModal.tsx:1095`, `features/utilities/components/UtilitiesView.tsx:296`
-- `index-management-modal`: `features/utilities/components/IndexManagementModal.tsx:1488`, `features/utilities/components/UtilitiesView.tsx:271`
-- `lokee-summary`: `features/lokee-weave/components/LokeeWeavePage.tsx:668`, `features/lokee-weave/components/VersionTimeline.tsx:37`
-- `sql-pane-refresh`: `features/sql-editor/components/DataGrid.tsx:291`, `features/sql-editor/components/ResultsPanel.tsx:607`
-
-## Controls without a test ID
-
-- `app/settings/CloudProviderCredentialsSection.tsx`
-  - line 153 · button · Updated
-  - line 175 · button · Edit
-  - line 183 · button · Remove
-  - line 209 · button
-  - line 287 · button · Cancel
-- `app/settings/SettingsPanel.tsx`
-  - line 127 · button · ·
-  - line 165 · button
-  - line 181 · button
-  - line 200 · button
-  - line 219 · button · Aa
-  - line 255 · button · Reset
-  - line 263 · button
-- `app/shell/ErrorBoundary.tsx`
-  - line 33 · button · Dismiss
-- `app/shell/ProfileMenu.tsx`
-  - line 138 · button · Sign out
-- `app/shell/ToastHost.tsx`
-  - line 66 · button · Dismiss
-- `app/shell/TopToolbar.tsx`
-  - line 263 · button · Swap Original Server and Target (reverse migration direction)
-  - line 359 · button · Clear
-  - line 378 · button
-  - line 397 · button · All
-  - line 410 · button
-  - line 466 · button
-  - line 487 · button · Cancel
-  - line 493 · button · Connect
-- `features/access/components/AccessPermissionPanel.tsx`
-  - line 351 · button
-  - line 538 · button · Cancel
-- `features/access/components/DbAccessPermissionSections.tsx`
-  - line 844 · button
-  - line 855 · button · Cancel
-  - line 1046 · button
-- `features/access/components/PermissionDiff.tsx`
-  - line 494 · button
-  - line 604 · input
-- `features/admin/components/AdminAccessPanel.tsx`
-  - line 343 · button
-  - line 464 · input · teammate@company.com
-  - line 491 · select · Role
-  - line 502 · button
-  - line 873 · button
-  - line 911 · button · Cancel
-- `features/admin/components/IssuedCodeNotice.tsx`
-  - line 47 · button · Dismiss
-  - line 55 · button
-- `features/admin/components/SignInSettingsPanel.tsx`
-  - line 69 · button · Copy
-  - line 235 · input · https://fox.example.com
-  - line 244 · button · Save
-  - line 291 · input
-  - line 312 · input · common
-  - line 329 · button · Save
-  - line 333 · button · Turn off
-  - line 393 · button
-  - line 404 · input · smtp.example.com
-  - line 410 · input · Port
-  - line 416 · select · TLS (465) STARTTLS (587) None (local relay)
-  - line 432 · input · Username
-  - line 452 · input · Fox &lt;fox@example.com>
-  - line 457 · button · Save
-  - line 463 · input · Send a test to
-  - line 470 · button · Send test email
-  - line 478 · button · Turn off
-- `features/auth/components/AuthPage.tsx`
-  - line 146 · input · your@email.com
-  - line 182 · button · Sign in
-  - line 225 · input · your@email.com
-  - line 252 · input · ABCD-EFGH
-  - line 272 · button · Create account
-- `features/auth/components/OnboardingWizard.tsx`
-  - line 143 · button · ← Back
-- `features/auth/components/PasswordRecovery.tsx`
-  - line 68 · button · I have a code
-  - line 71 · button · Back to sign in
-  - line 85 · input · your@email.com
-  - line 97 · button · Send reset code
-  - line 102 · button · Back to sign in
-  - line 105 · button · I have a code
-  - line 162 · input · ABCD-EFGH-JKMN
-  - line 174 · button · Continue
-  - line 178 · button · Back to sign in
-  - line 204 · input · Email
-  - line 224 · button
-  - line 228 · button · Back to sign in
-- `features/auth/components/SsoButtons.tsx`
-  - line 57 · button · Continue with
-- `features/connections/components/ConnectionModal.tsx`
-  - line 390 · button · Install the driver package on the server
-  - line 665 · button · Cancel
-- `features/connections/components/CredentialManager.tsx`
-  - line 315 · button · Clear filters
-  - line 349 · button · Edit credential
-  - line 375 · button · Edit
-  - line 382 · button · Delete
-- `features/git/components/CommitMigrationDialog.tsx`
-  - line 169 · button · Close
-  - line 182 · select · Repository
-  - line 190 · select · New branch…
-  - line 209 · input · feature/orders-index
-  - line 228 · textarea · What this migration does and why
-  - line 271 · button · Cancel
-- `features/git/components/GitBranchView.tsx`
-  - line 140 · button · Close
-  - line 150 · select · Repository
-  - line 155 · select · Branch
-  - line 167 · button · Fetch
-  - line 172 · button · Pull
-  - line 175 · button · Push
-  - line 215 · button · Review
-  - line 241 · button · Close review
-- `features/git/components/GitReposAdmin.tsx`
-  - line 159 · button · Edit
-  - line 162 · button
-  - line 188 · input · DB migrations
-  - line 192 · input · https://github.com/acme/db-migrations.git
-  - line 196 · input · Default branch
-  - line 200 · input · migrations
-  - line 204 · input · x-access-token
-  - line 218 · input
-  - line 252 · button
-  - line 255 · button · Cancel
-- `features/lokee-weave/components/ForceMigrateModal.tsx`
-  - line 290 · button · Cancel
-- `features/lokee-weave/components/LokeeWeaveView.tsx`
-  - line 496 · button · Try again
-- `features/migrations/components/MigrationHistory.tsx`
-  - line 162 · button · Refresh
-  - line 178 · button
-  - line 188 · button · Delete selected records
-  - line 196 · button · Clear all records
-  - line 210 · button · Clear all
-  - line 211 · button · Cancel
-  - line 235 · input · Select this record
-  - line 294 · button · Download pre-migration snapshot
-  - line 302 · button · Delete this record
-- `features/object-detail/components/CrossDialectReadinessDialog.tsx`
-  - line 70 · button · Close
-- `features/object-detail/components/DependencyWarningDialog.tsx`
-  - line 59 · button
-  - line 78 · button · Close
-- `features/object-detail/components/DeployConfirmDialog.tsx`
-  - line 41 · input
-- `features/object-detail/components/MigrationProgressPanel.tsx`
-  - line 77 · button · Download pre-migration schema snapshot
-  - line 86 · button
-  - line 129 · button · Skip & retry
-  - line 170 · button · Switch to non-destructive
-- `features/object-detail/components/ObjectDetailPanel.tsx`
-  - line 446 · input
-  - line 454 · button
-  - line 524 · input
-  - line 535 · input
-  - line 556 · button · Cross-dialect migration — click for a per-object-type breakdown of what's translated vs. flagged for manual review
-  - line 674 · button
-  - line 794 · button · Review conflicts
-  - line 808 · button · Review conflicts
-  - line 827 · button · view details
-  - line 846 · button · View notes
-- `features/object-detail/components/ValidationWarningsDialog.tsx`
-  - line 52 · button · Close
-- `features/schema-diff/components/SchemaBlueprint.tsx`
-  - line 581 · input
-  - line 613 · input
-  - line 667 · input · Include this member in the deploy script
-  - line 805 · input
-  - line 865 · input
-  - line 949 · input
-- `features/schema-diff/components/SchemaDiffTree.tsx`
-  - line 236 · input
-- `features/sql-editor/components/DataGrid.tsx`
-  - line 1895 · button · Save cell as variable…
-  - line 1910 · button · Save result as table…
-  - line 1922 · button · Save column as list…
-  - line 1938 · button · Save result as table…
-  - line 1968 · input · variable_name
-  - line 1985 · button · Cancel
-- `features/sql-editor/components/DataMigrateBar.tsx`
-  - line 1237 · button
-  - line 1299 · button
-  - line 1307 · button
-  - line 1429 · button · Close
-  - line 1471 · button · Cancel
-- `features/sql-editor/components/FileImportsPanel.tsx`
-  - line 155 · button · Import CSV, JSON, or fixed-width text
-- `features/sql-editor/components/PeekDatePicker.tsx`
-  - line 225 · button · ‹
-  - line 240 · button · ›
-  - line 263 · button
-- `features/sql-editor/components/PeekRowEditor.tsx`
-  - line 410 · button · Close
-  - line 595 · button · Cancel
-- `features/sql-editor/components/SchemaTreePanel.tsx`
-  - line 209 · button
-  - line 236 · input · Search objects, columns, indexes...
-  - line 258 · button · All
-  - line 298 · input
-- `features/sql-editor/components/SelectColumnPicker.tsx`
-  - line 154 · button · Close
-- `features/sql-editor/components/SqlBookmarksPanel.tsx`
-  - line 177 · input
-  - line 210 · button · Rename bookmark
-- `features/sql-editor/components/SqlEditorView.tsx`
-  - line 882 · button · Clear results
-- `features/sql-editor/components/SqlSchemaExplorer.tsx`
-  - line 292 · button · Reload schema
-  - line 351 · button · ( )
-  - line 536 · button
-  - line 644 · button
-  - line 666 · button · Columns ( )
-  - line 685 · button
-  - line 713 · button · Indexes ( )
-- `features/sql-editor/components/SqlSecretsPanel.tsx`
-  - line 242 · button · Delete secret
-  - line 322 · input · region (optional)
-  - line 330 · input · https://….vault.azure.net
-  - line 337 · input · version (optional)
-  - line 370 · button · Cancel
-- `features/sql-editor/components/SqlVariablesPanel.tsx`
-  - line 225 · input
-  - line 270 · input
-  - line 279 · button · Cancel
-  - line 341 · button · Preview table
-  - line 358 · input
-  - line 375 · button · Edit value
-  - line 392 · input
-  - line 401 · button · …
-  - line 438 · input
-  - line 471 · button · Clear override
-- `features/sql-editor/components/StatementStrip.tsx`
-  - line 253 · input
-  - line 265 · button · In [ ]:
-- `features/sql-editor/components/TableBlueprintModal.tsx`
-  - line 178 · button
-  - line 1097 · input
-  - line 1154 · button
-  - line 1164 · button
-  - line 1178 · button · Move earlier
-  - line 1189 · button · Move later
-  - line 1228 · input · e.g. status = 'active' AND deleted_at IS NULL
-  - line 1249 · input
-  - line 1263 · button · Cancel
-  - line 1343 · button · Add column
-  - line 1431 · button · Undo drop
-  - line 1441 · button · Edit column
-  - line 1449 · button · Drop column
-  - line 1510 · input
-  - line 1524 · button · Move up in key
-  - line 1533 · button · Move down in key
-  - line 1626 · button
-  - line 1784 · button · Edit index
-  - line 1794 · button · Drop index
-  - line 1810 · button · Edit index
-  - line 1847 · button · Undo
-  - line 1893 · button · Edit
-  - line 1901 · button · Remove
-  - line 1959 · button · Add foreign key
-  - line 2001 · button · Drop foreign key
-  - line 2021 · button · Undo
-  - line 2052 · button · Remove
-  - line 2081 · input
-  - line 2105 · input
-  - line 2119 · button · Move up
-  - line 2128 · button · Move down
-  - line 2197 · input
-  - line 2214 · button · Move up
-  - line 2226 · button · Move down
-  - line 2256 · select
-  - line 2277 · select
-  - line 2298 · button · Cancel
-  - line 2305 · button · Add FK
-  - line 2329 · button · Create trigger
-  - line 2365 · button
-  - line 2391 · button · Drop trigger
-  - line 2418 · button · Undo
-  - line 2447 · button
-  - line 2469 · input
-  - line 2481 · select
-  - line 2509 · select
-  - line 2536 · textarea
-  - line 2547 · button · Cancel
-  - line 2554 · button · Add trigger
-  - line 2605 · button · Close
-  - line 2742 · input
-  - line 2814 · input · —
-  - line 2901 · input
-  - line 2913 · select
-  - line 2937 · input
-  - line 2959 · button · Cancel
-  - line 2966 · button · Save
-- `features/sql-editor/components/WriteConfirmDialog.tsx`
-  - line 139 · input
-  - line 244 · button · Cancel
-- `features/utilities/components/CloneTableModal.tsx`
-  - line 315 · button · Close
-  - line 376 · input
-  - line 383 · button · Unlock
-  - line 565 · button · Close
-- `features/utilities/components/DatabaseAccessModal.tsx`
-  - line 511 · button · Close
-  - line 569 · button · Save
-  - line 635 · button
-  - line 979 · input
-  - line 1056 · button · Cancel
-- `features/utilities/components/FileQueryModal.tsx`
-  - line 250 · button · Close
-  - line 471 · select · Array of objects NDJSON (one object per line)
-  - line 488 · input
-  - line 584 · button · Cancel
-- `features/utilities/components/IndexManagementModal.tsx`
-  - line 757 · button · Close
-  - line 813 · button · Save
-  - line 1147 · button
-  - line 1159 · button
-  - line 1250 · button
-  - line 1328 · button · Defragment
-  - line 1395 · button · Cancel
-  - line 1447 · button · Cancel
-- `features/utilities/components/ServerInsightsModal.tsx`
-  - line 192 · button · Close
-  - line 237 · input · ••••••••
-  - line 244 · button · Unlock
-- `features/workflow/components/DelimitedSourceEditor.tsx`
-  - line 189 · input · Field name this rule applies to
-  - line 197 · select · Value type — validated and converted
-  - line 212 · input
-  - line 222 · button · Remove rule
-  - line 229 · select · Check purpose (shown in error messages)
-  - line 243 · input · Regex the raw text must match
-  - line 258 · button · Remove regex check
-  - line 272 · button · Add regex
-  - line 373 · input
-  - line 387 · input
-  - line 399 · input
-  - line 414 · select · Delimited Fixed width (offsets)
-  - line 428 · input
-  - line 444 · input
-  - line 453 · button · Remove delimiter
-  - line 464 · button · Add delimiter
-  - line 473 · input · optional, e.g. \|
-  - line 483 · input · id, name, email — extras become field_N
-  - line 526 · button · Add column rule
-  - line 562 · input · name
-  - line 568 · input · Start (1-based)
-  - line 577 · input · Length
-  - line 586 · button · Remove column
-  - line 604 · button · Add column
-  - line 622 · select · No header — every line is data Always skip the first line Auto — sk…
-  - line 634 · input
-  - line 642 · input
-  - line 662 · textarea · z.object({ email: z.string().regex(/^\S+@\S+$/), id: z.string().regex(/^\d+$/) })
-  - line 685 · select · Fail the run Skip the row Route to the rejects output
-  - line 706 · textarea
-  - line 721 · button · Preview sample
-  - line 728 · button · Preview file head
-- `features/workflow/components/EnginePanel.tsx`
-  - line 251 · input · target
-- `features/workflow/components/HttpRequestEditor.tsx`
-  - line 200 · select
-  - line 212 · input · https://api.example.com/users/{{vars.userId}}
-  - line 239 · button
-  - line 304 · input
-  - line 362 · input · Enabled
-  - line 370 · input
-  - line 377 · select · Condition operator
-  - line 396 · input
-  - line 410 · button · ×
-  - line 420 · button · + Add
-  - line 451 · select · No auth Bearer token Basic API key Stored credential
-  - line 484 · input · token or {{secrets.accessToken}}
-  - line 497 · input
-  - line 505 · input
-  - line 517 · input
-  - line 523 · input
-  - line 531 · select · Header Query
-  - line 548 · select · Select…
-  - line 570 · input
-  - line 585 · input
-  - line 593 · input
-  - line 604 · input
-  - line 615 · input
-  - line 647 · input
-  - line 661 · input
-  - line 693 · textarea
-  - line 904 · select · None JSON builder (typed attributes) JSON Raw x-www-form-urlencoded
-  - line 934 · input · Enabled
-  - line 942 · input · attribute
-  - line 948 · select · Value type
-  - line 963 · input
-  - line 977 · button · ×
-  - line 991 · button · + Add attribute
-  - line 1010 · textarea
-  - line 1029 · input
-  - line 1036 · textarea
-  - line 1140 · textarea · z.object({ orderId: z.number(), note: z.string().optional() })
-  - line 1177 · textarea · {"orderId": 42}
-- `features/workflow/components/Inspector.tsx`
-  - line 179 · button
-  - line 265 · button
-  - line 325 · textarea
-  - line 363 · select
-  - line 380 · input
-  - line 394 · input
-  - line 427 · input
-  - line 577 · input
-  - line 604 · input
-  - line 616 · input
-  - line 632 · select
-  - line 661 · button · Open in trigger dialog
-  - line 678 · select
-  - line 716 · input · latest
-  - line 739 · select
-  - line 779 · input
-  - line 790 · input
-  - line 926 · button
-- `features/workflow/components/MultiHttpEditor.tsx`
-  - line 137 · button
-- `features/workflow/components/Palette.tsx`
-  - line 119 · input · Search pipes
-  - line 129 · input
-- `features/workflow/components/RunsPanel.tsx`
-  - line 234 · input
-- `features/workflow/components/SqlPipeEditor.tsx`
-  - line 174 · button
-  - line 183 · button
-- `features/workflow/components/TriggerConfigurationDialog.tsx`
-  - line 343 · button
-  - line 383 · button
-  - line 541 · input
-  - line 720 · input
-- `features/workflow/components/TriggerInlineSettings.tsx`
-  - line 75 · textarea · [{ "id": 1 }]
-  - line 111 · input
-  - line 126 · select
-  - line 172 · select · No catch-up One missed run All missed runs
-  - line 187 · input
-  - line 204 · input
-  - line 222 · input
-  - line 235 · input
-  - line 248 · input
-  - line 261 · input
-  - line 313 · input
-  - line 338 · select · Select credential
-  - line 352 · input
-  - line 373 · select · Select credential
-  - line 387 · input
-- `features/workflow/components/VariablesPanel.tsx`
-  - line 113 · button
-- `features/workflow/components/WorkflowDesigner.tsx`
-  - line 889 · button · Workflows
-  - line 935 · button
-- `features/workflow/components/WorkflowsPanel.tsx`
-  - line 183 · input
-  - line 224 · button · Open in designer
-- `shared/components/Autocomplete.tsx`
-  - line 262 · button
-- `shared/components/FilterPicker.tsx`
-  - line 191 · input
-  - line 293 · button
+- `lokee-summary`: the history header: LokeeWeavePage draws it in graph mode, VersionTimeline otherwise

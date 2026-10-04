@@ -387,7 +387,7 @@ export const ConnectionModal: React.FC<Props> = ({
                     <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                     Driver "{driverInfo.packageName}" is not installed
                   </span>
-                  <button
+                  <button data-testid="conn-install-driver-package"
                     onClick={handleInstall}
                     disabled={installing}
                     title="Install the driver package on the server"
@@ -662,7 +662,7 @@ export const ConnectionModal: React.FC<Props> = ({
         </div>
 
         <div className="flex justify-end items-center gap-2 px-6 py-4 bg-slate-950/60 border-t border-slate-800">
-          <button onClick={onClose} className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-850/50 rounded transition">
+          <button data-testid="conn-cancel" onClick={onClose} className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-850/50 rounded transition">
             Cancel
           </button>
           <button

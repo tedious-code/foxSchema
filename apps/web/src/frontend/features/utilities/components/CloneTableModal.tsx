@@ -312,7 +312,7 @@ export const CloneTableModal: React.FC<Props> = ({
               </p>
             </div>
             {!embedded && (
-            <button
+            <button data-testid="clone-close"
               type="button"
               onClick={onClose}
               className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/80"
@@ -373,14 +373,14 @@ export const CloneTableModal: React.FC<Props> = ({
                   <span className="text-[10px] font-bold uppercase text-slate-500">
                     Session password
                   </span>
-                  <input
+                  <input data-testid="clone-password-draft"
                     type="password"
                     value={passwordDraft}
                     onChange={(e) => setPasswordDraft(e.target.value)}
                     className="mt-0.5 w-full rounded-lg border border-slate-700 bg-slate-950/70 px-2.5 py-1.5 text-[13px] text-slate-100"
                   />
                 </label>
-                <button
+                <button data-testid="clone-unlock"
                   type="button"
                   onClick={() => {
                     if (!connectionId || !passwordDraft.trim()) return;
@@ -562,7 +562,7 @@ export const CloneTableModal: React.FC<Props> = ({
 
           <div className="px-5 py-3 border-t border-slate-700/80 flex flex-wrap justify-end gap-2 shrink-0 bg-slate-900/80">
             {!embedded && (
-            <button
+            <button data-testid="clone-table-close"
               type="button"
               onClick={onClose}
               className="px-3 py-1.5 text-[12px] font-semibold text-slate-400 hover:text-slate-200"

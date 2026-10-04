@@ -180,7 +180,7 @@ export function WorkflowsPanel({
           <Button variant="ghost" onClick={() => importRef.current?.click()}>
             <Upload /> Import
           </Button>
-          <input
+          <input data-testid="workflow-list-file"
             ref={importRef}
             type="file"
             accept="application/json,.json"
@@ -221,7 +221,7 @@ export function WorkflowsPanel({
                 className={workflow.id === currentId ? 'current' : ''}
               >
                 <td>
-                  <button
+                  <button data-testid={`workflow-list-open-in-designer-${workflow.id}`}
                     className="workflow-name"
                     onClick={() => onOpen(workflow.id)}
                     title="Open in designer"

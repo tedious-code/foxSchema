@@ -174,7 +174,7 @@ export const SqlBookmarksPanel: React.FC = () => {
                 {visible.map((b) => (
                   <li key={b.id} className={TABLE_ROW}>
                     {editingId === b.id ? (
-                      <input
+                      <input data-testid={`sql-bookmark-rename-input-${b.id}`}
                         ref={inputRef}
                         value={draft}
                         onChange={(e) => setDraft(e.target.value)}
@@ -207,7 +207,7 @@ export const SqlBookmarksPanel: React.FC = () => {
                           {formatRelativeDay(b.updatedAt)}
                         </span>
                         <div className="flex items-center justify-end gap-0.5 shrink-0">
-                          <button
+                          <button data-testid={`sql-bookmark-rename-${b.id}`}
                             type="button"
                             title="Rename bookmark"
                             aria-label={`Rename ${b.title}`}

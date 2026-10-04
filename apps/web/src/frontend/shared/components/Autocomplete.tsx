@@ -259,7 +259,7 @@ export const Autocomplete: React.FC<{
                 aria-selected={active}
                 data-value={o.value}
               >
-                <button
+                <button data-testid={testId ? `${testId}-option-${o.value}` : undefined}
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => pick(o.value)}

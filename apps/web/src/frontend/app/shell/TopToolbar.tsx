@@ -260,7 +260,7 @@ export const TopToolbar: React.FC = () => {
               }}
               onConnect={testSourceConnection}
             />
-            <button
+            <button data-testid="toolbar-swap-direction"
               type="button"
               onClick={swapSourceTarget}
               title="Swap Original Server and Target (reverse migration direction)"
@@ -356,7 +356,7 @@ export const TopToolbar: React.FC = () => {
             </kbd>
           </button>
           {compareResult && activeView === 'sync' && syncPane === 'compare' && (
-            <button
+            <button data-testid="toolbar-clear"
               onClick={resetSync}
               className="rounded-md border border-slate-700 px-2.5 py-1 text-xs font-semibold text-slate-400 transition hover:border-slate-600 hover:text-slate-200"
             >
@@ -375,7 +375,7 @@ export const TopToolbar: React.FC = () => {
             {objectScopeOptions.map((opt) => {
               const active = selectedObjectTypes.includes(opt.type);
               return (
-                <button
+                <button data-testid={`toolbar-toggle-object-type-${opt.type}`}
                   key={opt.type}
                   onClick={() => toggleObjectTypeFilter(opt.type)}
                   className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
@@ -394,7 +394,7 @@ export const TopToolbar: React.FC = () => {
               <span className="flex items-center gap-1 pr-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                 <Layers className="h-3 w-3 text-cyan-400" /> Viewing
               </span>
-              <button
+              <button data-testid="toolbar-object-types-all"
                 onClick={clearTypeFilter}
                 className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
                   typeFilter.length === 0
@@ -407,7 +407,7 @@ export const TopToolbar: React.FC = () => {
               {TYPE_ORDER.map((type) => {
                 const active = typeFilter.includes(type);
                 return (
-                  <button
+                  <button data-testid={`toolbar-toggle-type-filter-${type}`}
                     key={type}
                     onClick={() => toggleTypeFilter(type)}
                     className={`flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
@@ -463,7 +463,7 @@ export const TopToolbar: React.FC = () => {
               <span className="flex items-center gap-2 text-sm font-bold text-slate-100">
                 <KeyRound className="w-4 h-4 text-cyan-400" /> Enter Password
               </span>
-              <button
+              <button data-testid="toolbar-password-show"
                 onClick={() => setPendingPassword(null)}
                 className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition cursor-pointer"
               >
@@ -484,13 +484,13 @@ export const TopToolbar: React.FC = () => {
                 className="w-full bg-slate-950 border border-slate-850 accent-focus text-sm text-slate-200 rounded px-3 py-2 outline-none font-mono"
               />
               <div className="flex justify-end gap-2 pt-1">
-                <button
+                <button data-testid="toolbar-password-cancel"
                   onClick={() => setPendingPassword(null)}
                   className="text-xs font-semibold text-slate-400 hover:text-slate-200 px-3 py-1.5 rounded transition cursor-pointer"
                 >
                   Cancel
                 </button>
-                <button
+                <button data-testid="toolbar-password-connect"
                   onClick={confirmPendingPassword}
                   disabled={!pendingPasswordValue.trim()}
                   className="text-xs font-bold accent-grad on-accent-fg rounded px-4 py-1.5 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"

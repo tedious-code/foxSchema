@@ -14,9 +14,9 @@
  *   docs/testing/TEST_IDS.md              the tree people read
  *   apps/e2e/src/generated/test-ids.ts    the same tree, typed, for Playwright
  *
- * It also counts the buttons, text boxes, selects and textareas that have no
- * test ID; `packages/shared/src/test-id-catalog.test.ts` keeps that number
- * from going up, and fails when the catalog files are stale.
+ * It also lists the buttons, text boxes, selects and textareas that have no
+ * test ID; `packages/shared/src/test-id-catalog.test.ts` fails on any of them,
+ * on a static ID two components use, and on stale catalog files.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -86,6 +86,8 @@ function idsOf(init) {
   if (!expr) return [];
   const visit = (e) => {
     if (ts.isParenthesizedExpression(e)) return visit(e.expression);
+    // `testId ? `${testId}-x` : undefined`: the empty branch renders no ID.
+    if (e.kind === ts.SyntaxKind.NullKeyword || (ts.isIdentifier(e) && e.text === 'undefined')) return [];
     if (ts.isStringLiteralLike(e)) return [{ pattern: e.text, params: [] }];
     if (ts.isConditionalExpression(e)) return [...visit(e.whenTrue), ...visit(e.whenFalse)];
     if (ts.isTemplateExpression(e)) {
@@ -197,6 +199,14 @@ export function collectTestIds(root = REPO_ROOT) {
 }
 
 /**
+ * IDs two components share on purpose: the same thing on screen, drawn by
+ * whichever of them is showing, so a test finds it either way.
+ */
+export const SHARED_IDS = {
+  'lokee-summary': 'the history header: LokeeWeavePage draws it in graph mode, VersionTimeline otherwise',
+};
+
+/**
  * Static IDs rendered by more than one component file: a selector cannot tell
  * them apart. Repeats within one file are usually alternative branches (loading
  * and loaded) of which only one is on screen, so they are not listed.
@@ -204,7 +214,7 @@ export function collectTestIds(root = REPO_ROOT) {
 export function duplicates({ entries }) {
   const seen = new Map();
   for (const e of entries) {
-    if (e.params.length || e.fromProps) continue;
+    if (e.params.length || e.fromProps || e.pattern in SHARED_IDS) continue;
     const at = `${e.file}:${e.line}`;
     seen.set(e.pattern, [...(seen.get(e.pattern) ?? []), at]);
   }
@@ -251,8 +261,10 @@ export function renderMarkdown(catalog) {
     '`page.getByTestId(...)` with the ID, or `TestIds` from `apps/e2e/src/generated/test-ids.ts`',
     'for the same tree with autocomplete. `{name}` marks a part filled in at run time.',
     '',
-    `Controls with a test ID: **${controls} of ${total}** (${((controls / total) * 100).toFixed(1)}%). ` +
-      `Without one: ${catalog.missing.length}, listed at the end.`,
+    catalog.missing.length
+      ? `Controls with a test ID: **${controls} of ${total}** (${((controls / total) * 100).toFixed(1)}%). ` +
+        `Without one: ${catalog.missing.length}, listed at the end.`
+      : `Every control has a test ID: **${controls}** buttons, text boxes, selects and textareas.`,
     '',
   ];
   for (const { area, components } of tree(catalog)) {
@@ -266,11 +278,15 @@ export function renderMarkdown(catalog) {
     }
     lines.push('');
   }
+  lines.push('## Shared on purpose', '', 'One thing on screen, drawn by whichever component is showing.', '');
+  for (const [id, why] of Object.entries(SHARED_IDS)) lines.push(`- \`${id}\`: ${why}`);
+  lines.push('');
   if (dupes.length) {
     lines.push('## Used in more than one place', '', 'A selector finds the first; give each its own ID.', '');
     for (const [id, at] of dupes) lines.push(`- \`${id}\`: ${at.map((a) => `\`${a}\``).join(', ')}`);
     lines.push('');
   }
+  if (!catalog.missing.length) return lines.join('\n');
   lines.push('## Controls without a test ID', '');
   const byFile = new Map();
   for (const m of catalog.missing) byFile.set(m.file, [...(byFile.get(m.file) ?? []), m]);

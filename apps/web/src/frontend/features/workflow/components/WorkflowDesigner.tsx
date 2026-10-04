@@ -886,7 +886,7 @@ function Designer() {
         <>
           <header className="workflow-header">
             <div className="workflow-breadcrumbs">
-              <button className="breadcrumb-link" onClick={() => setView('workflows')}>
+              <button data-testid="workflow-designer-breadcrumb-workflows" className="breadcrumb-link" onClick={() => setView('workflows')}>
                 Workflows
               </button>
               <ChevronRight size={14} />
@@ -932,7 +932,7 @@ function Designer() {
               <span className="pipeline-context-label">Add pipes to</span>
               <div className="pipeline-chips" role="group" aria-label="Target pipeline">
                 {pipelines.map((pipeline) => (
-                  <button
+                  <button data-testid={`workflow-designer-switch-pipeline-${pipeline.id}`}
                     key={pipeline.id}
                     className={pipeline.id === activePipelineId ? 'active' : ''}
                     onClick={() => switchPipeline(pipeline.id)}

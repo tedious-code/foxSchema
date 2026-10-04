@@ -312,7 +312,7 @@ export const CredentialManager: React.FC<Props> = ({ open, onClose }) => {
                   <p className="text-xs text-slate-600 mt-1">
                     Pick a provider here only filters the list — use Add Credential to create one
                   </p>
-                  <button
+                  <button data-testid="cred-clear-filters"
                     onClick={() => {
                       setSearch('');
                       setDialectFilter('all');
@@ -346,7 +346,7 @@ export const CredentialManager: React.FC<Props> = ({ open, onClose }) => {
                       className="rounded-xl bg-slate-950/60 border border-slate-800 hover:border-slate-700 transition group"
                     >
                       <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-3">
-                        <button
+                        <button data-testid={`cred-edit-credential-${c.id}`}
                           onClick={() => setEditing(c)}
                           title="Edit credential"
                           className="flex items-start gap-3 min-w-0 flex-1 text-left cursor-pointer"
@@ -372,14 +372,14 @@ export const CredentialManager: React.FC<Props> = ({ open, onClose }) => {
                           </div>
                         </button>
                         <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                          <button
+                          <button data-testid={`cred-edit-${c.id}`}
                             onClick={() => setEditing(c)}
                             title="Edit"
                             className="p-2 text-slate-500 hover:text-cyan-300 hover:bg-cyan-950/30 rounded-lg transition cursor-pointer"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
-                          <button
+                          <button data-testid={`cred-delete-${c.id}`}
                             onClick={async () => {
                               setDeletingId(c.id);
                               try {

@@ -493,7 +493,7 @@ export function LokeeWeaveView({
           <TriangleAlert className="h-6 w-6 text-rose-400" strokeWidth={SQL_ICON_STROKE} />
           <div className="text-sm font-semibold text-slate-100">Could not load schema history</div>
           <div className="max-w-md text-xs text-slate-400">{error}</div>
-          <button
+          <button data-testid="lokee-try-again"
             type="button"
             onClick={refresh}
             className="mt-1 flex items-center gap-1.5 rounded-md border border-slate-600 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800"

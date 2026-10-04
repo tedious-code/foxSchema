@@ -188,7 +188,7 @@ export function FilterPicker(props: FilterPickerProps): React.ReactElement {
     if (props.mode === 'multi') {
       return (
         <label key={option.id} data-testid={option.testId} className={ROW}>
-          <input
+          <input data-testid={part(`option-${option.id}`)}
             type="checkbox"
             checked={selected}
             onChange={() => props.onToggle(option.id)}
@@ -290,7 +290,7 @@ export function FilterPicker(props: FilterPickerProps): React.ReactElement {
                 className="max-h-64 overflow-y-auto"
               >
                 {clearLabel && !query && (
-                  <button
+                  <button data-testid={part('clear')}
                     type="button"
                     role="option"
                     aria-selected={props.mode === 'single' && !props.selectedId}

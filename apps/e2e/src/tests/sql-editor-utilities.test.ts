@@ -190,7 +190,7 @@ describe.skipIf(!ready)('Utilities workspace + Clone Table (SQLite)', () => {
     const modal = driver.locator('[data-testid="table-blueprint-modal"]');
     expect(await modal.isVisible()).toBe(true);
 
-    const indexes = modal.locator('[data-testid="blueprint-indexes"]');
+    const indexes = modal.locator('[data-testid="table-blueprint-indexes"]');
     await indexes.scrollIntoViewIfNeeded();
     const row = indexes.locator('[data-testid="blueprint-index-row-ux_customers_email"]');
     expect(await row.count()).toBeGreaterThan(0);

@@ -30,7 +30,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
           <pre className="max-w-2xl text-xs text-rose-300 font-mono whitespace-pre-wrap break-words bg-rose-950/20 border border-rose-500/20 rounded-lg p-4">
             {this.state.error.message}
           </pre>
-          <button
+          <button data-testid="app-error-boundary-dismiss"
             onClick={() => this.setState({ error: null })}
             className="mt-2 px-4 py-2 text-xs font-semibold text-slate-200 border border-slate-700 hover:border-slate-500 rounded-md transition"
           >

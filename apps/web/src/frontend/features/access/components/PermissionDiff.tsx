@@ -491,7 +491,7 @@ const DesiredRow: React.FC<{
           testId={`diff-action-${index}`}
         />
         {canRemove && (
-          <button type="button" onClick={onRemove} className="text-slate-500 hover:text-rose-300">
+          <button data-testid={`diff-remove-${index}`} type="button" onClick={onRemove} className="text-slate-500 hover:text-rose-300">
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         )}
@@ -601,7 +601,7 @@ const DesiredRow: React.FC<{
       <div className="flex flex-wrap gap-1">
         {offered.map((p) => (
           <label key={p} className="inline-flex items-center gap-1 text-[10px] text-slate-400">
-            <input
+            <input data-testid={`diff-permission-${index}-${p}`}
               type="checkbox"
               checked={req.permissions.includes(p)}
               onChange={() => togglePerm(p)}

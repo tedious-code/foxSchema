@@ -250,7 +250,7 @@ export const StatementStrip: React.FC<Props> = ({
               >
                 <Play className="w-3.5 h-3.5 fill-current" strokeWidth={SQL_ICON_STROKE} />
               </button>
-              <input
+              <input data-testid={`sql-statement-include-${i}`}
                 type="checkbox"
                 checked={isChecked}
                 onChange={() => onToggle(i)}
@@ -262,7 +262,7 @@ export const StatementStrip: React.FC<Props> = ({
                 }
                 aria-label={`Include cell ${i + 1} in batch Run`}
               />
-              <button
+              <button data-testid={`sql-statement-reveal-${i}`}
                 type="button"
                 onClick={() => onReveal(stmt)}
                 onMouseEnter={(e) => {

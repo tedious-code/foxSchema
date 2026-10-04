@@ -164,7 +164,7 @@ describe.skipIf(!ready)('SQL Editor · blueprint + paging (SQLite)', () => {
       return !!m && /email/i.test(m.textContent ?? '') && !m.querySelector('[data-testid="blueprint-column-form"]');
     });
 
-    const indexes = modal.locator('[data-testid="blueprint-indexes"]');
+    const indexes = modal.locator('[data-testid="table-blueprint-indexes"]');
     expect(await indexes.isVisible()).toBe(true);
     await indexes.locator('[data-testid="blueprint-add-index"]').click();
     await driver.waitForSelector('[data-testid="blueprint-index-form"]', { timeout: 5_000 });
@@ -182,7 +182,7 @@ describe.skipIf(!ready)('SQL Editor · blueprint + paging (SQLite)', () => {
     await modal.locator('[data-testid="blueprint-index-save"]').click();
 
     await driver.waitForFunction(() => {
-      const root = document.querySelector('[data-testid="blueprint-indexes"]');
+      const root = document.querySelector('[data-testid="table-blueprint-indexes"]');
       if (!root) return false;
       if (root.querySelector('[data-testid="blueprint-index-form"]')) return false;
       return /email/i.test(root.textContent ?? '');

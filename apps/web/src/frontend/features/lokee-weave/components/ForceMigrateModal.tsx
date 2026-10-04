@@ -287,7 +287,7 @@ export function ForceMigrateModal({
         </div>
 
         <div className="flex shrink-0 items-center justify-end gap-2 border-t border-slate-800 px-4 py-2">
-          <button
+          <button data-testid="force-migrate-cancel"
             type="button"
             onClick={onClose}
             className="rounded px-2.5 py-1 text-[11px] font-semibold text-slate-400 hover:bg-slate-800 hover:text-slate-200"

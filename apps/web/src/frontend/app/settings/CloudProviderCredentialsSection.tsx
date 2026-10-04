@@ -150,7 +150,7 @@ export const CloudProviderCredentialsSection: React.FC = () => {
                 data-testid={`cloud-cred-card-${item.id}`}
               >
                 <div className="flex items-start justify-between gap-3 px-4 pt-4 pb-3">
-                  <button
+                  <button data-testid={`cloud-cred-status-${item.id}`}
                     type="button"
                     onClick={() => openEdit(item)}
                     className="flex items-start gap-3 min-w-0 flex-1 text-left cursor-pointer"
@@ -172,7 +172,7 @@ export const CloudProviderCredentialsSection: React.FC = () => {
                     </div>
                   </button>
                   <div className="flex items-center gap-1 shrink-0">
-                    <button
+                    <button data-testid={`cloud-cred-edit-${item.id}`}
                       type="button"
                       title="Edit"
                       onClick={() => openEdit(item)}
@@ -180,7 +180,7 @@ export const CloudProviderCredentialsSection: React.FC = () => {
                     >
                       <Pencil className="w-3.5 h-3.5" />
                     </button>
-                    <button
+                    <button data-testid={`cloud-cred-remove-${item.id}`}
                       type="button"
                       title="Remove"
                       disabled={deleting === item.id}
@@ -206,7 +206,7 @@ export const CloudProviderCredentialsSection: React.FC = () => {
             <p className="text-sm font-bold text-slate-200">
               {editingId ? 'Update credential' : 'Add cloud credential'}
             </p>
-            <button type="button" onClick={closeForm} className="p-1 text-slate-500 hover:text-slate-200">
+            <button data-testid="cloud-cred-close-form" type="button" onClick={closeForm} className="p-1 text-slate-500 hover:text-slate-200">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -284,7 +284,7 @@ export const CloudProviderCredentialsSection: React.FC = () => {
             >
               Save
             </button>
-            <button
+            <button data-testid="cloud-cred-cancel"
               type="button"
               onClick={closeForm}
               className="px-3 py-1.5 text-xs font-bold text-slate-400 hover:text-slate-200"

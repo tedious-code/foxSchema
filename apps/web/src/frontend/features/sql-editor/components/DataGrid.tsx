@@ -1892,7 +1892,7 @@ export const DataGrid: React.FC<{
           )}
           {menu.kind === 'cell' ? (
             <>
-              <button
+              <button data-testid="sql-grid-save-cell-as"
                 type="button"
                 className="w-full text-left px-3 py-1.5 text-slate-200 hover:bg-slate-800"
                 onClick={() => {
@@ -1907,7 +1907,7 @@ export const DataGrid: React.FC<{
               >
                 Save cell as variable…
               </button>
-              <button
+              <button data-testid="sql-grid-save-result-as"
                 type="button"
                 className="w-full text-left px-3 py-1.5 text-slate-200 hover:bg-slate-800"
                 onClick={() => {
@@ -1919,7 +1919,7 @@ export const DataGrid: React.FC<{
               </button>
             </>
           ) : menu.kind === 'column' ? (
-            <button
+            <button data-testid="sql-grid-save-column-as"
               type="button"
               className="w-full text-left px-3 py-1.5 text-slate-200 hover:bg-slate-800"
               onClick={() => {
@@ -1935,7 +1935,7 @@ export const DataGrid: React.FC<{
               Save column as list…
             </button>
           ) : (
-            <button
+            <button data-testid="sql-grid-save-result-as-mode"
               type="button"
               className="w-full text-left px-3 py-1.5 text-slate-200 hover:bg-slate-800"
               onClick={() => {
@@ -1965,7 +1965,7 @@ export const DataGrid: React.FC<{
             <div className="text-xs font-semibold text-slate-200 mb-2">
               {savePromptTitle(savePrompt.mode)}
             </div>
-            <input
+            <input data-testid="sql-grid-save-name"
               ref={saveInputRef}
               value={saveName}
               onChange={(e) => setSaveName(e.target.value)}
@@ -1982,7 +1982,7 @@ export const DataGrid: React.FC<{
               </p>
             )}
             <div className="flex justify-end gap-2">
-              <button
+              <button data-testid="sql-grid-cancel"
                 type="button"
                 onClick={() => setSavePrompt(null)}
                 className="text-[11px] text-slate-400 hover:text-slate-200 px-2 py-1"

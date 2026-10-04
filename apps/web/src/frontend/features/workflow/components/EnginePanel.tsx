@@ -248,7 +248,7 @@ export function EnginePanel(): React.ReactElement {
                 />
                 {SINK_LABEL[sink.kind] ?? sink.kind}
               </label>
-              <input
+              <input data-testid={`workflow-engine-target-${sink.kind}`}
                 value={sink.target ?? ''}
                 placeholder="target"
                 onChange={(e) =>

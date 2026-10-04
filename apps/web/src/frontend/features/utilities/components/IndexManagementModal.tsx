@@ -754,7 +754,7 @@ export const IndexManagementModal: React.FC<Props> = ({
               Index health per table — how fragmented each one is, and when it was last used.
             </p>
           </div>
-          <button
+          <button data-testid="index-mgmt-close"
             type="button"
             onClick={onClose}
             className="p-1.5 rounded text-slate-400 hover:text-slate-100 hover:bg-slate-800"
@@ -810,7 +810,7 @@ export const IndexManagementModal: React.FC<Props> = ({
                     placeholder="••••••••"
                     className="bg-slate-950 border border-slate-700 rounded-md px-2.5 py-1.5 text-sm text-slate-100 outline-none accent-focus font-mono w-36"
                   />
-                  <button
+                  <button data-testid="index-mgmt-save"
                     type="button"
                     className="px-2.5 py-1.5 text-xs font-bold rounded-md border border-amber-500/40 bg-amber-500/15 text-amber-100"
                     onClick={() => {
@@ -1144,7 +1144,7 @@ export const IndexManagementModal: React.FC<Props> = ({
                       >
                         <td className="pl-3 pr-1 py-1.5">
                           <div className="flex items-center gap-1.5">
-                            <button
+                            <button data-testid={`index-mgmt-table-toggle-${tableName}`}
                               type="button"
                               className="p-0.5 text-slate-400 hover:text-slate-100 shrink-0"
                               aria-expanded={openGroup}
@@ -1156,7 +1156,7 @@ export const IndexManagementModal: React.FC<Props> = ({
                                 <ChevronRight className="w-3.5 h-3.5" />
                               )}
                             </button>
-                            <button
+                            <button data-testid={`index-mgmt-table-select-${tableName}`}
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1247,7 +1247,7 @@ export const IndexManagementModal: React.FC<Props> = ({
                               data-testid={`index-mgmt-row-${row.key}`}
                             >
                               <td className="pl-8 pr-1 py-2 align-top">
-                                <button
+                                <button data-testid={`index-mgmt-toggle-selected-${row.key}`}
                                   type="button"
                                   onClick={() => toggleSelected(row.key)}
                                   className="text-slate-400 hover:text-slate-100"
@@ -1325,7 +1325,7 @@ export const IndexManagementModal: React.FC<Props> = ({
                               </td>
                               <td className="px-3 py-2 align-top text-right">
                                 <div className="inline-flex items-center justify-end gap-1">
-                                  <button
+                                  <button data-testid={`index-mgmt-defragment-${row.key}`}
                                     type="button"
                                     disabled={!row.defragSql.length || runningDefrag || runningDrop}
                                     title={row.defragSql.join('\n') || 'No defrag SQL'}
@@ -1392,7 +1392,7 @@ export const IndexManagementModal: React.FC<Props> = ({
                   This may lock tables briefly.
                 </p>
                 <div className="flex justify-end gap-2">
-                  <button
+                  <button data-testid="index-mgmt-cancel"
                     type="button"
                     className="px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200"
                     onClick={() => setConfirmDefrag(null)}
@@ -1444,7 +1444,7 @@ export const IndexManagementModal: React.FC<Props> = ({
                   {safeMode ? ' Safe mode is on — confirm carefully.' : ''}
                 </p>
                 <div className="flex justify-end gap-2">
-                  <button
+                  <button data-testid="index-mgmt-confirm-drop-cancel"
                     type="button"
                     className="px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200"
                     onClick={() => setConfirmDrop(null)}
@@ -1487,7 +1487,7 @@ export const IndexManagementModal: React.FC<Props> = ({
   return createPortal(
     <div
       className="fixed inset-0 z-[90] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
-      data-testid="index-management-modal"
+      data-testid="index-management-overlay"
       onClick={onClose}
     >
       <div

@@ -289,7 +289,7 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
               <Plus className="w-3.5 h-3.5" strokeWidth={SQL_ICON_STROKE} />
               New
             </button>
-            <button
+            <button data-testid="sql-reload-schema"
               type="button"
               title="Reload schema"
               disabled={!explorerId || entry?.status === 'loading'}
@@ -348,7 +348,7 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
               const meta = TYPE_META[g.type];
               return (
                 <div key={g.type} data-testid={`sql-schema-group-${g.type}`}>
-                  <button
+                  <button data-testid={`sql-schema-group-toggle-${g.type}`}
                     type="button"
                     onClick={() => {
                       const next = !open;
@@ -533,7 +533,7 @@ const ObjectNode: React.FC<{
        * behaviour changes — only which element absorbs the shortfall.
        */}
       <div className="flex flex-wrap items-center gap-0.5 min-w-0">
-        <button
+        <button data-testid={`sql-explorer-toggle-${table.name}`}
           type="button"
           onClick={onToggle}
           className="p-0.5 text-slate-500 hover:text-slate-300 shrink-0"
@@ -641,7 +641,7 @@ const ObjectNode: React.FC<{
         <ul className="ml-6 border-l border-slate-700/80 pl-2.5 flex flex-col gap-0.5 mb-1">
           {params.map((p, i) => (
             <li key={`${p.mode}-${p.name}-${i}`}>
-              <button
+              <button data-testid={`sql-explorer-param-insert-${table.name}-${p.name}`}
                 type="button"
                 title={`Insert ${p.name} (${p.mode})`}
                 onClick={() => insertIdent(p.name)}
@@ -663,7 +663,7 @@ const ObjectNode: React.FC<{
       )}
       {open && !isRoutine && columns.length > 0 && (
         <div className="ml-6 mb-0.5">
-          <button
+          <button data-testid={`sql-explorer-columns-toggle-${table.name}`}
             type="button"
             onClick={() => setOpenCols((v) => !v)}
             className="w-full flex items-center gap-1 px-0.5 py-0.5 text-left text-[10px] font-bold uppercase tracking-wide text-slate-500 hover:text-slate-300"
@@ -682,7 +682,7 @@ const ObjectNode: React.FC<{
             <ul className="border-l border-slate-700/80 pl-2.5 flex flex-col gap-0.5">
             {columns.map((col) => (
               <li key={col.name} className="flex items-center gap-1 min-w-0">
-                <button
+                <button data-testid={`sql-explorer-col-insert-${table.name}-${col.name}`}
                   type="button"
                   title={`Insert ${col.name} at cursor`}
                   onClick={() => insertIdent(col.name)}
@@ -710,7 +710,7 @@ const ObjectNode: React.FC<{
       )}
       {open && !isRoutine && indexes.length > 0 && (
         <div className="ml-6 mb-1" data-testid={`sql-explorer-indexes-${table.name}`}>
-          <button
+          <button data-testid={`sql-explorer-indexes-toggle-${table.name}`}
             type="button"
             onClick={() => setOpenIdx((v) => !v)}
             className="w-full flex items-center gap-1 px-0.5 py-0.5 text-left text-[10px] font-bold uppercase tracking-wide text-indigo-400/90 hover:text-indigo-200"

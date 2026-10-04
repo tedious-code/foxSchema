@@ -348,7 +348,7 @@ export const AccessPermissionPanel: React.FC<{
                 const Chevron = open ? ChevronDown : ChevronRight;
                 return (
                   <section key={group.kind} data-testid={`access-permission-group-${group.kind}`}>
-                    <button
+                    <button data-testid={`access-permission-expanded-kinds-${group.kind}`}
                       type="button"
                       className="w-full flex items-center gap-2 px-3 py-1.5 text-left bg-slate-950/50"
                       onClick={() =>
@@ -535,7 +535,7 @@ export const AccessPermissionPanel: React.FC<{
                 {confirm.sql}
               </pre>
               <div className="flex flex-wrap justify-end gap-2">
-                <button
+                <button data-testid="access-permission-cancel"
                   type="button"
                   className="px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200"
                   onClick={() => setConfirm(null)}

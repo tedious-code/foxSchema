@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "foxschema-test-ids": {
+      "command": "node",
+      "args": ["scripts/test-ids/mcp-server.mjs"]
+    }
+  }
+}

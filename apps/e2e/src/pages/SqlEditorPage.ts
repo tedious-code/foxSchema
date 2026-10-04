@@ -2,6 +2,7 @@ import type { Page } from 'playwright';
 import { clickWhen, waitFor, fillInput } from '../helpers/driver.js';
 import type { DbConfig } from '../helpers/db-config.js';
 import { ConnectionModal, type ConnectionFields } from './ConnectionModal.js';
+import { byTestId } from '../helpers/test-ids.js';
 
 /**
  * Page object for the SQL Editor workspace (view switcher + run against
@@ -12,18 +13,18 @@ export class SqlEditorPage {
 
   /** Dismiss session-password / write-confirm overlays that block clicks. */
   async dismissOverlays(): Promise<void> {
-    const pwd = this.page.locator('[data-testid="sql-session-password"]');
+    const pwd = this.page.locator(byTestId('sql-session-password'));
     if (await pwd.isVisible().catch(() => false)) {
-      await this.page.click('[data-testid="sql-session-password-cancel"]');
+      await this.page.click(byTestId('sql-session-password-cancel'));
       await pwd.waitFor({ state: 'detached', timeout: 5_000 }).catch(() => undefined);
     }
-    const write = this.page.locator('[data-testid="sql-write-confirm"]');
+    const write = this.page.locator(byTestId('sql-write-confirm'));
     if (await write.isVisible().catch(() => false)) {
       // Cancel write confirm (backdrop click).
       await write.click({ position: { x: 8, y: 8 } });
       await write.waitFor({ state: 'detached', timeout: 5_000 }).catch(() => undefined);
     }
-    const rowForm = this.page.locator('[data-testid="peek-row-editor"]');
+    const rowForm = this.page.locator(byTestId('peek-row-editor'));
     if (await rowForm.isVisible().catch(() => false)) {
       await this.page.keyboard.press('Escape');
       await rowForm.waitFor({ state: 'detached', timeout: 5_000 }).catch(() => undefined);
@@ -48,8 +49,8 @@ export class SqlEditorPage {
   }
 
   async openView(): Promise<void> {
-    await clickWhen(this.page, '[data-testid="view-sql-editor-btn"]');
-    await waitFor(this.page, '[data-testid="sql-editor-view"]');
+    await clickWhen(this.page, byTestId('view-sql-editor-btn'));
+    await waitFor(this.page, byTestId('sql-editor-view'));
     // Schema explorer may prompt for a password on auto-load — clear it so
     // later clicks aren't blocked. Callers that need the password should
     // submit via checkConnection / submitSessionPassword instead.
@@ -61,22 +62,22 @@ export class SqlEditorPage {
   /** Open the Database utilities workspace (not the SQL Editor sidebar). */
   async openUtilitiesView(): Promise<void> {
     await this.dismissOverlays();
-    await clickWhen(this.page, '[data-testid="view-utilities-btn"]');
-    await waitFor(this.page, '[data-testid="utilities-view"]', 10_000);
+    await clickWhen(this.page, byTestId('view-utilities-btn'));
+    await waitFor(this.page, byTestId('utilities-view'), 10_000);
   }
 
   async isEditorVisible(): Promise<boolean> {
-    return this.page.locator('[data-testid="sql-editor-view"]').isVisible();
+    return this.page.locator(byTestId('sql-editor-view')).isVisible();
   }
 
   async openCredentials(): Promise<void> {
-    await clickWhen(this.page, '[data-testid="credentials-btn"]');
-    await waitFor(this.page, '[data-testid="cred-manager"]');
+    await clickWhen(this.page, byTestId('credentials-btn'));
+    await waitFor(this.page, byTestId('cred-manager'));
   }
 
   async closeCredentials(): Promise<void> {
-    await clickWhen(this.page, '[data-testid="cred-close-btn"]');
-    await this.page.waitForSelector('[data-testid="cred-manager"]', { state: 'detached', timeout: 10_000 });
+    await clickWhen(this.page, byTestId('cred-close-btn'));
+    await this.page.waitForSelector(byTestId('cred-manager'), { state: 'detached', timeout: 10_000 });
   }
 
   /** Save a SQLite file path as a named credential. */
@@ -92,12 +93,12 @@ export class SqlEditorPage {
    */
   async addCredential(name: string, cfg: ConnectionFields | DbConfig): Promise<void> {
     await this.openCredentials();
-    await clickWhen(this.page, '[data-testid="cred-add-btn"]');
-    await waitFor(this.page, '[data-testid="conn-modal"]');
+    await clickWhen(this.page, byTestId('cred-add-btn'));
+    await waitFor(this.page, byTestId('conn-modal'));
     const modal = new ConnectionModal(this.page);
     // Dialect first — switching dialect can reset the form and wipe the name.
     await modal.selectDialect(cfg.dialect);
-    await fillInput(this.page, '[data-testid="conn-name-input"]', name);
+    await fillInput(this.page, byTestId('conn-name-input'), name);
     // A file dialect renders the path and nothing else — filling a hidden host
     // box is what broke this helper when the form stopped showing one. Dummy
     // E2E_*_HOST values (required by hasConfig) must not be typed into those
@@ -124,7 +125,7 @@ export class SqlEditorPage {
     // renders no content at all — so the checkbox is absent, not merely
     // scrolled out of view. Open Destinations before looking for it.
     await this.ensureSidebarSectionOpen('destinations');
-    const sel = `[data-testid="sql-conn-check-${name}"]`;
+    const sel = byTestId(`sql-conn-check-${name}`);
     await waitFor(this.page, sel, 15_000);
     const box = this.page.locator(sel);
     if (!(await box.isChecked())) await box.check();
@@ -179,7 +180,7 @@ export class SqlEditorPage {
   }
 
   private columnPicker() {
-    return this.page.locator('[data-testid="sql-select-column-picker"]');
+    return this.page.locator(byTestId('sql-select-column-picker'));
   }
 
   /**
@@ -238,19 +239,19 @@ export class SqlEditorPage {
   }
 
   async pickerSelectAllStar(): Promise<void> {
-    await this.columnPicker().locator('[data-testid="sql-select-all-star"]').click();
+    await this.columnPicker().locator(byTestId('sql-select-all-star')).click();
     await this.page.waitForTimeout(300);
   }
 
   async pickerRemoveAll(): Promise<void> {
-    await this.columnPicker().locator('[data-testid="sql-select-remove-all"]').click();
+    await this.columnPicker().locator(byTestId('sql-select-remove-all')).click();
     await this.page.waitForTimeout(300);
   }
 
   /** Toggle one `alias.column` checkbox by its expression (case-insensitive testid). */
   async pickerToggleColumn(expr: string): Promise<void> {
     const box = this.columnPicker().locator(
-      `[data-testid="sql-select-col-${expr.toLowerCase()}"]`
+      byTestId(`sql-select-col-${expr.toLowerCase()}`)
     );
     await box.waitFor({ state: 'visible', timeout: 10_000 });
     await box.click();
@@ -259,13 +260,13 @@ export class SqlEditorPage {
 
   async pickerColumnChecked(expr: string): Promise<boolean> {
     return this.columnPicker()
-      .locator(`[data-testid="sql-select-col-${expr.toLowerCase()}"]`)
+      .locator(byTestId(`sql-select-col-${expr.toLowerCase()}`))
       .isChecked();
   }
 
   async run(): Promise<void> {
     await this.dismissOverlays();
-    await clickWhen(this.page, '[data-testid="sql-run-btn"]');
+    await clickWhen(this.page, byTestId('sql-run-btn'));
   }
 
   async waitForResults(timeoutMs = 30_000): Promise<void> {
@@ -277,15 +278,15 @@ export class SqlEditorPage {
     // credential headers, so waiting on it alone returns before any row
     // exists. Every credential drops its spinner when its run settles.
     await this.page
-      .locator('[data-testid="sql-results-running"]')
+      .locator(byTestId('sql-results-running'))
       .last()
       .waitFor({ state: 'detached', timeout: timeoutMs })
       .catch(() => {});
   }
 
   async resultsText(): Promise<string> {
-    const byCred = this.page.locator('[data-testid="sql-results-by-credential"]');
-    const side = this.page.locator('[data-testid="sql-results-side-by-side"]');
+    const byCred = this.page.locator(byTestId('sql-results-by-credential'));
+    const side = this.page.locator(byTestId('sql-results-side-by-side'));
     if (await byCred.isVisible()) return (await byCred.innerText()) ?? '';
     if (await side.isVisible()) return (await side.innerText()) ?? '';
     return '';
@@ -293,52 +294,52 @@ export class SqlEditorPage {
 
   async addTab(): Promise<void> {
     await this.dismissOverlays();
-    await clickWhen(this.page, '[data-testid="sql-tab-add"]');
+    await clickWhen(this.page, byTestId('sql-tab-add'));
   }
 
   async openSyncView(): Promise<void> {
     await this.dismissOverlays();
-    await clickWhen(this.page, '[data-testid="view-sync-btn"]');
+    await clickWhen(this.page, byTestId('view-sync-btn'));
   }
 
   async setLayoutSideBySide(): Promise<void> {
     await this.dismissOverlays();
-    await clickWhen(this.page, '[data-testid="sql-layout-side-by-side"]');
-    await waitFor(this.page, '[data-testid="sql-results-side-by-side"]');
+    await clickWhen(this.page, byTestId('sql-layout-side-by-side'));
+    await waitFor(this.page, byTestId('sql-results-side-by-side'));
   }
 
   async setLayoutByCredential(): Promise<void> {
     await this.dismissOverlays();
-    await clickWhen(this.page, '[data-testid="sql-layout-by-credential"]');
+    await clickWhen(this.page, byTestId('sql-layout-by-credential'));
   }
 
   /** Side-by-side Compare toolbar for statement index (default 0). */
   compareToggle(statementIndex = 0) {
-    return this.page.locator(`[data-testid="sql-result-compare-toggle-${statementIndex}"]`);
+    return this.page.locator(byTestId(`sql-result-compare-toggle-${statementIndex}`));
   }
 
   compareLegend(statementIndex = 0) {
-    return this.page.locator(`[data-testid="sql-result-compare-legend-${statementIndex}"]`);
+    return this.page.locator(byTestId(`sql-result-compare-legend-${statementIndex}`));
   }
 
   compareBaselineSelect(statementIndex = 0) {
-    return this.page.locator(`[data-testid="sql-result-compare-baseline-${statementIndex}"]`);
+    return this.page.locator(byTestId(`sql-result-compare-baseline-${statementIndex}`));
   }
 
   compareDestSelect(statementIndex = 0) {
-    return this.page.locator(`[data-testid="sql-result-compare-dest-${statementIndex}"]`);
+    return this.page.locator(byTestId(`sql-result-compare-dest-${statementIndex}`));
   }
 
   compareSyncScroll(statementIndex = 0) {
-    return this.page.locator(`[data-testid="sql-result-compare-sync-scroll-${statementIndex}"]`);
+    return this.page.locator(byTestId(`sql-result-compare-sync-scroll-${statementIndex}`));
   }
 
   compareExportCsvAll(statementIndex = 0) {
-    return this.page.locator(`[data-testid="sql-result-compare-export-csv-${statementIndex}"]`);
+    return this.page.locator(byTestId(`sql-result-compare-export-csv-${statementIndex}`));
   }
 
   compareMaximize(statementIndex = 0) {
-    return this.page.locator(`[data-testid="sql-result-compare-maximize-${statementIndex}"]`);
+    return this.page.locator(byTestId(`sql-result-compare-maximize-${statementIndex}`));
   }
 
   /** Count cells marked with a data-diff attribute in the results panel. */
@@ -354,27 +355,27 @@ export class SqlEditorPage {
   }
 
   async statementStripVisible(): Promise<boolean> {
-    return this.page.locator('[data-testid="sql-statement-strip"]').isVisible();
+    return this.page.locator(byTestId('sql-statement-strip')).isVisible();
   }
 
   async confirmWriteIfShown(): Promise<boolean> {
-    const dlg = this.page.locator('[data-testid="sql-write-confirm"]');
+    const dlg = this.page.locator(byTestId('sql-write-confirm'));
     try {
       await dlg.waitFor({ state: 'visible', timeout: 5_000 });
     } catch {
       return false;
     }
-    await clickWhen(this.page, '[data-testid="sql-write-confirm-btn"]');
+    await clickWhen(this.page, byTestId('sql-write-confirm-btn'));
     await dlg.waitFor({ state: 'detached', timeout: 10_000 });
     return true;
   }
 
   async writeConfirmReadonlyWarnVisible(): Promise<boolean> {
-    return this.page.locator('[data-testid="sql-readonly-write-warn"]').isVisible();
+    return this.page.locator(byTestId('sql-readonly-write-warn')).isVisible();
   }
 
   async schemaExplorerVisible(): Promise<boolean> {
-    return this.page.locator('[data-testid="sql-schema-explorer"]').isVisible();
+    return this.page.locator(byTestId('sql-schema-explorer')).isVisible();
   }
 
   /** Expand TABLES group and open the blueprint for a table by name. */
@@ -386,13 +387,13 @@ export class SqlEditorPage {
     // sidebar at all, so go back before looking for the tree.
     await this.openView();
     await this.ensureSidebarSectionOpen('schema');
-    const explorer = this.page.locator('[data-testid="sql-schema-explorer"]');
+    const explorer = this.page.locator(byTestId('sql-schema-explorer'));
     await explorer.waitFor({ state: 'visible', timeout: 15_000 });
     // Expand TABLES group only when the table name is not already visible
     // (a second click would collapse it).
     const alreadyVisible = await explorer.getByText(tableName, { exact: true }).count();
     if (alreadyVisible === 0) {
-      const group = explorer.locator('[data-testid="sql-schema-group-TABLE"]');
+      const group = explorer.locator(byTestId('sql-schema-group-TABLE'));
       if (await group.count()) {
         await group.locator('button').first().click().catch(() => undefined);
       }
@@ -409,30 +410,30 @@ export class SqlEditorPage {
     const nameLabel = explorer.getByText(tableName, { exact: true }).first();
     await nameLabel.scrollIntoViewIfNeeded();
     const row = nameLabel.locator('xpath=ancestor::div[./button[@data-testid="sql-open-blueprint"] or .//button[@data-testid="sql-open-blueprint"]][1]');
-    await row.locator('[data-testid="sql-open-blueprint"]').click({ force: true });
-    await waitFor(this.page, '[data-testid="table-blueprint-modal"]', 15_000);
+    await row.locator(byTestId('sql-open-blueprint')).click({ force: true });
+    await waitFor(this.page, byTestId('table-blueprint-modal'), 15_000);
   }
 
   async openNewTableBlueprint(): Promise<void> {
     await this.dismissOverlays();
     // Prefer Schema header action; fall back to explorer New control.
-    const header = this.page.locator('[data-testid="sql-schema-new-table"]');
+    const header = this.page.locator(byTestId('sql-schema-new-table'));
     if (await header.count()) {
       await header.click();
     } else {
-      await clickWhen(this.page, '[data-testid="sql-new-table"]');
+      await clickWhen(this.page, byTestId('sql-new-table'));
     }
-    await waitFor(this.page, '[data-testid="table-blueprint-modal"]', 15_000);
+    await waitFor(this.page, byTestId('table-blueprint-modal'), 15_000);
   }
 
   async blueprintInsertSql(): Promise<void> {
-    await clickWhen(this.page, '[data-testid="blueprint-insert-sql"]');
+    await clickWhen(this.page, byTestId('blueprint-insert-sql'));
   }
 
   async closeBlueprint(): Promise<void> {
-    const modal = this.page.locator('[data-testid="table-blueprint-modal"]');
+    const modal = this.page.locator(byTestId('table-blueprint-modal'));
     if (!(await modal.isVisible().catch(() => false))) return;
-    const closeBtn = this.page.locator('[data-testid="blueprint-close"]');
+    const closeBtn = this.page.locator(byTestId('blueprint-close'));
     if (await closeBtn.isVisible().catch(() => false)) {
       await closeBtn.click();
     } else {
@@ -443,15 +444,15 @@ export class SqlEditorPage {
   }
 
   async clickPageNext(): Promise<void> {
-    await clickWhen(this.page, '[data-testid="sql-page-next"]');
+    await clickWhen(this.page, byTestId('sql-page-next'));
   }
 
   async clickPagePrev(): Promise<void> {
-    await clickWhen(this.page, '[data-testid="sql-page-prev"]');
+    await clickWhen(this.page, byTestId('sql-page-prev'));
   }
 
   async pageNextEnabled(): Promise<boolean> {
-    const btn = this.page.locator('[data-testid="sql-page-next"]');
+    const btn = this.page.locator(byTestId('sql-page-next'));
     if (!(await btn.isVisible().catch(() => false))) return false;
     return !(await btn.isDisabled());
   }
@@ -486,13 +487,13 @@ export class SqlEditorPage {
     // Utilities workspace has none — so a missing section means "nothing to
     // expand", not a failure. Throwing here would turn callers that merely
     // want the section open *if it exists* into hard errors.
-    const section = this.page.locator(`[data-testid="sql-sidebar-${id}"]`);
+    const section = this.page.locator(byTestId(`sql-sidebar-${id}`));
     const present = await section
       .waitFor({ state: 'visible', timeout: 10_000 })
       .then(() => true)
       .catch(() => false);
     if (!present) return;
-    const toggle = this.page.locator(`[data-testid="sql-sidebar-toggle-${id}"]`);
+    const toggle = this.page.locator(byTestId(`sql-sidebar-toggle-${id}`));
     const aria = await toggle.getAttribute('aria-expanded').catch(() => null);
     if (aria === 'false') await toggle.click();
   }
@@ -503,7 +504,7 @@ export class SqlEditorPage {
     // The v3 sidebar collapses every section, and a collapsed section renders
     // no explorer at all — open Schema before reaching into its tree.
     await this.ensureSidebarSectionOpen('schema');
-    const explorer = this.page.locator('[data-testid="sql-schema-explorer"]');
+    const explorer = this.page.locator(byTestId('sql-schema-explorer'));
     await explorer.waitFor({ state: 'visible', timeout: 15_000 });
     await this.page.waitForFunction(
       (name) => {
@@ -517,7 +518,7 @@ export class SqlEditorPage {
     await label.scrollIntoViewIfNeeded();
     const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
     await label.click({ modifiers: [modifier] });
-    await waitFor(this.page, '[data-testid="data-peek"]', 30_000);
+    await waitFor(this.page, byTestId('data-peek'), 30_000);
     // Wait for the grid, since the CRUD controls only render once rows load.
     await this.page.waitForSelector('[data-testid^="data-peek-crud-"]', { timeout: 30_000 });
   }
@@ -525,13 +526,13 @@ export class SqlEditorPage {
   /** Click Add row on the first open Data Peek panel. */
   async openPeekAddRow(): Promise<void> {
     await this.page.locator('[data-testid^="data-peek-add-"]').first().click();
-    await waitFor(this.page, '[data-testid="peek-row-editor"]', 10_000);
+    await waitFor(this.page, byTestId('peek-row-editor'), 10_000);
   }
 
   async openIndexManagement(): Promise<void> {
     await this.openUtilitiesView();
-    await clickWhen(this.page, '[data-testid="utilities-index-management"]');
-    await waitFor(this.page, '[data-testid="index-management-modal"]', 15_000);
+    await clickWhen(this.page, byTestId('utilities-index-management'));
+    await waitFor(this.page, byTestId('index-management-modal'), 15_000);
   }
 
   async openServerInsights(
@@ -547,12 +548,12 @@ export class SqlEditorPage {
             ? 'utilities-system-info'
             : 'utilities-object-sizes';
     await clickWhen(this.page, `[data-testid="${testId}"]`);
-    await waitFor(this.page, '[data-testid="server-insights-modal"]', 15_000);
-    await waitFor(this.page, `[data-testid="server-insights-tab-${tab}"]`, 5_000);
+    await waitFor(this.page, byTestId('server-insights-modal'), 15_000);
+    await waitFor(this.page, byTestId(`server-insights-tab-${tab}`), 5_000);
   }
 
   async closeServerInsights(): Promise<void> {
-    const modal = this.page.locator('[data-testid="server-insights-modal"]');
+    const modal = this.page.locator(byTestId('server-insights-modal'));
     if (!(await modal.isVisible().catch(() => false))) return;
     const closeBtn = modal.locator('button[aria-label="Close"]');
     if (!(await closeBtn.isVisible().catch(() => false))) return;
@@ -565,12 +566,12 @@ export class SqlEditorPage {
   async openDatabaseAccess(): Promise<void> {
     await this.dismissOverlays();
     await this.openUtilitiesView();
-    await clickWhen(this.page, '[data-testid="utilities-database-access"]');
-    await waitFor(this.page, '[data-testid="db-access-modal"]', 15_000);
+    await clickWhen(this.page, byTestId('utilities-database-access'));
+    await waitFor(this.page, byTestId('db-access-modal'), 15_000);
   }
 
   async closeDatabaseAccess(): Promise<void> {
-    const modal = this.page.locator('[data-testid="db-access-modal"]');
+    const modal = this.page.locator(byTestId('db-access-modal'));
     if (!(await modal.isVisible().catch(() => false))) return;
     const closeBtn = modal.locator('button[aria-label="Close"]');
     if (await closeBtn.isVisible().catch(() => false)) {
@@ -587,7 +588,7 @@ export class SqlEditorPage {
   }
 
   async closeIndexManagement(): Promise<void> {
-    const modal = this.page.locator('[data-testid="index-management-modal"]');
+    const modal = this.page.locator(byTestId('index-management-modal'));
     if (!(await modal.isVisible().catch(() => false))) return;
     const closeBtn = modal.locator('button[aria-label="Close"]');
     if (!(await closeBtn.isVisible().catch(() => false))) return;
@@ -600,12 +601,12 @@ export class SqlEditorPage {
   async openCloneTable(): Promise<void> {
     await this.dismissOverlays();
     await this.openUtilitiesView();
-    await clickWhen(this.page, '[data-testid="utilities-clone-table"]');
-    await waitFor(this.page, '[data-testid="clone-table-modal"]', 15_000);
+    await clickWhen(this.page, byTestId('utilities-clone-table'));
+    await waitFor(this.page, byTestId('clone-table-modal'), 15_000);
   }
 
   async closeCloneTable(): Promise<void> {
-    const modal = this.page.locator('[data-testid="clone-table-modal"]');
+    const modal = this.page.locator(byTestId('clone-table-modal'));
     if (!(await modal.isVisible().catch(() => false))) return;
     const closeBtn = modal.locator('button[aria-label="Close"]');
     if (!(await closeBtn.isVisible().catch(() => false))) return;
@@ -619,7 +620,7 @@ export class SqlEditorPage {
    *  The Utilities workspace uses one chip (`utilities-connection`); tool-local
    *  dropdowns are used when a modal still has its own picker. */
   async selectUtilityConnection(nameSubstring: string, selectTestId: string): Promise<void> {
-    const workspace = this.page.locator('[data-testid="utilities-connection"]');
+    const workspace = this.page.locator(byTestId('utilities-connection'));
     const select = (await workspace.isVisible().catch(() => false))
       ? workspace
       : this.page.locator(`[data-testid="${selectTestId}"]`);
@@ -645,7 +646,7 @@ export class SqlEditorPage {
    * cannot push the row past the visible window.
    */
   async waitForCloneTableOption(tableName: string, timeoutMs = 30_000): Promise<void> {
-    const input = this.page.locator('[data-testid="clone-table-name"]');
+    const input = this.page.locator(byTestId('clone-table-name'));
     await input.waitFor({ state: 'visible', timeout: timeoutMs });
     await input.fill(tableName);
     await this.cloneTableOption(tableName).waitFor({ state: 'visible', timeout: timeoutMs });
@@ -671,7 +672,7 @@ export class SqlEditorPage {
 
   async loadCloneTables(connectionName: string, tableName: string): Promise<void> {
     await this.selectUtilityConnection(connectionName, 'clone-table-connection');
-    await this.page.locator('[data-testid="clone-table-load"]').click();
+    await this.page.locator(byTestId('clone-table-load')).click();
     // Second arg must be the pageFunction argument; options are the third arg.
     // Passing `{ timeout }` alone is treated as the arg and the default 30s applies.
     await this.page.waitForFunction(
@@ -689,7 +690,7 @@ export class SqlEditorPage {
       { timeout: 45_000 }
     );
     const err =
-      (await this.page.locator('[data-testid="clone-error"]').textContent().catch(() => '')) ?? '';
+      (await this.page.locator(byTestId('clone-error')).textContent().catch(() => '')) ?? '';
     if (err.trim()) throw new Error(`Clone Table load failed: ${err}`);
     await this.selectCloneTable(tableName);
   }

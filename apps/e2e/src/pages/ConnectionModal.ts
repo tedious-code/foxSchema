@@ -1,5 +1,6 @@
 import type { Page } from 'playwright';
 import { fillInput } from '../helpers/driver.js';
+import { byTestId } from '../helpers/test-ids.js';
 
 export interface ConnectionFields {
   dialect: string;
@@ -20,31 +21,31 @@ export class ConnectionModal {
   constructor(private page: Page) {}
 
   async selectDialect(dialect: string): Promise<void> {
-    await this.page.selectOption('[data-testid="conn-dialect-select"]', dialect);
+    await this.page.selectOption(byTestId('conn-dialect-select'), dialect);
   }
 
   async fillHost(value: string): Promise<void> {
-    await fillInput(this.page, '[data-testid="conn-host-input"]', value);
+    await fillInput(this.page, byTestId('conn-host-input'), value);
   }
 
   async fillPort(value: number): Promise<void> {
-    await fillInput(this.page, '[data-testid="conn-port-input"]', String(value));
+    await fillInput(this.page, byTestId('conn-port-input'), String(value));
   }
 
   async fillDatabase(value: string): Promise<void> {
-    await fillInput(this.page, '[data-testid="conn-database-input"]', value);
+    await fillInput(this.page, byTestId('conn-database-input'), value);
   }
 
   async fillUsername(value: string): Promise<void> {
-    await fillInput(this.page, '[data-testid="conn-username-input"]', value);
+    await fillInput(this.page, byTestId('conn-username-input'), value);
   }
 
   async fillPassword(value: string): Promise<void> {
-    await fillInput(this.page, '[data-testid="conn-password-input"]', value);
+    await fillInput(this.page, byTestId('conn-password-input'), value);
   }
 
   async loadSchemas(): Promise<void> {
-    await this.page.click('[data-testid="conn-load-schema-btn"]');
+    await this.page.click(byTestId('conn-load-schema-btn'));
     // Wait for the outcome, never for the "testing" banner on the way to it.
     // The banner lasts only as long as the request: a SQLite file answers in
     // milliseconds, and a list fetched in the last 15s comes from the client
@@ -56,7 +57,7 @@ export class ConnectionModal {
       '[data-testid="conn-test-success"], [data-testid="conn-test-failed"]',
       { timeout: 30_000 }
     );
-    const failed = this.page.locator('[data-testid="conn-test-failed"]');
+    const failed = this.page.locator(byTestId('conn-test-failed'));
     if (await failed.isVisible().catch(() => false)) {
       const msg = (await failed.textContent().catch(() => null))?.trim() || 'unknown error';
       throw new Error(`Connection test failed: ${msg}`);
@@ -65,14 +66,14 @@ export class ConnectionModal {
 
   /** The schema box is an Autocomplete: typing sets it, and blur snaps to a listed name. */
   async selectSchema(schema: string): Promise<void> {
-    await fillInput(this.page, '[data-testid="conn-schema-input"]', schema);
+    await fillInput(this.page, byTestId('conn-schema-input'), schema);
     await this.page.keyboard.press('Tab');
   }
 
   async save(): Promise<void> {
-    await this.page.click('[data-testid="conn-save-btn"]');
+    await this.page.click(byTestId('conn-save-btn'));
     // Modal closes on success.
-    await this.page.waitForSelector('[data-testid="conn-modal"]', {
+    await this.page.waitForSelector(byTestId('conn-modal'), {
       state: 'detached',
       timeout: 10_000,
     });
@@ -80,12 +81,12 @@ export class ConnectionModal {
 
   /** Close a stuck overlay so later steps are not blocked by pointer interception. */
   async dismissIfOpen(): Promise<void> {
-    const modal = this.page.locator('[data-testid="conn-modal"]');
+    const modal = this.page.locator(byTestId('conn-modal'));
     if (!(await modal.isVisible().catch(() => false))) return;
     await this.page.keyboard.press('Escape').catch(() => undefined);
     if (await modal.isVisible().catch(() => false)) {
       const close = this.page.locator(
-        '[data-testid="conn-modal"] [data-testid="conn-cancel-btn"], [data-testid="conn-modal"] button[aria-label="Close"], [data-testid="conn-modal"] button.p-1'
+        '[data-testid="conn-modal"] [data-testid="conn-cancel"], [data-testid="conn-modal"] button[aria-label="Close"], [data-testid="conn-modal"] button.p-1'
       ).first();
       if (await close.isVisible().catch(() => false)) {
         await close.click({ force: true }).catch(() => undefined);
@@ -95,14 +96,14 @@ export class ConnectionModal {
   }
 
   async checkSavePassword(): Promise<void> {
-    const box = this.page.locator('[data-testid="conn-save-password"]');
+    const box = this.page.locator(byTestId('conn-save-password'));
     if ((await box.count()) > 0 && !(await box.isChecked())) {
       await box.check();
     }
   }
 
   async uncheckSavePassword(): Promise<void> {
-    const box = this.page.locator('[data-testid="conn-save-password"]');
+    const box = this.page.locator(byTestId('conn-save-password'));
     if ((await box.count()) > 0 && (await box.isChecked())) {
       await box.uncheck();
     }

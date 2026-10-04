@@ -3,13 +3,14 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * The test-ID catalog stays true, and coverage only goes up.
+ * The test-ID catalog stays true.
  *
  * `docs/testing/TEST_IDS.md` and `apps/e2e/src/generated/test-ids.ts` are
  * generated from the web app's JSX; a test that reads a stale one finds an ID
  * that is gone, or misses a new one. Every button, text box, select and
- * textarea carries a test ID, so Playwright tests can find it, and no static ID
- * names two different things (see docs/plans/2026-10-03-test-ids.md).
+ * textarea carries a test ID, so Playwright tests can find it; no static ID
+ * names two different things; and every ID the e2e suite looks for exists
+ * (see docs/plans/2026-10-03-test-ids.md).
  */
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
@@ -33,6 +34,16 @@ describe('the test-ID catalog', () => {
   it('never gives two components the same static ID', () => {
     const where = catalog.duplicates(found).map(([id, at]) => `${id}: ${at.join(', ')}`).join('\n');
     expect(where, 'A selector finds the first; give each its own ID, or list it in SHARED_IDS').toBe('');
+  });
+
+  it('knows every test ID the e2e suite uses (a removed one fails here, not in a timeout)', () => {
+    const unknown = catalog.unknownSelectors(found).map((s) => `${s.file}:${s.line} ${s.match} "${s.id}"`);
+    expect(unknown, 'Not in the web app: fix the selector, or list a deliberately removed ID in REMOVED_IDS').toEqual([]);
+  });
+
+  it('lists in REMOVED_IDS only IDs the web app does not have', () => {
+    const present = Object.keys(catalog.REMOVED_IDS).filter((id) => found.entries.some((e) => e.pattern === id));
+    expect(present, 'These are back in the web app: remove them from REMOVED_IDS').toEqual([]);
   });
 
   it('lists in SHARED_IDS only IDs that are still shared', () => {

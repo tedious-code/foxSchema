@@ -145,24 +145,6 @@ describe.skipIf(configured.length === 0)('Access Assistant (all configured diale
     await select.selectOption({ label });
   }
 
-  /**
-   * Fill whichever scope field this engine offers.
-   *
-   * The Builder shows `access-schema` normally, but switches to
-   * `access-database` where the engine cannot grant on a schema — MySQL and
-   * MariaDB have no schemas at all. Hard-coding `access-schema` (and 'public')
-   * assumed every engine was Postgres, and simply timed out on the rest.
-   */
-  async function fillScope(dialect: string) {
-    const cfg = getSourceConfig(dialect)!;
-    const schemaBox = driver.locator('[data-testid="access-schema"]');
-    if ((await schemaBox.count()) > 0) {
-      await schemaBox.fill(cfg.schema || 'public');
-      return;
-    }
-    await driver.locator('[data-testid="access-database"]').fill(cfg.database);
-  }
-
   for (const dialect of configured) {
     describe(dialect, () => {
       beforeEach((ctx) => {
@@ -215,34 +197,6 @@ describe.skipIf(configured.length === 0)('Access Assistant (all configured diale
         await saveScreenshot(driver, `access-users-${dialect}`);
       });
 
-      // Access nav folded Permission Builder into Principals (`permission`).
-      // Re-author this case against AccessPermissionPanel before re-enabling.
-      it.skip('Permission Builder renders SQL preview', async () => {
-        if (!SUPPORTS_GRANT_BUILDER.includes(dialect)) return;
-
-        await driver.locator('[data-testid="access-tab-permission"]').click();
-        await driver.waitForSelector('[data-testid="access-permission-panel"]', { timeout: 15_000 });
-        await driver
-          .locator('[data-testid="access-connection"]')
-          .selectOption({ label: usersLabel(dialect) });
-        await driver.locator('[data-testid="access-principal-name"]').fill('report_user');
-        await fillScope(dialect);
-
-        await driver.locator('[data-testid="access-preview-sql"]').click();
-        await driver.waitForFunction(
-          () => {
-            const pre = document.querySelector('[data-testid="access-sql"]');
-            return pre !== null && (pre.textContent ?? '').trim().length > 10;
-          },
-          undefined,
-          { timeout: 30_000 }
-        );
-
-        const sqlText = await driver.locator('[data-testid="access-sql"]').innerText();
-        expect(sqlText.toUpperCase()).toMatch(/GRANT|REVOKE|--/);
-        await saveScreenshot(driver, `access-builder-${dialect}`);
-      });
-
       it('Permission Diff tab loads and accepts desired state', async () => {
         if (!SUPPORTS_GRANT_BUILDER.includes(dialect)) return;
 
@@ -278,7 +232,6 @@ describe.skipIf(configured.length === 0)('Access Assistant (all configured diale
             () => {
               if (document.querySelector('[data-testid="diff-summary"]')) return true;
               if (document.querySelector('[data-testid="diff-table"]')) return true;
-              if (document.querySelector('[data-testid="access-error"]')) return true;
               if (document.querySelector('[data-testid="diff-load-error"]')) return true;
               const empty = document.querySelector('[data-testid="diff-empty"]');
               return empty !== null && /No privileges found/i.test(empty.textContent ?? '');
@@ -297,7 +250,7 @@ describe.skipIf(configured.length === 0)('Access Assistant (all configured diale
         ).toBe(true);
 
         const failed = driver.locator(
-          '[data-testid="access-error"], [data-testid="diff-load-error"]'
+          '[data-testid="diff-load-error"]'
         );
         if ((await failed.count()) > 0) {
           // A container that is down, or a catalog this account cannot read,
@@ -330,29 +283,6 @@ describe.skipIf(configured.length === 0)('Access Assistant (all configured diale
 
         await saveScreenshot(driver, `access-diff-${dialect}`);
       }, 200_000);
-
-      if (dialect === 'sqlserver' || dialect === 'azuresql') {
-        // Same Principals-panel rewrite needed as the GRANT preview case above.
-        it.skip('Permission Builder offers DENY for SQL Server family', async () => {
-          await driver.locator('[data-testid="access-tab-permission"]').click();
-          await driver.waitForSelector('[data-testid="access-permission-panel"]', { timeout: 15_000 });
-          await driver
-            .locator('[data-testid="access-connection"]')
-            .selectOption({ label: usersLabel(dialect) });
-          await driver.locator('[data-testid="access-action"]').getByText('Deny').click();
-          await driver.locator('[data-testid="access-principal-name"]').fill('report_user');
-          await driver.locator('[data-testid="access-schema"]').fill('dbo');
-          await driver.locator('[data-testid="access-preview-sql"]').click();
-          await driver.waitForFunction(
-            () =>
-              (document.querySelector('[data-testid="access-sql"]')?.textContent ?? '').includes(
-                'DENY'
-              ),
-            undefined,
-            { timeout: 30_000 }
-          );
-        });
-      }
     });
   }
 });

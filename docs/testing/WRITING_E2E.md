@@ -90,6 +90,22 @@ cd apps/e2e && npx vitest run src/tests/workflow-runs.test.ts
 - `npx playwright codegen http://localhost:5173` records the clicks you make
   as `getByTestId(...)` steps, a usable first draft to paste in.
 
+## Ask an agent
+
+The repo's `.mcp.json` registers a small MCP server over the catalog
+(`scripts/test-ids/mcp-server.mjs`). Claude Code offers it when you open the
+repo, and it gives an agent three tools:
+
+- `find_test_id`: words in, IDs out. "push button in the commit dialog" gives
+  `git-commit-push`.
+- `describe_screen`: every ID one component draws.
+- `scaffold_test`: a test file for one component, built on `byTestId` and the
+  page object for its area. The steps the flow describes are live; the
+  screen's other controls are listed, commented out.
+
+Together with a browser-driving MCP (Playwright's), an agent can find the IDs
+for a flow and write the test that uses them.
+
 ## A control without an ID
 
 That should not happen: the catalog test fails on one. If you add a control,

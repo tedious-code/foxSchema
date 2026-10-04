@@ -22,6 +22,8 @@ export type UserAlteration =
   | 'rename'
   /** Refuse new connections without dropping anything. */
   | 'disable'
+  /** Join or leave roles and groups. */
+  | 'membership'
   /** Allow connections again. */
   | 'enable'
   /** Force password change or set account expiry. */
@@ -54,6 +56,10 @@ export interface UserRequest {
    * one review instead of two trips through two screens.
    */
   roles?: string[];
+  /** For `alter` + `membership`: roles or groups to join. */
+  rolesToAdd?: string[];
+  /** For `alter` + `membership`: roles or groups to leave. */
+  rolesToRemove?: string[];
 }
 
 export interface GeneratedUserSql {

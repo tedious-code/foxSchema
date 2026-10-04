@@ -90,6 +90,10 @@ export function buildUserSql(
     return { error: support.reason ?? 'This engine cannot create users in SQL.' };
   }
 
+  if (request.action === 'alter' && request.alteration === 'membership') {
+    return membershipChangeSql(request, name, dialect);
+  }
+
   const built = impl.build({ ...request, name }, dialect);
   if ('error' in built) return built;
   const roles = (request.roles ?? []).map((r) => r.trim()).filter(Boolean);
@@ -97,6 +101,71 @@ export function buildUserSql(
   const memberships = roleMembershipStatements(request, name, roles, dialect);
   if ('error' in memberships) return memberships;
   return { ...built, statements: [...built.statements, ...memberships] };
+}
+
+/**
+ * Join and leave roles for an account that exists: a GRANT per role joined and
+ * a REVOKE per role left, nothing for the memberships it keeps.
+ *
+ * On MySQL and TiDB a role granted to an existing user stays inactive until
+ * the session turns it on, so joining also sets every role as a default.
+ * MariaDB keeps a single default role, and changing it here would quietly
+ * replace the one the account has, so it is left alone and said so.
+ */
+function membershipChangeSql(request: UserRequest, name: string, dialect: string): GeneratedUserSql | { error: string } {
+  const clean = (list?: string[]) => [...new Set((list ?? []).map((r) => r.trim()).filter(Boolean))];
+  const add = clean(request.rolesToAdd);
+  const remove = clean(request.rolesToRemove).filter((r) => !add.includes(r));
+  if (add.length === 0 && remove.length === 0) {
+    return { error: 'Nothing to change: tick a role to join it, untick one to leave it.' };
+  }
+  const fam = accessFamily(dialect);
+  const mysqlFamily = fam === 'mysql' || fam === 'mariadb';
+  const isUser = request.principalType === 'user';
+  const grantee = mysqlFamily && isUser ? `${name}@${request.host?.trim() || '%'}` : name;
+  const statements: GeneratedStatement[] = [];
+  for (const [action, roles] of [
+    ['grant', add],
+    ['revoke', remove],
+  ] as const) {
+    for (const role of roles) {
+      const built = buildGrantRevokeSql({
+        dialect,
+        action,
+        privilege: role,
+        objectType: 'ROLE',
+        objectName: role,
+        grantee,
+        granteeKind: request.principalType,
+      });
+      if ('error' in built) return built;
+      statements.push({
+        sql: built.sql,
+        explanation:
+          action === 'grant'
+            ? `Adds ${name} to ${role}, so it holds everything ${role} holds.`
+            : `Takes ${name} out of ${role}; it loses what it held only through ${role}.`,
+        risk: action === 'grant' ? 'elevated' : 'low',
+      });
+    }
+  }
+  if (mysqlFamily && isUser && add.length > 0) {
+    const account = mysqlAccount(name, request.host);
+    if (fam === 'mariadb') {
+      statements.push({
+        sql: `-- MariaDB keeps one default role. To turn ${add[0]} on at login: SET DEFAULT ROLE ${mysqlRoleRef(add[0]!, undefined, dialect)} FOR ${account};`,
+        explanation: 'Left as a comment: setting it would replace the default role the account has now.',
+        risk: 'low',
+      });
+    } else {
+      statements.push({
+        sql: `SET DEFAULT ROLE ALL TO ${account};`,
+        explanation: 'Turns the joined roles on at login; a MySQL role is inactive until it is a default or SET ROLE names it.',
+        risk: 'low',
+      });
+    }
+  }
+  return { statements, warnings: [], risk: add.length > 0 ? 'elevated' : 'low' };
 }
 
 /**

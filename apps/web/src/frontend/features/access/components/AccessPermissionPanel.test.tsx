@@ -204,6 +204,52 @@ describe('AccessPermissionPanel — one session', () => {
     expect(runAccessSql).not.toHaveBeenCalled();
   });
 
+  const ORDERS = 'cat-0-public.table.orders';
+  const cell = (permission: string) => screen.getByTestId(`matrix-cell-${ORDERS}-${permission}`) as HTMLInputElement;
+  const sqlText = () => screen.getByTestId('access-grants-sql').querySelector('pre')?.textContent ?? '';
+
+  it('opens the grid on what an existing principal holds, not on empty boxes', async () => {
+    await grantsStageFor('alice');
+    await waitFor(() => expect(cell('read').checked).toBe(true));
+    expect(cell('read').closest('td')?.getAttribute('data-change')).toBe('held');
+    expect(cell('insert').checked).toBe(false);
+    expect(sqlText()).toMatch(/Nothing to change: the grid matches what alice holds now/);
+    expect(screen.getByTestId('matrix-summary').textContent).toMatch(/1 privilege held now · 0 to grant · 0 to revoke/);
+  });
+
+  it('grants a new tick without revoking what is already held', async () => {
+    await grantsStageFor('alice');
+    await waitFor(() => expect(cell('read').checked).toBe(true));
+    fireEvent.click(cell('insert'));
+    await waitFor(() => expect(sqlText()).toMatch(/GRANT INSERT ON "public"\."orders" TO "alice"/));
+    expect(sqlText()).not.toMatch(/REVOKE/);
+    expect(cell('insert').closest('td')?.getAttribute('data-change')).toBe('grant');
+    expect(screen.getByTestId('access-grants-change-grant').textContent).toBe('Grant INSERT on public.orders');
+  });
+
+  it('revokes only the held box that was cleared, and Reset puts it back', async () => {
+    await grantsStageFor('alice');
+    await waitFor(() => expect(cell('read').checked).toBe(true));
+    fireEvent.click(cell('read'));
+    await waitFor(() => expect(sqlText()).toMatch(/^REVOKE SELECT ON "public"\."orders" FROM "alice";$/));
+    expect(cell('read').closest('td')?.getAttribute('data-change')).toBe('revoke');
+
+    fireEvent.click(screen.getByTestId('access-grants-reset'));
+    await waitFor(() => expect(cell('read').checked).toBe(true));
+    expect(sqlText()).toMatch(/Nothing to change/);
+  });
+
+  it('applies a preset to the objects that load after it was clicked', async () => {
+    let arrive: (v: unknown) => void = () => undefined;
+    loadSchema.mockReturnValue(new Promise((resolve) => (arrive = resolve)));
+    await grantsStageFor('alice');
+    fireEvent.click(await screen.findByTestId('access-grants-preset-read-write'));
+    arrive({ tables: [{ name: 'orders', objectType: 'TABLE' }] });
+    // The SQL reaches the stage one render after the ticks; wait for it, not the box.
+    await waitFor(() => expect(sqlText()).toMatch(/GRANT INSERT, UPDATE, DELETE ON "public"\."orders"/));
+    expect(cell('insert').checked).toBe(true);
+  });
+
   it('offers nothing to copy when the desired matrix already matches', async () => {
     // alice holds exactly SELECT on public.orders, which is what read-only
     // asks for. Offering a GRANT here would hand over SQL that changes
@@ -212,9 +258,7 @@ describe('AccessPermissionPanel — one session', () => {
 
     fireEvent.click(await screen.findByTestId('access-grants-preset-read-only'));
     await waitFor(() =>
-      expect(screen.getByTestId('access-grants-sql').textContent).toMatch(
-        /matches the live catalog/i
-      )
+      expect(screen.getByTestId('access-grants-sql').textContent).toMatch(/Nothing to change/)
     );
     expect((screen.getByTestId('access-grants-copy') as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByTestId('access-grants-open-sql') as HTMLButtonElement).disabled).toBe(true);

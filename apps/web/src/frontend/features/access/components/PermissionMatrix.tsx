@@ -17,17 +17,20 @@
  * never there; "PostgreSQL has no GRANT for this — changing an object requires
  * owning it" answers the question they actually have.
  */
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Plus, Trash2, Table2, Eye, Cog, FunctionSquare, Info } from 'lucide-react';
 import {
   cellSupport,
   permissionBand,
+  compileGridChanges,
   compileObjectGrid,
+  gridObjectKey,
   describePermission,
   gridColumnsFor,
   type AccessPermission,
   type AccessPrincipal,
   type GridObjectKind,
+  type GridChanges,
   type GridRow,
   type PermissionRequest,
 } from '../lib/access';
@@ -70,12 +73,34 @@ const COLUMN_LABEL: Partial<Record<AccessPermission, string>> = {
 };
 
 /**
- * Which band a column sits under.
+ * Which band a column sits under, said in plain words first.
  *
  * DML changes rows, DDL changes the object. Splitting them is what makes a wide
  * grid scannable: the two halves carry very different consequences, and the
- * reader is usually looking for one or the other.
+ * reader is usually looking for one or the other. "DML" and "DDL" mean nothing
+ * to a reader who did not come up through databases, so the heading says what
+ * the columns let the account do, and keeps the term for those who look for it.
  */
+const BAND: Record<'DML' | 'DDL', { heading: string; title: string }> = {
+  DML: {
+    heading: 'Work with rows · DML',
+    title: 'Data privileges: read rows (SELECT) and change them (INSERT, UPDATE, DELETE). The table itself is untouched.',
+  },
+  DDL: {
+    heading: 'Change the table · DDL',
+    title: 'Structure privileges: change the object itself — add an index or trigger, ALTER its columns, DROP it.',
+  },
+};
+
+/** What a cell will do when the SQL runs, against what the principal holds now. */
+type CellChange = 'held' | 'grant' | 'revoke' | 'none';
+const CELL_STYLE: Record<CellChange, { td: string; title: string }> = {
+  held: { td: '', title: 'Held now' },
+  grant: { td: 'bg-emerald-500/15', title: 'Will be granted' },
+  revoke: { td: 'bg-rose-500/20', title: 'Held now — will be revoked' },
+  none: { td: '', title: '' },
+};
+
 let rowSeq = 0;
 const newRow = (kind: GridObjectKind): MatrixRow => ({
   id: `row-${++rowSeq}`,
@@ -111,6 +136,18 @@ export const PermissionMatrix: React.FC<{
   applyPreset?: { permissions: readonly AccessPermission[]; nonce: number } | null;
   /** Called whenever the ticks change, with the requests they compile to. */
   onChange?: (requests: PermissionRequest[]) => void;
+  /**
+   * What the principal already holds, by `gridObjectKey`.
+   *
+   * When given, the grid opens ticked as the catalog stands — an existing
+   * role's boxes are not all empty — and each cell shows what will change:
+   * green for a GRANT, red for a REVOKE. `onChanges` then reports only those
+   * differences, so nothing the grid does not show is ever revoked.
+   */
+  held?: ReadonlyMap<string, readonly AccessPermission[]>;
+  onChanges?: (changes: GridChanges) => void;
+  /** Bump to put every row back to what is held, dropping the reader's edits. */
+  resetNonce?: number;
 }> = ({
   dialect,
   principal,
@@ -121,8 +158,39 @@ export const PermissionMatrix: React.FC<{
   catalog,
   applyPreset,
   onChange,
+  held,
+  onChanges,
+  resetNonce,
 }) => {
   const [rows, setRows] = useState<MatrixRow[]>(() => [newRow('table')]);
+  /**
+   * What decides a row's ticks when the catalog reseeds it. A row the reader
+   * edited keeps their ticks. Otherwise the last preset wins, so a preset
+   * clicked while schemas are still loading also ticks the rows that arrive
+   * after it — before, it ticked only what had loaded and the rest came in
+   * empty. With neither, a row opens on what is held.
+   */
+  const edited = useRef(new Set<string>());
+  const preset = useRef<readonly AccessPermission[] | null>(null);
+  const rowKey = useCallback((r: { schema?: string; kind: GridObjectKind; name: string }) => gridObjectKey({ ...r, schema: r.schema?.trim() || schema }), [schema]);
+  const opening = useCallback(
+    (o: { schema?: string; kind: GridObjectKind; name: string }): AccessPermission[] => {
+      const available = gridColumnsFor(dialect, o.kind).filter((c) => c.support.available).map((c) => c.permission);
+      if (preset.current) return available.filter((p) => preset.current!.includes(p));
+      return [...(held?.get(rowKey(o)) ?? [])];
+    },
+    [dialect, held, rowKey]
+  );
+  const heldKey = useMemo(
+    () =>
+      held
+        ? [...held.entries()]
+            .map(([k, v]) => `${k}=${[...v].sort().join(',')}`)
+            .sort()
+            .join('\u0000')
+        : '',
+    [held]
+  );
 
   /**
    * Open the grid on the catalog, and keep the reader's ticks across a reload.
@@ -145,21 +213,23 @@ export const PermissionMatrix: React.FC<{
   React.useEffect(() => {
     if (!catalogKey) return;
     setRows((prev) => {
-      const ticked = new Map(
-        prev.map((r) => [`${r.schema ?? ''}.${r.kind}.${r.name}`, r.permissions])
-      );
-      return (catalog ?? []).map((o, i) => ({
-        id: `cat-${i}-${o.schema}.${o.kind}.${o.name}`,
-        kind: o.kind,
-        name: o.name,
-        schema: o.schema,
-        permissions: ticked.get(`${o.schema}.${o.kind}.${o.name}`) ?? [],
-      }));
+      const ticked = new Map(prev.map((r) => [rowKey(r), r.permissions]));
+      return (catalog ?? []).map((o, i) => {
+        const key = rowKey(o);
+        return {
+          id: `cat-${i}-${o.schema}.${o.kind}.${o.name}`,
+          kind: o.kind,
+          name: o.name,
+          schema: o.schema,
+          permissions: edited.current.has(key) ? (ticked.get(key) ?? []) : opening(o),
+        };
+      });
     });
     // `catalog` is intentionally absent: `catalogKey` is its content digest,
-    // and depending on the array itself reseeds on every loader commit.
+    // and depending on the array itself reseeds on every loader commit. A
+    // change in what is held (a reload) reseeds the rows the reader left alone.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalogKey]);
+  }, [catalogKey, heldKey]);
 
   // Keyed on the principal's *fields*, never its object identity. The parent
   // builds `principal` as a literal in its JSX, so a fresh object arrives on
@@ -197,10 +267,37 @@ export const PermissionMatrix: React.FC<{
     onChange?.(requests);
   }, [requests, onChange]);
 
+  const changes = useMemo(
+    () =>
+      held
+        ? compileGridChanges(
+            rows.map((r) => ({ ...r, schema: r.schema?.trim() || schema })),
+            held,
+            { dialect, principal: { type: principalType, name: principalName }, schema, withGrantOption }
+          )
+        : null,
+    [held, rows, dialect, principalType, principalName, schema, withGrantOption]
+  );
+  React.useEffect(() => {
+    if (changes) onChanges?.(changes);
+  }, [changes, onChanges]);
+
+  const resetTo = resetNonce;
+  React.useEffect(() => {
+    if (resetTo === undefined) return;
+    edited.current.clear();
+    preset.current = null;
+    setRows((prev) => prev.map((r) => ({ ...r, permissions: [...(held?.get(rowKey(r)) ?? [])] })));
+    // Fires on the nonce alone, like the preset below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetTo]);
+
   const presetNonce = applyPreset?.nonce;
   const presetPermissions = applyPreset?.permissions;
   React.useEffect(() => {
     if (presetNonce === undefined || !presetPermissions) return;
+    preset.current = presetPermissions;
+    edited.current.clear();
     setRows((prev) =>
       prev.map((r) => {
         const available = gridColumnsFor(dialect, r.kind)
@@ -215,15 +312,26 @@ export const PermissionMatrix: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [presetNonce]);
 
-  const update = useCallback((id: string, patch: Partial<MatrixRow>) => {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-  }, []);
+  const update = useCallback(
+    (id: string, patch: Partial<MatrixRow>) => {
+      setRows((prev) =>
+        prev.map((r) => {
+          if (r.id !== id) return r;
+          const next = { ...r, ...patch };
+          edited.current.add(rowKey(next));
+          return next;
+        })
+      );
+    },
+    [rowKey]
+  );
 
   const toggle = useCallback(
     (id: string, permission: AccessPermission) => {
       setRows((prev) =>
         prev.map((r) => {
           if (r.id !== id) return r;
+          edited.current.add(rowKey(r));
           const has = r.permissions.includes(permission);
           return {
             ...r,
@@ -234,7 +342,7 @@ export const PermissionMatrix: React.FC<{
         })
       );
     },
-    []
+    [rowKey]
   );
 
   /** Tick or clear every available cell in one row — the common bulk action. */
@@ -243,6 +351,7 @@ export const PermissionMatrix: React.FC<{
       setRows((prev) =>
         prev.map((r) => {
           if (r.id !== id) return r;
+          edited.current.add(rowKey(r));
           const available = gridColumnsFor(dialect, r.kind)
             .filter((c) => c.support.available)
             .map((c) => c.permission);
@@ -251,7 +360,7 @@ export const PermissionMatrix: React.FC<{
         })
       );
     },
-    [dialect]
+    [dialect, rowKey]
   );
 
   /** Tick or clear one column across every row of that kind. */
@@ -264,6 +373,7 @@ export const PermissionMatrix: React.FC<{
           inKind.length > 0 && inKind.every((r) => r.permissions.includes(permission));
         return prev.map((r) => {
           if (r.kind !== kind) return r;
+          edited.current.add(rowKey(r));
           const has = r.permissions.includes(permission);
           if (allOn && has) return { ...r, permissions: r.permissions.filter((p) => p !== permission) };
           if (!allOn && !has) return { ...r, permissions: [...r.permissions, permission] };
@@ -271,7 +381,7 @@ export const PermissionMatrix: React.FC<{
         });
       });
     },
-    [dialect]
+    [dialect, rowKey]
   );
 
   /** Whether the loaded rows span more than one schema. */
@@ -286,6 +396,9 @@ export const PermissionMatrix: React.FC<{
   }, [rows]);
 
   const ticked = rows.reduce((n, r) => n + r.permissions.length, 0);
+  const heldCount = held ? [...held.values()].reduce((n, v) => n + v.length, 0) : 0;
+  const changeCount = (reqs: readonly PermissionRequest[]) =>
+    reqs.reduce((n, r) => n + r.permissions.length * (r.scope.type === 'tables' ? r.scope.tables.length : r.scope.type === 'routines' ? r.scope.routines.length : 1), 0);
 
   return (
     <div className="flex flex-col gap-4" data-testid="permission-matrix">
@@ -324,14 +437,15 @@ export const PermissionMatrix: React.FC<{
                       <th
                         key={`${b.band}-${i}`}
                         colSpan={b.span}
-                        className={`px-2 py-1.5 font-bold uppercase tracking-wide text-[10px] border-l border-slate-800 ${
+                        title={BAND[b.band].title}
+                        className={`px-2 py-1.5 font-bold uppercase tracking-wide text-[10px] border-l border-slate-800 cursor-help ${
                           b.band === 'DDL' ? 'text-amber-500/70' : 'text-slate-500'
                         }`}
                       >
-                        {b.band}
+                        {BAND[b.band].heading}
                       </th>
                     ))}
-                    <th className="w-8" />
+                    <th className="w-16" />
                   </tr>
                   <tr className="text-slate-400 border-b border-slate-800">
                     <th className="text-left font-normal px-3 pb-1.5">
@@ -397,7 +511,21 @@ export const PermissionMatrix: React.FC<{
                             {row.schema || '—'}
                           </span>
                         )}
-                        {kind === 'table' || kind === 'view' ? (
+                        {/*
+                          * A row from the catalog names a real object: text,
+                          * not an input. It used to be an editable box under
+                          * the schema badge — two lines per row, and a rename
+                          * there pointed the GRANT at an object that may not
+                          * exist. Rows the reader adds keep their input.
+                          */}
+                        {row.id.startsWith('cat-') ? (
+                          <span
+                            data-testid={`matrix-name-${row.id}`}
+                            className="font-mono text-[12px] text-slate-200"
+                          >
+                            {row.name}
+                          </span>
+                        ) : kind === 'table' || kind === 'view' ? (
                           <Autocomplete
                             value={row.name}
                             onChange={(v) => update(row.id, { name: v })}
@@ -417,17 +545,28 @@ export const PermissionMatrix: React.FC<{
                       </td>
                       {columns.map(({ permission, support }) => {
                         const on = row.permissions.includes(permission);
+                        const had = held?.get(rowKey(row))?.includes(permission) ?? false;
+                        const change: CellChange = !held || !support.available
+                          ? 'none'
+                          : on && had
+                            ? 'held'
+                            : on
+                              ? 'grant'
+                              : had
+                                ? 'revoke'
+                                : 'none';
                         return (
                           <td
                             key={permission}
-                            className="text-center border-l border-slate-800/40 px-1"
+                            data-change={change}
+                            className={`text-center border-l border-slate-800/40 px-1 ${CELL_STYLE[change].td}`}
                           >
                             <input
                               type="checkbox"
                               checked={on && support.available}
                               disabled={!support.available}
                               onChange={() => toggle(row.id, permission)}
-                              title={support.available ? undefined : support.reason}
+                              title={support.available ? CELL_STYLE[change].title || undefined : support.reason}
                               data-testid={`matrix-cell-${row.id}-${permission}`}
                               className={
                                 support.available
@@ -438,7 +577,16 @@ export const PermissionMatrix: React.FC<{
                           </td>
                         );
                       })}
-                      <td className="px-1 text-right">
+                      <td className="px-1 text-right whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => toggleRow(row.id)}
+                          data-testid={`matrix-row-all-${row.id}`}
+                          title={`Tick or clear every privilege on ${row.name || 'this row'}`}
+                          className="mr-1.5 text-[10px] text-slate-500 hover:text-slate-200"
+                        >
+                          All
+                        </button>
                         <button
                           type="button"
                           onClick={() => setRows((p) => p.filter((r) => r.id !== row.id))}
@@ -465,19 +613,6 @@ export const PermissionMatrix: React.FC<{
               </table>
             </div>
 
-            <div className="flex items-center gap-3 px-3 py-1.5 border-t border-slate-800 bg-slate-950/40">
-              {kindRows.map((row) => (
-                <button
-                  key={row.id}
-                  type="button"
-                  onClick={() => toggleRow(row.id)}
-                  data-testid={`matrix-row-all-${row.id}`}
-                  className="text-[10px] text-slate-500 hover:text-slate-300"
-                >
-                  All / none: {row.name || '(unnamed)'}
-                </button>
-              ))}
-            </div>
           </div>
         );
       })}
@@ -499,13 +634,32 @@ export const PermissionMatrix: React.FC<{
           ))}
       </div>
 
+      {held && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400" data-testid="matrix-legend">
+          <span className="inline-flex items-center gap-1.5">
+            <span aria-hidden className="inline-flex h-3 w-3 items-center justify-center rounded-sm bg-emerald-500 text-[9px] font-bold leading-none text-slate-950">✓</span> Held now
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-block h-3 w-3 rounded-sm bg-emerald-500/40" /> Will be granted
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-block h-3 w-3 rounded-sm bg-rose-500/50" /> Held now, will be revoked
+          </span>
+          <span className="text-slate-500">
+            Rows: read and change data (DML). Structure: change the table itself (DDL). Hover a heading for more.
+          </span>
+        </div>
+      )}
+
       <div
         data-testid="matrix-summary"
         className="flex items-start gap-2 text-[11px] text-slate-500"
       >
         <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
         <span>
-          {ticked === 0
+          {changes
+            ? `${heldCount} privilege${heldCount === 1 ? '' : 's'} held now · ${changeCount(changes.grant)} to grant · ${changeCount(changes.revoke)} to revoke. Untick a box to revoke it; nothing the grid does not show is touched.`
+            : ticked === 0
             ? 'Tick the privileges each object needs. Struck-through columns are ones this engine cannot grant on a single object — hover for why.'
             : `${ticked} privilege${ticked === 1 ? '' : 's'} ticked, compiled into ${
                 requests.length

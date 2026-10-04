@@ -9,6 +9,8 @@
 export const TestIds = {
   access: {
     AccessGrantsStage: {
+      /** li */
+      accessGrantsChange: (action: string | number) => `access-grants-change-${action}`,
       /** button · Copy */
       accessGrantsCopy: 'access-grants-copy',
       /** ul */
@@ -21,10 +23,10 @@ export const TestIds = {
       accessGrantsOpenSql: 'access-grants-open-sql',
       /** button */
       accessGrantsPreset: (p: string | number) => `access-grants-preset-${p}`,
-      /** button · Custom */
-      accessGrantsPresetClear: 'access-grants-preset-clear',
       /** div */
       accessGrantsPresets: 'access-grants-presets',
+      /** button · Reset to current */
+      accessGrantsReset: 'access-grants-reset',
       /** div · Grant SQL */
       accessGrantsSql: 'access-grants-sql',
       /** div · Grant SQL */
@@ -319,7 +321,9 @@ export const TestIds = {
       matrixCell: (id: string | number, permission: string | number) => `matrix-cell-${id}-${permission}`,
       /** button */
       matrixCol: (kind: string | number, permission: string | number) => `matrix-col-${kind}-${permission}`,
-      /** input */
+      /** div */
+      matrixLegend: 'matrix-legend',
+      /** span */
       matrixName: (id: string | number) => `matrix-name-${id}`,
       /** button */
       matrixNameOption: (id: string | number, value: string | number) => `matrix-name-${id}-option-${value}`,
@@ -327,7 +331,7 @@ export const TestIds = {
       matrixNameToggle: (id: string | number) => `matrix-name-${id}-toggle`,
       /** button · Remove this row */
       matrixRemove: (id: string | number) => `matrix-remove-${id}`,
-      /** button · All / none: */
+      /** button · All */
       matrixRowAll: (id: string | number) => `matrix-row-all-${id}`,
       /** span · Schema this object belongs to */
       matrixSchema: (id: string | number) => `matrix-schema-${id}`,
@@ -455,6 +459,14 @@ export const TestIds = {
       userMemberOfItem: (name: string | number) => `user-member-of-item-${name}`,
       /** div */
       userMemberOfList: 'user-member-of-list',
+      /** div */
+      userMembership: 'user-membership',
+      /** input · Search… */
+      userMembershipFilter: 'user-membership-filter',
+      /** input */
+      userMembershipItem: (name: string | number) => `user-membership-item-${name}`,
+      /** div */
+      userMembershipList: 'user-membership-list',
       /** input */
       userName: 'user-name',
       /** button */
@@ -3292,14 +3304,15 @@ export const TestIds = {
 /** Any test ID in the web app; `${string}` is a part filled in at run time. */
 export type TestId =
   | 'access-connection'
+  | `access-grants-change-${string}`
   | 'access-grants-copy'
   | 'access-grants-diff'
   | 'access-grants-mode'
   | `access-grants-mode-${string}`
   | 'access-grants-open-sql'
   | `access-grants-preset-${string}`
-  | 'access-grants-preset-clear'
   | 'access-grants-presets'
+  | 'access-grants-reset'
   | 'access-grants-sql'
   | 'access-grants-stage'
   | 'access-menu'
@@ -4089,6 +4102,7 @@ export type TestId =
   | `matrix-add-section-${string}`
   | `matrix-cell-${string}-${string}`
   | `matrix-col-${string}-${string}`
+  | 'matrix-legend'
   | `matrix-name-${string}`
   | `matrix-name-${string}-option-${string}`
   | `matrix-name-${string}-toggle`
@@ -4634,6 +4648,10 @@ export type TestId =
   | 'user-member-of-filter'
   | `user-member-of-item-${string}`
   | 'user-member-of-list'
+  | 'user-membership'
+  | 'user-membership-filter'
+  | `user-membership-item-${string}`
+  | 'user-membership-list'
   | 'user-name'
   | `user-name-option-${string}`
   | 'user-name-toggle'

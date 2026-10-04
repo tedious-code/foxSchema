@@ -34,6 +34,7 @@ import type {
   PermissionRequest,
 } from './intent.js';
 import { accessFamily } from './intent.js';
+import type { DbPrivilege } from './db-access.js';
 
 /** The kinds of object a grid row can stand for. */
 export type GridObjectKind = 'table' | 'view' | 'procedure' | 'function';
@@ -314,6 +315,117 @@ export function compileObjectGrid(
     });
   }
   return requests;
+}
+
+/** The key a grid row and a held privilege share: schema, kind and name, case-folded. */
+export function gridObjectKey(o: { schema?: string | null; kind: GridObjectKind; name: string }): string {
+  return `${(o.schema ?? '').trim().toLowerCase()}.${o.kind}.${o.name.trim().toLowerCase()}`;
+}
+
+/** The privilege names engines report for each cell. */
+const CELL_PRIVILEGE: Partial<Record<AccessPermission, string>> = {
+  read: 'SELECT',
+  insert: 'INSERT',
+  update: 'UPDATE',
+  delete: 'DELETE',
+  reference: 'REFERENCES',
+  'index-object': 'INDEX',
+  'trigger-object': 'TRIGGER',
+  'alter-object': 'ALTER',
+  'drop-object': 'DROP',
+  'execute-procedure': 'EXECUTE',
+  'execute-function': 'EXECUTE',
+};
+
+/** Spellings of "every privilege on this object". */
+const EVERY_PRIVILEGE = new Set(['ALL', 'ALL PRIVILEGES', 'CONTROL']);
+
+/**
+ * What a principal already holds, cell by cell, on the objects a grid shows.
+ *
+ * The grid used to open with every box empty, so a role that could already
+ * read twenty tables looked like it could read none — and because the SQL
+ * compared the ticks with the catalog, ticking one box produced REVOKEs for the
+ * other nineteen. Opening on this map makes a ticked box mean "holds it" and an
+ * empty one "does not", which is what a reader assumes they mean.
+ *
+ * Only grants on a named object count, and only ones a cell can show: a
+ * schema-wide or database-wide grant is a different scope, and a privilege the
+ * grid has no column for is not this grid's to display or to revoke. DENY rows
+ * are not held. `privileges` is expected to be this principal's already.
+ * `fallbackSchema` is the one the grid gives a row with none of its own, so
+ * the keys here are the keys the grid looks up.
+ */
+export function heldGridPermissions(
+  privileges: readonly DbPrivilege[],
+  objects: readonly { schema?: string | null; kind: GridObjectKind; name: string }[],
+  dialect: string,
+  fallbackSchema = ''
+): Map<string, AccessPermission[]> {
+  // A privilege row names schema and object; the grid knows the kind. Rows
+  // whose schema is not reported (MySQL's by-name grants) match on name alone.
+  const byName = new Map<string, { schema: string; kind: GridObjectKind; name: string }[]>();
+  for (const o of objects) {
+    const n = o.name.trim().toLowerCase();
+    byName.set(n, [...(byName.get(n) ?? []), { ...o, schema: o.schema?.trim() || fallbackSchema }]);
+  }
+  const held = new Map<string, AccessPermission[]>();
+  for (const p of privileges) {
+    if (p.state === 'deny' || !p.objectName) continue;
+    const privilege = (p.privilege || '').trim().toUpperCase();
+    const schema = (p.objectSchema ?? '').trim().toLowerCase();
+    // Either side may not know the schema: MySQL-family grants name the
+    // database, while a catalog read with no schema list keeps its rows
+    // schema-less. Only two schemas that are both known must agree.
+    const candidates = (byName.get(p.objectName.trim().toLowerCase()) ?? []).filter((o) => {
+      const own = (o.schema ?? '').trim().toLowerCase();
+      return !schema || !own || own === schema;
+    });
+    for (const o of candidates) {
+      const cells = prunedPermissions(
+        dialect,
+        o.kind,
+        GRID_COLUMNS[o.kind].filter((c) => EVERY_PRIVILEGE.has(privilege) || CELL_PRIVILEGE[c] === privilege)
+      );
+      if (cells.length === 0) continue;
+      const key = gridObjectKey(o);
+      held.set(key, [...new Set([...(held.get(key) ?? []), ...cells])]);
+    }
+  }
+  return held;
+}
+
+/** What a grid edit changes: GRANTs for new ticks, REVOKEs for held ones cleared. */
+export interface GridChanges {
+  grant: PermissionRequest[];
+  revoke: PermissionRequest[];
+}
+
+/**
+ * Compile a grid against what the principal already holds.
+ *
+ * Only differences become SQL: a new tick is a GRANT, a held box cleared is a
+ * REVOKE, and a box that matches the catalog — ticked or not — is nothing. A
+ * held privilege on an object that is not a row, or that no cell can show, is
+ * never touched: the grid cannot display it, so clearing it cannot have been
+ * what the reader meant.
+ */
+export function compileGridChanges(
+  rows: readonly GridRow[],
+  held: ReadonlyMap<string, readonly AccessPermission[]>,
+  options: Omit<CompileGridOptions, 'action'>
+): GridChanges {
+  const added: GridRow[] = [];
+  const removed: GridRow[] = [];
+  for (const row of rows) {
+    const had = held.get(gridObjectKey({ ...row, schema: row.schema?.trim() || options.schema })) ?? [];
+    added.push({ ...row, permissions: row.permissions.filter((p) => !had.includes(p)) });
+    removed.push({ ...row, permissions: had.filter((p) => !row.permissions.includes(p)) });
+  }
+  return {
+    grant: compileObjectGrid(added, { ...options, action: 'grant' }),
+    revoke: compileObjectGrid(removed, { ...options, action: 'revoke', withGrantOption: false }),
+  };
 }
 
 /**

@@ -578,7 +578,7 @@ export function SchemaBlueprint({
                   className="ml-auto flex items-center gap-1.5 normal-case text-[10px] font-semibold text-slate-300 cursor-pointer"
                   title="Include/exclude all changed members in the deploy script"
                 >
-                  <input
+                  <input data-testid="blueprint-all-members-selected"
                     type="checkbox"
                     checked={allMembersSelected}
                     onChange={(e) => onSelectAllMembers(e.target.checked)}
@@ -610,7 +610,7 @@ export function SchemaBlueprint({
                   className="ml-auto flex items-center gap-1.5 normal-case text-[10px] font-semibold text-slate-300 cursor-pointer"
                   title="Include/exclude every changed column in the deploy script"
                 >
-                  <input
+                  <input data-testid="blueprint-all-columns-selected"
                     type="checkbox"
                     checked={allColumnsSelected}
                     onChange={(e) => onSelectAllColumns(e.target.checked)}
@@ -664,7 +664,7 @@ export function SchemaBlueprint({
                       <td className={`${cell} font-semibold text-slate-200 font-mono`}>
                         <span className="flex items-center gap-1.5">
                           {isRole && col.status !== 'UNCHANGED' && onToggleMember && (
-                            <input
+                            <input data-testid={`blueprint-include-member-in-${col.name}`}
                               type="checkbox"
                               checked={memberSelection?.[col.name] !== false}
                               onChange={() => onToggleMember(col.name)}
@@ -802,7 +802,7 @@ export function SchemaBlueprint({
                   className="ml-auto flex items-center gap-1.5 normal-case text-[10px] font-semibold text-slate-300 cursor-pointer"
                   title="Include/exclude all changed indexes in the deploy script"
                 >
-                  <input
+                  <input data-testid="blueprint-all-indexes-selected"
                     type="checkbox"
                     checked={allIndexesSelected}
                     onChange={(e) => onSelectAllIndexes(e.target.checked)}
@@ -862,7 +862,7 @@ export function SchemaBlueprint({
                       <td className={`${cell} text-slate-200 font-semibold font-mono`}>
                         <span className="flex items-center gap-1.5">
                           {idx.status !== 'UNCHANGED' && onToggleIndex && (
-                            <input
+                            <input data-testid={`blueprint-toggle-index-${idx.name}`}
                               type="checkbox"
                               checked={indexSelection?.[idx.name] === true}
                               onChange={() => onToggleIndex(idx.name)}
@@ -946,7 +946,7 @@ export function SchemaBlueprint({
                   className="ml-auto flex items-center gap-1.5 normal-case text-[10px] font-semibold text-slate-300 cursor-pointer"
                   title="Include/exclude every changed trigger in the deploy script"
                 >
-                  <input
+                  <input data-testid="blueprint-all-triggers-selected"
                     type="checkbox"
                     checked={allTriggersSelected}
                     onChange={(e) => onSelectAllTriggers(e.target.checked)}

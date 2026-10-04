@@ -222,7 +222,7 @@ export const PeekDatePicker: React.FC<Props> = ({
           className="absolute right-0 top-full z-20 mt-1 w-64 rounded-md border border-slate-700 bg-slate-900 p-2 shadow-xl"
         >
           <div className="mb-2 flex items-center justify-between gap-1">
-            <button
+            <button data-testid="peek-date-view-toggle"
               type="button"
               className="rounded px-1.5 py-0.5 text-[11px] text-slate-300 hover:bg-slate-800"
               onClick={() =>
@@ -237,7 +237,7 @@ export const PeekDatePicker: React.FC<Props> = ({
             <span className="text-[11px] font-semibold text-slate-200">
               {new Date(view.y, view.m, 1).toLocaleString(undefined, { month: 'short', year: 'numeric' })}
             </span>
-            <button
+            <button data-testid="peek-date-today"
               type="button"
               className="rounded px-1.5 py-0.5 text-[11px] text-slate-300 hover:bg-slate-800"
               onClick={() =>
@@ -260,7 +260,7 @@ export const PeekDatePicker: React.FC<Props> = ({
               day == null ? (
                 <span key={`e-${i}`} />
               ) : (
-                <button
+                <button data-testid={`peek-date-day-${view.y}-${view.m}-${day}`}
                   key={`${view.y}-${view.m}-${day}`}
                   type="button"
                   className={`rounded py-1 text-[11px] ${

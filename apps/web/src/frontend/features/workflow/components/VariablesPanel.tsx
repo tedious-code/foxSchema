@@ -110,7 +110,7 @@ export function VariablesPanel() {
         <>
           <div className="environment-tabs" role="tablist">
             {environments.map((environment) => (
-              <button
+              <button data-testid={`workflow-variables-environment-${environment.id}`}
                 key={environment.id}
                 role="tab"
                 aria-selected={environment.id === selected?.id}

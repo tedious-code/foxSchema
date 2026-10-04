@@ -54,7 +54,7 @@ export const SsoButtons: React.FC = () => {
       </div>
       <div className="flex flex-col gap-2">
         {providers.map((p) => (
-          <button
+          <button data-testid={`auth-sso-buttons-continue-${p.id}`}
             key={p.id}
             type="button"
             onClick={() => startSso(p.id)}

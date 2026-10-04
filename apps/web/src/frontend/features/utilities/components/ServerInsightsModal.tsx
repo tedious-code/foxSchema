@@ -189,7 +189,7 @@ export const ServerInsightsModal: React.FC<Props> = ({
               </p>
             </div>
           </div>
-          <button
+          <button data-testid="server-insights-close"
             type="button"
             onClick={onClose}
             className="p-1.5 rounded text-slate-400 hover:text-slate-100 hover:bg-slate-800"
@@ -234,14 +234,14 @@ export const ServerInsightsModal: React.FC<Props> = ({
                 Session password
               </span>
               <div className="flex gap-1">
-                <input
+                <input data-testid="server-insights-password-draft"
                   type="password"
                   value={passwordDraft}
                   onChange={(e) => setPasswordDraft(e.target.value)}
                   placeholder="••••••••"
                   className="bg-slate-950 border border-slate-700 rounded-md px-2.5 py-1.5 text-sm text-slate-100 outline-none accent-focus font-mono w-36"
                 />
-                <button
+                <button data-testid="server-insights-unlock"
                   type="button"
                   onClick={() => unlock()}
                   className="px-2.5 py-1.5 text-xs font-bold rounded-md border border-amber-500/40 bg-amber-500/15 text-amber-100"

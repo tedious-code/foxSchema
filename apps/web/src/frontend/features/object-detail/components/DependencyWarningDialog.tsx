@@ -56,7 +56,7 @@ export const DependencyWarningDialog: React.FC<Props> = ({ deps, syncSelection, 
                   </p>
                 </div>
                 {d.deployable ? (
-                  <button
+                  <button data-testid={`migrate-dependency-${d.dependentType}-${d.dependentName}`}
                     onClick={() => {
                       if (!syncSelection[d.dependentName]) toggleSyncSelection(d.dependentName);
                     }}
@@ -75,7 +75,7 @@ export const DependencyWarningDialog: React.FC<Props> = ({ deps, syncSelection, 
           </ul>
         </div>
         <div className="flex justify-end gap-2 px-6 py-4 bg-slate-950/60 border-t border-slate-800">
-          <button
+          <button data-testid="migrate-dependency-warning-close"
             onClick={onCancel}
             className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-850/50 rounded transition"
           >

@@ -340,7 +340,7 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
         <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-800 shrink-0">
           <Shield className="w-4 h-4 text-amber-300" />
           <h2 className="text-sm font-bold text-slate-100 flex-1">Access control</h2>
-          <button type="button" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-100">
+          <button data-testid="admin-access-close" type="button" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-100">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -461,7 +461,7 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
                   <label htmlFor="admin-new-email" className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                     Add user · email
                   </label>
-                  <input
+                  <input data-testid="admin-new-email"
                     id="admin-new-email"
                     type="email"
                     required
@@ -488,7 +488,7 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
                   <label htmlFor="admin-new-role" className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                     Role
                   </label>
-                  <select
+                  <select data-testid="admin-new-role"
                     id="admin-new-role"
                     value={addRole}
                     onChange={(e) => setAddRole(e.target.value as AppRole)}
@@ -499,7 +499,7 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
                     ))}
                   </select>
                 </div>
-                <button
+                <button data-testid="admin-new-user-submit"
                   type="submit"
                   disabled={busy}
                   className="rounded-md accent-grad on-accent-fg px-3 py-1.5 text-xs font-bold disabled:opacity-60"
@@ -870,7 +870,7 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
             <div className="flex items-center gap-2">
               <KeyRound className="w-4 h-4 text-amber-300" />
               <h3 className="text-sm font-bold text-slate-100 flex-1">Change password</h3>
-              <button
+              <button data-testid="admin-password-close"
                 type="button"
                 onClick={() => setPasswordUser(null)}
                 className="p-1 text-slate-400 hover:text-slate-100"
@@ -908,7 +908,7 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
               </div>
             )}
             <div className="flex justify-end gap-2 pt-1">
-              <button
+              <button data-testid="admin-password-cancel"
                 type="button"
                 onClick={() => setPasswordUser(null)}
                 className="px-3 py-1.5 text-xs font-semibold rounded-md border border-slate-700 text-slate-300 hover:text-white"

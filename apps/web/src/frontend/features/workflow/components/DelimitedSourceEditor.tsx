@@ -186,7 +186,7 @@ function ColumnRuleEditor({
         }
       >
         {nameEditable && (
-          <input
+          <input data-testid={`workflow-source-rule-name-${name}`}
             type="text"
             placeholder="field name"
             title="Field name this rule applies to"
@@ -194,7 +194,7 @@ function ColumnRuleEditor({
             onChange={(ev) => onNameChange?.(ev.target.value)}
           />
         )}
-        <select
+        <select data-testid={`workflow-source-rule-type-${name}`}
           title="Value type — validated and converted"
           value={fields.type ?? 'string'}
           onChange={(ev) => onFieldsChange({ ...fields, type: ev.target.value })}
@@ -209,7 +209,7 @@ function ColumnRuleEditor({
           className="checkbox-row"
           title="Reject rows where this column is empty"
         >
-          <input
+          <input data-testid={`workflow-source-rule-required-${name}`}
             type="checkbox"
             checked={fields.required ?? false}
             onChange={(ev) =>
@@ -219,14 +219,14 @@ function ColumnRuleEditor({
           req
         </label>
         {onRemove && (
-          <button type="button" title="Remove rule" onClick={onRemove}>
+          <button data-testid={`workflow-source-rule-remove-${name}`} type="button" title="Remove rule" onClick={onRemove}>
             <X size={12} />
           </button>
         )}
       </div>
       {checks.map((check, index) => (
         <div className="column-check-row" key={index}>
-          <select
+          <select data-testid={`workflow-source-rule-check-kind-${name}-${index}`}
             title="Check purpose (shown in error messages)"
             value={check.kind ?? ''}
             onChange={(ev) =>
@@ -240,7 +240,7 @@ function ColumnRuleEditor({
               </option>
             ))}
           </select>
-          <input
+          <input data-testid={`workflow-source-rule-check-pattern-${name}-${index}`}
             type="text"
             placeholder={
               check.kind === 'null'
@@ -255,7 +255,7 @@ function ColumnRuleEditor({
             value={check.pattern}
             onChange={(ev) => patchCheck(index, { pattern: ev.target.value })}
           />
-          <button
+          <button data-testid={`workflow-source-rule-check-remove-${name}-${index}`}
             type="button"
             title="Remove regex check"
             onClick={() =>
@@ -269,7 +269,7 @@ function ColumnRuleEditor({
           </button>
         </div>
       ))}
-      <button
+      <button data-testid={`workflow-source-rule-check-add-${name}`}
         type="button"
         className="linkish"
         onClick={() =>
@@ -370,7 +370,7 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
   return (
     <div className="delimited-editor">
       <label>File path</label>
-      <input
+      <input data-testid="workflow-source-path"
         type="text"
         value={str(config.path)}
         placeholder={kind === 'csv' ? 'imports/orders.csv' : 'imports/report.txt'}
@@ -384,7 +384,7 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
         <div className="delimited-grid">
           <div>
             <label>Delimiter</label>
-            <input
+            <input data-testid="workflow-source-delimiter"
               type="text"
               maxLength={2}
               value={escapeDelimiter(str(config.delimiter, ','))}
@@ -396,7 +396,7 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
           </div>
           <div>
             <label>Skip lines</label>
-            <input
+            <input data-testid="workflow-source-skip-lines"
               type="number"
               min={0}
               value={num(config.skipLines, 0)}
@@ -411,7 +411,7 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
           <div className="delimited-grid">
             <div>
               <label>Format</label>
-              <select
+              <select data-testid="workflow-source-format"
                 value={format}
                 onChange={(ev) =>
                   patch({
@@ -425,7 +425,7 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
             </div>
             <div>
               <label>Offset (skip lines)</label>
-              <input
+              <input data-testid="workflow-source-offset"
                 type="number"
                 min={0}
                 value={num(config.offset, 0)}
@@ -441,7 +441,7 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
               <label>Field delimiters (any splits — \t for tab)</label>
               {delimiters.map((delimiter, index) => (
                 <div className="delimiter-row" key={index}>
-                  <input
+                  <input data-testid={`workflow-source-delimiter-${index}`}
                     type="text"
                     value={escapeDelimiter(delimiter)}
                     onChange={(ev) => {
@@ -450,7 +450,7 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
                       patch({ delimiters: next });
                     }}
                   />
-                  <button
+                  <button data-testid={`workflow-source-remove-delimiter-${index}`}
                     type="button"
                     title="Remove delimiter"
                     onClick={() =>
@@ -461,7 +461,7 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
                   </button>
                 </div>
               ))}
-              <button
+              <button data-testid="workflow-source-add-delimiter"
                 type="button"
                 className="linkish"
                 onClick={() => patch({ delimiters: [...delimiters, ';'] })}
@@ -470,7 +470,7 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
               </button>
 
               <label>Record delimiter (flat map)</label>
-              <input
+              <input data-testid="workflow-source-record-delimiter"
                 type="text"
                 placeholder="optional, e.g. |"
                 value={escapeDelimiter(str(config.recordDelimiter))}
@@ -480,7 +480,7 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
               />
 
               <label>Field names (comma-separated, positional)</label>
-              <input
+              <input data-testid="workflow-source-field-names"
                 type="text"
                 placeholder="id, name, email — extras become field_N"
                 value={fields.join(', ')}
@@ -523,7 +523,7 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
                   />
                 );
               })}
-              <button
+              <button data-testid="workflow-source-add-rule"
                 type="button"
                 className="linkish"
                 onClick={() => {
@@ -559,13 +559,13 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
                 return (
                   <div className="fixed-column-group" key={index}>
                     <div className="fixed-column-row">
-                      <input
+                      <input data-testid={`workflow-source-column-name-${index}`}
                         type="text"
                         placeholder="name"
                         value={column.name}
                         onChange={(ev) => patchColumn({ name: ev.target.value })}
                       />
-                      <input
+                      <input data-testid={`workflow-source-column-start-${index}`}
                         type="number"
                         min={1}
                         title="Start (1-based)"
@@ -574,7 +574,7 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
                           patchColumn({ start: Math.max(1, Number(ev.target.value) || 1) })
                         }
                       />
-                      <input
+                      <input data-testid={`workflow-source-column-length-${index}`}
                         type="number"
                         min={1}
                         title="Length"
@@ -583,7 +583,7 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
                           patchColumn({ length: Math.max(1, Number(ev.target.value) || 1) })
                         }
                       />
-                      <button
+                      <button data-testid={`workflow-source-column-remove-${index}`}
                         type="button"
                         title="Remove column"
                         onClick={() =>
@@ -601,7 +601,7 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
                   </div>
                 );
               })}
-              <button
+              <button data-testid="workflow-source-add-column"
                 type="button"
                 className="linkish"
                 onClick={() => {
@@ -619,7 +619,7 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
           )}
 
           <label>Header line</label>
-          <select
+          <select data-testid="workflow-source-header"
             value={str(config.header, 'none')}
             onChange={(ev) =>
               patch({ header: ev.target.value === 'none' ? undefined : ev.target.value })
@@ -631,7 +631,7 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
           </select>
 
           <label className="checkbox-row">
-            <input
+            <input data-testid="workflow-source-trim"
               type="checkbox"
               checked={bool(config.trim, true)}
               onChange={(ev) => patch({ trim: ev.target.checked ? undefined : false })}
@@ -639,7 +639,7 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
             Trim values
           </label>
           <label className="checkbox-row">
-            <input
+            <input data-testid="workflow-source-skip-empty"
               type="checkbox"
               checked={bool(config.skipEmpty, true)}
               onChange={(ev) =>
@@ -659,7 +659,7 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
           </a>
           , optional)
         </label>
-        <textarea
+        <textarea data-testid="workflow-source-row-schema"
           rows={4}
           className="code"
           spellCheck={false}
@@ -682,7 +682,7 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
           </details>
         )}
         <label>On invalid row</label>
-        <select
+        <select data-testid="workflow-source-on-invalid"
           value={str(config.onInvalid, 'fail')}
           onChange={(ev) =>
             patch({ onInvalid: ev.target.value === 'fail' ? undefined : ev.target.value })
@@ -703,7 +703,7 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
 
       <div className="delimited-preview">
         <label>Preview (sample data)</label>
-        <textarea
+        <textarea data-testid="workflow-source-sample"
           rows={4}
           className="code"
           spellCheck={false}
@@ -718,14 +718,14 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
           onChange={(ev) => setSample(ev.target.value)}
         />
         <div className="delimited-preview-actions">
-          <button
+          <button data-testid="workflow-source-preview-sample"
             type="button"
             disabled={previewing || !sample.trim()}
             onClick={() => void runPreview('sample')}
           >
             <Eye size={11} /> Preview sample
           </button>
-          <button
+          <button data-testid="workflow-source-preview-file-head"
             type="button"
             disabled={previewing || !str(config.path)}
             title={str(config.path) ? 'Parse the head of the configured file' : 'Set a file path first'}

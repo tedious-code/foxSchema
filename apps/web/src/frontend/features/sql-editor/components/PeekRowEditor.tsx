@@ -407,7 +407,7 @@ export const PeekRowEditor: React.FC<Props> = ({
               Generate
             </button>
           )}
-          <button
+          <button data-testid="peek-row-close"
             type="button"
             onClick={onCancel}
             className="p-1.5 rounded text-slate-400 hover:text-slate-100 hover:bg-slate-800"
@@ -592,7 +592,7 @@ export const PeekRowEditor: React.FC<Props> = ({
             </>
           ) : (
             <>
-              <button
+              <button data-testid="peek-row-cancel"
                 type="button"
                 onClick={onCancel}
                 className="px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200"

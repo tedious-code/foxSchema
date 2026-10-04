@@ -166,7 +166,7 @@ export const CommitMigrationDialog: React.FC<{ open: boolean; onClose: () => voi
         <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-800">
           <GitCommitHorizontal className="w-4 h-4 text-amber-300" />
           <h2 className="text-sm font-bold text-slate-100 flex-1">Commit migration to Git</h2>
-          <button type="button" aria-label="Close" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-100">
+          <button data-testid="git-commit-close" type="button" aria-label="Close" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-100">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -179,7 +179,7 @@ export const CommitMigrationDialog: React.FC<{ open: boolean; onClose: () => voi
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="flex flex-col gap-1">
                   <label htmlFor="git-commit-repo" className={labelCls}>Repository</label>
-                  <select id="git-commit-repo" value={repoId} onChange={(e) => chooseRepo(e.target.value)} className={inputCls}>
+                  <select data-testid="git-commit-repo" id="git-commit-repo" value={repoId} onChange={(e) => chooseRepo(e.target.value)} className={inputCls}>
                     {repos.map((r) => (
                       <option key={r.id} value={r.id}>{r.name}</option>
                     ))}
@@ -187,7 +187,7 @@ export const CommitMigrationDialog: React.FC<{ open: boolean; onClose: () => voi
                 </div>
                 <div className="flex flex-col gap-1">
                   <label htmlFor="git-commit-branch" className={labelCls}>Branch</label>
-                  <select id="git-commit-branch" value={branch} onChange={(e) => setBranch(e.target.value)} className={inputCls}>
+                  <select data-testid="git-commit-branch" id="git-commit-branch" value={branch} onChange={(e) => setBranch(e.target.value)} className={inputCls}>
                     {!branches.some((b) => b.name === repo?.defaultBranch) && repo && (
                       <option value={repo.defaultBranch}>{repo.defaultBranch} (first commit)</option>
                     )}
@@ -206,7 +206,7 @@ export const CommitMigrationDialog: React.FC<{ open: boolean; onClose: () => voi
               {branch === NEW_BRANCH && (
                 <div className="flex flex-col gap-1">
                   <label htmlFor="git-commit-new-branch" className={labelCls}>New branch name</label>
-                  <input
+                  <input data-testid="git-commit-new-branch"
                     id="git-commit-new-branch"
                     value={newBranch}
                     onChange={(e) => setNewBranch(e.target.value)}
@@ -225,7 +225,7 @@ export const CommitMigrationDialog: React.FC<{ open: boolean; onClose: () => voi
 
               <div className="flex flex-col gap-1">
                 <label htmlFor="git-commit-note" className={labelCls}>Note (the commit message)</label>
-                <textarea
+                <textarea data-testid="git-commit-note"
                   id="git-commit-note"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
@@ -268,7 +268,7 @@ export const CommitMigrationDialog: React.FC<{ open: boolean; onClose: () => voi
 
         {repos.length > 0 && (
           <div className="flex justify-end gap-2 px-4 py-3 border-t border-slate-800">
-            <button type="button" onClick={onClose} className="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:text-white">
+            <button data-testid="git-commit-cancel" type="button" onClick={onClose} className="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:text-white">
               Cancel
             </button>
             <button

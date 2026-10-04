@@ -116,7 +116,7 @@ export function Palette({
         <h3>Nodes</h3>
         <div className="palette-search-wrap">
           <Search size={14} className="palette-search-icon" />
-          <input
+          <input data-testid="workflow-palette-search-pipes"
             className="palette-search"
             value={query}
             onChange={(ev) => setQuery(ev.target.value)}
@@ -126,7 +126,7 @@ export function Palette({
         </div>
         {advancedCount > 0 && (
           <label className="palette-advanced-toggle">
-            <input
+            <input data-testid="workflow-palette-show-advanced"
               type="checkbox"
               checked={showAdvanced}
               onChange={(event) => setShowAdvanced(event.target.checked)}

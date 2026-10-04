@@ -206,7 +206,7 @@ export const SchemaTreePanel: React.FC = () => {
           {getChangeSummaryStats().map((stat) => {
             const active = stat.toggle ? showUnchanged : filterStatus === stat.status;
             return (
-              <button
+              <button data-testid={`schema-status-filter-${stat.status}`}
                 key={stat.status}
                 onClick={() => (stat.toggle ? setShowUnchanged((v) => !v) : setFilterStatus(stat.status))}
                 title={stat.toggle ? 'Toggle unchanged objects' : `Show ${stat.label.toLowerCase()}`}
@@ -233,7 +233,7 @@ export const SchemaTreePanel: React.FC = () => {
       <div className="p-3 border-b border-slate-800/80 bg-slate-950/20">
         <div className="relative">
           <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
-          <input
+          <input data-testid="sql-schema-tree-search"
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -255,7 +255,7 @@ export const SchemaTreePanel: React.FC = () => {
           data-testid="browse-type-filter"
           className="px-3 py-2 border-b border-slate-800/80 bg-slate-950/30 flex flex-wrap items-center gap-1"
         >
-          <button
+          <button data-testid="sql-schema-tree-type-all"
             onClick={clearTypeFilter}
             className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition cursor-pointer ${
               typeFilter.length === 0
@@ -295,7 +295,7 @@ export const SchemaTreePanel: React.FC = () => {
       {!browseMode && (
       <div className="px-3 py-2 border-b border-slate-800/80 bg-slate-950/30 flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
         <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-400 uppercase tracking-wider shrink-0 whitespace-nowrap">
-          <input
+          <input data-testid="sql-schema-tree-include-all"
             type="checkbox"
             checked={changedCount > 0 && includedCount === changedCount}
             onChange={(e) => setAllSyncSelection(e.target.checked)}

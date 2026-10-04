@@ -151,7 +151,7 @@ export const SelectColumnPicker: React.FC<Props> = ({ open, anchor, onClose }) =
       <div className="flex items-center gap-2 px-2.5 py-2 border-b border-slate-800 shrink-0">
         <Columns3 className="w-3.5 h-3.5 text-cyan-400" strokeWidth={SQL_ICON_STROKE} />
         <span className="text-[11px] font-bold text-slate-200 flex-1">SELECT columns</span>
-        <button
+        <button data-testid="sql-select-close"
           type="button"
           aria-label="Close"
           onClick={onClose}

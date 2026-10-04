@@ -74,7 +74,7 @@ export const MigrationProgressPanel: React.FC = () => {
         </h4>
         <div className="flex items-center gap-1.5">
           {snapshotDdl && (
-            <button
+            <button data-testid="migration-download-pre-migration"
               onClick={downloadSnapshot}
               title="Download pre-migration schema snapshot"
               className="flex items-center gap-1 text-[10px] text-slate-300 hover:text-slate-100 border border-slate-700 rounded px-2 py-1 hover:bg-slate-800 transition"
@@ -83,7 +83,7 @@ export const MigrationProgressPanel: React.FC = () => {
             </button>
           )}
           {!isMigrating && (
-            <button
+            <button data-testid="migration-clear-migration-progress"
               onClick={clearMigrationProgress}
               className="p-1 text-slate-500 hover:text-slate-200 hover:bg-slate-800 rounded transition"
             >
@@ -126,7 +126,7 @@ export const MigrationProgressPanel: React.FC = () => {
                 <p className="text-[10px] text-rose-400 mt-1 font-mono break-all">{item.error}</p>
               )}
               {item.status === 'FAILED' && !isMigrating && (
-                <button
+                <button data-testid={`migration-skip-retry-${item.objectName}`}
                   onClick={() => skipObjectAndRetry(item.objectName)}
                   title={`Exclude ${item.objectName} and re-run the migration with the remaining objects`}
                   className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 rounded px-2 py-1 transition"
@@ -167,7 +167,7 @@ export const MigrationProgressPanel: React.FC = () => {
                 </p>
                 <ul className="space-y-2">
                   <li className="flex items-start gap-2">
-                    <button
+                    <button data-testid="migration-switch-non-destructive"
                       onClick={() => { setNonDestructive(true); clearMigrationProgress(); }}
                       className="shrink-0 text-[11px] font-semibold text-slate-950 bg-emerald-400 hover:bg-emerald-300 rounded px-2 py-1 transition on-accent-fg"
                     >

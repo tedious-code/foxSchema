@@ -152,7 +152,7 @@ export const FileImportsPanel: React.FC<Props> = ({
         ) : imports.length === 0 ? (
           <div className="px-1 py-2 text-[11px] leading-relaxed text-slate-500">
             <p className="mb-1.5">No imported files yet.</p>
-            <button
+            <button data-testid="file-import-csv-json"
               type="button"
               className="text-amber-300/90 hover:text-amber-200 underline-offset-2 hover:underline"
               onClick={onImportClick}

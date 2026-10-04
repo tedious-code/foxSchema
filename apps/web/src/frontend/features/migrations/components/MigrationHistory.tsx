@@ -159,7 +159,7 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
                 <GitBranch className="w-4 h-4" /> Git
               </button>
             )}
-            <button onClick={loadList} title="Refresh" className="p-1.5 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition">
+            <button data-testid="history-refresh" onClick={loadList} title="Refresh" className="p-1.5 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition">
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
             <button data-testid="history-dialog-close-btn" onClick={onClose} className="p-1.5 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition">
@@ -175,7 +175,7 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
               <div className="shrink-0 border-b border-slate-800 bg-slate-950/40">
                 {/* Select-all row */}
                 <div className="flex items-center justify-between gap-2 px-3 py-2">
-                  <button
+                  <button data-testid="history-select-all"
                     onClick={toggleCheckAll}
                     className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-300 hover:text-slate-100 transition"
                     title={allChecked ? 'Deselect all' : 'Select all'}
@@ -185,7 +185,7 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
                   </button>
                   <div className="flex items-center gap-1">
                     {checked.size > 0 && (
-                      <button
+                      <button data-testid="history-delete-selected"
                         onClick={deleteSelected}
                         title="Delete selected records"
                         className="flex items-center gap-1 text-[11px] font-semibold text-rose-300 hover:text-rose-200 border border-rose-500/30 bg-rose-950/30 hover:bg-rose-950/50 rounded px-2 py-1 transition cursor-pointer"
@@ -193,7 +193,7 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
                         <Trash2 className="w-3.5 h-3.5" /> Delete
                       </button>
                     )}
-                    <button
+                    <button data-testid="history-clear-all"
                       onClick={() => setConfirmClear(true)}
                       title="Clear all records"
                       className="text-[11px] font-semibold text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-600 rounded px-2 py-1 transition cursor-pointer"
@@ -207,8 +207,8 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
                   <div className="flex items-center justify-between gap-2 px-3 py-2 bg-rose-950/30 border-t border-rose-500/20">
                     <span className="text-[11px] text-rose-200">Delete all {runs.length} record{runs.length === 1 ? '' : 's'}?</span>
                     <div className="flex items-center gap-1">
-                      <button onClick={clearAll} className="text-[11px] font-bold text-slate-950 bg-rose-400 hover:bg-rose-300 rounded px-2 py-1 transition on-accent-fg">Clear all</button>
-                      <button onClick={() => setConfirmClear(false)} className="text-[11px] font-semibold text-slate-400 hover:text-slate-200 px-2 py-1 transition">Cancel</button>
+                      <button data-testid="history-clear-all-confirm" onClick={clearAll} className="text-[11px] font-bold text-slate-950 bg-rose-400 hover:bg-rose-300 rounded px-2 py-1 transition on-accent-fg">Clear all</button>
+                      <button data-testid="history-clear-all-cancel" onClick={() => setConfirmClear(false)} className="text-[11px] font-semibold text-slate-400 hover:text-slate-200 px-2 py-1 transition">Cancel</button>
                     </div>
                   </div>
                 )}
@@ -232,7 +232,7 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
                     selectedId === r.id ? 'bg-slate-800/70' : 'hover:bg-slate-900/60'
                   }`}
                 >
-                  <input
+                  <input data-testid={`history-select-${r.id}`}
                     type="checkbox"
                     checked={checked.has(r.id)}
                     onChange={() => toggleCheck(r.id)}
@@ -291,7 +291,7 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     {detail.snapshotDdl && (
-                      <button
+                      <button data-testid="history-download-pre-migration"
                         onClick={() => downloadSnapshot(detail)}
                         title="Download pre-migration snapshot"
                         className="flex items-center gap-1 text-[11px] text-slate-300 hover:text-slate-100 border border-slate-700 rounded px-2 py-1 hover:bg-slate-800 transition"
@@ -299,7 +299,7 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
                         <Download className="w-3.5 h-3.5" /> Snapshot
                       </button>
                     )}
-                    <button
+                    <button data-testid="history-delete-record"
                       onClick={() => remove(detail.id)}
                       title="Delete this record"
                       className="p-1.5 text-slate-500 hover:text-rose-300 hover:bg-rose-950/20 rounded transition cursor-pointer"

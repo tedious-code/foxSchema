@@ -72,7 +72,7 @@ export function TriggerInlineSettings({
     return (
       <>
         <label>Input data (JSON)</label>
-        <textarea
+        <textarea data-testid="workflow-trigger-settings-input"
           rows={6}
           placeholder='[{ "id": 1 }]'
           value={inputText}
@@ -108,7 +108,7 @@ export function TriggerInlineSettings({
     return (
       <>
         <label>Cron expression</label>
-        <input
+        <input data-testid="workflow-trigger-settings-cron"
           value={cron.cron}
           onChange={(event) => onChange({ ...cron, cron: event.target.value })}
         />
@@ -123,7 +123,7 @@ export function TriggerInlineSettings({
         </div>
 
         <label>Execution type</label>
-        <select
+        <select data-testid="workflow-trigger-settings-execution-type"
           value={cron.executionType}
           onChange={(event) => {
             const executionType = event.target
@@ -169,7 +169,7 @@ export function TriggerInlineSettings({
         )}
 
         <label>Catch-up behavior</label>
-        <select
+        <select data-testid="workflow-trigger-settings-catch-up"
           value={cron.catchUp}
           onChange={(event) =>
             onChange({
@@ -184,7 +184,7 @@ export function TriggerInlineSettings({
         </select>
 
         <label className="checkbox-row">
-          <input
+          <input data-testid="workflow-trigger-settings-retry"
             type="checkbox"
             checked={cron.retryConfig != null}
             onChange={(event) =>
@@ -201,7 +201,7 @@ export function TriggerInlineSettings({
         {cron.retryConfig && (
           <>
             <label>Max retry attempts</label>
-            <input
+            <input data-testid="workflow-trigger-settings-max-retry-attempts"
               type="number"
               min={0}
               value={cron.retryConfig.maxRetryAttempts}
@@ -219,7 +219,7 @@ export function TriggerInlineSettings({
               }
             />
             <label>Max retry duration (0s = unlimited)</label>
-            <input
+            <input data-testid="workflow-trigger-settings-max-retry-duration"
               value={cron.retryConfig.maxRetryDuration}
               onChange={(event) =>
                 onChange({
@@ -232,7 +232,7 @@ export function TriggerInlineSettings({
               }
             />
             <label>Min backoff duration</label>
-            <input
+            <input data-testid="workflow-trigger-settings-min-backoff-duration"
               value={cron.retryConfig.minBackoffDuration}
               onChange={(event) =>
                 onChange({
@@ -245,7 +245,7 @@ export function TriggerInlineSettings({
               }
             />
             <label>Max backoff duration</label>
-            <input
+            <input data-testid="workflow-trigger-settings-max-backoff-duration"
               value={cron.retryConfig.maxBackoffDuration}
               onChange={(event) =>
                 onChange({
@@ -258,7 +258,7 @@ export function TriggerInlineSettings({
               }
             />
             <label>Max doublings</label>
-            <input
+            <input data-testid="workflow-trigger-settings-max-doublings"
               type="number"
               min={0}
               value={cron.retryConfig.maxDoublings}
@@ -310,7 +310,7 @@ export function TriggerInlineSettings({
           const checked = parent.allowFrom.includes(workflow.id);
           return (
             <label key={workflow.id} className="checkbox-row">
-              <input
+              <input data-testid={`workflow-trigger-settings-workflow-${workflow.id}`}
                 type="checkbox"
                 checked={checked}
                 onChange={(event) => {
@@ -335,7 +335,7 @@ export function TriggerInlineSettings({
     return (
       <>
         <label>Credential</label>
-        <select
+        <select data-testid="workflow-trigger-settings-webhook-credential"
           value={triggerCredentialId(webhook)}
           onChange={(eventChange) =>
             onChange(withTriggerCredentialId(webhook, eventChange.target.value))
@@ -349,7 +349,7 @@ export function TriggerInlineSettings({
           ))}
         </select>
         <label>Max body bytes</label>
-        <input
+        <input data-testid="workflow-trigger-settings-max-body-bytes"
           type="number"
           value={webhook.maxBodyBytes}
           onChange={(eventChange) =>
@@ -370,7 +370,7 @@ export function TriggerInlineSettings({
     return (
       <>
         <label>Credential</label>
-        <select
+        <select data-testid="workflow-trigger-settings-http-credential"
           value={http.credentialId}
           onChange={(eventChange) =>
             onChange({ ...http, credentialId: eventChange.target.value })
@@ -384,7 +384,7 @@ export function TriggerInlineSettings({
           ))}
         </select>
         <label>Required fields</label>
-        <input
+        <input data-testid="workflow-trigger-settings-required-fields"
           value={http.requiredFields.join(', ')}
           onChange={(eventChange) =>
             onChange({

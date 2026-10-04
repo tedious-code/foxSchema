@@ -137,7 +137,7 @@ export const GitBranchView: React.FC<{ open: boolean; onClose: () => void }> = (
         <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-800">
           <GitBranch className="w-4 h-4 text-amber-300" />
           <h2 className="text-sm font-bold text-slate-100 flex-1">Migrations in Git</h2>
-          <button type="button" aria-label="Close" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-100">
+          <button data-testid="git-branch-view-close" type="button" aria-label="Close" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-100">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -147,12 +147,12 @@ export const GitBranchView: React.FC<{ open: boolean; onClose: () => void }> = (
         ) : (
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <select aria-label="Repository" value={repoId} onChange={(e) => chooseRepo(e.target.value)} className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-xs">
+              <select data-testid="git-branch-view-repo" aria-label="Repository" value={repoId} onChange={(e) => chooseRepo(e.target.value)} className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-xs">
                 {repos.map((r) => (
                   <option key={r.id} value={r.id}>{r.name}</option>
                 ))}
               </select>
-              <select aria-label="Branch" value={branch} onChange={(e) => setBranch(e.target.value)} className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-xs">
+              <select data-testid="git-branch-view-branch" aria-label="Branch" value={branch} onChange={(e) => setBranch(e.target.value)} className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1 text-xs">
                 {branches.length === 0 && <option value={branch}>{branch || '—'}</option>}
                 {branches.map((b) => (
                   <option key={b.name} value={b.name}>{b.name}</option>
@@ -164,15 +164,15 @@ export const GitBranchView: React.FC<{ open: boolean; onClose: () => void }> = (
                 </span>
               )}
               <div className="flex-1" />
-              <button type="button" className={btn} disabled={!!busy} onClick={() => void act('Fetch', () => gitApi.fetch(repoId), 'Fetched')}>
+              <button data-testid="git-branch-view-fetch" type="button" className={btn} disabled={!!busy} onClick={() => void act('Fetch', () => gitApi.fetch(repoId), 'Fetched')}>
                 {busy === 'Fetch' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />} Fetch
               </button>
               {canMigrate && (
                 <>
-                  <button type="button" className={btn} disabled={!!busy || !branch} onClick={() => void act('Pull', () => gitApi.pull(repoId, branch), `Pulled ${branch}`)}>
+                  <button data-testid="git-branch-view-pull" type="button" className={btn} disabled={!!busy || !branch} onClick={() => void act('Pull', () => gitApi.pull(repoId, branch), `Pulled ${branch}`)}>
                     <ArrowDownToLine className="w-3.5 h-3.5" /> Pull
                   </button>
-                  <button
+                  <button data-testid="git-branch-view-push"
                     type="button"
                     className={btn}
                     disabled={!!busy || !state?.local || (state.ahead === 0 && !!state.remote)}
@@ -212,7 +212,7 @@ export const GitBranchView: React.FC<{ open: boolean; onClose: () => void }> = (
                   ) : m.incoming ? (
                     <span className="text-[10px] font-semibold text-amber-300">Incoming</span>
                   ) : null}
-                  <button
+                  <button data-testid={`git-review-${m.fileName}`}
                     type="button"
                     className={btn}
                     onClick={() => void gitApi.file(repoId, head ?? branch, m.path).then((f) => setReview({ path: m.path, content: f.content })).catch((e) => setError(e.message))}
@@ -238,7 +238,7 @@ export const GitBranchView: React.FC<{ open: boolean; onClose: () => void }> = (
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[11px] text-slate-400 flex-1">{review.path}</span>
-                  <button type="button" aria-label="Close review" onClick={() => setReview(null)} className="text-slate-500 hover:text-slate-200">
+                  <button data-testid="git-review-close" type="button" aria-label="Close review" onClick={() => setReview(null)} className="text-slate-500 hover:text-slate-200">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>

@@ -63,7 +63,7 @@ const ToastCard: React.FC<{ item: ToastItem }> = ({ item }) => {
             )}
           </div>
         </div>
-        <button
+        <button data-testid="toast-dismiss"
           type="button"
           aria-label="Dismiss"
           onClick={() => dismiss(item.id)}

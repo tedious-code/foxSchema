@@ -231,7 +231,7 @@ export function RunsPanel({ runs, onRefresh }: { runs: RunRecord[]; onRefresh: (
               <div className="run-detail-header">
                 <h3>Run {selectedId.slice(0, 8)}</h3>
                 <label className="checkbox-row">
-                  <input type="checkbox" checked={live} onChange={(ev) => setLive(ev.target.checked)} />
+                  <input data-testid="workflow-runs-live" type="checkbox" checked={live} onChange={(ev) => setLive(ev.target.checked)} />
                   Live SSE
                 </label>
               </div>

@@ -38,7 +38,7 @@ export const DeployConfirmDialog: React.FC<Props> = ({ open, dialect, count, don
             This cannot be undone automatically.
           </p>
           <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer select-none">
-            <input
+            <input data-testid="deploy-dont-ask-again"
               type="checkbox"
               checked={dontAskAgain}
               onChange={(e) => onToggleDontAsk(e.target.checked)}

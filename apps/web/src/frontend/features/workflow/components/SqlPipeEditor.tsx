@@ -171,7 +171,7 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
 
       {connectionId && canBrowse && (
         <>
-          <button type="button" className="linkish" disabled={loadingTables} onClick={() => void browse()}>
+          <button data-testid="workflow-sql-pipe-browse" type="button" className="linkish" disabled={loadingTables} onClick={() => void browse()}>
             {loadingTables ? 'Loading tables…' : tables ? 'Reload tables' : 'Browse tables'}
           </button>
           {tables && (
@@ -180,7 +180,7 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
                 {tables.length === 0 && <li className="hint">No tables in {schema ?? 'this schema'}.</li>}
                 {tables.map((table) => (
                   <li key={`${table.objectType}:${table.name}`}>
-                    <button
+                    <button data-testid={`workflow-sql-pipe-table-${table.objectType}-${table.name}`}
                       type="button"
                       className="linkish"
                       title={table.columns.map((column) => column.name).join(', ')}

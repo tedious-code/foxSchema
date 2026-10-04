@@ -1234,7 +1234,7 @@ export const DataMigrateBar: React.FC<Props> = ({
             <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800">
               <span className="text-xs font-bold text-slate-200">Data migrate progress</span>
               {!applying && (
-                <button
+                <button data-testid="sql-data-migrate-progress-close"
                   type="button"
                   onClick={() => setProgress(null)}
                   className="text-slate-500 hover:text-slate-200"
@@ -1296,7 +1296,7 @@ export const DataMigrateBar: React.FC<Props> = ({
             >
               <div className="flex items-center justify-between px-3 py-2 border-b border-slate-800">
                 <span className="text-sm font-bold text-slate-100">Data migrate history</span>
-                <button type="button" onClick={() => setHistoryOpen(false)} className="text-slate-500">
+                <button data-testid="sql-data-migrate-history-close" type="button" onClick={() => setHistoryOpen(false)} className="text-slate-500">
                   <X className="w-4 h-4" strokeWidth={SQL_ICON_STROKE} />
                 </button>
               </div>
@@ -1304,7 +1304,7 @@ export const DataMigrateBar: React.FC<Props> = ({
                 <ul className="w-48 shrink-0 border-r border-slate-800 overflow-y-auto text-[11px]">
                   {historyRuns.map((r) => (
                     <li key={r.id}>
-                      <button
+                      <button data-testid={`sql-data-migrate-history-run-${r.id}`}
                         type="button"
                         className={`w-full text-left px-2 py-1.5 hover:bg-slate-900 ${
                           historyDetail?.id === r.id ? 'bg-slate-900 text-cyan-300' : 'text-slate-400'
@@ -1426,7 +1426,7 @@ export const DataMigrateBar: React.FC<Props> = ({
             >
               <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
                 <h3 className="text-sm font-bold text-slate-100">Preview migrate SQL</h3>
-                <button
+                <button data-testid="sql-data-migrate-preview-close"
                   type="button"
                   onClick={() => setPreviewOpen(false)}
                   className="text-slate-500 hover:text-slate-200"
@@ -1468,7 +1468,7 @@ export const DataMigrateBar: React.FC<Props> = ({
                 <span className="font-mono text-slate-200">{dest.label}</span>. Confirm to continue.
               </p>
               <div className="flex justify-end gap-2">
-                <button
+                <button data-testid="sql-data-migrate-safe-cancel"
                   type="button"
                   className="px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200"
                   onClick={() => setSafeConfirmOpen(false)}

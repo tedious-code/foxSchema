@@ -340,7 +340,7 @@ export function TriggerConfigurationDialog({
               const itemMeta = TRIGGER_META[item.kind];
               const ItemIcon = itemMeta.icon;
               return (
-                <button
+                <button data-testid={`workflow-trigger-config-item-${item.id}`}
                   key={item.id}
                   className={index === selectedIndex ? 'active' : ''}
                   onClick={() => {
@@ -380,7 +380,7 @@ export function TriggerConfigurationDialog({
               <small>ID: {trigger?.id}</small>
             </div>
             {sections.map((item) => (
-              <button
+              <button data-testid={`workflow-trigger-config-section-${item}`}
                 key={item}
                 className={section === item ? 'active' : ''}
                 onClick={() => setSection(item)}
@@ -538,7 +538,7 @@ export function TriggerConfigurationDialog({
                       exponential backoff according to these settings.
                     </p>
                     <label className="span-2 retry-enable">
-                      <input
+                      <input data-testid="workflow-trigger-config-retry"
                         type="checkbox"
                         checked={trigger.retryConfig != null}
                         onChange={(event) =>
@@ -717,7 +717,7 @@ export function TriggerConfigurationDialog({
                             );
                             return (
                               <label key={workflow.id} className="checkbox-row">
-                                <input
+                                <input data-testid={`workflow-trigger-config-workflow-${workflow.id}`}
                                   type="checkbox"
                                   checked={checked}
                                   onChange={(event) => {

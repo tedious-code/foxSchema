@@ -135,7 +135,7 @@ export function ProfileMenu(): React.ReactElement | null {
             <MonitorX className="w-4 h-4" /> Sign out other sessions
           </button>
 
-          <button
+          <button data-testid="profile-sign-out"
             type="button"
             onClick={logout}
             className="w-full flex items-center gap-2.5 px-4 py-3 text-sm font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 transition cursor-pointer border-t border-slate-800 bg-slate-950/40"

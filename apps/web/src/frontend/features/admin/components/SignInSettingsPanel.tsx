@@ -66,7 +66,7 @@ const Status: React.FC<{ configured: boolean; source: 'env' | 'app' | null }> = 
 function CopyText({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <button
+    <button data-testid="sign-in-copy"
       type="button"
       title="Copy"
       onClick={() =>
@@ -232,7 +232,7 @@ const PublicUrlSection: React.FC<{ state: SignInSettingsState; run: Run }> = ({ 
         Public URL
       </label>
       <div className="flex gap-2">
-        <input
+        <input data-testid="sign-in-public-url"
           id="sign-in-public-url"
           value={url}
           disabled={locked}
@@ -241,7 +241,7 @@ const PublicUrlSection: React.FC<{ state: SignInSettingsState; run: Run }> = ({ 
           className={inputCls}
         />
         {!locked && (
-          <button type="button" className={buttonCls} onClick={() => void run(() => apiSavePublicUrl(url), 'Public URL saved.')}>
+          <button data-testid="sign-in-public-url-save" type="button" className={buttonCls} onClick={() => void run(() => apiSavePublicUrl(url), 'Public URL saved.')}>
             Save
           </button>
         )}
@@ -288,7 +288,7 @@ const ProviderCard: React.FC<{ provider: SsoProviderSettings; run: Run }> = ({ p
           <label htmlFor={`sso-${p.id}-client`} className={labelCls}>
             Client ID
           </label>
-          <input id={`sso-${p.id}-client`} value={clientId} disabled={locked} onChange={(e) => setClientId(e.target.value)} className={inputCls} />
+          <input data-testid={`sign-in-provider-client-id-${p.id}`} id={`sso-${p.id}-client`} value={clientId} disabled={locked} onChange={(e) => setClientId(e.target.value)} className={inputCls} />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor={`sso-${p.id}-secret`} className={labelCls}>
@@ -309,7 +309,7 @@ const ProviderCard: React.FC<{ provider: SsoProviderSettings; run: Run }> = ({ p
             <label htmlFor="sso-microsoft-tenant" className={labelCls}>
               Tenant (directory) ID
             </label>
-            <input
+            <input data-testid="sign-in-microsoft-tenant"
               id="sso-microsoft-tenant"
               value={tenant}
               disabled={locked}
@@ -326,11 +326,11 @@ const ProviderCard: React.FC<{ provider: SsoProviderSettings; run: Run }> = ({ p
       </div>
       {!locked && (
         <div className="flex gap-2">
-          <button type="button" className={primaryCls} onClick={() => void save()}>
+          <button data-testid={`sign-in-provider-save-${p.id}`} type="button" className={primaryCls} onClick={() => void save()}>
             Save
           </button>
           {p.configured && (
-            <button
+            <button data-testid={`sign-in-provider-turn-off-${p.id}`}
               type="button"
               className={buttonCls}
               onClick={() => void run(() => apiRemoveSsoProvider(p.id), `${p.label} sign-in turned off.`)}
@@ -390,7 +390,7 @@ const MailSection: React.FC<{ mail: MailSettings; run: Run }> = ({ mail, run }) 
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[11px] text-slate-500">Fill in for:</span>
           {MAIL_PRESETS.map((p) => (
-            <button key={p.label} type="button" className={buttonCls} onClick={() => preset(p.label)}>
+            <button data-testid={`sign-in-mail-preset-${p.label}`} key={p.label} type="button" className={buttonCls} onClick={() => preset(p.label)}>
               {p.label}
             </button>
           ))}
@@ -401,19 +401,19 @@ const MailSection: React.FC<{ mail: MailSettings; run: Run }> = ({ mail, run }) 
           <label htmlFor="mail-host" className={labelCls}>
             SMTP host
           </label>
-          <input id="mail-host" value={host} disabled={locked} onChange={(e) => setHost(e.target.value)} placeholder="smtp.example.com" className={inputCls} />
+          <input data-testid="sign-in-mail-host" id="mail-host" value={host} disabled={locked} onChange={(e) => setHost(e.target.value)} placeholder="smtp.example.com" className={inputCls} />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="mail-port" className={labelCls}>
             Port
           </label>
-          <input id="mail-port" inputMode="numeric" value={port} disabled={locked} onChange={(e) => setPort(e.target.value)} className={inputCls} />
+          <input data-testid="sign-in-mail-port" id="mail-port" inputMode="numeric" value={port} disabled={locked} onChange={(e) => setPort(e.target.value)} className={inputCls} />
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="mail-security" className={labelCls}>
             Security
           </label>
-          <select
+          <select data-testid="sign-in-mail-security"
             id="mail-security"
             value={security}
             disabled={locked}
@@ -429,7 +429,7 @@ const MailSection: React.FC<{ mail: MailSettings; run: Run }> = ({ mail, run }) 
           <label htmlFor="mail-username" className={labelCls}>
             Username
           </label>
-          <input id="mail-username" value={username} disabled={locked} onChange={(e) => setUsername(e.target.value)} autoComplete="off" className={inputCls} />
+          <input data-testid="sign-in-mail-username" id="mail-username" value={username} disabled={locked} onChange={(e) => setUsername(e.target.value)} autoComplete="off" className={inputCls} />
         </div>
         <div className="flex flex-col gap-1 sm:col-span-2">
           <label htmlFor="mail-password" className={labelCls}>
@@ -449,25 +449,25 @@ const MailSection: React.FC<{ mail: MailSettings; run: Run }> = ({ mail, run }) 
           <label htmlFor="mail-from" className={labelCls}>
             Send as
           </label>
-          <input id="mail-from" value={from} disabled={locked} onChange={(e) => setFrom(e.target.value)} placeholder="Fox <fox@example.com>" className={inputCls} />
+          <input data-testid="sign-in-mail-from" id="mail-from" value={from} disabled={locked} onChange={(e) => setFrom(e.target.value)} placeholder="Fox <fox@example.com>" className={inputCls} />
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {!locked && (
-          <button type="button" className={primaryCls} onClick={() => void save()}>
+          <button data-testid="sign-in-mail-save" type="button" className={primaryCls} onClick={() => void save()}>
             Save
           </button>
         )}
         {mail.configured && (
           <>
-            <input
+            <input data-testid="sign-in-mail-test-to"
               aria-label="Send a test to"
               value={testTo}
               onChange={(e) => setTestTo(e.target.value)}
               placeholder="you@example.com"
               className={`${inputCls} max-w-[14rem]`}
             />
-            <button
+            <button data-testid="sign-in-mail-test-send"
               type="button"
               className={buttonCls}
               onClick={() => void run(() => apiSendTestEmail(testTo), `Test email sent to ${testTo}.`)}
@@ -475,7 +475,7 @@ const MailSection: React.FC<{ mail: MailSettings; run: Run }> = ({ mail, run }) 
               Send test email
             </button>
             {!locked && (
-              <button type="button" className={buttonCls} onClick={() => void run(() => apiRemoveMailSettings(), 'Email turned off.')}>
+              <button data-testid="sign-in-mail-turn-off" type="button" className={buttonCls} onClick={() => void run(() => apiRemoveMailSettings(), 'Email turned off.')}>
                 Turn off
               </button>
             )}

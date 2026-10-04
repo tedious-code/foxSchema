@@ -247,7 +247,7 @@ export const FileQueryModal: React.FC<Props> = ({
             <FileSpreadsheet className="w-4 h-4 text-amber-400" strokeWidth={SQL_ICON_STROKE} />
             Query files
           </div>
-          <button
+          <button data-testid="file-query-close"
             type="button"
             onClick={onClose}
             className="p-1 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-800"
@@ -468,7 +468,7 @@ export const FileQueryModal: React.FC<Props> = ({
               <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
                 JSON shape
               </span>
-              <select
+              <select data-testid="file-query-json-shape"
                 value={jsonMode}
                 onChange={(e) => setJsonMode(e.target.value as 'array' | 'ndjson')}
                 className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5"
@@ -485,7 +485,7 @@ export const FileQueryModal: React.FC<Props> = ({
                 <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
                   Skip lines
                 </span>
-                <input
+                <input data-testid="file-query-skip-lines"
                   type="number"
                   min={0}
                   value={skipLines}
@@ -581,7 +581,7 @@ export const FileQueryModal: React.FC<Props> = ({
           </button>
           <div className="flex gap-2">
             {!embedded && (
-            <button
+            <button data-testid="file-query-cancel"
               type="button"
               onClick={onClose}
               className="px-3 py-1.5 rounded-md border border-slate-700 text-slate-300 hover:bg-slate-800 font-semibold"

@@ -176,7 +176,7 @@ function DebugIoPanel({
         {portNames.map((port) => {
           const hit = pipeSamples.some((sample) => sample.port === port);
           return (
-            <button
+            <button data-testid={`workflow-inspector-sample-port-${port}`}
               key={port}
               type="button"
               role="tab"
@@ -262,7 +262,7 @@ function InspectorHeader({
       </div>
       <div className="inspector-tabs">
         {INSPECTOR_TABS.map(({ id, label, icon: Icon }) => (
-          <button
+          <button data-testid={`workflow-inspector-tab-${id}`}
             key={id}
             className={activeTab === id ? 'active' : ''}
             onClick={() => onTabChange(id)}
@@ -322,7 +322,7 @@ function JsonObjectField({
   return (
     <div>
       <label>{name} (JSON)</label>
-      <textarea
+      <textarea data-testid={`workflow-inspector-json-${name}`}
         value={text}
         onChange={(event) => {
           const raw = event.target.value;
@@ -360,7 +360,7 @@ function ConfigField({
     return (
       <div>
         <label>{name}</label>
-        <select
+        <select data-testid={`workflow-inspector-field-${name}`}
           value={String(value)}
           onChange={(event) => onChange(event.target.value)}
         >
@@ -377,7 +377,7 @@ function ConfigField({
   if (schema.type === 'boolean') {
     return (
       <label className="checkbox-row">
-        <input
+        <input data-testid={`workflow-inspector-field-${name}`}
           type="checkbox"
           checked={Boolean(value)}
           onChange={(event) => onChange(event.target.checked)}
@@ -391,7 +391,7 @@ function ConfigField({
     return (
       <div>
         <label>{name}</label>
-        <input
+        <input data-testid={`workflow-inspector-field-${name}`}
           type="number"
           min={schema.minimum}
           max={schema.maximum}
@@ -424,7 +424,7 @@ function ConfigField({
   return (
     <div>
       <label>{name}</label>
-      <input
+      <input data-testid={`workflow-inspector-field-${name}`}
         type="text"
         value={String(value ?? '')}
         onChange={(event) => onChange(event.target.value)}
@@ -574,7 +574,7 @@ export function Inspector({
             </div>
           )}
           <label>Retry attempts (0 = off)</label>
-          <input
+          <input data-testid="workflow-inspector-retry-attempts"
             type="number"
             min={0}
             max={20}
@@ -601,7 +601,7 @@ export function Inspector({
       {header}
 
       <label>Pipe id</label>
-      <input
+      <input data-testid="workflow-inspector-pipe-id"
         key={pipeId}
         defaultValue={data.pipeId}
         onBlur={(ev) => {
@@ -613,7 +613,7 @@ export function Inspector({
       {renameError && <div className="field-error">{renameError}</div>}
 
       <label>Intent</label>
-      <input
+      <input data-testid="workflow-inspector-intent"
         value={data.intent ?? ''}
         placeholder={entry?.label ?? 'What this pipe does'}
         onChange={(ev) =>
@@ -629,7 +629,7 @@ export function Inspector({
       {entry?.triggerKind && (
         <>
           <label>Workflow trigger</label>
-          <select
+          <select data-testid="workflow-inspector-trigger"
             value={boundTriggerId}
             onChange={(ev) => patchConfig('triggerId', ev.target.value)}
           >
@@ -658,7 +658,7 @@ export function Inspector({
               }
             />
           )}
-          <button
+          <button data-testid="workflow-inspector-open-in-trigger"
             type="button"
             className="linkish"
             disabled={!boundTriggerId}
@@ -675,7 +675,7 @@ export function Inspector({
       {isSubWorkflow && (
         <>
           <label>Workflow to call</label>
-          <select
+          <select data-testid="workflow-inspector-sub-workflow-id"
             value={subWorkflowId}
             onChange={(ev) => {
               const id = ev.target.value;
@@ -713,7 +713,7 @@ export function Inspector({
               )}
           </select>
           <label>Version pin</label>
-          <input
+          <input data-testid="workflow-inspector-sub-workflow-version"
             type="number"
             min={1}
             placeholder="latest"
@@ -736,7 +736,7 @@ export function Inspector({
       {!entry?.simple && (
         <>
           <label>Type</label>
-          <select
+          <select data-testid="workflow-inspector-type"
             value={data.type}
             onChange={(ev) => {
               const selected = catalog.find((e) => e.type === ev.target.value);
@@ -776,7 +776,7 @@ export function Inspector({
           />
 
           <label>Concurrency (×N workers)</label>
-          <input
+          <input data-testid="workflow-inspector-concurrency"
             type="number"
             min={1}
             max={64}
@@ -787,7 +787,7 @@ export function Inspector({
           />
 
           <label>Retry attempts (0 = off)</label>
-          <input
+          <input data-testid="workflow-inspector-http-retry-attempts"
             type="number"
             min={0}
             max={20}
@@ -923,7 +923,7 @@ export function Inspector({
 
       {!entry?.simple && (
         <>
-          <button
+          <button data-testid="workflow-inspector-show-raw"
             type="button"
             className="linkish"
             onClick={() => setShowRaw((open) => !open)}

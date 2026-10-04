@@ -143,7 +143,7 @@ const SignInForm: React.FC<{
         <label htmlFor="auth-email" className={authLabelCls}>
           Email
         </label>
-        <input
+        <input data-testid="auth-login-email"
           id="auth-email"
           type="email"
           required
@@ -179,7 +179,7 @@ const SignInForm: React.FC<{
 
       <AuthError message={error || ssoError} />
 
-      <button type="submit" disabled={busy} className={authSubmitCls}>
+      <button data-testid="auth-login-submit" type="submit" disabled={busy} className={authSubmitCls}>
         {busy && <Loader2 className="w-4 h-4 animate-spin" />}
         Sign in
       </button>
@@ -222,7 +222,7 @@ const FirstAccountForm: React.FC = () => {
         <label htmlFor="auth-email" className={authLabelCls}>
           Email
         </label>
-        <input
+        <input data-testid="auth-setup-email"
           id="auth-email"
           type="email"
           required
@@ -249,7 +249,7 @@ const FirstAccountForm: React.FC = () => {
           <label htmlFor="auth-setup-code" className={authLabelCls}>
             Setup code
           </label>
-          <input
+          <input data-testid="auth-setup-code"
             id="auth-setup-code"
             required
             value={code}
@@ -269,7 +269,7 @@ const FirstAccountForm: React.FC = () => {
 
       <AuthError message={error} />
 
-      <button type="submit" disabled={busy || (attempted && !!problem)} className={authSubmitCls}>
+      <button data-testid="auth-setup-submit" type="submit" disabled={busy || (attempted && !!problem)} className={authSubmitCls}>
         {busy && <Loader2 className="w-4 h-4 animate-spin" />}
         Create account
       </button>

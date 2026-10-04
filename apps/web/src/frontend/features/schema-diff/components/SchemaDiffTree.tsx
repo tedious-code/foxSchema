@@ -233,7 +233,7 @@ export function SchemaDiffTree({
                         <span className="w-5 shrink-0" />
                       )}
                       {selection && table.status !== 'UNCHANGED' ? (
-                        <input
+                        <input data-testid={`diff-tree-toggle-selection-${table.tableName}`}
                           type="checkbox"
                           checked={!!selection[table.tableName]}
                           onChange={() => onToggleSelection?.(table.tableName)}

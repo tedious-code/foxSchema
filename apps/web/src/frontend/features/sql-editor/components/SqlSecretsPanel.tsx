@@ -239,7 +239,7 @@ export const SqlSecretsPanel = forwardRef<SqlSecretsPanelHandle>(function SqlSec
               <span className="text-[11px] font-mono text-slate-500 shrink-0" title="Value hidden">
                 ••••
               </span>
-              <button
+              <button data-testid={`sql-secret-delete-secret-${s.id}`}
                 type="button"
                 title="Delete secret"
                 aria-label={`Delete ${s.name}`}
@@ -319,7 +319,7 @@ export const SqlSecretsPanel = forwardRef<SqlSecretsPanelHandle>(function SqlSec
                 className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-100 outline-none"
               />
               {selectedCred?.provider === 'aws' && (
-                <input
+                <input data-testid="sql-secret-region"
                   placeholder="region (optional)"
                   value={region}
                   onChange={(e) => setRegion(e.target.value)}
@@ -327,14 +327,14 @@ export const SqlSecretsPanel = forwardRef<SqlSecretsPanelHandle>(function SqlSec
                 />
               )}
               {selectedCred?.provider === 'azure' && (
-                <input
+                <input data-testid="sql-secret-vault-url"
                   placeholder="https://….vault.azure.net"
                   value={vaultUrl}
                   onChange={(e) => setVaultUrl(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-100 outline-none"
                 />
               )}
-              <input
+              <input data-testid="sql-secret-version"
                 placeholder="version (optional)"
                 value={version}
                 onChange={(e) => setVersion(e.target.value)}
@@ -367,7 +367,7 @@ export const SqlSecretsPanel = forwardRef<SqlSecretsPanelHandle>(function SqlSec
                 Add
               </button>
             )}
-            <button
+            <button data-testid="sql-secret-cancel"
               type="button"
               onClick={resetForm}
               className="text-[12px] font-bold text-slate-500 hover:text-slate-300 px-1 py-0.5"

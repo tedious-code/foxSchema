@@ -44,7 +44,7 @@ export const IssuedCodeNotice: React.FC<Props> = (props) => {
     <div data-testid="admin-issued-code" className={`rounded-lg border px-3 py-2.5 text-xs text-slate-200 ${tone}`}>
       <div className="flex items-start gap-2">
         <p className="flex-1">{deliveryText(props)}</p>
-        <button type="button" aria-label="Dismiss" onClick={props.onDismiss} className="text-slate-400 hover:text-slate-100">
+        <button data-testid="admin-issued-code-dismiss" type="button" aria-label="Dismiss" onClick={props.onDismiss} className="text-slate-400 hover:text-slate-100">
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -52,7 +52,7 @@ export const IssuedCodeNotice: React.FC<Props> = (props) => {
         <code data-testid="admin-issued-code-value" className="font-mono text-sm tracking-wider text-slate-100">
           {props.code}
         </code>
-        <button
+        <button data-testid="admin-issued-code-copy"
           type="button"
           onClick={() => void copy()}
           className="inline-flex items-center gap-1 rounded border border-slate-700 px-1.5 py-0.5 text-[11px] text-slate-300 hover:text-white"

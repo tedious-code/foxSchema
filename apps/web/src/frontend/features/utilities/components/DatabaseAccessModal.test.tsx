@@ -140,12 +140,12 @@ describe('DatabaseAccessModal', () => {
     fireEvent.click(screen.getByTestId('db-access-preview-sql'));
 
     await waitFor(() => expect(screen.getByTestId('db-access-sql-modal')).toBeTruthy());
-    const preview = screen.getByTestId('db-access-grant-sql').textContent ?? '';
+    const preview = screen.getByTestId('db-access-sql-modal-sql').textContent ?? '';
     expect(preview).toMatch(/GRANT/i);
     expect(preview).toMatch(/orders/i);
     expect(preview).toMatch(/alice/i);
 
-    fireEvent.click(screen.getByTestId('db-access-grant'));
+    fireEvent.click(screen.getByTestId('db-access-sql-modal-run'));
     expect(screen.getByTestId('db-access-confirm').textContent).toMatch(/GRANT/i);
     fireEvent.click(screen.getByTestId('db-access-confirm-run'));
     await waitFor(() => expect(executeSql).toHaveBeenCalled());
@@ -305,7 +305,7 @@ describe('DatabaseAccessModal — dialect-aware general CREATE', () => {
     await waitFor(() => expect(screen.getByTestId('db-access-general-editor')).toBeTruthy());
     fireEvent.click(screen.getByTestId('db-access-general-preview-sql'));
     await waitFor(() => expect(screen.getByTestId('db-access-sql-modal')).toBeTruthy());
-    const sql = screen.getByTestId('db-access-grant-sql').textContent ?? '';
+    const sql = screen.getByTestId('db-access-sql-modal-sql').textContent ?? '';
     // Postgres emitter — not a fake "GRANT CREATE TABLE, CREATE VIEW ON SCHEMA".
     expect(sql).toMatch(/CREATE/i);
     expect(sql).toMatch(/SCHEMA/i);

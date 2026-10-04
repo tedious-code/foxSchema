@@ -508,7 +508,7 @@ export const DatabaseAccessModal: React.FC<Props> = ({
             </p>
           </div>
           {onClose && (
-            <button
+            <button data-testid="db-access-db-users-close"
               type="button"
               onClick={onClose}
               className="p-1.5 rounded text-slate-400 hover:text-slate-100 hover:bg-slate-800"
@@ -566,7 +566,7 @@ export const DatabaseAccessModal: React.FC<Props> = ({
                   placeholder="••••••••"
                   className="bg-slate-950 border border-slate-700 rounded-md px-2.5 py-1.5 text-sm text-slate-100 outline-none accent-focus font-mono w-36"
                 />
-                <button
+                <button data-testid="db-access-save"
                   type="button"
                   className="px-2.5 py-1.5 text-xs font-bold rounded-md border border-amber-500/40 bg-amber-500/15 text-amber-100"
                   onClick={() => {
@@ -632,7 +632,7 @@ export const DatabaseAccessModal: React.FC<Props> = ({
             const Chevron = openGroup ? ChevronDown : ChevronRight;
             return (
               <section key={group.kind} data-testid={`db-access-group-${group.kind}`}>
-                <button
+                <button data-testid={`db-access-toggle-group-${group.kind}`}
                   type="button"
                   className="w-full flex items-center gap-2 px-4 py-2 text-left bg-slate-950/50 border-b border-slate-800"
                   onClick={() => toggleGroup(group.kind)}
@@ -976,7 +976,7 @@ export const DatabaseAccessModal: React.FC<Props> = ({
                       </label>
                     )}
                     <label className="flex items-center gap-2 text-[11px] text-slate-400">
-                      <input
+                      <input data-testid="db-access-grant-with-option"
                         type="checkbox"
                         checked={grantWithOption}
                         onChange={(e) => setGrantWithOption(e.target.checked)}
@@ -1053,7 +1053,7 @@ export const DatabaseAccessModal: React.FC<Props> = ({
             </label>
           )}
           <div className="flex justify-end gap-2">
-            <button
+            <button data-testid="db-access-cancel-confirm"
               type="button"
               className="px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200"
               onClick={() => setConfirm(null)}
@@ -1094,7 +1094,7 @@ export const DatabaseAccessModal: React.FC<Props> = ({
   return createPortal(
     <div
       className="fixed inset-0 z-[90] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
-      data-testid="db-access-modal"
+      data-testid="db-access-overlay"
       onClick={onClose}
     >
       <div

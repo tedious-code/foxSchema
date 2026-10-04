@@ -443,7 +443,7 @@ export const ObjectDetailPanel: React.FC = () => {
             ) : (
               <>
                 <label className="text-[10px] text-slate-400 flex items-center gap-1.5 cursor-pointer" title="Ignore identifier letter-case, matching how columns are compared">
-                  <input
+                  <input data-testid="migrate-ignore-case"
                     type="checkbox"
                     checked={ignoreCase}
                     onChange={(e) => setIgnoreCase(e.target.checked)}
@@ -451,7 +451,7 @@ export const ObjectDetailPanel: React.FC = () => {
                   />
                   Ignore case
                 </label>
-                <button
+                <button data-testid="migrate-inline-diff"
                   onClick={() => setInlineDiff((v) => !v)}
                   className="text-[10px] text-slate-300 border border-slate-700 hover:border-slate-500 rounded px-2 py-0.5 transition"
                 >
@@ -521,7 +521,7 @@ export const ObjectDetailPanel: React.FC = () => {
               className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-300 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded hover:border-cyan-500/40 transition"
               title="Show unchanged columns, indexes, foreign keys and triggers (off = only changes)"
             >
-              <input
+              <input data-testid="migrate-show-unchanged-detail"
                 type="checkbox"
                 checked={showUnchangedDetail}
                 onChange={(e) => setShowUnchangedDetail(e.target.checked)}
@@ -532,7 +532,7 @@ export const ObjectDetailPanel: React.FC = () => {
             )}
             {selectedTable.status !== 'UNCHANGED' && (
               <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-300 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded hover:border-cyan-500/40 transition">
-                <input
+                <input data-testid="migrate-toggle-sync-selection"
                   type="checkbox"
                   checked={!!syncSelection[selectedTable.tableName]}
                   onChange={() => toggleSyncSelection(selectedTable.tableName)}
@@ -553,7 +553,7 @@ export const ObjectDetailPanel: React.FC = () => {
               Target Dialect: {targetConfig.dialect.toUpperCase()}
             </div>
             {sourceConfig.dialect !== targetConfig.dialect && (
-              <button
+              <button data-testid="migrate-cross-dialect-migration"
                 onClick={() => setShowReadinessDialog(true)}
                 className="text-[10px] text-amber-300 font-mono bg-amber-950/40 border border-amber-500/30 px-3 py-1 rounded hover:bg-amber-900/40 transition cursor-pointer"
                 title="Cross-dialect migration — click for a per-object-type breakdown of what's translated vs. flagged for manual review"
@@ -671,7 +671,7 @@ export const ObjectDetailPanel: React.FC = () => {
         {/* Action Panel Actions */}
         <div className="flex items-center gap-2">
           {activeTab === 'SQL' && generatedSql && (
-            <button
+            <button data-testid="migrate-copy-sql"
               onClick={handleCopySql}
               className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-slate-350 hover:text-slate-150 border border-slate-800 rounded bg-slate-950/40 hover:bg-slate-900 transition"
             >
@@ -791,7 +791,7 @@ export const ObjectDetailPanel: React.FC = () => {
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-400" />
                 {missingFkIssues.length} foreign key{missingFkIssues.length === 1 ? '' : 's'} would reference a table missing from the target.
               </span>
-              <button
+              <button data-testid="migrate-review-conflicts"
                 onClick={() => setShowFkDialog(true)}
                 className="shrink-0 text-[10px] font-semibold rounded px-2 py-1 text-rose-200 bg-rose-950/50 border border-rose-500/40 hover:bg-rose-900/50 transition"
               >
@@ -805,7 +805,7 @@ export const ObjectDetailPanel: React.FC = () => {
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
                 {liveDropDeps.length} dependent object{liveDropDeps.length === 1 ? '' : 's'} would break from a drop in this deploy.
               </span>
-              <button
+              <button data-testid="migrate-review-dependencies"
                 onClick={() => setShowDepsDialog(true)}
                 className="shrink-0 text-[10px] font-semibold rounded px-2 py-1 text-amber-200 bg-amber-950/50 border border-amber-500/40 hover:bg-amber-900/50 transition"
               >
@@ -824,7 +824,7 @@ export const ObjectDetailPanel: React.FC = () => {
               />
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
               {narrowingIssues.length} column type change{narrowingIssues.length === 1 ? '' : 's'} may truncate or reject existing data —{' '}
-              <button
+              <button data-testid="migrate-view-details"
                 type="button"
                 onClick={(e) => {
                   e.preventDefault();
@@ -843,7 +843,7 @@ export const ObjectDetailPanel: React.FC = () => {
                 <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-slate-500" />
                 {reviewIssues.length} note{reviewIssues.length === 1 ? '' : 's'} in the generated SQL need manual review.
               </span>
-              <button
+              <button data-testid="migrate-view-notes"
                 onClick={() => setShowReviewDialog(true)}
                 className="shrink-0 text-[10px] font-semibold rounded px-2 py-1 text-slate-300 bg-slate-800/50 border border-slate-700/40 hover:bg-slate-800 transition"
               >

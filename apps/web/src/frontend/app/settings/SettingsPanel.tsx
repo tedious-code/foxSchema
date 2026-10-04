@@ -124,7 +124,7 @@ export const SettingsPanel: React.FC<Props> = ({ open = true, onClose, embedded 
             const active = presetActive(p);
             const dark = p.mode === 'dark';
             return (
-              <button
+              <button data-testid={`settings-apply-preset-${p.id}`}
                 key={p.id}
                 type="button"
                 onClick={() => applyPreset(p.id)}
@@ -162,7 +162,7 @@ export const SettingsPanel: React.FC<Props> = ({ open = true, onClose, embedded 
       <Section icon={<Monitor className="w-3 h-3" />} title="Background">
         <div className="grid grid-cols-3 gap-2">
           {MODES.map((m) => (
-            <button
+            <button data-testid={`settings-theme-mode-${m.id}`}
               key={m.id}
               type="button"
               onClick={() => setThemeMode(m.id)}
@@ -178,7 +178,7 @@ export const SettingsPanel: React.FC<Props> = ({ open = true, onClose, embedded 
       <Section icon={<Palette className="w-3 h-3" />} title="UI Tone">
         <div className="flex flex-wrap gap-2">
           {TONES.map((t) => (
-            <button
+            <button data-testid={`settings-tone-${t.id}`}
               key={t.id}
               type="button"
               onClick={() => setTone(t.id)}
@@ -197,7 +197,7 @@ export const SettingsPanel: React.FC<Props> = ({ open = true, onClose, embedded 
       <Section icon={<span className="w-2.5 h-2.5 rounded-full accent-grad inline-block" />} title="Accent">
         <div className="flex gap-2.5">
           {(Object.keys(ACCENTS) as AccentId[]).map((id) => (
-            <button
+            <button data-testid={`settings-accent-${id}`}
               key={id}
               type="button"
               onClick={() => setAccent(id)}
@@ -216,7 +216,7 @@ export const SettingsPanel: React.FC<Props> = ({ open = true, onClose, embedded 
       <Section icon={<Type className="w-3 h-3" />} title="Text Size">
         <div className="grid grid-cols-4 gap-2">
           {FONT_SIZES.map((f, i) => (
-            <button
+            <button data-testid={`settings-font-${f.id}`}
               key={f.id}
               type="button"
               onClick={() => setFontSize(f.id)}
@@ -252,7 +252,7 @@ export const SettingsPanel: React.FC<Props> = ({ open = true, onClose, embedded 
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <button
+          <button data-testid="settings-reset"
             type="button"
             onClick={resetAppearance}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 transition cursor-pointer"
@@ -260,7 +260,7 @@ export const SettingsPanel: React.FC<Props> = ({ open = true, onClose, embedded 
             <RotateCcw className="w-3.5 h-3.5" /> Reset
           </button>
           {onClose && (
-            <button
+            <button data-testid="settings-close"
               type="button"
               onClick={onClose}
               className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-slate-200 transition"

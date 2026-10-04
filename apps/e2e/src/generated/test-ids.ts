@@ -44,6 +44,8 @@ export const TestIds = {
       accessPermissionAllowAll: 'access-permission-allow-all',
       /** li */
       accessPermissionAlteration: (a: string | number) => `access-permission-alteration-${a}`,
+      /** button · Cancel */
+      accessPermissionCancel: 'access-permission-cancel',
       /** div */
       accessPermissionConfirm: 'access-permission-confirm',
       /** button */
@@ -54,6 +56,8 @@ export const TestIds = {
       accessPermissionDropSafety: 'access-permission-drop-safety',
       /** p */
       accessPermissionError: 'access-permission-error',
+      /** button */
+      accessPermissionExpandedKinds: (kind: string | number) => `access-permission-expanded-kinds-${kind}`,
       /** input · Filter users & roles */
       accessPermissionFilter: 'access-permission-filter',
       /** section */
@@ -127,6 +131,8 @@ export const TestIds = {
       /** button · Revoke */
       actionRevoke: (prefix: string | number) => `${prefix}-action-revoke`,
       /** button */
+      dbAccessClose: 'db-access-close',
+      /** button */
       dbAccessEdit: (name: string | number) => `db-access-edit-${name}`,
       /** ul */
       dbAccessEditorObjects: 'db-access-editor-objects',
@@ -144,14 +150,12 @@ export const TestIds = {
       dbAccessGeneralRow: (value: string | number) => `db-access-general-row-${value}`,
       /** select */
       dbAccessGeneralSchema: 'db-access-general-schema',
-      /** button */
-      dbAccessGrant: 'db-access-grant',
       /** button · Grant */
-      dbAccessGrantForKind: (kind: string | number) => `db-access-grant-${kind}`,
+      dbAccessGrant: (kind: string | number) => `db-access-grant-${kind}`,
       /** button · New */
       dbAccessGrantGeneral: 'db-access-grant-general',
-      /** pre */
-      dbAccessGrantSql: 'db-access-grant-sql',
+      /** button */
+      dbAccessGrantSqlOpen: 'db-access-grant-sql-open',
       /** tr */
       dbAccessObj: (schema: string | number, name: string | number) => `db-access-obj-${schema}-${name}`,
       /** button · Revoke */
@@ -172,6 +176,12 @@ export const TestIds = {
       dbAccessSqlModal: 'db-access-sql-modal',
       /** div */
       dbAccessSqlModalBackdrop: 'db-access-sql-modal-backdrop',
+      /** button · Cancel */
+      dbAccessSqlModalCancel: 'db-access-sql-modal-cancel',
+      /** button */
+      dbAccessSqlModalRun: 'db-access-sql-modal-run',
+      /** pre */
+      dbAccessSqlModalSql: 'db-access-sql-modal-sql',
     },
     ObjectPicker: {
       /** input · Search… */
@@ -194,8 +204,12 @@ export const TestIds = {
       diffLoadCatalog: 'diff-load-catalog',
       /** span */
       diffLoadError: 'diff-load-error',
+      /** input */
+      diffPermission: (index: string | number, p: string | number) => `diff-permission-${index}-${p}`,
       /** Autocomplete · report_user */
       diffPrincipalName: 'diff-principal-name',
+      /** button */
+      diffRemove: (index: string | number) => `diff-remove-${index}`,
       /** tr */
       diffRow: (i: string | number) => `diff-row-${i}`,
       /** Autocomplete · schema */
@@ -370,6 +384,8 @@ export const TestIds = {
   },
   admin: {
     AdminAccessPanel: {
+      /** button */
+      adminAccessClose: 'admin-access-close',
       /** p */
       adminAccessDenied: 'admin-access-denied',
       /** p */
@@ -390,8 +406,18 @@ export const TestIds = {
       adminEditRole: (r: string | number) => `admin-edit-role-${r}`,
       /** button */
       adminIssueCode: (id: string | number) => `admin-issue-code-${id}`,
+      /** input · teammate@company.com */
+      adminNewEmail: 'admin-new-email',
       /** PasswordInput */
       adminNewPassword: 'admin-new-password',
+      /** select · Role */
+      adminNewRole: 'admin-new-role',
+      /** button */
+      adminNewUserSubmit: 'admin-new-user-submit',
+      /** button · Cancel */
+      adminPasswordCancel: 'admin-password-cancel',
+      /** button */
+      adminPasswordClose: 'admin-password-close',
       /** input */
       adminPerm: (id: string | number) => `admin-perm-${id}`,
       /** button · Collapse all */
@@ -448,16 +474,54 @@ export const TestIds = {
     IssuedCodeNotice: {
       /** div */
       adminIssuedCode: 'admin-issued-code',
+      /** button */
+      adminIssuedCodeCopy: 'admin-issued-code-copy',
+      /** button · Dismiss */
+      adminIssuedCodeDismiss: 'admin-issued-code-dismiss',
       /** code */
       adminIssuedCodeValue: 'admin-issued-code-value',
     },
     SignInSettingsPanel: {
       /** div · Sign in with… */
       adminSignInSettings: 'admin-sign-in-settings',
+      /** button · Copy */
+      signInCopy: 'sign-in-copy',
       /** section · Email for invites and password resets */
       signInMail: 'sign-in-mail',
+      /** input · Fox <fox@example.com> */
+      signInMailFrom: 'sign-in-mail-from',
+      /** input · smtp.example.com */
+      signInMailHost: 'sign-in-mail-host',
+      /** input · Port */
+      signInMailPort: 'sign-in-mail-port',
+      /** button */
+      signInMailPreset: (label: string | number) => `sign-in-mail-preset-${label}`,
+      /** button · Save */
+      signInMailSave: 'sign-in-mail-save',
+      /** select · TLS (465) STARTTLS (587) None (local relay) */
+      signInMailSecurity: 'sign-in-mail-security',
+      /** button · Send test email */
+      signInMailTestSend: 'sign-in-mail-test-send',
+      /** input · Send a test to */
+      signInMailTestTo: 'sign-in-mail-test-to',
+      /** button · Turn off */
+      signInMailTurnOff: 'sign-in-mail-turn-off',
+      /** input · Username */
+      signInMailUsername: 'sign-in-mail-username',
+      /** input · common */
+      signInMicrosoftTenant: 'sign-in-microsoft-tenant',
       /** div */
       signInProvider: (id: string | number) => `sign-in-provider-${id}`,
+      /** input */
+      signInProviderClientId: (id: string | number) => `sign-in-provider-client-id-${id}`,
+      /** button · Save */
+      signInProviderSave: (id: string | number) => `sign-in-provider-save-${id}`,
+      /** button · Turn off */
+      signInProviderTurnOff: (id: string | number) => `sign-in-provider-turn-off-${id}`,
+      /** input · https://fox.example.com */
+      signInPublicUrl: 'sign-in-public-url',
+      /** button · Save */
+      signInPublicUrlSave: 'sign-in-public-url-save',
       /** section · Google and GitHub through foxschema.com */
       signInService: 'sign-in-service',
       /** input */
@@ -496,8 +560,14 @@ export const TestIds = {
     CloudProviderCredentialsSection: {
       /** button · Add cloud credential */
       cloudCredAdd: 'cloud-cred-add',
+      /** button · Cancel */
+      cloudCredCancel: 'cloud-cred-cancel',
       /** div */
       cloudCredCard: (id: string | number) => `cloud-cred-card-${id}`,
+      /** button */
+      cloudCredCloseForm: 'cloud-cred-close-form',
+      /** button · Edit */
+      cloudCredEdit: (id: string | number) => `cloud-cred-edit-${id}`,
       /** textarea */
       cloudCredField: (key: string | number) => `cloud-cred-field-${key}`,
       /** div */
@@ -506,8 +576,12 @@ export const TestIds = {
       cloudCredName: 'cloud-cred-name',
       /** select */
       cloudCredProviderSelect: 'cloud-cred-provider-select',
+      /** button · Remove */
+      cloudCredRemove: (id: string | number) => `cloud-cred-remove-${id}`,
       /** button · Save */
       cloudCredSave: 'cloud-cred-save',
+      /** button · Updated */
+      cloudCredStatus: (id: string | number) => `cloud-cred-status-${id}`,
       /** div */
       cloudProviderCredentials: 'cloud-provider-credentials',
     },
@@ -522,6 +596,10 @@ export const TestIds = {
     ConnectionChips: {
       /** div */
       connectionChip: (side: string | number) => `connection-chip-${side}`,
+    },
+    ErrorBoundary: {
+      /** button · Dismiss */
+      appErrorBoundaryDismiss: 'app-error-boundary-dismiss',
     },
     HomeView: {
       /** button · Search workspaces and recents ⌘K */
@@ -564,14 +642,30 @@ export const TestIds = {
       profilePreferences: 'profile-preferences',
       /** p */
       profileRole: 'profile-role',
+      /** button · Sign out */
+      profileSignOut: 'profile-sign-out',
       /** button · Sign out other sessions */
       profileSignOutOthers: 'profile-sign-out-others',
     },
     SettingsPanel: {
+      /** button */
+      settingsAccent: (id: string | number) => `settings-accent-${id}`,
+      /** button · · */
+      settingsApplyPreset: (id: string | number) => `settings-apply-preset-${id}`,
+      /** button */
+      settingsClose: 'settings-close',
+      /** button · Aa */
+      settingsFont: (id: string | number) => `settings-font-${id}`,
       /** nav · Preferences */
       settingsMenu: 'settings-menu',
+      /** button · Reset */
+      settingsReset: 'settings-reset',
       /** button */
       settingsTab: (id: string | number) => `settings-tab-${id}`,
+      /** button */
+      settingsThemeMode: (id: string | number) => `settings-theme-mode-${id}`,
+      /** button */
+      settingsTone: (id: string | number) => `settings-tone-${id}`,
       /** div · Preferences */
       settingsView: 'settings-view',
       /** div */
@@ -582,6 +676,8 @@ export const TestIds = {
       appToast: 'app-toast',
       /** button */
       toastActionBtn: 'toast-action-btn',
+      /** button · Dismiss */
+      toastDismiss: 'toast-dismiss',
       /** div */
       toastHost: 'toast-host',
     },
@@ -600,6 +696,22 @@ export const TestIds = {
       syncPaneSwitcher: 'sync-pane-switcher',
       /** header */
       toolbar: 'toolbar',
+      /** button · Clear */
+      toolbarClear: 'toolbar-clear',
+      /** button · All */
+      toolbarObjectTypesAll: 'toolbar-object-types-all',
+      /** button · Cancel */
+      toolbarPasswordCancel: 'toolbar-password-cancel',
+      /** button · Connect */
+      toolbarPasswordConnect: 'toolbar-password-connect',
+      /** button */
+      toolbarPasswordShow: 'toolbar-password-show',
+      /** button · Swap Original Server and Target (reverse migration direction) */
+      toolbarSwapDirection: 'toolbar-swap-direction',
+      /** button */
+      toolbarToggleObjectType: (type: string | number) => `toolbar-toggle-object-type-${type}`,
+      /** button */
+      toolbarToggleTypeFilter: (type: string | number) => `toolbar-toggle-type-filter-${type}`,
     },
     UpdatesSettings: {
       /** button · Update now */
@@ -626,10 +738,20 @@ export const TestIds = {
       authForgotLink: 'auth-forgot-link',
       /** button · Have an invite or reset code? */
       authHaveCode: 'auth-have-code',
+      /** input · your@email.com */
+      authLoginEmail: 'auth-login-email',
       /** form */
       authLoginForm: 'auth-login-form',
+      /** button · Sign in */
+      authLoginSubmit: 'auth-login-submit',
+      /** input · ABCD-EFGH */
+      authSetupCode: 'auth-setup-code',
+      /** input · your@email.com */
+      authSetupEmail: 'auth-setup-email',
       /** form */
       authSetupForm: 'auth-setup-form',
+      /** button · Create account */
+      authSetupSubmit: 'auth-setup-submit',
     },
     NewPasswordFields: {
       /** input */
@@ -640,6 +762,8 @@ export const TestIds = {
       passwordRules: 'password-rules',
     },
     OnboardingWizard: {
+      /** button · ← Back */
+      onboardingBack: 'onboarding-back',
       /** div */
       onboardingDatabases: 'onboarding-databases',
       /** button */
@@ -650,14 +774,38 @@ export const TestIds = {
       onboardingSkip: 'onboarding-skip',
     },
     PasswordRecovery: {
+      /** input · ABCD-EFGH-JKMN */
+      authCode: 'auth-code',
+      /** button · Back to sign in */
+      authCodeBack: 'auth-code-back',
+      /** button · Continue */
+      authCodeContinue: 'auth-code-continue',
       /** form */
       authCodeForm: 'auth-code-form',
+      /** button · Back to sign in */
+      authForgotBack: 'auth-forgot-back',
+      /** input · your@email.com */
+      authForgotEmail: 'auth-forgot-email',
       /** form */
       authForgotForm: 'auth-forgot-form',
+      /** button · I have a code */
+      authForgotHaveCode: 'auth-forgot-have-code',
+      /** button · Send reset code */
+      authForgotSend: 'auth-forgot-send',
       /** div */
       authForgotSent: 'auth-forgot-sent',
+      /** button · Back to sign in */
+      authRedeemBack: 'auth-redeem-back',
+      /** input · Email */
+      authRedeemEmail: 'auth-redeem-email',
       /** form */
       authRedeemForm: 'auth-redeem-form',
+      /** button */
+      authRedeemSubmit: 'auth-redeem-submit',
+      /** button · Back to sign in */
+      authSentBack: 'auth-sent-back',
+      /** button · I have a code */
+      authSentEnterCode: 'auth-sent-enter-code',
     },
     SignupWizard: {
       /** div · Get product updates */
@@ -671,11 +819,17 @@ export const TestIds = {
       /** button · Subscribe & continue */
       signupWizardSubmit: 'signup-wizard-submit',
     },
+    SsoButtons: {
+      /** button · Continue with */
+      authSsoButtonsContinue: (id: string | number) => `auth-sso-buttons-continue-${id}`,
+    },
   },
   connections: {
     ConnectionModal: {
       /** select */
       connAuthMethod: 'conn-auth-method',
+      /** button · Cancel */
+      connCancel: 'conn-cancel',
       /** button · Close */
       connClose: 'conn-close',
       /** button · Pick a database file on the server */
@@ -688,6 +842,8 @@ export const TestIds = {
       connDomainInput: 'conn-domain-input',
       /** input · localhost */
       connHostInput: 'conn-host-input',
+      /** button · Install the driver package on the server */
+      connInstallDriverPackage: 'conn-install-driver-package',
       /** p */
       connLdapHint: 'conn-ldap-hint',
       /** button · Connect and list available schemas */
@@ -718,10 +874,18 @@ export const TestIds = {
     CredentialManager: {
       /** button · Add Credential */
       credAddBtn: 'cred-add-btn',
+      /** button · Clear filters */
+      credClearFilters: 'cred-clear-filters',
       /** button */
       credCloseBtn: 'cred-close-btn',
+      /** button · Delete */
+      credDelete: (id: string | number) => `cred-delete-${id}`,
       /** select · Filter by provider */
       credDialectFilter: 'cred-dialect-filter',
+      /** button · Edit */
+      credEdit: (id: string | number) => `cred-edit-${id}`,
+      /** button · Edit credential */
+      credEditCredential: (id: string | number) => `cred-edit-credential-${id}`,
       /** div */
       credGroup: (dialect: string | number) => `cred-group-${dialect}`,
       /** div · Saved Credentials */
@@ -760,24 +924,52 @@ export const TestIds = {
   },
   git: {
     CommitMigrationDialog: {
+      /** select · New branch… */
+      gitCommitBranch: 'git-commit-branch',
+      /** button · Cancel */
+      gitCommitCancel: 'git-commit-cancel',
+      /** button · Close */
+      gitCommitClose: 'git-commit-close',
       /** div · Commit migration to Git */
       gitCommitDialog: 'git-commit-dialog',
+      /** input · feature/orders-index */
+      gitCommitNewBranch: 'git-commit-new-branch',
+      /** textarea · What this migration does and why */
+      gitCommitNote: 'git-commit-note',
       /** button · Commit */
       gitCommitOnly: 'git-commit-only',
       /** pre */
       gitCommitPreview: 'git-commit-preview',
       /** button · Commit & push */
       gitCommitPush: 'git-commit-push',
+      /** select · Repository */
+      gitCommitRepo: 'git-commit-repo',
     },
     GitBranchView: {
       /** span */
       gitAheadBehind: 'git-ahead-behind',
       /** div · Migrations in Git */
       gitBranchView: 'git-branch-view',
+      /** select · Branch */
+      gitBranchViewBranch: 'git-branch-view-branch',
+      /** button · Close */
+      gitBranchViewClose: 'git-branch-view-close',
+      /** button · Fetch */
+      gitBranchViewFetch: 'git-branch-view-fetch',
+      /** button · Pull */
+      gitBranchViewPull: 'git-branch-view-pull',
+      /** button · Push */
+      gitBranchViewPush: 'git-branch-view-push',
+      /** select · Repository */
+      gitBranchViewRepo: 'git-branch-view-repo',
       /** li */
       gitMigration: (fileName: string | number) => `git-migration-${fileName}`,
       /** pre */
       gitReview: 'git-review',
+      /** button · Review */
+      gitReviewForFileName: (fileName: string | number) => `git-review-${fileName}`,
+      /** button · Close review */
+      gitReviewClose: 'git-review-close',
       /** button · Run */
       gitRun: (fileName: string | number) => `git-run-${fileName}`,
     },
@@ -788,22 +980,44 @@ export const TestIds = {
       adminGitActivityForId: (id: string | number) => `admin-git-activity-${id}`,
       /** button · Add repository */
       adminGitAdd: 'admin-git-add',
+      /** button · Cancel */
+      adminGitCancel: 'admin-git-cancel',
+      /** button · Edit */
+      adminGitEdit: (id: string | number) => `admin-git-edit-${id}`,
       /** form · Who can see it */
       adminGitForm: 'admin-git-form',
+      /** input · Default branch */
+      adminGitFormBranch: 'admin-git-form-branch',
+      /** input · migrations */
+      adminGitFormFolder: 'admin-git-form-folder',
+      /** input · DB migrations */
+      adminGitFormName: 'admin-git-form-name',
+      /** input · https://github.com/acme/db-migrations.git */
+      adminGitFormUrl: 'admin-git-form-url',
+      /** input · x-access-token */
+      adminGitFormUser: 'admin-git-form-user',
+      /** button */
+      adminGitRemove: (id: string | number) => `admin-git-remove-${id}`,
       /** li */
       adminGitRepo: (id: string | number) => `admin-git-repo-${id}`,
       /** div · Who can see it */
       adminGitRepos: 'admin-git-repos',
       /** input */
+      adminGitRequireCommit: 'admin-git-require-commit',
+      /** input */
       adminGitRole: (role: string | number) => `admin-git-role-${role}`,
       /** span */
       adminGitRoles: (id: string | number) => `admin-git-roles-${id}`,
+      /** button */
+      adminGitSave: 'admin-git-save',
     },
   },
   lokeeWeave: {
     ForceMigrateModal: {
       /** button */
       forceMigrateApply: 'force-migrate-apply',
+      /** button · Cancel */
+      forceMigrateCancel: 'force-migrate-cancel',
       /** button · Close */
       forceMigrateClose: 'force-migrate-close',
       /** input */
@@ -940,6 +1154,8 @@ export const TestIds = {
       lokeeForceMigrateBtn: 'lokee-force-migrate-btn',
       /** button · Graph */
       lokeeGraphToggle: 'lokee-graph-toggle',
+      /** button · Try again */
+      lokeeTryAgain: 'lokee-try-again',
       /** div */
       lokeeWeaveView: 'lokee-weave-view',
     },
@@ -1008,12 +1224,30 @@ export const TestIds = {
       appliesGitBtn: 'applies-git-btn',
       /** span */
       appliesGitCommit: 'applies-git-commit',
+      /** button · Clear all records */
+      historyClearAll: 'history-clear-all',
+      /** button · Cancel */
+      historyClearAllCancel: 'history-clear-all-cancel',
+      /** button · Clear all */
+      historyClearAllConfirm: 'history-clear-all-confirm',
+      /** button · Delete this record */
+      historyDeleteRecord: 'history-delete-record',
+      /** button · Delete selected records */
+      historyDeleteSelected: 'history-delete-selected',
       /** div · Migration History */
       historyDialog: 'history-dialog',
       /** button */
       historyDialogCloseBtn: 'history-dialog-close-btn',
+      /** button · Download pre-migration snapshot */
+      historyDownloadPreMigration: 'history-download-pre-migration',
+      /** button · Refresh */
+      historyRefresh: 'history-refresh',
       /** div */
       historyRunItem: 'history-run-item',
+      /** input · Select this record */
+      historySelect: (id: string | number) => `history-select-${id}`,
+      /** button */
+      historySelectAll: 'history-select-all',
     },
   },
   objectDetail: {
@@ -1023,6 +1257,16 @@ export const TestIds = {
       /** button · Re-read this database */
       browseReloadBtn: 'browse-reload-btn',
     },
+    CrossDialectReadinessDialog: {
+      /** button · Close */
+      migrateCrossDialectReadinessClose: 'migrate-cross-dialect-readiness-close',
+    },
+    DependencyWarningDialog: {
+      /** button */
+      migrateDependency: (dependentType: string | number, dependentName: string | number) => `migrate-dependency-${dependentType}-${dependentName}`,
+      /** button · Close */
+      migrateDependencyWarningClose: 'migrate-dependency-warning-close',
+    },
     DeployConfirmDialog: {
       /** button · Cancel */
       deployCancelBtn: 'deploy-cancel-btn',
@@ -1030,10 +1274,16 @@ export const TestIds = {
       deployConfirmBtn: 'deploy-confirm-btn',
       /** div · Execute sync script? */
       deployConfirmDialog: 'deploy-confirm-dialog',
+      /** input */
+      deployDontAskAgain: 'deploy-dont-ask-again',
     },
     MigrationProgressPanel: {
+      /** button */
+      migrationClearMigrationProgress: 'migration-clear-migration-progress',
       /** h4 */
       migrationComplete: 'migration-complete',
+      /** button · Download pre-migration schema snapshot */
+      migrationDownloadPreMigration: 'migration-download-pre-migration',
       /** h4 */
       migrationFailed: 'migration-failed',
       /** h4 */
@@ -1044,6 +1294,10 @@ export const TestIds = {
       migrationProgressPanel: 'migration-progress-panel',
       /** h4 */
       migrationRunning: 'migration-running',
+      /** button · Skip & retry */
+      migrationSkipRetry: (objectName: string | number) => `migration-skip-retry-${objectName}`,
+      /** button · Switch to non-destructive */
+      migrationSwitchNonDestructive: 'migration-switch-non-destructive',
     },
     ObjectDetailPanel: {
       /** input */
@@ -1058,6 +1312,30 @@ export const TestIds = {
       executeBtn: 'execute-btn',
       /** button */
       gitCommitBtn: 'git-commit-btn',
+      /** button */
+      migrateCopySql: 'migrate-copy-sql',
+      /** button · Cross-dialect migration — click for a per-object-type breakdown of what's translated vs. flagged for manual review */
+      migrateCrossDialectMigration: 'migrate-cross-dialect-migration',
+      /** input */
+      migrateIgnoreCase: 'migrate-ignore-case',
+      /** button */
+      migrateInlineDiff: 'migrate-inline-diff',
+      /** button · Review conflicts */
+      migrateReviewConflicts: 'migrate-review-conflicts',
+      /** button · Review conflicts */
+      migrateReviewDependencies: 'migrate-review-dependencies',
+      /** input */
+      migrateShowUnchangedDetail: 'migrate-show-unchanged-detail',
+      /** input */
+      migrateToggleSyncSelection: 'migrate-toggle-sync-selection',
+      /** button · view details */
+      migrateViewDetails: 'migrate-view-details',
+      /** button · View notes */
+      migrateViewNotes: 'migrate-view-notes',
+    },
+    ValidationWarningsDialog: {
+      /** button · Close */
+      migrateValidationWarningsClose: 'migrate-validation-warnings-close',
     },
   },
   schemaDiff: {
@@ -1078,6 +1356,14 @@ export const TestIds = {
       diffBriefingRow: (tableName: string | number) => `diff-briefing-row-${tableName}`,
     },
     SchemaBlueprint: {
+      /** input */
+      blueprintAllColumnsSelected: 'blueprint-all-columns-selected',
+      /** input */
+      blueprintAllIndexesSelected: 'blueprint-all-indexes-selected',
+      /** input */
+      blueprintAllMembersSelected: 'blueprint-all-members-selected',
+      /** input */
+      blueprintAllTriggersSelected: 'blueprint-all-triggers-selected',
       /** div */
       blueprintAttributes: 'blueprint-attributes',
       /** input */
@@ -1090,6 +1376,8 @@ export const TestIds = {
       blueprintColumnsWholeObject: 'blueprint-columns-whole-object',
       /** div */
       blueprintForeignKeys: 'blueprint-foreign-keys',
+      /** input · Include this member in the deploy script */
+      blueprintIncludeMemberIn: (name: string | number) => `blueprint-include-member-in-${name}`,
       /** div */
       blueprintIndexes: 'blueprint-indexes',
       /** div · Parameters */
@@ -1098,6 +1386,8 @@ export const TestIds = {
       blueprintPrimaryKey: 'blueprint-primary-key',
       /** div */
       blueprintSummary: 'blueprint-summary',
+      /** input */
+      blueprintToggleIndex: (name: string | number) => `blueprint-toggle-index-${name}`,
       /** input · Migrate this trigger */
       blueprintTriggerCheck: (name: string | number) => `blueprint-trigger-check-${name}`,
       /** div */
@@ -1110,10 +1400,14 @@ export const TestIds = {
     SchemaDiffTree: {
       /** div */
       diffItem: 'diff-item',
+      /** input */
+      diffTreeToggleSelection: (tableName: string | number) => `diff-tree-toggle-selection-${tableName}`,
     },
   },
   shared: {
     Autocomplete: {
+      /** button */
+      option: (testId: string | number, value: string | number) => `${testId}-option-${value}`,
       /** button */
       toggle: (testId: string | number) => `${testId}-toggle`,
     },
@@ -1182,6 +1476,8 @@ export const TestIds = {
       sqlFilterRow: 'sql-filter-row',
       /** input · filter… */
       sqlFilterValue: (colIdx: string | number) => `sql-filter-value-${colIdx}`,
+      /** button · Cancel */
+      sqlGridCancel: 'sql-grid-cancel',
       /** button · Clear sort and filters */
       sqlGridClearView: 'sql-grid-clear-view',
       /** div */
@@ -1250,6 +1546,16 @@ export const TestIds = {
       sqlGridExportYaml: 'sql-grid-export-yaml',
       /** button · Filter and sort the rows on this page */
       sqlGridFilterToggle: 'sql-grid-filter-toggle',
+      /** button · Save cell as variable… */
+      sqlGridSaveCellAs: 'sql-grid-save-cell-as',
+      /** button · Save column as list… */
+      sqlGridSaveColumnAs: 'sql-grid-save-column-as',
+      /** input · variable_name */
+      sqlGridSaveName: 'sql-grid-save-name',
+      /** button · Save result as table… */
+      sqlGridSaveResultAs: 'sql-grid-save-result-as',
+      /** button · Save result as table… */
+      sqlGridSaveResultAsMode: 'sql-grid-save-result-as-mode',
       /** span */
       sqlGridViewScope: 'sql-grid-view-scope',
       /** button */
@@ -1292,10 +1598,14 @@ export const TestIds = {
       sqlDataMigrateFailures: (statementIndex: string | number) => `sql-data-migrate-failures-${statementIndex}`,
       /** button · History */
       sqlDataMigrateHistory: (statementIndex: string | number) => `sql-data-migrate-history-${statementIndex}`,
+      /** button */
+      sqlDataMigrateHistoryClose: 'sql-data-migrate-history-close',
       /** div */
       sqlDataMigrateHistoryModal: 'sql-data-migrate-history-modal',
       /** button · Restore from this backup */
       sqlDataMigrateHistoryRestore: 'sql-data-migrate-history-restore',
+      /** button */
+      sqlDataMigrateHistoryRun: (id: string | number) => `sql-data-migrate-history-run-${id}`,
       /** input */
       sqlDataMigrateIdentity: (statementIndex: string | number) => `sql-data-migrate-identity-${statementIndex}`,
       /** input */
@@ -1304,14 +1614,20 @@ export const TestIds = {
       sqlDataMigrateKey: (col: string | number, statementIndex: string | number) => `sql-data-migrate-key-${col}-${statementIndex}`,
       /** button · Preview the INSERT / UPDATE / DELETE SQL before applying */
       sqlDataMigratePreview: (statementIndex: string | number) => `sql-data-migrate-preview-${statementIndex}`,
+      /** button · Close */
+      sqlDataMigratePreviewClose: 'sql-data-migrate-preview-close',
       /** div · Preview migrate SQL */
       sqlDataMigratePreviewModal: 'sql-data-migrate-preview-modal',
       /** div */
       sqlDataMigrateProgress: 'sql-data-migrate-progress',
+      /** button */
+      sqlDataMigrateProgressClose: 'sql-data-migrate-progress-close',
       /** button · Reverse successful ops from the last Backup snapshot */
       sqlDataMigrateRestore: (statementIndex: string | number) => `sql-data-migrate-restore-${statementIndex}`,
       /** span */
       sqlDataMigrateRoute: (statementIndex: string | number) => `sql-data-migrate-route-${statementIndex}`,
+      /** button · Cancel */
+      sqlDataMigrateSafeCancel: 'sql-data-migrate-safe-cancel',
       /** span · SQL Editor Safe mode is on — Apply will ask for confirmation */
       sqlDataMigrateSafeChip: (statementIndex: string | number) => `sql-data-migrate-safe-chip-${statementIndex}`,
       /** div · Safe mode is on */
@@ -1388,6 +1704,8 @@ export const TestIds = {
     FileImportsPanel: {
       /** div */
       fileImport: (id: string | number) => `file-import-${id}`,
+      /** button · Import CSV, JSON, or fixed-width text */
+      fileImportCsvJson: 'file-import-csv-json',
       /** button · Remove this import */
       fileImportDelete: (id: string | number) => `file-import-delete-${id}`,
       /** button */
@@ -1406,6 +1724,12 @@ export const TestIds = {
       fileImportsTableHead: 'file-imports-table-head',
     },
     PeekDatePicker: {
+      /** button */
+      peekDateDay: (y: string | number, m: string | number, day: string | number) => `peek-date-day-${y}-${m}-${day}`,
+      /** button · › */
+      peekDateToday: 'peek-date-today',
+      /** button · ‹ */
+      peekDateViewToggle: 'peek-date-view-toggle',
       /** button */
       peekRowDatepicker: (fieldName: string | number) => `peek-row-datepicker-${fieldName}`,
       /** div */
@@ -1440,6 +1764,10 @@ export const TestIds = {
       dataPeekInsightRows: 'data-peek-insight-rows',
     },
     PeekRowEditor: {
+      /** button · Cancel */
+      peekRowCancel: 'peek-row-cancel',
+      /** button · Close */
+      peekRowClose: 'peek-row-close',
       /** input */
       peekRowCol: (name: string | number) => `peek-row-col-${name}`,
       /** div */
@@ -1488,10 +1816,10 @@ export const TestIds = {
     ResultsPanel: {
       /** button · Refresh this server */
       sqlCredRefresh: 'sql-cred-refresh',
-      /** button · Retry this server */
-      sqlPaneRefresh: 'sql-pane-refresh',
       /** div · Drag to resize this table */
       sqlPaneResize: 'sql-pane-resize',
+      /** button · Retry this server */
+      sqlPaneRetry: (connectionId: string | number) => `sql-pane-retry-${connectionId}`,
       /** span */
       sqlResultCollapsed: (statementIndex: string | number) => `sql-result-${statementIndex}-collapsed`,
       /** span */
@@ -1584,14 +1912,24 @@ export const TestIds = {
       diffBriefingOpen: 'diff-briefing-open',
       /** input */
       nonDestructiveCheckbox: 'non-destructive-checkbox',
+      /** button */
+      schemaStatusFilter: (status: string | number) => `schema-status-filter-${status}`,
       /** div */
       schemaTree: 'schema-tree',
       /** div */
       schemaTreeEmpty: 'schema-tree-empty',
+      /** input */
+      sqlSchemaTreeIncludeAll: 'sql-schema-tree-include-all',
+      /** input · Search objects, columns, indexes... */
+      sqlSchemaTreeSearch: 'sql-schema-tree-search',
+      /** button · All */
+      sqlSchemaTreeTypeAll: 'sql-schema-tree-type-all',
     },
     SelectColumnPicker: {
       /** button · SELECT * */
       sqlSelectAllStar: 'sql-select-all-star',
+      /** button · Close */
+      sqlSelectClose: 'sql-select-close',
       /** input */
       sqlSelectCol: (key: string | number) => `sql-select-col-${key}`,
       /** div */
@@ -1606,6 +1944,10 @@ export const TestIds = {
       sqlBookmarkInstallSamples: 'sql-bookmark-install-samples',
       /** button */
       sqlBookmarkOpen: (id: string | number) => `sql-bookmark-open-${id}`,
+      /** button · Rename bookmark */
+      sqlBookmarkRename: (id: string | number) => `sql-bookmark-rename-${id}`,
+      /** input */
+      sqlBookmarkRenameInput: (id: string | number) => `sql-bookmark-rename-input-${id}`,
       /** button */
       sqlBookmarkToggleSamples: 'sql-bookmark-toggle-samples',
       /** div */
@@ -1626,6 +1968,8 @@ export const TestIds = {
       sqlBookmarkSave: 'sql-bookmark-save',
       /** button · Bookmark this query (uses the tab title) */
       sqlBookmarkSaveToolbar: 'sql-bookmark-save-toolbar',
+      /** button · Clear results */
+      sqlClearResults: 'sql-clear-results',
       /** div */
       sqlEditorLoading: 'sql-editor-loading',
       /** div · Resize editor and results */
@@ -1686,18 +2030,28 @@ export const TestIds = {
       sqlRunsOpen: (id: string | number) => `sql-runs-open-${id}`,
     },
     SqlSchemaExplorer: {
+      /** button */
+      sqlExplorerColInsert: (name: string | number, name2: string | number) => `sql-explorer-col-insert-${name}-${name2}`,
       /** button · Sel */
       sqlExplorerColSelect: (name: string | number, name2: string | number) => `sql-explorer-col-select-${name}-${name2}`,
+      /** button · Columns ( ) */
+      sqlExplorerColumnsToggle: (name: string | number) => `sql-explorer-columns-toggle-${name}`,
       /** button · From */
       sqlExplorerFrom: (name: string | number) => `sql-explorer-from-${name}`,
       /** button */
       sqlExplorerIndex: (name: string | number, name2: string | number) => `sql-explorer-index-${name}-${name2}`,
       /** div */
       sqlExplorerIndexes: (name: string | number) => `sql-explorer-indexes-${name}`,
+      /** button · Indexes ( ) */
+      sqlExplorerIndexesToggle: (name: string | number) => `sql-explorer-indexes-toggle-${name}`,
       /** button */
       sqlExplorerObject: (name: string | number) => `sql-explorer-object-${name}`,
+      /** button */
+      sqlExplorerParamInsert: (name: string | number, name2: string | number) => `sql-explorer-param-insert-${name}-${name2}`,
       /** span */
       sqlExplorerTableStats: (name: string | number) => `sql-explorer-table-stats-${name}`,
+      /** button */
+      sqlExplorerToggle: (name: string | number) => `sql-explorer-toggle-${name}`,
       /** button · Create new table (opens table blueprint) */
       sqlNewTable: 'sql-new-table',
       /** button · Create table */
@@ -1708,6 +2062,8 @@ export const TestIds = {
       sqlOpenObjectSource: 'sql-open-object-source',
       /** button · Open source script in the editor (view only) */
       sqlOpenObjectSourceBtn: 'sql-open-object-source-btn',
+      /** button · Reload schema */
+      sqlReloadSchema: 'sql-reload-schema',
       /** select · Schema connection */
       sqlSchemaConnection: 'sql-schema-connection',
       /** div */
@@ -1716,6 +2072,8 @@ export const TestIds = {
       sqlSchemaExplorer: 'sql-schema-explorer',
       /** div */
       sqlSchemaGroup: (type: string | number) => `sql-schema-group-${type}`,
+      /** button · ( ) */
+      sqlSchemaGroupToggle: (type: string | number) => `sql-schema-group-toggle-${type}`,
       /** p */
       sqlSchemaMissing: 'sql-schema-missing',
     },
@@ -1724,8 +2082,12 @@ export const TestIds = {
       sqlSecret: (name: string | number) => `sql-secret-${name}`,
       /** button · Add secret */
       sqlSecretAdd: 'sql-secret-add',
+      /** button · Cancel */
+      sqlSecretCancel: 'sql-secret-cancel',
       /** input */
       sqlSecretCloudId: 'sql-secret-cloud-id',
+      /** button · Delete secret */
+      sqlSecretDeleteSecret: (id: string | number) => `sql-secret-delete-secret-${id}`,
       /** button */
       sqlSecretFetch: 'sql-secret-fetch',
       /** select · Fetch from cloud Manual (enter secret key) */
@@ -1734,10 +2096,16 @@ export const TestIds = {
       sqlSecretName: 'sql-secret-name',
       /** select */
       sqlSecretProvider: 'sql-secret-provider',
+      /** input · region (optional) */
+      sqlSecretRegion: 'sql-secret-region',
       /** button · Add */
       sqlSecretSave: 'sql-secret-save',
       /** input · secret value (won’t be shown again) */
       sqlSecretValue: 'sql-secret-value',
+      /** input · https://….vault.azure.net */
+      sqlSecretVaultUrl: 'sql-secret-vault-url',
+      /** input · version (optional) */
+      sqlSecretVersion: 'sql-secret-version',
       /** div */
       sqlSecrets: 'sql-secrets',
       /** p */
@@ -1760,14 +2128,34 @@ export const TestIds = {
       sqlVariableAdd: 'sql-variable-add',
       /** button · Save */
       sqlVariableAddConfirm: 'sql-variable-add-confirm',
+      /** button · Cancel */
+      sqlVariableCancel: 'sql-variable-cancel',
+      /** button · Clear override */
+      sqlVariableClearOverride: (id: string | number) => `sql-variable-clear-override-${id}`,
       /** button · Delete variable */
       sqlVariableDelete: (name: string | number) => `sql-variable-delete-${name}`,
       /** button · Export variables as JSON */
       sqlVariableExport: 'sql-variable-export',
       /** button · Import variables from JSON */
       sqlVariableImport: 'sql-variable-import',
+      /** input */
+      sqlVariableImportFile: 'sql-variable-import-file',
+      /** input */
+      sqlVariableInput: (id: string | number) => `sql-variable-input-${id}`,
       /** input · name */
       sqlVariableNameInput: 'sql-variable-name-input',
+      /** button · … */
+      sqlVariableOverrides: (name: string | number) => `sql-variable-overrides-${name}`,
+      /** button · Preview table */
+      sqlVariablePreviewTable: (name: string | number) => `sql-variable-preview-table-${name}`,
+      /** input */
+      sqlVariableSecret: (name: string | number) => `sql-variable-secret-${name}`,
+      /** input */
+      sqlVariableSecretInput: 'sql-variable-secret-input',
+      /** button · Edit value */
+      sqlVariableValue: (name: string | number) => `sql-variable-value-${name}`,
+      /** input */
+      sqlVariableValueEdit: (name: string | number) => `sql-variable-value-edit-${name}`,
       /** input · value */
       sqlVariableValueInput: 'sql-variable-value-input',
       /** div */
@@ -1780,6 +2168,10 @@ export const TestIds = {
       sqlStatementCopy: 'sql-statement-copy',
       /** button */
       sqlStatementCopyRow: (i: string | number) => `sql-statement-copy-row-${i}`,
+      /** input */
+      sqlStatementInclude: (i: string | number) => `sql-statement-include-${i}`,
+      /** button · In [ ]: */
+      sqlStatementReveal: (i: string | number) => `sql-statement-reveal-${i}`,
       /** button */
       sqlStatementRun: (i: string | number) => `sql-statement-run-${i}`,
       /** div */
@@ -1790,8 +2182,16 @@ export const TestIds = {
       sqlStatementValuesPopover: 'sql-statement-values-popover',
     },
     TableBlueprintModal: {
+      /** button */
+      toggle: (testId: string | number) => `${testId}-toggle`,
+      /** button · Add column */
+      blueprintAddColumn: 'blueprint-add-column',
+      /** button · Add foreign key */
+      blueprintAddFk: 'blueprint-add-fk',
       /** button · Add index */
       blueprintAddIndex: 'blueprint-add-index',
+      /** button · Create trigger */
+      blueprintAddTrigger: 'blueprint-add-trigger',
       /** input */
       blueprintAi: (name: string | number) => `blueprint-ai-${name}`,
       /** button · Apply */
@@ -1802,26 +2202,92 @@ export const TestIds = {
       blueprintBoolDefault: 'blueprint-bool-default',
       /** button · Close */
       blueprintClose: 'blueprint-close',
+      /** button · Cancel */
+      blueprintColumnCancel: 'blueprint-column-cancel',
+      /** input · — */
+      blueprintColumnDefault: 'blueprint-column-default',
+      /** button · Drop column */
+      blueprintColumnDrop: (name: string | number) => `blueprint-column-drop-${name}`,
+      /** button · Edit column */
+      blueprintColumnEdit: (name: string | number) => `blueprint-column-edit-${name}`,
       /** div */
       blueprintColumnForm: 'blueprint-column-form',
+      /** input */
+      blueprintColumnIdentity: 'blueprint-column-identity',
+      /** select */
+      blueprintColumnIdentityGeneration: 'blueprint-column-identity-generation',
+      /** input */
+      blueprintColumnName: 'blueprint-column-name',
+      /** input */
+      blueprintColumnNullable: 'blueprint-column-nullable',
+      /** button · Save */
+      blueprintColumnSave: 'blueprint-column-save',
+      /** button · Undo drop */
+      blueprintColumnUndoDrop: (name: string | number) => `blueprint-column-undo-drop-${name}`,
       /** button · Drop table */
       blueprintDropTable: 'blueprint-drop-table',
       /** p */
       blueprintError: 'blueprint-error',
+      /** button · Cancel */
+      blueprintFkCancel: 'blueprint-fk-cancel',
+      /** input */
+      blueprintFkColumn: (name: string | number) => `blueprint-fk-column-${name}`,
+      /** button · Move down */
+      blueprintFkColumnDown: (name: string | number) => `blueprint-fk-column-down-${name}`,
+      /** button · Move up */
+      blueprintFkColumnUp: (name: string | number) => `blueprint-fk-column-up-${name}`,
+      /** button · Drop foreign key */
+      blueprintFkDrop: (name: string | number) => `blueprint-fk-drop-${name}`,
       /** div */
       blueprintFkForm: 'blueprint-fk-form',
+      /** input */
+      blueprintFkName: 'blueprint-fk-name',
+      /** select */
+      blueprintFkOnDelete: 'blueprint-fk-on-delete',
+      /** select */
+      blueprintFkOnUpdate: 'blueprint-fk-on-update',
+      /** input */
+      blueprintFkRefColumn: (name: string | number) => `blueprint-fk-ref-column-${name}`,
+      /** button · Move down */
+      blueprintFkRefColumnDown: (name: string | number) => `blueprint-fk-ref-column-down-${name}`,
+      /** button · Move up */
+      blueprintFkRefColumnUp: (name: string | number) => `blueprint-fk-ref-column-up-${name}`,
       /** Autocomplete · Type table name… */
       blueprintFkRefTable: 'blueprint-fk-ref-table',
+      /** button · Add FK */
+      blueprintFkSave: 'blueprint-fk-save',
+      /** button · Undo */
+      blueprintFkUndoDrop: (n: string | number) => `blueprint-fk-undo-drop-${n}`,
+      /** button · Close */
+      blueprintFooterClose: 'blueprint-footer-close',
       /** div */
       blueprintFragCustom: 'blueprint-frag-custom',
+      /** button */
+      blueprintFragCustomShow: 'blueprint-frag-custom-show',
       /** textarea */
       blueprintFragCustomSql: 'blueprint-frag-custom-sql',
       /** p */
       blueprintFragLegend: 'blueprint-frag-legend',
       /** button · Run custom probe */
       blueprintFragRunCustom: 'blueprint-frag-run-custom',
+      /** button · Cancel */
+      blueprintIndexCancel: 'blueprint-index-cancel',
+      /** button */
+      blueprintIndexColumn: (name: string | number) => `blueprint-index-column-${name}`,
+      /** button · Move earlier */
+      blueprintIndexColumnEarlier: (name: string | number) => `blueprint-index-column-earlier-${name}`,
+      /** button · Move later */
+      blueprintIndexColumnLater: (name: string | number) => `blueprint-index-column-later-${name}`,
+      /** button */
+      blueprintIndexColumnOrder: (name: string | number) => `blueprint-index-column-order-${name}`,
+      /** input */
+      blueprintIndexConfirmNoFilter: 'blueprint-index-confirm-no-filter',
       /** button · Defrag */
       blueprintIndexDefrag: (name: string | number) => `blueprint-index-defrag-${name}`,
+      /** button · Drop index */
+      blueprintIndexDrop: (name: string | number) => `blueprint-index-drop-${name}`,
+      /** button · Edit index */
+      blueprintIndexEdit: (name: string | number) => `blueprint-index-edit-${name}`,
       /** div */
       blueprintIndexForm: 'blueprint-index-form',
       /** div */
@@ -1832,16 +2298,52 @@ export const TestIds = {
       blueprintIndexRow: (name: string | number) => `blueprint-index-row-${name}`,
       /** button */
       blueprintIndexSave: 'blueprint-index-save',
-      /** section · Indexes ( ) */
-      blueprintIndexes: 'blueprint-indexes',
+      /** button · Undo */
+      blueprintIndexUndoDrop: (n: string | number) => `blueprint-index-undo-drop-${n}`,
+      /** input */
+      blueprintIndexUnique: 'blueprint-index-unique',
+      /** input · e.g. status = 'active' AND deleted_at IS NULL */
+      blueprintIndexWhere: 'blueprint-index-where',
       /** button · Insert SQL */
       blueprintInsertSql: 'blueprint-insert-sql',
+      /** button · Remove */
+      blueprintPendingFkRemove: (name: string | number) => `blueprint-pending-fk-remove-${name}`,
+      /** button · Edit */
+      blueprintPendingIndexEdit: (name: string | number) => `blueprint-pending-index-edit-${name}`,
+      /** button · Remove */
+      blueprintPendingIndexRemove: (name: string | number) => `blueprint-pending-index-remove-${name}`,
+      /** button */
+      blueprintPendingTriggerRemove: (name: string | number) => `blueprint-pending-trigger-remove-${name}`,
+      /** input */
+      blueprintPkColumn: (name: string | number) => `blueprint-pk-column-${name}`,
+      /** button · Move down in key */
+      blueprintPkColumnDown: (name: string | number) => `blueprint-pk-column-down-${name}`,
+      /** button · Move up in key */
+      blueprintPkColumnUp: (name: string | number) => `blueprint-pk-column-up-${name}`,
       /** button · Refresh index fragmentation */
       blueprintRefreshFrag: 'blueprint-refresh-frag',
       /** input · new_table_name */
       blueprintTableName: 'blueprint-table-name',
+      /** button · Cancel */
+      blueprintTriggerCancel: 'blueprint-trigger-cancel',
+      /** textarea */
+      blueprintTriggerDefinition: 'blueprint-trigger-definition',
+      /** button · Drop trigger */
+      blueprintTriggerDrop: (name: string | number) => `blueprint-trigger-drop-${name}`,
+      /** select */
+      blueprintTriggerEvent: 'blueprint-trigger-event',
+      /** button */
+      blueprintTriggerExpand: (name: string | number) => `blueprint-trigger-expand-${name}`,
       /** div */
       blueprintTriggerForm: 'blueprint-trigger-form',
+      /** input */
+      blueprintTriggerName: 'blueprint-trigger-name',
+      /** button · Add trigger */
+      blueprintTriggerSave: 'blueprint-trigger-save',
+      /** select */
+      blueprintTriggerTiming: 'blueprint-trigger-timing',
+      /** button · Undo */
+      blueprintTriggerUndoDrop: (n: string | number) => `blueprint-trigger-undo-drop-${n}`,
       /** input · custom type */
       blueprintTypeCustom: 'blueprint-type-custom',
       /** input · e.g. 255 */
@@ -1854,6 +2356,8 @@ export const TestIds = {
       blueprintTypeSelect: 'blueprint-type-select',
       /** input */
       blueprintUnique: 'blueprint-unique',
+      /** section · Indexes ( ) */
+      tableBlueprintIndexes: 'table-blueprint-indexes',
       /** div · Columns ( ) */
       tableBlueprintModal: 'table-blueprint-modal',
     },
@@ -1866,12 +2370,16 @@ export const TestIds = {
       sqlSafeMultiTableWarn: 'sql-safe-multi-table-warn',
       /** label */
       sqlSafeNoWhereAck: 'sql-safe-no-where-ack',
+      /** input */
+      sqlSafeNoWhereAckCheck: 'sql-safe-no-where-ack-check',
       /** div */
       sqlSafeNoWhereWarn: 'sql-safe-no-where-warn',
       /** div */
       sqlWriteConfirm: 'sql-write-confirm',
       /** button · Run anyway */
       sqlWriteConfirmBtn: 'sql-write-confirm-btn',
+      /** button · Cancel */
+      sqlWriteConfirmCancel: 'sql-write-confirm-cancel',
     },
   },
   utilities: {
@@ -1880,6 +2388,8 @@ export const TestIds = {
       cloneApply: 'clone-apply',
       /** p */
       cloneArchivePreview: 'clone-archive-preview',
+      /** button · Close */
+      cloneClose: 'clone-close',
       /** p */
       cloneError: 'clone-error',
       /** p */
@@ -1890,6 +2400,8 @@ export const TestIds = {
       cloneKeepFks: 'clone-keep-fks',
       /** input */
       cloneKeepIndexes: 'clone-keep-indexes',
+      /** input */
+      clonePasswordDraft: 'clone-password-draft',
       /** p */
       clonePlanError: 'clone-plan-error',
       /** pre */
@@ -1902,6 +2414,8 @@ export const TestIds = {
       cloneSuffixFixed: 'clone-suffix-fixed',
       /** input */
       cloneSuffixNumber: 'clone-suffix-number',
+      /** button · Close */
+      cloneTableClose: 'clone-table-close',
       /** select */
       cloneTableConnection: 'clone-table-connection',
       /** button · Load tables */
@@ -1910,6 +2424,8 @@ export const TestIds = {
       cloneTableModal: 'clone-table-modal',
       /** Autocomplete */
       cloneTableName: 'clone-table-name',
+      /** button · Unlock */
+      cloneUnlock: 'clone-unlock',
     },
     DatabaseAccessModal: {
       /** div */
@@ -1922,6 +2438,8 @@ export const TestIds = {
       dbAccessAllowAll: (name: string | number) => `db-access-allow-all-${name}`,
       /** p */
       dbAccessAllowAllBanner: 'db-access-allow-all-banner',
+      /** button · Cancel */
+      dbAccessCancelConfirm: 'db-access-cancel-confirm',
       /** div */
       dbAccessConfirm: 'db-access-confirm',
       /** button · Run */
@@ -1930,6 +2448,8 @@ export const TestIds = {
       dbAccessConfirmType: 'db-access-confirm-type',
       /** select · — Select credential — */
       dbAccessConnection: 'db-access-connection',
+      /** button · Close */
+      dbAccessDbUsersClose: 'db-access-db-users-close',
       /** div */
       dbAccessEmbedded: 'db-access-embedded',
       /** p */
@@ -1948,6 +2468,8 @@ export const TestIds = {
       dbAccessGrantRole: 'db-access-grant-role',
       /** pre */
       dbAccessGrantSql: 'db-access-grant-sql',
+      /** input */
+      dbAccessGrantWithOption: 'db-access-grant-with-option',
       /** span · May pass this privilege on to others (WITH GRANT OPTION) */
       dbAccessGrantable: 'db-access-grantable',
       /** section */
@@ -1956,10 +2478,10 @@ export const TestIds = {
       dbAccessLoad: 'db-access-load',
       /** div */
       dbAccessMemberships: 'db-access-memberships',
-      /** div */
-      dbAccessModal: 'db-access-modal',
       /** button · Open App roles */
       dbAccessOpenAppRoles: 'db-access-open-app-roles',
+      /** div */
+      dbAccessOverlay: 'db-access-overlay',
       /** PasswordInput · •••••••• */
       dbAccessPassword: 'db-access-password',
       /** button */
@@ -1976,14 +2498,22 @@ export const TestIds = {
       dbAccessRevoke: (i: string | number) => `db-access-revoke-${i}`,
       /** button · Revoke all */
       dbAccessRevokeAll: (index: string | number) => `db-access-revoke-all-${index}`,
+      /** button · Save */
+      dbAccessSave: 'db-access-save',
       /** p */
       dbAccessStatus: 'db-access-status',
+      /** button */
+      dbAccessToggleGroup: (kind: string | number) => `db-access-toggle-group-${kind}`,
       /** p */
       dbAccessUnsupported: 'db-access-unsupported',
     },
     FileQueryModal: {
+      /** button · Cancel */
+      fileQueryCancel: 'file-query-cancel',
       /** button · Clear file imports */
       fileQueryClear: 'file-query-clear',
+      /** button · Close */
+      fileQueryClose: 'file-query-close',
       /** textarea · Paste file contents here, or choose a file above… */
       fileQueryContent: 'file-query-content',
       /** select · Comma (,) Tab (TSV) Semicolon (;) Pipe (|) Custom… */
@@ -2000,6 +2530,8 @@ export const TestIds = {
       fileQueryImport: 'file-query-import',
       /** input */
       fileQueryInput: 'file-query-input',
+      /** select · Array of objects NDJSON (one object per line) */
+      fileQueryJsonShape: 'file-query-json-shape',
       /** div */
       fileQueryModal: 'file-query-modal',
       /** textarea */
@@ -2008,6 +2540,8 @@ export const TestIds = {
       fileQueryReplacePrevious: 'file-query-replace-previous',
       /** input */
       fileQueryReplaceTable: 'file-query-replace-table',
+      /** input */
+      fileQuerySkipLines: 'file-query-skip-lines',
       /** input · data */
       fileQueryTable: 'file-query-table',
       /** select · Select credential… */
@@ -2021,7 +2555,11 @@ export const TestIds = {
       /** div */
       indexManagementEmbed: 'index-management-embed',
       /** div */
-      indexManagementModal: 'index-management-modal',
+      indexManagementOverlay: 'index-management-overlay',
+      /** button · Cancel */
+      indexMgmtCancel: 'index-mgmt-cancel',
+      /** button · Close */
+      indexMgmtClose: 'index-mgmt-close',
       /** button · Collapse tables */
       indexMgmtCollapseAll: 'index-mgmt-collapse-all',
       /** div · Confirm defragment */
@@ -2030,6 +2568,8 @@ export const TestIds = {
       indexMgmtConfirmDefragRun: 'index-mgmt-confirm-defrag-run',
       /** div · Confirm drop index */
       indexMgmtConfirmDrop: 'index-mgmt-confirm-drop',
+      /** button · Cancel */
+      indexMgmtConfirmDropCancel: 'index-mgmt-confirm-drop-cancel',
       /** button · Drop indexes */
       indexMgmtConfirmDropRun: 'index-mgmt-confirm-drop-run',
       /** select · — Select credential — */
@@ -2038,6 +2578,8 @@ export const TestIds = {
       indexMgmtDefragFiltered: 'index-mgmt-defrag-filtered',
       /** button · selected ( ) */
       indexMgmtDefragSelected: 'index-mgmt-defrag-selected',
+      /** button · Defragment */
+      indexMgmtDefragment: (key: string | number) => `index-mgmt-defragment-${key}`,
       /** button · Drop */
       indexMgmtDrop: (key: string | number) => `index-mgmt-drop-${key}`,
       /** button · Drop selected ( ) */
@@ -2062,6 +2604,8 @@ export const TestIds = {
       indexMgmtPassword: 'index-mgmt-password',
       /** tr */
       indexMgmtRow: (key: string | number) => `index-mgmt-row-${key}`,
+      /** button · Save */
+      indexMgmtSave: 'index-mgmt-save',
       /** button */
       indexMgmtSelectFiltered: 'index-mgmt-select-filtered',
       /** button */
@@ -2084,20 +2628,32 @@ export const TestIds = {
       indexMgmtTableLastUsed: (tableName: string | number) => `index-mgmt-table-last-used-${tableName}`,
       /** td */
       indexMgmtTableRows: (tableName: string | number) => `index-mgmt-table-rows-${tableName}`,
+      /** button */
+      indexMgmtTableSelect: (tableName: string | number) => `index-mgmt-table-select-${tableName}`,
+      /** button */
+      indexMgmtTableToggle: (tableName: string | number) => `index-mgmt-table-toggle-${tableName}`,
+      /** button */
+      indexMgmtToggleSelected: (key: string | number) => `index-mgmt-toggle-selected-${key}`,
       /** label */
       serverInsightsSizeFilter: 'server-insights-size-filter',
       /** div */
       serverInsightsSizeGroups: 'server-insights-size-groups',
     },
     ServerInsightsModal: {
+      /** button · Close */
+      serverInsightsClose: 'server-insights-close',
       /** select */
       serverInsightsConnection: 'server-insights-connection',
       /** div */
       serverInsightsModal: 'server-insights-modal',
+      /** input · •••••••• */
+      serverInsightsPasswordDraft: 'server-insights-password-draft',
       /** button · Refresh */
       serverInsightsRefresh: 'server-insights-refresh',
       /** button */
       serverInsightsTab: (id: string | number) => `server-insights-tab-${id}`,
+      /** button · Unlock */
+      serverInsightsUnlock: 'server-insights-unlock',
     },
     UtilitiesView: {
       /** div */
@@ -2113,6 +2669,72 @@ export const TestIds = {
     },
   },
   workflow: {
+    DelimitedSourceEditor: {
+      /** button · Add column */
+      workflowSourceAddColumn: 'workflow-source-add-column',
+      /** button · Add delimiter */
+      workflowSourceAddDelimiter: 'workflow-source-add-delimiter',
+      /** button · Add column rule */
+      workflowSourceAddRule: 'workflow-source-add-rule',
+      /** input · Length */
+      workflowSourceColumnLength: (index: string | number) => `workflow-source-column-length-${index}`,
+      /** input · name */
+      workflowSourceColumnName: (index: string | number) => `workflow-source-column-name-${index}`,
+      /** button · Remove column */
+      workflowSourceColumnRemove: (index: string | number) => `workflow-source-column-remove-${index}`,
+      /** input · Start (1-based) */
+      workflowSourceColumnStart: (index: string | number) => `workflow-source-column-start-${index}`,
+      /** input */
+      workflowSourceDelimiter: 'workflow-source-delimiter',
+      /** input */
+      workflowSourceDelimiterForIndex: (index: string | number) => `workflow-source-delimiter-${index}`,
+      /** input · id, name, email — extras become field_N */
+      workflowSourceFieldNames: 'workflow-source-field-names',
+      /** select · Delimited Fixed width (offsets) */
+      workflowSourceFormat: 'workflow-source-format',
+      /** select · No header — every line is data Always skip the first line Auto — sk… */
+      workflowSourceHeader: 'workflow-source-header',
+      /** input */
+      workflowSourceOffset: 'workflow-source-offset',
+      /** select · Fail the run Skip the row Route to the rejects output */
+      workflowSourceOnInvalid: 'workflow-source-on-invalid',
+      /** input */
+      workflowSourcePath: 'workflow-source-path',
+      /** button · Preview file head */
+      workflowSourcePreviewFileHead: 'workflow-source-preview-file-head',
+      /** button · Preview sample */
+      workflowSourcePreviewSample: 'workflow-source-preview-sample',
+      /** input · optional, e.g. | */
+      workflowSourceRecordDelimiter: 'workflow-source-record-delimiter',
+      /** button · Remove delimiter */
+      workflowSourceRemoveDelimiter: (index: string | number) => `workflow-source-remove-delimiter-${index}`,
+      /** textarea · z.object({ email: z.string().regex(/^\S+@\S+$/), id: z.string().regex(/^\d+$/) }) */
+      workflowSourceRowSchema: 'workflow-source-row-schema',
+      /** button · Add regex */
+      workflowSourceRuleCheckAdd: (name: string | number) => `workflow-source-rule-check-add-${name}`,
+      /** select · Check purpose (shown in error messages) */
+      workflowSourceRuleCheckKind: (name: string | number, index: string | number) => `workflow-source-rule-check-kind-${name}-${index}`,
+      /** input · Regex the raw text must match */
+      workflowSourceRuleCheckPattern: (name: string | number, index: string | number) => `workflow-source-rule-check-pattern-${name}-${index}`,
+      /** button · Remove regex check */
+      workflowSourceRuleCheckRemove: (name: string | number, index: string | number) => `workflow-source-rule-check-remove-${name}-${index}`,
+      /** input · Field name this rule applies to */
+      workflowSourceRuleName: (name: string | number) => `workflow-source-rule-name-${name}`,
+      /** button · Remove rule */
+      workflowSourceRuleRemove: (name: string | number) => `workflow-source-rule-remove-${name}`,
+      /** input */
+      workflowSourceRuleRequired: (name: string | number) => `workflow-source-rule-required-${name}`,
+      /** select · Value type — validated and converted */
+      workflowSourceRuleType: (name: string | number) => `workflow-source-rule-type-${name}`,
+      /** textarea */
+      workflowSourceSample: 'workflow-source-sample',
+      /** input */
+      workflowSourceSkipEmpty: 'workflow-source-skip-empty',
+      /** input */
+      workflowSourceSkipLines: 'workflow-source-skip-lines',
+      /** input */
+      workflowSourceTrim: 'workflow-source-trim',
+    },
     EnginePanel: {
       /** div */
       workflowEngine: 'workflow-engine',
@@ -2130,10 +2752,200 @@ export const TestIds = {
       workflowEngineRefreshHealth: 'workflow-engine-refresh-health',
       /** button */
       workflowEngineSave: 'workflow-engine-save',
+      /** input · target */
+      workflowEngineTarget: (kind: string | number) => `workflow-engine-target-${kind}`,
       /** li */
       workflowProcess: (id: string | number) => `workflow-process-${id}`,
       /** input */
       workflowSink: (kind: string | number) => `workflow-sink-${kind}`,
+    },
+    HttpRequestEditor: {
+      /** select · Select… */
+      workflowHttpAuthCredential: 'workflow-http-auth-credential',
+      /** input */
+      workflowHttpAuthKey: 'workflow-http-auth-key',
+      /** input */
+      workflowHttpAuthPassword: 'workflow-http-auth-password',
+      /** select · Header Query */
+      workflowHttpAuthPlacement: 'workflow-http-auth-placement',
+      /** input · token or {{secrets.accessToken}} */
+      workflowHttpAuthToken: 'workflow-http-auth-token',
+      /** select · No auth Bearer token Basic API key Stored credential */
+      workflowHttpAuthType: 'workflow-http-auth-type',
+      /** input */
+      workflowHttpAuthUsername: 'workflow-http-auth-username',
+      /** input */
+      workflowHttpAuthValue: 'workflow-http-auth-value',
+      /** input */
+      workflowHttpBodyContentType: 'workflow-http-body-content-type',
+      /** button · + Add attribute */
+      workflowHttpBodyFieldAdd: 'workflow-http-body-field-add',
+      /** input · Enabled */
+      workflowHttpBodyFieldEnabled: (index: string | number) => `workflow-http-body-field-enabled-${index}`,
+      /** input · attribute */
+      workflowHttpBodyFieldKey: (index: string | number) => `workflow-http-body-field-key-${index}`,
+      /** button · × */
+      workflowHttpBodyFieldRemove: (index: string | number) => `workflow-http-body-field-remove-${index}`,
+      /** select · Value type */
+      workflowHttpBodyFieldType: (index: string | number) => `workflow-http-body-field-type-${index}`,
+      /** input */
+      workflowHttpBodyFieldValue: (index: string | number) => `workflow-http-body-field-value-${index}`,
+      /** textarea */
+      workflowHttpBodyJson: 'workflow-http-body-json',
+      /** select · None JSON builder (typed attributes) JSON Raw x-www-form-urlencoded */
+      workflowHttpBodyMode: 'workflow-http-body-mode',
+      /** textarea */
+      workflowHttpBodyRaw: 'workflow-http-body-raw',
+      /** textarea · z.object({ orderId: z.number(), note: z.string().optional() }) */
+      workflowHttpBodySchema: 'workflow-http-body-schema',
+      /** textarea · {"orderId": 42} */
+      workflowHttpBodySchemaSample: 'workflow-http-body-schema-sample',
+      /** button · + Add */
+      workflowHttpKvAdd: 'workflow-http-kv-add',
+      /** input · Enabled */
+      workflowHttpKvEnabled: (index: string | number) => `workflow-http-kv-enabled-${index}`,
+      /** input */
+      workflowHttpKvKey: (index: string | number) => `workflow-http-kv-key-${index}`,
+      /** select · Condition operator */
+      workflowHttpKvOperator: (index: string | number) => `workflow-http-kv-operator-${index}`,
+      /** button · × */
+      workflowHttpKvRemove: (index: string | number) => `workflow-http-kv-remove-${index}`,
+      /** input */
+      workflowHttpKvValue: (index: string | number) => `workflow-http-kv-value-${index}`,
+      /** select */
+      workflowHttpMethod: 'workflow-http-method',
+      /** input */
+      workflowHttpSession: 'workflow-http-session',
+      /** input */
+      workflowHttpSessionPersist: 'workflow-http-session-persist',
+      /** button */
+      workflowHttpTab: (id: string | number) => `workflow-http-tab-${id}`,
+      /** input */
+      workflowHttpTimeoutMs: 'workflow-http-timeout-ms',
+      /** input */
+      workflowHttpTokenRefresh: 'workflow-http-token-refresh',
+      /** input */
+      workflowHttpTokenRefreshAccessPath: 'workflow-http-token-refresh-access-path',
+      /** input */
+      workflowHttpTokenRefreshRefreshPath: 'workflow-http-token-refresh-refresh-path',
+      /** input */
+      workflowHttpTokenRefreshSkew: 'workflow-http-token-refresh-skew',
+      /** input */
+      workflowHttpTokenRefreshUrl: 'workflow-http-token-refresh-url',
+      /** input · https://api.example.com/users/{{vars.userId}} */
+      workflowHttpUrl: 'workflow-http-url',
+      /** textarea */
+      workflowHttpVariables: 'workflow-http-variables',
+    },
+    Inspector: {
+      /** input */
+      workflowInspectorConcurrency: 'workflow-inspector-concurrency',
+      /** select */
+      workflowInspectorField: (name: string | number) => `workflow-inspector-field-${name}`,
+      /** input */
+      workflowInspectorHttpRetryAttempts: 'workflow-inspector-http-retry-attempts',
+      /** input */
+      workflowInspectorIntent: 'workflow-inspector-intent',
+      /** textarea */
+      workflowInspectorJson: (name: string | number) => `workflow-inspector-json-${name}`,
+      /** button · Open in trigger dialog */
+      workflowInspectorOpenInTrigger: 'workflow-inspector-open-in-trigger',
+      /** input */
+      workflowInspectorPipeId: 'workflow-inspector-pipe-id',
+      /** input */
+      workflowInspectorRetryAttempts: 'workflow-inspector-retry-attempts',
+      /** button */
+      workflowInspectorSamplePort: (port: string | number) => `workflow-inspector-sample-port-${port}`,
+      /** button */
+      workflowInspectorShowRaw: 'workflow-inspector-show-raw',
+      /** select */
+      workflowInspectorSubWorkflowId: 'workflow-inspector-sub-workflow-id',
+      /** input · latest */
+      workflowInspectorSubWorkflowVersion: 'workflow-inspector-sub-workflow-version',
+      /** button */
+      workflowInspectorTab: (id: string | number) => `workflow-inspector-tab-${id}`,
+      /** select */
+      workflowInspectorTrigger: 'workflow-inspector-trigger',
+      /** select */
+      workflowInspectorType: 'workflow-inspector-type',
+    },
+    MultiHttpEditor: {
+      /** button */
+      workflowMultiHttpToggle: (index: string | number) => `workflow-multi-http-toggle-${index}`,
+    },
+    Palette: {
+      /** input · Search pipes */
+      workflowPaletteSearchPipes: 'workflow-palette-search-pipes',
+      /** input */
+      workflowPaletteShowAdvanced: 'workflow-palette-show-advanced',
+    },
+    RunsPanel: {
+      /** input */
+      workflowRunsLive: 'workflow-runs-live',
+    },
+    SqlPipeEditor: {
+      /** button */
+      workflowSqlPipeBrowse: 'workflow-sql-pipe-browse',
+      /** button */
+      workflowSqlPipeTable: (objectType: string | number, name: string | number) => `workflow-sql-pipe-table-${objectType}-${name}`,
+    },
+    TriggerConfigurationDialog: {
+      /** button */
+      workflowTriggerConfigItem: (id: string | number) => `workflow-trigger-config-item-${id}`,
+      /** input */
+      workflowTriggerConfigRetry: 'workflow-trigger-config-retry',
+      /** button */
+      workflowTriggerConfigSection: (item: string | number) => `workflow-trigger-config-section-${item}`,
+      /** input */
+      workflowTriggerConfigWorkflow: (id: string | number) => `workflow-trigger-config-workflow-${id}`,
+    },
+    TriggerInlineSettings: {
+      /** select · No catch-up One missed run All missed runs */
+      workflowTriggerSettingsCatchUp: 'workflow-trigger-settings-catch-up',
+      /** input */
+      workflowTriggerSettingsCron: 'workflow-trigger-settings-cron',
+      /** select */
+      workflowTriggerSettingsExecutionType: 'workflow-trigger-settings-execution-type',
+      /** select · Select credential */
+      workflowTriggerSettingsHttpCredential: 'workflow-trigger-settings-http-credential',
+      /** textarea · [{ "id": 1 }] */
+      workflowTriggerSettingsInput: 'workflow-trigger-settings-input',
+      /** input */
+      workflowTriggerSettingsMaxBackoffDuration: 'workflow-trigger-settings-max-backoff-duration',
+      /** input */
+      workflowTriggerSettingsMaxBodyBytes: 'workflow-trigger-settings-max-body-bytes',
+      /** input */
+      workflowTriggerSettingsMaxDoublings: 'workflow-trigger-settings-max-doublings',
+      /** input */
+      workflowTriggerSettingsMaxRetryAttempts: 'workflow-trigger-settings-max-retry-attempts',
+      /** input */
+      workflowTriggerSettingsMaxRetryDuration: 'workflow-trigger-settings-max-retry-duration',
+      /** input */
+      workflowTriggerSettingsMinBackoffDuration: 'workflow-trigger-settings-min-backoff-duration',
+      /** input */
+      workflowTriggerSettingsRequiredFields: 'workflow-trigger-settings-required-fields',
+      /** input */
+      workflowTriggerSettingsRetry: 'workflow-trigger-settings-retry',
+      /** select · Select credential */
+      workflowTriggerSettingsWebhookCredential: 'workflow-trigger-settings-webhook-credential',
+      /** input */
+      workflowTriggerSettingsWorkflow: (id: string | number) => `workflow-trigger-settings-workflow-${id}`,
+    },
+    VariablesPanel: {
+      /** button */
+      workflowVariablesEnvironment: (id: string | number) => `workflow-variables-environment-${id}`,
+    },
+    WorkflowDesigner: {
+      /** button · Workflows */
+      workflowDesignerBreadcrumbWorkflows: 'workflow-designer-breadcrumb-workflows',
+      /** button */
+      workflowDesignerSwitchPipeline: (id: string | number) => `workflow-designer-switch-pipeline-${id}`,
+    },
+    WorkflowsPanel: {
+      /** input */
+      workflowListFile: 'workflow-list-file',
+      /** button · Open in designer */
+      workflowListOpenInDesigner: (id: string | number) => `workflow-list-open-in-designer-${id}`,
     },
     WorkflowView: {
       /** nav · Workflow */

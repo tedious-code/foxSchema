@@ -222,7 +222,7 @@ export const SqlVariablesPanel: React.FC = () => {
         >
           <Upload className="w-3.5 h-3.5 text-violet-400" strokeWidth={SQL_ICON_STROKE} /> Import
         </button>
-        <input
+        <input data-testid="sql-variable-import-file"
           ref={fileRef}
           type="file"
           accept="application/json,.json"
@@ -267,7 +267,7 @@ export const SqlVariablesPanel: React.FC = () => {
             className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[13px] text-slate-100 outline-none accent-focus"
           />
           <label className="flex items-center gap-1 text-[12px] text-slate-400">
-            <input
+            <input data-testid="sql-variable-secret-input"
               type="checkbox"
               checked={secretDraft}
               onChange={(e) => setSecretDraft(e.target.checked)}
@@ -276,7 +276,7 @@ export const SqlVariablesPanel: React.FC = () => {
             Secret (masked; not saved to disk)
           </label>
           <div className="flex gap-1 justify-end">
-            <button
+            <button data-testid="sql-variable-cancel"
               type="button"
               onClick={() => {
                 setAdding(false);
@@ -338,7 +338,7 @@ export const SqlVariablesPanel: React.FC = () => {
                       )}
                     </div>
                     {v.kind === 'table' ? (
-                      <button
+                      <button data-testid={`sql-variable-preview-table-${v.name}`}
                         type="button"
                         title="Preview table"
                         onClick={() =>
@@ -355,7 +355,7 @@ export const SqlVariablesPanel: React.FC = () => {
                         </span>
                       </button>
                     ) : editingId === v.id ? (
-                      <input
+                      <input data-testid={`sql-variable-value-edit-${v.name}`}
                         ref={editRef}
                         type={v.secret ? 'password' : 'text'}
                         value={editValue}
@@ -372,7 +372,7 @@ export const SqlVariablesPanel: React.FC = () => {
                         className="mt-0.5 w-full bg-slate-950 border border-cyan-600/50 rounded px-1.5 py-0.5 text-[12px] font-mono text-slate-100 outline-none"
                       />
                     ) : (
-                      <button
+                      <button data-testid={`sql-variable-value-${v.name}`}
                         type="button"
                         title="Edit value"
                         onClick={() => {
@@ -389,7 +389,7 @@ export const SqlVariablesPanel: React.FC = () => {
                     )}
                     <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5">
                       <label className="flex items-center gap-1 text-[11px] text-slate-500">
-                        <input
+                        <input data-testid={`sql-variable-secret-${v.name}`}
                           type="checkbox"
                           checked={Boolean(v.secret)}
                           onChange={(e) => setVariableSecret(v.id, e.target.checked)}
@@ -398,7 +398,7 @@ export const SqlVariablesPanel: React.FC = () => {
                         Secret
                       </label>
                       {(v.kind === 'scalar' || v.kind === 'list') && connections.length > 0 && (
-                        <button
+                        <button data-testid={`sql-variable-overrides-${v.name}`}
                           type="button"
                           className="text-[11px] text-slate-500 hover:text-cyan-400"
                           onClick={() =>
@@ -435,7 +435,7 @@ export const SqlVariablesPanel: React.FC = () => {
                             {label}
                           </span>
                           <div className="flex gap-1">
-                            <input
+                            <input data-testid={`sql-variable-input-${c.id}`}
                               type={v.secret ? 'password' : 'text'}
                               placeholder={
                                 v.kind === 'list' ? 'a, b, c' : 'override value'
@@ -468,7 +468,7 @@ export const SqlVariablesPanel: React.FC = () => {
                               className="flex-1 min-w-0 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-[12px] font-mono text-slate-200 outline-none accent-focus"
                             />
                             {o && (
-                              <button
+                              <button data-testid={`sql-variable-clear-override-${c.id}`}
                                 type="button"
                                 title="Clear override"
                                 onClick={() => setVariableOverride(v.id, c.id, null)}

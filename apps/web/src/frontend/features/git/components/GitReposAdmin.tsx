@@ -156,10 +156,10 @@ export const GitReposAdmin: React.FC = () => {
             >
               Activity
             </button>
-            <button type="button" onClick={() => open(r)} className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:text-white">
+            <button data-testid={`admin-git-edit-${r.id}`} type="button" onClick={() => open(r)} className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:text-white">
               Edit
             </button>
-            <button type="button" aria-label={`Remove ${r.name}`} onClick={() => void remove(r)} className="p-1 text-slate-500 hover:text-rose-300">
+            <button data-testid={`admin-git-remove-${r.id}`} type="button" aria-label={`Remove ${r.name}`} onClick={() => void remove(r)} className="p-1 text-slate-500 hover:text-rose-300">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
             {activity?.repoId === r.id && (
@@ -185,23 +185,23 @@ export const GitReposAdmin: React.FC = () => {
         <form onSubmit={save} data-testid="admin-git-form" className="grid gap-2 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5 sm:grid-cols-2">
           <div className="flex flex-col gap-1">
             <label htmlFor="git-repo-name" className={labelCls}>Name</label>
-            <input id="git-repo-name" required value={form.name} onChange={set('name')} placeholder="DB migrations" className={inputCls} />
+            <input data-testid="admin-git-form-name" id="git-repo-name" required value={form.name} onChange={set('name')} placeholder="DB migrations" className={inputCls} />
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="git-repo-url" className={labelCls}>HTTPS URL</label>
-            <input id="git-repo-url" required value={form.remoteUrl} onChange={set('remoteUrl')} placeholder="https://github.com/acme/db-migrations.git" className={inputCls} />
+            <input data-testid="admin-git-form-url" id="git-repo-url" required value={form.remoteUrl} onChange={set('remoteUrl')} placeholder="https://github.com/acme/db-migrations.git" className={inputCls} />
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="git-repo-branch" className={labelCls}>Default branch</label>
-            <input id="git-repo-branch" value={form.defaultBranch} onChange={set('defaultBranch')} className={inputCls} />
+            <input data-testid="admin-git-form-branch" id="git-repo-branch" value={form.defaultBranch} onChange={set('defaultBranch')} className={inputCls} />
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="git-repo-folder" className={labelCls}>Folder</label>
-            <input id="git-repo-folder" value={form.folder} onChange={set('folder')} placeholder="migrations" className={inputCls} />
+            <input data-testid="admin-git-form-folder" id="git-repo-folder" value={form.folder} onChange={set('folder')} placeholder="migrations" className={inputCls} />
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="git-repo-user" className={labelCls}>Token user name (optional)</label>
-            <input id="git-repo-user" value={form.authUsername} onChange={set('authUsername')} placeholder="x-access-token" className={inputCls} />
+            <input data-testid="admin-git-form-user" id="git-repo-user" value={form.authUsername} onChange={set('authUsername')} placeholder="x-access-token" className={inputCls} />
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="git-repo-token" className={labelCls}>Access token</label>
@@ -215,7 +215,7 @@ export const GitReposAdmin: React.FC = () => {
             />
           </div>
           <label className="sm:col-span-2 inline-flex items-start gap-2 text-xs text-slate-300">
-            <input type="checkbox" checked={!!form.requireCommit} onChange={set('requireCommit')} className="mt-0.5" />
+            <input data-testid="admin-git-require-commit" type="checkbox" checked={!!form.requireCommit} onChange={set('requireCommit')} className="mt-0.5" />
             <span>
               Require a commit: no migration runs on this install unless it was committed to Git first, and schema
               history revert and force-migrate are turned off. Statements run in the SQL editor or by workflows are not covered.
@@ -249,10 +249,10 @@ export const GitReposAdmin: React.FC = () => {
             </div>
           )}
           <div className="sm:col-span-2 flex gap-2">
-            <button type="submit" disabled={busy} className="rounded-md accent-grad on-accent-fg px-3 py-1.5 text-xs font-bold disabled:opacity-60">
+            <button data-testid="admin-git-save" type="submit" disabled={busy} className="rounded-md accent-grad on-accent-fg px-3 py-1.5 text-xs font-bold disabled:opacity-60">
               {editing === 'new' ? 'Add' : 'Save'}
             </button>
-            <button type="button" onClick={() => setEditing(null)} className="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-300">
+            <button data-testid="admin-git-cancel" type="button" onClick={() => setEditing(null)} className="rounded-md border border-slate-700 px-3 py-1.5 text-xs text-slate-300">
               Cancel
             </button>
           </div>

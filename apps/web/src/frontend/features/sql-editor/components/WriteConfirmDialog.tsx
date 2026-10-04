@@ -136,7 +136,7 @@ export const WriteConfirmDialog: React.FC<Props> = ({
                     data-testid="sql-safe-no-where-ack"
                     className="flex items-start gap-2 cursor-pointer select-none"
                   >
-                    <input
+                    <input data-testid="sql-safe-no-where-ack-check"
                       type="checkbox"
                       checked={ackedMissingWhere}
                       onChange={(e) => setAckedMissingWhere(e.target.checked)}
@@ -241,7 +241,7 @@ export const WriteConfirmDialog: React.FC<Props> = ({
           )}
         </div>
         <div className="flex justify-end gap-2 px-6 py-4 bg-slate-950/60 border-t border-slate-800">
-          <button
+          <button data-testid="sql-write-confirm-cancel"
             onClick={onCancel}
             className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-850/50 rounded transition"
           >

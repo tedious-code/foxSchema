@@ -24,6 +24,7 @@ export const REPO_ROOT: string;
 export const WEB_ROOT: string;
 export const MARKDOWN_PATH: string;
 export const TYPESCRIPT_PATH: string;
+export const SHARED_IDS: Record<string, string>;
 export function collectTestIds(root?: string): TestIdCatalog;
 export function duplicates(catalog: TestIdCatalog): Array<[string, string[]]>;
 export function controlsWithId(catalog: TestIdCatalog): number;

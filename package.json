@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit -p apps/web/tsconfig.json",
     "lint": "eslint .",
     "lint:security": "eslint . --config eslint.security.config.js --max-warnings 0",
+    "test-ids": "node scripts/test-ids/extract-test-ids.mjs --write",
     "audit:security": "npm audit --audit-level=high --omit=dev",
     "scan:deps-security": "node scripts/security/scan-node-modules.mjs --fail-on high",
     "dev": "npm -w @foxschema/web run dev:all",

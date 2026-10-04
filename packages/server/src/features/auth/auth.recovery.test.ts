@@ -32,6 +32,57 @@ beforeEach(async () => {
   resetSignInThrottle();
 });
 
+describe('idle sessions', () => {
+  const lastSeen = async (token: string, hoursAgo: number) => {
+    const store = await getStore();
+    await store.run('UPDATE sessions SET last_seen_at = ? WHERE token = ?', [
+      new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString(),
+      hashSecretToken(token),
+    ]);
+  };
+
+  it('ends a session left unused longer than the idle limit, and keeps a used one alive', async () => {
+    delete process.env.FOX_SESSION_IDLE_HOURS; // the default, 8 hours
+    await auth.createUser('kim@example.com', PASSWORD, 'editor');
+    const { token: idle } = await auth.login('kim@example.com', PASSWORD);
+    const { token: active } = await auth.login('kim@example.com', PASSWORD);
+    await lastSeen(idle, 9);
+    await lastSeen(active, 7);
+    expect(await auth.getUserByToken(idle)).toBeNull();
+    expect(await auth.getUserByToken(active)).not.toBeNull();
+    // Using it moved its last use to now, so it is far from the limit again.
+    const store = await getStore();
+    const row = await store.get<{ last_seen_at: string }>('SELECT last_seen_at FROM sessions WHERE token = ?', [hashSecretToken(active)]);
+    expect(Date.now() - new Date(row!.last_seen_at).getTime()).toBeLessThan(60_000);
+  });
+
+  it('can be turned off, and the daily purge removes idle sessions too', async () => {
+    await auth.createUser('lou@example.com', PASSWORD, 'editor');
+    const { token } = await auth.login('lou@example.com', PASSWORD);
+    await lastSeen(token, 30);
+    process.env.FOX_SESSION_IDLE_HOURS = '0';
+    try {
+      expect(await auth.getUserByToken(token)).not.toBeNull();
+    } finally {
+      delete process.env.FOX_SESSION_IDLE_HOURS;
+    }
+    await lastSeen(token, 30);
+    expect(await auth.purgeExpired()).toMatchObject({ sessions: 1 });
+  });
+
+  it('signs out every other session and keeps this one', async () => {
+    const { user } = await auth.login(...(await (async () => {
+      await auth.createUser('max@example.com', PASSWORD, 'editor');
+      return ['max@example.com', PASSWORD] as const;
+    })()));
+    const { token: here } = await auth.login('max@example.com', PASSWORD);
+    const { token: elsewhere } = await auth.login('max@example.com', PASSWORD);
+    expect(await auth.signOutOtherSessions(user.id, here)).toBe(2);
+    expect(await auth.getUserByToken(here)).not.toBeNull();
+    expect(await auth.getUserByToken(elsewhere)).toBeNull();
+  });
+});
+
 describe('housekeeping', () => {
   it('purges expired sessions and spent codes, and keeps live ones', async () => {
     await auth.createUser('ana@example.com', PASSWORD, 'editor');

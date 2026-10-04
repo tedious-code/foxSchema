@@ -15,6 +15,7 @@
  * fences are opaque (inner `;` do not split) and emit a single statement with
  * the matching kind.
  */
+import { isTrivia, sqlTokens, type SqlTokenOptions } from './sql-tokens.js';
 
 export type StatementKind = 'sql' | 'js' | 'ts' | 'node' | 'nodets';
 
@@ -708,31 +709,21 @@ export function splitSqlStatements(sql: string): SplitStatement[] {
   return out;
 }
 
+/**
+ * How the splitter reads SQL with the shared tokenizer: `#` is always a
+ * comment here, and `N'x'` is the word N then a string, as its own scanners
+ * have always read them.
+ */
+const SPLITTER_TOKENS: SqlTokenOptions = { hashComments: true, stringPrefixes: false };
+
 /** First code word of a statement (lowercased), skipping leading comments/whitespace/parens/semicolons. */
 export function firstKeyword(text: string): string | null {
-  let mode: Mode = 'code';
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    const next = i + 1 < text.length ? text[i + 1] : '';
-    if (mode === 'code') {
-      if (ch === '-' && next === '-') { mode = 'line-comment'; i++; continue; }
-      if (ch === '#') { mode = 'line-comment'; continue; }
-      if (ch === '/' && next === '*') { mode = 'block-comment'; i++; continue; }
-      if (/[A-Za-z_]/.test(ch)) {
-        let j = i;
-        while (j < text.length && /[A-Za-z_0-9]/.test(text[j])) j++;
-        return text.slice(i, j).toLowerCase();
-      }
-      if (ch === '(') continue; // e.g. `(SELECT …) UNION …`
-      // Empty statement separators — `; DELETE …` must still see DELETE.
-      if (ch === ';') continue;
-      if (/\s/.test(ch)) continue;
-      return null; // starts with something that isn't a word
-    } else if (mode === 'line-comment') {
-      if (ch === '\n') mode = 'code';
-    } else if (mode === 'block-comment') {
-      if (ch === '*' && next === '/') { mode = 'code'; i++; }
-    }
+  for (const token of sqlTokens(text, SPLITTER_TOKENS)) {
+    // `(SELECT …) UNION …`, and empty separators: `; DELETE …` must still see DELETE.
+    if (isTrivia(token) || token.upper === '(' || token.upper === ';') continue;
+    if (token.kind !== 'word') return null; // starts with something that isn't a word
+    const word = /^[A-Za-z_][A-Za-z_0-9]*/.exec(text.slice(token.start, token.end));
+    return word ? word[0].toLowerCase() : null;
   }
   return null;
 }
@@ -744,22 +735,9 @@ export function firstKeyword(text: string): string | null {
  * that as a read.
  */
 function isBlankOrCommentsOnly(text: string): boolean {
-  let mode: Mode = 'code';
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]!;
-    const next = i + 1 < text.length ? text[i + 1]! : '';
-    if (mode === 'code') {
-      if (ch === '-' && next === '-') { mode = 'line-comment'; i++; continue; }
-      if (ch === '#') { mode = 'line-comment'; continue; }
-      if (ch === '/' && next === '*') { mode = 'block-comment'; i++; continue; }
-      if (ch === '(' || ch === ')' || ch === ';') continue;
-      if (/\s/.test(ch)) continue;
-      return false;
-    } else if (mode === 'line-comment') {
-      if (ch === '\n') mode = 'code';
-    } else if (mode === 'block-comment') {
-      if (ch === '*' && next === '/') { mode = 'code'; i++; }
-    }
+  for (const token of sqlTokens(text, SPLITTER_TOKENS)) {
+    if (isTrivia(token) || token.upper === '(' || token.upper === ')' || token.upper === ';') continue;
+    return false;
   }
   return true;
 }

@@ -35,6 +35,7 @@ import type { DbObjectType } from '../../interfaces/schema.interface.js';
 import type { MigrationStep } from './sql-generator.module.js';
 import { PASSWORD_PLACEHOLDER } from '../sql-text/password-placeholder.js';
 import { dialectFamily } from '../../providers/provider-settings.js';
+import { isTrivia, literalEnd, sqlTokens, type SqlToken } from '../sql-text/sql-tokens.js';
 
 export const MIGRATION_FILE_VERSION = 1;
 
@@ -74,104 +75,12 @@ export function migrationFileName(note: string, when: Date = new Date()): string
   return `${stamp}__${slug}.sql`;
 }
 
-// ---------------------------------------------------------------------------
-// Tokens. The scrubber lexes a statement once and reads keywords and values
-// from the tokens, so every rule agrees on where strings and comments end.
-// ---------------------------------------------------------------------------
-
-/** One token of a SQL text. A text's tokens cover it exactly, in order. */
-interface SqlToken {
-  kind: 'space' | 'comment' | 'word' | 'string' | 'name' | 'dollar' | 'punct';
-  start: number;
-  end: number;
-  /** A word uppercased, or a punctuation character; '' for other kinds. */
-  upper: string;
-  /** Delimiters of a string, quoted name or dollar-quoted body: `N'`…`'`, `$pw$`…`$pw$`. `close` is '' when unclosed. */
-  open: string;
-  close: string;
-}
-
-const SPACE = /\s+/y;
-const WORD = /[\w$]+/y;
-/** `$$` or `$tag$`, the delimiter of a PostgreSQL dollar-quoted string. */
-const DOLLAR_TAG = /\$(?:\$|[A-Za-z_]\w{0,63}\$)/y;
-/** `N'x'`, `E'x'`, `X'x'`, `U&'x'`: a string whose prefix belongs to it. */
-const STRING_PREFIX = /(?:[A-Za-z]|[Uu]&)(?=')/y;
-const CLOSING_QUOTE: Record<string, string> = { "'": "'", '"': '"', '`': '`', '[': ']' };
 /**
  * Whether `#` starts a comment: in the MySQL family (MySQL, MariaDB, TiDB, by
  * the dialect registry) and ClickHouse. Elsewhere it is an operator, or part
  * of an Oracle name (`app#1`).
  */
 const hasHashComments = (dialect: string) => ['mysql', 'clickhouse'].includes(dialectFamily(dialect));
-
-/** What a sticky pattern matches at `i`, or ''. */
-function matchAt(pattern: RegExp, text: string, i: number): string {
-  pattern.lastIndex = i;
-  return pattern.exec(text)?.[0] ?? '';
-}
-
-/** End of the quoted literal starting at `start` (the opening quote), honouring doubled quotes; -1 when unclosed. */
-function literalEnd(text: string, start: number): number {
-  const close = CLOSING_QUOTE[text[start]!] ?? text[start]!;
-  for (let i = text.indexOf(close, start + 1); i !== -1; i = text.indexOf(close, i + 2)) {
-    if (text[i + 1] !== close) return i + 1; // a doubled quote is one quote character
-  }
-  return -1;
-}
-
-/** The token starting at `i`. */
-function tokenAt(text: string, i: number, hashComments: boolean): SqlToken {
-  const token = (kind: SqlToken['kind'], end: number, open = '', close = ''): SqlToken => ({
-    kind,
-    start: i,
-    end,
-    upper: kind === 'word' || kind === 'punct' ? text.slice(i, end).toUpperCase() : '',
-    open,
-    close,
-  });
-  const space = matchAt(SPACE, text, i);
-  if (space) return token('space', i + space.length);
-
-  if (text.startsWith('--', i) || (hashComments && text[i] === '#')) {
-    const newline = text.indexOf('\n', i);
-    return token('comment', newline === -1 ? text.length : newline + 1);
-  }
-  if (text.startsWith('/*', i)) {
-    const close = text.indexOf('*/', i + 2);
-    return token('comment', close === -1 ? text.length : close + 2);
-  }
-
-  const quoteAt = i + matchAt(STRING_PREFIX, text, i).length;
-  const quote = text[quoteAt]!;
-  if (CLOSING_QUOTE[quote]) {
-    const end = literalEnd(text, quoteAt);
-    const kind = quote === "'" || quote === '"' ? 'string' : 'name';
-    const open = text.slice(i, quoteAt + 1);
-    return end === -1 ? token(kind, text.length, open) : token(kind, end, open, CLOSING_QUOTE[quote]);
-  }
-
-  const tag = matchAt(DOLLAR_TAG, text, i);
-  if (tag) {
-    const close = text.indexOf(tag, i + tag.length);
-    return close === -1 ? token('dollar', text.length, tag) : token('dollar', close + tag.length, tag, tag);
-  }
-
-  const word = matchAt(WORD, text, i);
-  if (word) return token('word', i + word.length);
-  return token('punct', i + 1);
-}
-
-/** The tokens of `text`, lexed as they are read. */
-function* sqlTokens(text: string, hashComments: boolean): Generator<SqlToken> {
-  for (let i = 0; i < text.length; ) {
-    const token = tokenAt(text, i, hashComments);
-    yield token;
-    i = token.end;
-  }
-}
-
-const isTrivia = (token: SqlToken) => token.kind === 'space' || token.kind === 'comment';
 
 // ---------------------------------------------------------------------------
 // Which statements carry credentials.
@@ -180,7 +89,7 @@ const isTrivia = (token: SqlToken) => token.kind === 'space' || token.kind === '
 /** The first words of `text` after any leading comments, uppercased: up to 8, lexing no further. */
 function leadingWords(text: string, hashComments: boolean): string[] {
   const words: string[] = [];
-  for (const token of sqlTokens(text, hashComments)) {
+  for (const token of sqlTokens(text, { hashComments })) {
     if (isTrivia(token)) continue;
     if (token.kind !== 'word' || words.length === 8) break;
     words.push(token.upper);
@@ -310,7 +219,7 @@ export function scrubSecrets(text: string, dialect: string): ScrubbedText {
   const hashComments = hasHashComments(dialect);
   if (!isAccountStatement(leadingWords(text, hashComments))) return { text, replaced: 0, unreadable: [] };
 
-  const all = [...sqlTokens(text, hashComments)];
+  const all = [...sqlTokens(text, { hashComments })];
   const tokens = all.filter((token) => !isTrivia(token));
   const edits: Edit[] = [];
   const refuse = (at: number) => edits.push({ start: at, end: at, replacement: null });

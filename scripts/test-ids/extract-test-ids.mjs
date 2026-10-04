@@ -74,32 +74,49 @@ function paramName(expr) {
   return 'value';
 }
 
+/** Does a function bind `name` itself (a parameter, destructured or not), hiding an outer one? */
+function bindsName(fn, name) {
+  const binds = (b) =>
+    ts.isIdentifier(b) ? b.text === name : b.elements.some((el) => !ts.isOmittedExpression(el) && binds(el.name));
+  return fn.parameters?.some((p) => binds(p.name)) ?? false;
+}
+
 /**
  * What a file declares that an ID can be built from: its constants
  * (`const savedTestId = side === 'source' ? … : …`, `const NAV_TEST_IDS = {…}`)
  * and its one-line helpers (`const part = (name) => `${testId}-${name}``).
- * A name declared twice is left out: which one an ID uses is not knowable here.
+ * `lookup(name, at)` finds the one a use sees: declared in a block around it,
+ * innermost first, and not hidden by a parameter of the same name in between.
  */
 function declarationsOf(source) {
-  const consts = new Map();
-  const fns = new Map();
-  const seen = new Set();
+  const byName = new Map();
   const visit = (n) => {
     if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer && ts.isVariableDeclarationList(n.parent) && n.parent.flags & ts.NodeFlags.Const) {
-      const name = n.name.text;
-      const init = n.initializer;
-      const fn = ts.isArrowFunction(init) && !ts.isBlock(init.body) && init.parameters.every((p) => ts.isIdentifier(p.name));
-      if (seen.has(name)) {
-        consts.delete(name);
-        fns.delete(name);
-      } else if (fn) fns.set(name, init);
-      else consts.set(name, init);
-      seen.add(name);
+      let scope = n.parent.parent.parent;
+      while (scope && !ts.isBlock(scope) && !ts.isSourceFile(scope)) scope = scope.parent;
+      byName.set(n.name.text, [...(byName.get(n.name.text) ?? []), { init: n.initializer, scope }]);
     }
     ts.forEachChild(n, visit);
   };
   visit(source);
-  return { consts, fns };
+  const lookup = (name, at) => {
+    const visible = (byName.get(name) ?? []).filter((d) => d.scope.pos <= at.pos && at.end <= d.scope.end);
+    const inner = visible.sort((a, b) => b.scope.pos - a.scope.pos)[0];
+    if (!inner) return undefined;
+    for (let n = at.parent; n && n !== inner.scope; n = n.parent) if (ts.isFunctionLike(n) && bindsName(n, name)) return undefined;
+    return inner.init;
+  };
+  const isHelper = (init) => ts.isArrowFunction(init) && !ts.isBlock(init.body) && init.parameters.every((p) => ts.isIdentifier(p.name));
+  return {
+    constant: (name, at) => {
+      const init = lookup(name, at);
+      return init && !isHelper(init) ? init : undefined;
+    },
+    helper: (name, at) => {
+      const init = lookup(name, at);
+      return init && isHelper(init) ? init : undefined;
+    },
+  };
 }
 
 /** `{a}-x-{a}` → `{a}-x-{a2}`: each part of a pattern gets its own name. */
@@ -139,20 +156,20 @@ function patternsOf(expr, decls, env = new Map(), depth = 0) {
   }
   if (ts.isIdentifier(expr)) {
     if (env.has(expr.text)) return env.get(expr.text);
-    const init = decls.consts.get(expr.text);
+    const init = decls.constant(expr.text, expr);
     return init ? again(init) : unknown(expr);
   }
   // NAV_TEST_IDS[view] → every value; NAV_TEST_IDS.access → that one.
   if ((ts.isElementAccessExpression(expr) || ts.isPropertyAccessExpression(expr)) && ts.isIdentifier(expr.expression)) {
-    const object = decls.consts.get(expr.expression.text);
+    const object = decls.constant(expr.expression.text, expr);
     if (object && ts.isObjectLiteralExpression(object)) {
       const props = object.properties.filter(ts.isPropertyAssignment);
       const picked = ts.isPropertyAccessExpression(expr) ? props.filter((p) => p.name.getText() === expr.name.text) : props;
       return picked.flatMap((p) => again(p.initializer));
     }
   }
-  if (ts.isCallExpression(expr) && ts.isIdentifier(expr.expression) && decls.fns.has(expr.expression.text)) {
-    const fn = decls.fns.get(expr.expression.text);
+  const fn = ts.isCallExpression(expr) && ts.isIdentifier(expr.expression) ? decls.helper(expr.expression.text, expr) : undefined;
+  if (fn) {
     const scope = new Map(env);
     fn.parameters.forEach((p, i) => scope.set(p.name.text, expr.arguments[i] ? again(expr.arguments[i]) : []));
     return again(fn.body, scope);
@@ -449,18 +466,24 @@ export function selectorsIn(text) {
   return found;
 }
 
+/** Stands for a part only known at run time, in a selector or a pattern. */
 const RUNTIME = '\u0001';
-const shape = (s, part) => s.split(part).map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\s\\S]+');
-/** Could an e2e selector and a catalogued pattern name the same element? */
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** `a\u0001b` → /^a.+b$/: each run-time part matches some text (`.*` where it may be empty). */
+const matcher = (s, part) => new RegExp(`^${s.split(RUNTIME).map(escapeRe).join(part)}$`);
+
+/**
+ * Could an e2e selector and a catalogued pattern name the same element? A
+ * run-time part on either side matches anything. `^=`, `$=` and `*=` add a
+ * part at the end, the start or both, which may be empty: `[data-testid^="sql-pane"]`
+ * finds `sql-pane` itself too.
+ */
 function compatible(selector, pattern) {
   const sample = pattern.replace(/\{[^}]*\}/g, RUNTIME);
-  const wanted = { exact: (x) => x, prefix: (x) => `${x}${RUNTIME}`, suffix: (x) => `${RUNTIME}${x}`, contains: (x) => `${RUNTIME}${x}${RUNTIME}` }[selector.match](
-    selector.id.replace(/\$\{[^}]*\}/g, RUNTIME),
-  );
-  const either = (a, b) => new RegExp(`^${shape(a, RUNTIME)}$`).test(b.replaceAll(RUNTIME, RUNTIME));
-  // `prefix` allows the empty rest too: `[data-testid^="sql-pane"]` finds `sql-pane`.
-  const loose = (x) => x.replace(new RegExp(`(^${RUNTIME}|${RUNTIME}$)`, 'g'), '');
-  return either(wanted, sample) || either(sample, wanted) || (selector.match !== 'exact' && (either(loose(wanted), sample) || sample.includes(loose(wanted).replaceAll(RUNTIME, ''))));
+  const id = selector.id.replace(/\$\{[^}]*\}/g, RUNTIME);
+  const wanted = { exact: id, prefix: `${id}${RUNTIME}`, suffix: `${RUNTIME}${id}`, contains: `${RUNTIME}${id}${RUNTIME}` }[selector.match];
+  const known = matcher(sample, '[\\s\\S]+');
+  return matcher(wanted, selector.match === 'exact' ? '[\\s\\S]+' : '[\\s\\S]*').test(sample) || known.test(wanted) || known.test(id);
 }
 
 /** Every selector in the e2e code that names an ID the web app does not have. */

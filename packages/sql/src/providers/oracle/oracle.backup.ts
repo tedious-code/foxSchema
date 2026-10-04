@@ -19,15 +19,20 @@ function build(conn: BackupConnection, req: BackupRequest): BackupCommands {
   const login = shellArg(`${conn.username ?? '<user>'}@//${conn.host ?? 'localhost'}${port ? `:${port}` : ''}/${conn.database}`);
   const directory = req.folder.trim().toUpperCase() || 'DATA_PUMP_DIR';
   const dumpfile = `${req.fileName}.dmp`;
-  const what =
+  // Each parameter is one shell word: the file name is the reader's to edit,
+  // and a space or `;` in it must not split the command.
+  const what = shellArg(
     req.tables.length > 0
       ? `TABLES=${req.tables.map((t) => (t.includes('.') ? t : `${schema}.${t}`).toUpperCase()).join(',')}`
-      : `SCHEMAS=${schema}`;
+      : `SCHEMAS=${schema}`
+  );
+  const files = (log: string) =>
+    [`DIRECTORY=${directory}`, `DUMPFILE=${dumpfile}`, `LOGFILE=${log}`].map(shellArg).join(' ');
   const content = req.scope === 'schema' ? ' CONTENT=METADATA_ONLY' : req.scope === 'data' ? ' CONTENT=DATA_ONLY' : '';
   return {
     language: 'shell',
-    backup: `expdp ${login} ${what} DIRECTORY=${directory} DUMPFILE=${dumpfile} LOGFILE=${req.fileName}.log${content}${req.compress ? ' COMPRESSION=ALL' : ''}`,
-    restore: `impdp ${login} ${what} DIRECTORY=${directory} DUMPFILE=${dumpfile} LOGFILE=${req.fileName}_import.log TABLE_EXISTS_ACTION=REPLACE`,
+    backup: `expdp ${login} ${what} ${files(`${req.fileName}.log`)}${content}${req.compress ? ' COMPRESSION=ALL' : ''}`,
+    restore: `impdp ${login} ${what} ${files(`${req.fileName}_import.log`)} TABLE_EXISTS_ACTION=REPLACE`,
     location: `${directory}:${dumpfile}`,
     notes: [
       'The dump file is written on the database server, in the directory the DIRECTORY object points to.',

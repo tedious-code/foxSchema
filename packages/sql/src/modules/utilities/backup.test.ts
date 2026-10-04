@@ -112,6 +112,13 @@ describe('quoting', () => {
     expect(joinPath('\\\\nas\\share\\', 'a.bak')).toBe('\\\\nas\\share\\a.bak');
   });
 
+  it('keeps every shell word whole on Oracle and Db2, whatever the reader typed', () => {
+    const oracle = ok(buildBackupCommands(conn('oracle', { database: 'FREEPDB1' }), { fileName: 'x; rm -rf ~', folder: 'dp dir' }, NOW));
+    expect(oracle.backup).toContain("'DIRECTORY=DP DIR' 'DUMPFILE=x; rm -rf ~.dmp' 'LOGFILE=x; rm -rf ~.log'");
+    const db2 = ok(buildBackupCommands(conn('db2', { database: 'my db' }), {}, NOW));
+    expect(db2.backup).toMatch(/^db2 BACKUP DATABASE 'MY DB' TO /);
+  });
+
   it('quotes a folder with a space so the command does not split on it', () => {
     const c = ok(buildBackupCommands(conn('postgres'), { folder: '/srv/My Backups' }, NOW));
     expect(c.backup).toContain("--file='/srv/My Backups/shop_20261004_153005.dump'");

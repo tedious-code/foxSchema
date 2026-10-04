@@ -15,7 +15,7 @@ import type { BackupCommands, BackupConnection, BackupDialect, BackupRequest } f
 import { joinPath, shellArg } from '../../modules/utilities/backup-helpers.js';
 
 function build(conn: BackupConnection, req: BackupRequest): BackupCommands {
-  const db = conn.database.toUpperCase();
+  const db = shellArg(conn.database.toUpperCase());
   const folder = req.folder.trim() || '/database/backups';
   if (req.scope === 'schema') {
     const schema = (conn.schema || conn.username || '').toUpperCase();

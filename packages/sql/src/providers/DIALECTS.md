@@ -175,6 +175,10 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
    If the engine has accounts, add `<name>.user-sql.ts` and register it in
    `modules/access/user-sql.registry.ts`. If it has GRANT/REVOKE, add
    `<name>.access-sql.ts` (or re-export an existing emitter) in
-   `modules/access/access-sql.registry.ts`.
+   `modules/access/access-sql.registry.ts`. Backup/restore commands live in
+   `<name>.backup.ts` and `modules/utilities/backup.registry.ts` — Fox Schema
+   writes the commands (shell or SQL) and never runs them; `runsOn` says
+   whether the file lands on the client, the database server, or a cloud
+   snapshot. Commands must not contain a password.
 5. Add a round-trip test in `type-mapping.test.ts` and a generator assertion.
 6. Run `npx vitest run` (repo root) + `cd apps/web && npx tsc --noEmit`.

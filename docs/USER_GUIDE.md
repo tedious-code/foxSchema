@@ -71,9 +71,16 @@ Docker / Homebrew / locked-down servers get **Copy command** (or use
 
 ## First run
 
-The first time you open the UI, Fox Schema may show a short **welcome wizard** asking
-for your email so you can get product updates (new dialects, releases). It is optional —
-use **Skip for now** if you prefer. It only appears once per install.
+Every install asks you to **sign in**. The first time, the page is **Create
+your account** — the first account on this install is its administrator
+(email and password). From another machine — including through a reverse
+proxy — setup also asks for a one-time code printed in the server log
+(`docker logs <container>` on Docker). After that, only an administrator can
+add people; there is no self-registration.
+
+After you sign in, Fox Schema may show a short **welcome wizard** asking for
+your email so you can get product updates (new dialects, releases). It is
+optional — use **Skip for now** if you prefer. It only appears once per install.
 
 You land on **Home**: continue last compare / last query, **Snapshots**, **Utilities**,
 and saved connections (grouped by dialect). **⌘K** / **Ctrl+K** searches workspaces and
@@ -463,6 +470,23 @@ saved credential at the top, then a tool:
   columns so apps keep working. Toggle **Keep indexes** and **Foreign keys (auto)**
   for the new table; Insert SQL or Apply. Inbound FKs from other tables still point
   at the archive until you update them.
+- **Backup & Restore** — Fox Schema **writes** the backup and restore commands
+  for this connection; it does **not** run them. The amber banner says *where*
+  they run, because that is what the folder means:
+  - **Your machine** (`pg_dump`, `mysqldump`, `sqlite3`, SqlPackage, `mongodump`,
+    `redis-cli --rdb`) — the file is written where you paste and run the command.
+  - **Database server** (SQL Server `BACKUP DATABASE`, Oracle Data Pump, Db2,
+    ClickHouse, CockroachDB, DuckDB `EXPORT DATABASE`) — the folder is a path,
+    DIRECTORY object, or allowed disk *on that server*.
+  - **Cloud** (Redshift snapshots) — there is no file to place.
+
+  Commands never contain the password (the notes say how the tool asks for it).
+  Folder, format, scope, compression, and “only this schema” can be **Save as my
+  default for** that engine (`GET` / `PUT /api/backup-settings`, per signed-in
+  user). Table filters and the generated file name are not saved. SQL commands
+  (SQL Server, CockroachDB, ClickHouse, DuckDB) offer **Open in SQL Editor**;
+  shell tools you copy. Names with spaces are quoted so a pasted command does
+  not split.
 
 **Insights** (estimated where the engine has no physical figure)
 
@@ -536,6 +560,24 @@ API (`POST /schema/db-access`):
 Either family may load the catalog. Running GRANT / REVOKE still needs
 **Grant privileges** (`editor.grant`). SQLite / DuckDB have no GRANT catalog;
 ClickHouse has no permission builder yet.
+
+The Access workspace opens on **Permissions** (a principal list). Pick a user
+or role, then **Account** / **Grants** / **Effective**:
+
+- **Account** — identity, membership, add / drop.
+- **Grants** — an object × privilege grid that opens on what that principal
+  **holds now**. A new tick is GRANT; clearing a held box is REVOKE. Boxes that
+  already match the catalog do not appear in the SQL. Privileges the grid cannot
+  show (CONNECT on the database, USAGE on a schema, DENY, unknown verbs) are
+  never touched — ticking SELECT on one table does not revoke the rest of the
+  role. When a catalog row or a grant is missing a schema (MySQL by-name
+  grants), the grid still matches on the object name.
+- **Effective** — what they can actually do, including privileges inherited
+  through roles.
+
+**Users** is CREATE / ALTER / DROP USER and ROLE. **Diff** is a separate tab:
+you write a desired grant set, load the live catalog, and copy reconciliation
+SQL (including DENY gaps). Fox Schema never applies Diff SQL from that screen.
 
 What the catalog shows:
 
@@ -666,6 +708,11 @@ re-enter the passwords.
 **Lost my saved connections/history after a restart (Docker).** The app data lives on
 the `/data` volume — make sure you didn't remove it (`docker compose down -v` deletes
 volumes). See [DEPLOYMENT.md](DEPLOYMENT.md).
+
+**Signed out while the UI was open.** A session unused for **8 hours** ends,
+whatever its 7-day expiry (`FOX_SESSION_IDLE_HOURS`; `0` turns the idle limit
+off). From the profile menu, **Sign out other sessions** ends every session
+except this one — useful if you left a browser open elsewhere.
 
 **Workflow engine down / Run refused.** The designer is in the UI; jobs run in a
 separate process. Check **Workflow → Engine** health. New installs default to

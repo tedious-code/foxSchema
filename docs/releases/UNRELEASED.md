@@ -7,8 +7,8 @@ Notes for the next release. At ship time, rename this file to that version's
 
 - **Snapshots** is its own left-rail workspace (schema history / Lokee). **Applies**
   at the bottom of the rail is migration-run history. They are not the same list.
-- **Utils** is its own workspace (Index Management, Clone Table, insights, Query
-  files, DB users & grants) — not a SQL Editor sidebar.
+- **Utils** is its own workspace (Index Management, **Backup & Restore**, Clone
+  Table, insights, Query files, DB users & grants) — not a SQL Editor sidebar.
 - Saved credentials are grouped by dialect; Home continues last compare / query.
 
 ## A development server stays on this machine
@@ -152,4 +152,32 @@ GitLab, Bitbucket and Azure DevOps over HTTPS with an access token.
   `<password>`, and a file that still carries a credential is refused.
 - Remotes are `https://` only; on a shared server, private and internal
   addresses are refused at connect time (including IPv6 spellings of them).
+
+## Backup & Restore
+
+**Utils → Backup & Restore** writes the engine's backup and restore commands
+for the credential at the top of the workspace. Fox Schema never runs them.
+
+- The amber banner says where the command runs (your machine, the database
+  server, or a cloud snapshot) — that is what the folder field means.
+- Passwords stay out of the command. Folder / format / scope can be saved as
+  *your default for this engine* (`GET` / `PUT /api/backup-settings`).
+- SQL commands (SQL Server, CockroachDB, ClickHouse, DuckDB) open in the
+  Editor; shell tools you copy.
+
+See [USER_GUIDE.md](../USER_GUIDE.md#utilities).
+
+## Access: Grants show what is held
+
+**Access → Permissions → Grants** opens on the privileges that principal
+already holds. The SQL is only the difference (new ticks GRANT, cleared boxes
+REVOKE). Privileges the grid cannot show — CONNECT, schema USAGE, DENY — are
+not revoked as a side-effect of ticking one table. Permission **Diff** is a
+separate tab (desired state vs catalog, including DENY).
+
+## Sessions
+
+A session unused for 8 hours ends (`FOX_SESSION_IDLE_HOURS`; `0` turns this
+off), whatever its 7-day expiry. **Sign out other sessions** is on the profile
+menu.
 

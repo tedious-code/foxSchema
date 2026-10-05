@@ -65,6 +65,7 @@ flags (`workflow`, `enterprise.channels`).
 ```
 interfaces/  The shared vocabulary: TableSchema, TableDiff, MigrationStep.
 providers/   One folder per dialect — settings, SqlDialect, and Access SQL (`*.user-sql.ts`, `*.access-sql.ts`).
+             Backup/restore commands are `*.backup.ts` (registered in `modules/utilities/backup.registry.ts`).
              `dialectFamily()` in `provider-settings.ts` maps wire-compatible
              relatives onto mysql / postgres / sqlserver.
 cores/       Connection strings, and shaping catalog rows into TableSchema.
@@ -81,7 +82,7 @@ modules/     One folder per domain, named to match the frontend feature
 | `lokee-weave` | Content-addressed schema versioning and revert |
 | `sql-editor` | FoxScript parsing, code cells, SELECT aliasing, the SQL subset |
 | `access` | Permission intent, effective access, GRANT/REVOKE and account DDL (facades; emitters live in `providers/<dialect>`) |
-| `utilities` | DBA queries: server insights, index fragmentation |
+| `utilities` | DBA queries: server insights, index fragmentation, backup/restore command builders |
 
 `dialect` and `sql-text` are the foundations: the other folders build on
 them, never the reverse.
@@ -119,6 +120,7 @@ database/    The metadata store and its migrations.
 |---|---|
 | `access` | Database permission inspection and DBA utilities |
 | `admin` | Install-wide settings, secrets, cloud credentials |
+| `backup` | Per-user backup defaults (`GET`/`PUT /api/backup-settings`). Commands themselves are built in `@foxschema/sql` (`modules/utilities/backup.ts` + `providers/<d>/*.backup.ts`); Fox Schema never runs them. |
 | `auth` | Login, sessions, SSO |
 | `authorization` | Role permissions (RBAC) and the permission guard |
 | `compare` | Schema comparison |
@@ -195,7 +197,7 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | `object-detail` | Detail panel for a single schema object |
 | `schema-diff` | Diff rendering shared by compare and history |
 | `sql-editor` | SQL editor, results grid, data peek (Index/Clone/Query files live in `utilities`) |
-| `utilities` | Own workspace: clone table, index management, server insights, query files, DB users & grants |
+| `utilities` | Own workspace: clone table, index management, backup & restore commands, server insights, query files, DB users & grants |
 | `workflow` | Workflow designer (canvas, inspector, triggers, SQL and script editors), runs, variables, credentials and engine settings — through the engine proxy, plus linking saved connections to workflows |
 
 ## Where does my change go?
@@ -210,6 +212,7 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | Reusable UI or helper | `apps/web/src/frontend/shared/` |
 | Calling an API endpoint | use `api` from `@/shared/api/client` — never `fetch` directly |
 | SQL for permissions or accounts | `packages/sql/src/modules/access/` (facade) + `packages/sql/src/providers/<dialect>/*.user-sql.ts` / `*.access-sql.ts`. Db2 OS-user docker steps: `buildDb2OsUserInstructions`. |
+| Backup / restore commands for an engine | `packages/sql/src/providers/<dialect>/*.backup.ts` registered in `modules/utilities/backup.registry.ts`. Saved folder/format defaults: `packages/server/src/features/backup/`. |
 | A dialect capability the app must branch on | `packages/sql/src/modules/capabilities/` (`dialect-features.ts`) and `packages/sql/src/modules/dialect/` |
 | Guard or cross-cutting HTTP concern | `packages/server/src/platform/` |
 | Workflow pipe, runtime, or store | `packages/workflow-engine/` — HTTP process in `apps/workflow-server/` ([WORKFLOW.md](WORKFLOW.md)) |

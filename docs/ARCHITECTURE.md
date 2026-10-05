@@ -67,8 +67,10 @@ packages/sql/           @foxschema/sql — dialect knowledge (pure, browser-safe
   src/modules/          One folder per domain: dialect, sql-text, schema-diff,
                         migrations, lokee-weave, sql-editor, access, utilities
   src/providers/        14 SQL dialects, each with settings + sql-dialect
-                        (+ optional *.user-sql.ts for account DDL)
-                        (MongoDB and Redis carry settings only)
+                        (+ optional *.user-sql.ts for account DDL,
+                        *.backup.ts for backup/restore commands)
+                        (MongoDB and Redis carry settings only; they still
+                        have backup command builders)
   src/cores/            Connection strings, catalog rows → TableSchema,
                         connection auth (password / Windows NTLM / Db2 LDAP)
 
@@ -177,7 +179,7 @@ only. Key hooks: `dropForeignKeyStatement`, `dropIndexStatement`, `dropTriggerSt
 `createTriggerStatement`, `preDropTableStatements`, `createViewStatement`, `alterViewStatement`,
 `wrapCreateSequence`, `dropTableStatement`, `dropViewStatement`, `dropSequenceStatement`,
 `dropFunctionStatement`, `dropProcedureStatement`. Full hook map + fallback behavior +
-per-dialect gotchas live in `packages/sql/src/providers/DIALECTS.md` (local, gitignored).
+per-dialect gotchas live in `packages/sql/src/providers/DIALECTS.md` (tracked).
 
 Version-aware DDL: `SchemaProvider.detectVersion?()` → stored in Zustand as
 `targetServerVersion` → flows into `SchemaMapping` → dialect drop hooks use it. Oracle pre-23c
@@ -199,7 +201,8 @@ backend and streams results back via SSE.
 
 1. Create the dialect files in `packages/sql/src/providers/<name>/` and the driver files in `packages/db/src/providers/<name>/`
 2. Register in `provider-settings.ts`, `adapter-registry.ts`, `provider-registry.ts`, `modules/dialect/registry.ts`
-   (and `modules/access/user-sql.registry.ts` / `modules/access/access-sql.registry.ts` when the engine has account or GRANT SQL)
+   (and `modules/access/user-sql.registry.ts` / `modules/access/access-sql.registry.ts` when the engine has account or GRANT SQL).
+   Backup/restore commands: `<d>.backup.ts` in `modules/utilities/backup.registry.ts`. Fox Schema writes the commands and never runs them.
 3. Add the dialect name to the `Dialect` union **and** the `DIALECTS` array in
    `packages/sql/src/providers/provider-settings.ts` (`dialect-registry.test.ts`
    fails until they match `PROVIDER_SETTINGS`). Nothing in `apps/web` needs

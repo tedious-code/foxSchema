@@ -7,6 +7,7 @@
 
 import {
   runCodeCellOnServer,
+  transpileCodeCell,
   type BeamEndpointPayload,
   type SqlStatementResult,
 } from '@/shared/api/sqlApi';
@@ -82,24 +83,9 @@ export function prepareCodeCellSource(statement: string):
   };
 }
 
+/** TypeScript cells are compiled by the server (no compiler download), then run here. */
 async function transpileTs(body: string): Promise<string> {
-  const ts = await import('typescript');
-  const out = ts.transpileModule(body, {
-    compilerOptions: {
-      target: ts.ScriptTarget.ES2020,
-      module: ts.ModuleKind.ESNext,
-      strict: false,
-    },
-    reportDiagnostics: true,
-  });
-  const errs = (out.diagnostics ?? []).filter((d) => d.category === ts.DiagnosticCategory.Error);
-  if (errs.length > 0) {
-    const msg = errs
-      .map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n'))
-      .join('; ');
-    throw new Error(msg || 'TypeScript transpile failed');
-  }
-  return out.outputText;
+  return transpileCodeCell(body);
 }
 
 function toStatementResult(result: CodeCellResult, started: number): SqlStatementResult {

@@ -1,10 +1,12 @@
-import React from 'react'
+import React, { Suspense, lazy } from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './frontend/App.tsx'
-import { SignupWizard } from '@/features/auth/components/SignupWizard'
 import { LoadingScreen } from '@/app/shell/LoadingScreen'
 import { resolveApiBase } from '@/shared/api/apiBase'
 import { getSignupState } from '@/features/auth/api/authApi'
+import { useAuthStore } from '@/app/store/authStore'
+import { useUiStore } from '@/app/store/uiStore'
+import { prefetchView } from '@/app/shell/viewLoaders'
 import './style.css'
 
 const rootEl = document.getElementById('app')
@@ -58,6 +60,11 @@ function renderFatal(err: unknown) {
   )
 }
 
+// Shown once per install, so it is not part of every first page.
+const SignupWizard = lazy(() =>
+  import('@/features/auth/components/SignupWizard').then((m) => ({ default: m.SignupWizard })),
+)
+
 function renderApp() {
   root.render(
     <React.StrictMode>
@@ -85,11 +92,19 @@ function signupStateWithTimeout(ms = 4000): Promise<{ shown: boolean }> {
 // Offer the skippable "stay in the loop" signup wizard once, then render the
 // app. Fails open on a network hiccup — never let this optional step block boot.
 async function afterApiReady() {
+  // Sign-in and the signup offer are independent; ask both at once rather than
+  // one after the other (App's own init() joins this one). And a returning
+  // reader opens on the view they left, so start fetching its code now.
+  void useAuthStore.getState().init()
+  const lastView = useUiStore.getState().activeView
+  if (lastView !== 'home') prefetchView(lastView, { inside: false })
   const signup = await signupStateWithTimeout()
   if (!signup.shown) {
     root.render(
       <React.StrictMode>
-        <SignupWizard onDone={renderApp} />
+        <Suspense fallback={<LoadingScreen />}>
+          <SignupWizard onDone={renderApp} />
+        </Suspense>
       </React.StrictMode>,
     )
     return

@@ -166,6 +166,9 @@ export class SqlEditorPage {
         return `${lines?.textContent ?? ''}\n${ta?.value ?? ''}`;
       };
       try {
+        // The store writes 400 ms after the last change; flush it, the way
+        // leaving the page does, so this reads what was just typed.
+        window.dispatchEvent(new Event('pagehide'));
         const stored = localStorage.getItem('foxschema-sql-editor');
         if (!stored) return dom();
         const state = JSON.parse(stored)?.state;
@@ -460,6 +463,9 @@ export class SqlEditorPage {
   /** Wipe persisted editor tabs so tests start from a clean Query 1. */
   async resetPersistedEditorState(): Promise<void> {
     await this.page.evaluate(() => {
+      // Flush a pending write first, or the reload's own flush would write the
+      // old tabs back after they were removed.
+      window.dispatchEvent(new Event('pagehide'));
       localStorage.removeItem('foxschema-sql-editor');
       localStorage.removeItem('foxschema-sql-sidebar-sections');
       localStorage.removeItem('foxschema-sql-sidebar-section-heights');

@@ -1,4 +1,5 @@
-import { SqlGeneratorModule, type SchemaMapping } from '@/shared/lib/sql-generator';
+import type { SchemaMapping, SqlGeneratorModule } from '@/shared/lib/sql-generator';
+import { loadOnce } from '@/shared/lib/loadOnce';
 import { withConnectionString } from '@/shared/lib/provider-settings';
 import type { SchemaCompareResult, TableDiff } from '@/shared/lib/types';
 import type { ConnectionRef } from '@/shared/api/schemaApi';
@@ -23,7 +24,22 @@ export interface DeploySelections {
 
 // Comparison runs server-side (/api/compare); SQL generation stays client-side
 // because it re-runs interactively as deploy checkboxes toggle, with no DB round-trip.
-export const sqlGeneratorModule = new SqlGeneratorModule();
+//
+// The generator is every engine's DDL code, and nothing needs it before there
+// is a comparison. So it loads with the first browse or compare (both await it
+// before they set `compareResult`), and the synchronous paths that follow,
+// every one of which starts from a comparison, read it with `sqlGenerator()`.
+export const loadSqlGenerator = loadOnce(async () => {
+  const { SqlGeneratorModule } = await import('@/shared/lib/sql-generator');
+  return new SqlGeneratorModule();
+});
+
+/** The loaded generator. Throws, rather than returning an empty script, if a path forgot to load it. */
+export function sqlGenerator(): SqlGeneratorModule {
+  const generator = loadSqlGenerator.peek();
+  if (!generator) throw new Error('The SQL generator was used before a comparison loaded it.');
+  return generator;
+}
 
 /**
  * A side's request payload: a saved connection (connectionId, resolved+decrypted
@@ -192,7 +208,7 @@ export function regenerateSql(
 ): string {
   if (!s.compareResult) return '';
   const includedDiffs = buildIncludedDiffs(s.compareResult.tables, sel);
-  return sqlGeneratorModule.generateMigrationSql(
+  return sqlGenerator().generateMigrationSql(
     includedDiffs,
     s.targetConfig.dialect,
     buildMapping(s),

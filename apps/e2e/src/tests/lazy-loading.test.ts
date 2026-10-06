@@ -88,6 +88,15 @@ describe.skipIf(!hasSqlite3())('Loaded on demand', () => {
     await expect.poll(async () => sql.resultsText(), { timeout: 30_000, interval: 250 }).toMatch(/2020-01-02/);
   });
 
+  it('runs a TypeScript cell, compiled by the server rather than in the browser', async () => {
+    await sql.setSql(
+      '-- @ts\nconst rows: { n: number }[] = [{ n: 41 }];\nreturn rows.map((r) => ({ answer: r.n + 1 }));\n-- @end'
+    );
+    await sql.run();
+    await sql.waitForResults();
+    await expect.poll(async () => sql.resultsText(), { timeout: 30_000, interval: 250 }).toMatch(/42/);
+  });
+
   it('opens the applies history and the admin console on their first click', async () => {
     await clickWhen(driver, byTestId('history-btn'));
     await waitFor(driver, byTestId('history-dialog'), 15_000);

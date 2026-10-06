@@ -31,7 +31,7 @@ import { actorOf } from '../../platform/http/actor-of';
 import type { CodeCellRequestBody } from './code-cell-execute.service';
 import { validateCodeCellRequest } from './code-cell-execute.service';
 import { runStatements, clampMaxRows } from './sql-execute.service';
-import { runCodeCellOnServer } from './code-cell-execute.service';
+import { MAX_CODE_CELL_LENGTH, runCodeCellOnServer, transpileTs } from './code-cell-execute.service';
 import { sendError, sendThrown } from '../../platform/http/respond';
 
 export interface EditorRouteDeps {
@@ -172,6 +172,30 @@ export function createEditorRoutes(deps: EditorRouteDeps): Router {
       res.send({ results });
     } catch (error: unknown) {
       sendThrown(res, error, 'Query execution failed');
+    }
+  });
+
+  // TypeScript cells run in the browser, but stripping their types took the
+  // whole TypeScript compiler there (3.4 MB, the largest download in the app).
+  // The server already has it for Node cells, so the browser sends the source
+  // here. It is compiled, never run: the same permission as opening the editor.
+  const transpileLimiter = rateLimit({ windowMs: 60 * 1000, max: 120 });
+  router.post('/sql/code-cell/transpile', transpileLimiter, async (req: AppRequest, res: FastifyReply) => {
+    if (denyUnless(req as AuthedRequest, res, 'editor.access')) return;
+    const source = (req.body as { source?: unknown } | undefined)?.source;
+    if (typeof source !== 'string' || !source.trim()) {
+      sendError(res, 'invalid_input', 'source must be the TypeScript to compile.');
+      return;
+    }
+    if (source.length > MAX_CODE_CELL_LENGTH) {
+      sendError(res, 'invalid_input', `source must be under ${MAX_CODE_CELL_LENGTH} characters`);
+      return;
+    }
+    try {
+      res.send({ js: await transpileTs(source) });
+    } catch (error: unknown) {
+      // A type error in the cell, worded by the compiler.
+      sendError(res, 'invalid_input', errorMessage(error));
     }
   });
 

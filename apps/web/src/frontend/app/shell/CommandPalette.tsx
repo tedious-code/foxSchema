@@ -9,7 +9,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuthStore } from '@/app/store/authStore';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { openRecentQuery, selectEditorConnection, useRecentQueries } from '@/app/store/recentQueries';
 import { useSyncStore } from '@/app/store/useSyncStore';
 import { useUiStore, type ActiveView } from '@/app/store/uiStore';
 import { COMMAND_PALETTE_EVENT } from './commandPaletteEvent';
@@ -28,9 +28,8 @@ export const CommandPalette: React.FC = () => {
   const [active, setActive] = useState(0);
   const setActiveView = useUiStore((s) => s.setActiveView);
   const connections = useSyncStore((s) => s.connections);
-  const recentQueries = useSqlEditorStore((s) => s.recentQueries);
-  const openRecentQuery = useSqlEditorStore((s) => s.openRecentQuery);
-  const ensureConnectionSelected = useSqlEditorStore((s) => s.ensureConnectionSelected);
+  // Not the SQL editor store: that loads with the editor, not with the shell.
+  const recentQueries = useRecentQueries((s) => s.recentQueries);
   const canSchemaBrowse = useAuthStore((s) => s.can('schema.browse'));
   const canSchemaCompare = useAuthStore((s) => s.can('schema.compare'));
   const canEditorAccess = useAuthStore((s) => s.can('editor.access'));
@@ -98,7 +97,7 @@ export const CommandPalette: React.FC = () => {
         label: c.name,
         hint: c.dialect,
         run: () => {
-          ensureConnectionSelected(c.id);
+          void selectEditorConnection(c.id);
           go('sqlEditor');
         },
       });
@@ -110,7 +109,7 @@ export const CommandPalette: React.FC = () => {
         label: r.title?.trim() || 'Query',
         hint: r.sql.trim().split('\n')[0],
         run: () => {
-          openRecentQuery(r.id);
+          void openRecentQuery(r.id);
           go('sqlEditor');
         },
       });
@@ -127,8 +126,6 @@ export const CommandPalette: React.FC = () => {
     canWorkflow,
     connections,
     recentQueries,
-    ensureConnectionSelected,
-    openRecentQuery,
     setActiveView,
   ]);
 

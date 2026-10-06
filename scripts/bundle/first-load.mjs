@@ -2,7 +2,7 @@
  * What a browser downloads on a first visit to the built web app, and a budget
  * for it.
  *
- *   node scripts/bundle/first-load.mjs [apps/web/dist] [--budget-gzip-kb=240]
+ *   node scripts/bundle/first-load.mjs [apps/web/dist] [--budget-gzip-kb=170]
  *
  * The first visit is index.html plus what it names: the entry script, its
  * modulepreload links and the stylesheet. Everything else is fetched later, when

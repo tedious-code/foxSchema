@@ -137,6 +137,16 @@ export function parseSqlStatementResult(
   };
 }
 
+/**
+ * Compile a browser TypeScript cell to JavaScript on the server, which never
+ * runs it. Saves the browser the TypeScript compiler (3.4 MB).
+ */
+export async function transpileCodeCell(source: string): Promise<string> {
+  const data = await api.post<{ js?: unknown }>(`/sql/code-cell/transpile`, { source });
+  if (typeof data?.js !== 'string') throw new Error('The server returned no JavaScript for this cell.');
+  return data.js;
+}
+
 /** Run a `-- @node` / `-- @nodets` cell on the FoxSchema server. */
 export async function runCodeCellOnServer(
   payload: ServerCodeCellPayload

@@ -14,7 +14,7 @@
  * A migration tool that runs something other than what it showed is the one
  * failure that cannot be defended, so this pins the two together.
  */
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeAll, describe, expect, it, vi, beforeEach } from 'vitest';
 
 const executeMigration = vi.fn();
 vi.mock('@/shared/api/schemaApi', async (importOriginal) => {
@@ -27,6 +27,7 @@ vi.mock('@/app/store/useUiStore', () => ({
 vi.mock('@/shared/components/toast', () => ({ toast: vi.fn() }));
 
 import { useSyncStore } from './useSyncStore';
+import { loadSqlGenerator } from './sync-helpers';
 import type { TableDiff } from '@/shared/lib/types';
 
 const col = (name: string, status: 'ADDED' | 'UNCHANGED', extra: Record<string, unknown> = {}) =>
@@ -65,6 +66,12 @@ function plannedSql(): string {
   if (!sql.trim()) throw new Error('plan produced no statements — the fixture generates nothing');
   return sql;
 }
+
+// These tests set a comparison by hand; the app loads the generator with the
+// browse or compare that sets one.
+beforeAll(async () => {
+  await loadSqlGenerator();
+});
 
 beforeEach(() => {
   executeMigration.mockReset();

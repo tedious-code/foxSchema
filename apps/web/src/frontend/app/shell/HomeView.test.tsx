@@ -12,17 +12,19 @@ const ensureConnectionSelected = vi.fn();
 const ensureSchema = vi.fn();
 const setActiveView = vi.fn();
 
-vi.mock('@/app/store/useSqlEditorStore', () => ({
-  useSqlEditorStore: (sel: (s: Record<string, unknown>) => unknown) =>
-    sel({
-      recentQueries: [
+// The shell reads recent queries from the small mirror, and opens them through it.
+vi.mock('@/app/store/recentQueries', () => ({
+  useRecentQueries: (sel: (s: Record<string, unknown>) => unknown) =>
+    sel({ recentQueries: [
         { id: 'r1', sql: 'SELECT 1', title: 'Ping', ranAt: Date.now() },
-      ],
-      openRecentQuery,
-      ensureConnectionSelected,
-      ensureSchema,
-    }),
+      ] }),
+  openRecentQuery: (id: string) => openRecentQuery(id),
+  selectEditorConnection: (id: string) => ensureConnectionSelected(id),
 }));
+// Opening Home or the palette must not touch the SQL editor store.
+vi.mock('@/app/store/useSqlEditorStore', () => {
+  throw new Error('the shell imported the SQL editor store');
+});
 
 vi.mock('@/app/store/useSyncStore', () => ({
   useSyncStore: (sel: (s: Record<string, unknown>) => unknown) =>

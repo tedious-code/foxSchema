@@ -8,7 +8,7 @@
  */
 import React from 'react';
 import { Camera, Database, GitCompareArrows, Search, Terminal, Wrench } from 'lucide-react';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { openRecentQuery, selectEditorConnection, useRecentQueries } from '@/app/store/recentQueries';
 import { useSyncStore } from '@/app/store/useSyncStore';
 import { useUiStore } from '@/app/store/uiStore';
 import { formatRelativeDay } from '@/features/sql-editor/lib/relativeTime';
@@ -22,22 +22,21 @@ function previewSql(sql: string): string {
 }
 
 export const HomeView: React.FC = () => {
-  const recentQueries = useSqlEditorStore((s) => s.recentQueries);
-  const openRecentQuery = useSqlEditorStore((s) => s.openRecentQuery);
+  // Not the SQL editor store: that loads with the editor, not with Home.
+  const recentQueries = useRecentQueries((s) => s.recentQueries);
   const connections = useSyncStore((s) => s.connections);
   const compareResult = useSyncStore((s) => s.compareResult);
   const sourceConfig = useSyncStore((s) => s.sourceConfig);
   const targetConfig = useSyncStore((s) => s.targetConfig);
-  const ensureConnectionSelected = useSqlEditorStore((s) => s.ensureConnectionSelected);
   const setActiveView = useUiStore((s) => s.setActiveView);
 
   const openRecent = (id: string) => {
-    openRecentQuery(id);
+    void openRecentQuery(id);
     setActiveView('sqlEditor');
   };
 
   const openConnection = (id: string) => {
-    ensureConnectionSelected(id);
+    void selectEditorConnection(id);
     setActiveView('sqlEditor');
   };
 

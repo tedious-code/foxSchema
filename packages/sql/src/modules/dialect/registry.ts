@@ -1,4 +1,5 @@
 import type { SqlDialect } from './sql-dialect.interface.js';
+import type { SqlDialectKey } from './sql-dialect-keys.js';
 import { db2SqlDialect } from '../../providers/db2/db2.sql-dialect.js';
 import { postgresSqlDialect } from '../../providers/postgres/postgres.sql-dialect.js';
 import { mysqlSqlDialect, mariadbSqlDialect } from '../../providers/mysql/mysql.sql-dialect.js';
@@ -13,7 +14,10 @@ import { yugabyteDbSqlDialect } from '../../providers/yugabyteDb/yugabytedb.sql-
 import { tiDbSqlDialect } from '../../providers/tiDb/tidb.sql-dialect.js';
 import { duckDbSqlDialect } from '../../providers/duckDb/duckdb.sql-dialect.js';
 
-/** Maps a dialect name (case-insensitive) to its SQL generation strategy. */
+/**
+ * Maps a dialect name (case-insensitive) to its SQL generation strategy. Its keys
+ * are exactly `SQL_DIALECT_KEYS` (checked by `satisfies` below).
+ */
 export const DIALECT_MAP: Record<string, SqlDialect> = {
   DB2: db2SqlDialect,
   POSTGRES: postgresSqlDialect,
@@ -29,7 +33,7 @@ export const DIALECT_MAP: Record<string, SqlDialect> = {
   YUGABYTEDB: yugabyteDbSqlDialect,
   TIDB: tiDbSqlDialect,
   DUCKDB: duckDbSqlDialect,
-};
+} satisfies Record<SqlDialectKey, SqlDialect>;
 
 /** Resolve a dialect name to its strategy, defaulting to Db2 for unknown names. */
 export function resolveDialect(dialect: string): SqlDialect {

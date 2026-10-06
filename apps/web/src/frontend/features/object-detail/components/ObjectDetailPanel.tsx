@@ -8,7 +8,7 @@ import { executeGate } from '../lib/executeGate';
 import { SqlGeneratorModule } from '@/shared/lib/sql-generator';
 import { findDropDependencies } from '@foxschema/sql';
 import { findMissingFkTargets, findNarrowingTypeChanges, extractReviewNotices, resolveDialect } from '@/shared/lib/migration-validation';
-import { buildIncludedDiffs, applySelectionsForScan, buildMapping } from '@/app/store/sync-helpers';
+import { buildIncludedDiffs, applySelectionsForScan } from '@/app/store/sync-helpers';
 import { useSqlFormat, type SqlFormat } from '@/shared/utils/useSqlFormat';
 import { SchemaBlueprint, DiffBriefingPanel } from '@/features/schema-diff';
 import { DetailTabs, type DetailTab } from '@/features/schema-diff';
@@ -62,6 +62,7 @@ export const ObjectDetailPanel: React.FC = () => {
   const gitSettingsPending = canUseGit && requirement === 'unknown';
   const committedMigration = useSyncStore((s) => s.committedMigration);
   const commitMatchesPlan = useSyncStore((s) => s.commitMatchesPlan);
+  const currentMigrationPlan = useSyncStore((s) => s.currentMigrationPlan);
   const [showCommit, setShowCommit] = useState(false);
   // sql-formatter loads on demand; the memos below re-run when it arrives.
   const format = useSqlFormat();
@@ -220,15 +221,12 @@ export const ObjectDetailPanel: React.FC = () => {
         : [],
     [compareResult, scannedDiffs, syncSelection, targetConfig.dialect]
   );
+  // The store's plan, the one Execute runs: built once per change, not again here.
   const reviewIssues = useMemo(() => {
     if (!compareResult) return [];
-    const steps = ddlGenerator.generateMigrationPlan(
-      includedDiffs,
-      targetConfig.dialect,
-      buildMapping({ sourceConfig, targetConfig, nonDestructive, targetServerVersion }),
-      compareResult.tables
-    );
-    return extractReviewNotices(steps);
+    return extractReviewNotices(currentMigrationPlan());
+    // The plan changes exactly when these do; the store caches it on them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compareResult, includedDiffs, sourceConfig, targetConfig, nonDestructive, targetServerVersion]);
   const hasMissingFkTargets = missingFkIssues.length > 0;
   const hasNarrowingChanges = narrowingIssues.length > 0;

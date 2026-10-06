@@ -21,10 +21,7 @@ export const loadObjectDetailPanel = () =>
 
 const PREFETCH: Partial<Record<ActiveView, () => Promise<unknown>>> = {
   sync: () => Promise.all([loadSchemaTreePanel(), loadObjectDetailPanel()]),
-  // The editor pane too: it is lazy inside the view and brings Monaco, the
-  // longest wait in the app, which would otherwise start only after the view.
-  sqlEditor: () =>
-    Promise.all([loadSqlEditorView(), import('@/features/sql-editor/components/SqlEditorPane')]),
+  sqlEditor: loadSqlEditorView,
   access: loadAccessView,
   utilities: loadUtilitiesView,
   snapshots: loadSnapshotsView,
@@ -32,7 +29,21 @@ const PREFETCH: Partial<Record<ActiveView, () => Promise<unknown>>> = {
   workflow: loadWorkflowView,
 };
 
-/** Start loading a view's code ahead of a likely click. Failures are left to the click. */
-export function prefetchView(view: ActiveView): void {
+/**
+ * What a view loads lazily inside itself, worth starting along with it when a
+ * click is likely. The SQL editor's pane brings Monaco, the longest wait in
+ * the app, which would otherwise start only after the view arrived.
+ */
+const INSIDE: Partial<Record<ActiveView, () => Promise<unknown>>> = {
+  sqlEditor: () => import('@/features/sql-editor/components/SqlEditorPane'),
+};
+
+/**
+ * Start loading a view's code ahead of a likely click. `inside` also loads what
+ * the view loads lazily; startup leaves it out, because Monaco's setup would
+ * compete with the first screen. Failures are left to the click.
+ */
+export function prefetchView(view: ActiveView, { inside = true }: { inside?: boolean } = {}): void {
   void PREFETCH[view]?.().catch(() => undefined);
+  if (inside) void INSIDE[view]?.().catch(() => undefined);
 }

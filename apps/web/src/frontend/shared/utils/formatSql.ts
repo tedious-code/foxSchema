@@ -1,4 +1,4 @@
-import type { FormatOptionsWithLanguage } from 'sql-formatter';
+import type { GrammarName } from './sqlFormatterGrammars';
 import { loadOnce } from '../lib/loadOnce';
 import {
   codeCellNeedsTs,
@@ -15,10 +15,7 @@ import type { Dialect } from '../lib/provider-settings';
  * `[dbo].[t]`, `x::int` or `$$ … $$`, so Format quietly did nothing for Azure
  * SQL, CockroachDB, YugabyteDB and Redshift.
  */
-const LANGUAGE_BY_DIALECT: Record<
-  Exclude<Dialect, 'redis' | 'mongodb'>,
-  NonNullable<FormatOptionsWithLanguage['language']>
-> = {
+const LANGUAGE_BY_DIALECT: Record<Exclude<Dialect, 'redis' | 'mongodb'>, GrammarName> = {
   db2: 'db2',
   mysql: 'mysql',
   mariadb: 'mariadb',
@@ -35,7 +32,7 @@ const LANGUAGE_BY_DIALECT: Record<
   clickhouse: 'clickhouse',
 };
 
-function languageFor(dialect: string): NonNullable<FormatOptionsWithLanguage['language']> {
+function languageFor(dialect: string): GrammarName {
   const key = dialect.toLowerCase();
   return Object.hasOwn(LANGUAGE_BY_DIALECT, key)
     ? LANGUAGE_BY_DIALECT[key as keyof typeof LANGUAGE_BY_DIALECT]
@@ -48,7 +45,7 @@ function languageFor(dialect: string): NonNullable<FormatOptionsWithLanguage['la
  * of the first page load. `formatSql` returns its input unchanged until this
  * has loaded: await `loadSqlFormatter()`, or in a component `useSqlFormat`.
  */
-export const loadSqlFormatter = loadOnce(() => import('sql-formatter'));
+export const loadSqlFormatter = loadOnce(() => import('./sqlFormatterGrammars'));
 
 /**
  * Pretty-prints catalog DDL (views, triggers, routines often come back as one line).
@@ -59,8 +56,8 @@ export function formatSql(sql: string, dialect: string): string {
   const sqlFormatter = loadSqlFormatter.peek();
   if (!sql || !sql.trim() || !sqlFormatter) return sql;
   try {
-    return sqlFormatter.format(sql, {
-      language: languageFor(dialect),
+    return sqlFormatter.formatDialect(sql, {
+      dialect: sqlFormatter.GRAMMARS[languageFor(dialect)],
       keywordCase: 'upper',
       tabWidth: 1,
       indentStyle: 'tabularLeft',

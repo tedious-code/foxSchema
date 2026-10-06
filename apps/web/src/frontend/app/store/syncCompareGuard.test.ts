@@ -28,6 +28,7 @@ vi.mock('@/app/store/useUiStore', () => ({
 vi.mock('@/shared/components/toast', () => ({ toast: vi.fn() }));
 
 import { useSyncStore } from './useSyncStore';
+import { loadSqlGenerator } from './sync-helpers';
 
 const config = (dialect: string) =>
   ({ dialect, schema: 'public', option: {}, connectionId: '' }) as never;
@@ -90,3 +91,31 @@ describe('the compare action refuses an engine with no schema', () => {
     expect(useSyncStore.getState().errorMsg).toBeNull();
   });
 });
+
+describe('the migration generator loads with the comparison', () => {
+  it('is ready by the time a comparison is shown', async () => {
+    // (That it is absent from the first page is the first-load budget's job.)
+    setup('postgres', 'postgres');
+    const added = {
+      tableName: 'ORDERS',
+      status: 'ADDED',
+      objectType: 'TABLE',
+      columnDiffs: [{ name: 'ID', status: 'ADDED', source: { name: 'id', type: 'integer', nullable: false } }],
+      indexDiffs: [],
+      foreignKeyDiffs: [],
+      triggerDiffs: [],
+      sourceTable: { name: 'orders', columns: [{ name: 'id', type: 'integer', nullable: false }], indices: [], foreignKeys: [] },
+    };
+    compareSchemas.mockResolvedValue({ tables: [added], warnings: [] });
+    await useSyncStore.getState().runSchemaComparison();
+    const state = useSyncStore.getState();
+    expect(state.errorMsg).toBeNull();
+    expect(state.compareResult?.tables).toHaveLength(1);
+    expect(typeof state.generatedSql).toBe('string');
+    // A toggle right after regenerates synchronously, which needs the generator.
+    useSyncStore.getState().toggleSyncSelection('ORDERS');
+    expect(useSyncStore.getState().generatedSql).toMatch(/CREATE TABLE/i);
+    expect(loadSqlGenerator.peek()).toBeDefined();
+  });
+});
+

@@ -52,6 +52,10 @@ import { WriteConfirmDialog } from './WriteConfirmDialog';
 import { SqlRunsDrawer } from './SqlRunsDrawer';
 import type { RevealRequest } from './SqlEditorPane';
 
+// One empty list each, so an empty result keeps the same props between renders.
+const NO_RUNS: never[] = [];
+const NO_STATEMENTS: string[] = [];
+
 const SqlEditorPane = lazy(() => import('./SqlEditorPane'));
 
 const EditorFallback: React.FC = () => (
@@ -112,6 +116,16 @@ export const SqlEditorView: React.FC = () => {
   const pendingWriteConfirm = useSqlEditorStore((s) => s.pendingWriteConfirm);
   const setSql = useSqlEditorStore((s) => s.setSql);
   const execute = useSqlEditorStore((s) => s.execute);
+  // Stable, so the memoised results panel does not re-render on every keystroke.
+  const onResultsPage = useCallback(
+    (args: Parameters<ReturnType<typeof useSqlEditorStore.getState>['loadResultPage']>[0]) =>
+      void useSqlEditorStore.getState().loadResultPage(args),
+    []
+  );
+  const onResultsRefresh = useCallback(
+    (connectionId?: string) => execute(connectionId ? { connectionIds: [connectionId] } : undefined),
+    [execute]
+  );
   const cancelWriteConfirm = useSqlEditorStore((s) => s.cancelWriteConfirm);
   const clearResults = useSqlEditorStore((s) => s.clearResults);
   const toggleStatement = useSqlEditorStore((s) => s.toggleStatement);
@@ -932,17 +946,15 @@ export const SqlEditorView: React.FC = () => {
 
           <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
             <ResultsPanel
-              runs={results?.runs ?? []}
-              statements={results?.ranStatements ?? []}
+              runs={results?.runs ?? NO_RUNS}
+              statements={results?.ranStatements ?? NO_STATEMENTS}
               statementIndices={results?.ranStatementIndices}
               layout={tab.layout}
               refreshing={running}
               warnings={results?.warnings}
               pageState={results?.pageMeta}
-              onPage={(args) => void useSqlEditorStore.getState().loadResultPage(args)}
-              onRefresh={(connectionId) =>
-                execute(connectionId ? { connectionIds: [connectionId] } : undefined)
-              }
+              onPage={onResultsPage}
+              onRefresh={onResultsRefresh}
             />
           </div>
         </div>

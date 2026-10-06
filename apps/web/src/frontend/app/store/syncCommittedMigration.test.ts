@@ -7,7 +7,7 @@
  * on screen. Change the selection after committing and the commit no longer
  * describes what would run, so Execute stops sending it.
  */
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeAll, describe, expect, it, vi, beforeEach } from 'vitest';
 
 const executeMigration = vi.fn();
 vi.mock('@/shared/api/schemaApi', async (importOriginal) => {
@@ -19,6 +19,7 @@ vi.mock('@/app/store/useUiStore', () => ({
 }));
 
 import { useSyncStore } from './useSyncStore';
+import { loadSqlGenerator } from './sync-helpers';
 import type { TableDiff } from '@/shared/lib/types';
 
 const col = (name: string) =>
@@ -43,6 +44,12 @@ const ref = { repoId: 'r1', branch: 'main', commit: COMMIT, path: 'migrations/x.
 
 /** The `git` argument of the last executeMigration call. */
 const sentGit = () => executeMigration.mock.calls.at(-1)?.[4];
+
+// These tests set a comparison by hand; the app loads the generator with the
+// browse or compare that sets one.
+beforeAll(async () => {
+  await loadSqlGenerator();
+});
 
 beforeEach(() => {
   executeMigration.mockReset();
@@ -123,3 +130,24 @@ describe('committed migrations', () => {
     expect(useSyncStore.getState().migrationError).toMatch(/must be committed/);
   });
 });
+
+describe('the plan is built once per change', () => {
+  it('is reused until a selection changes, and the commit check does not rebuild it', () => {
+    const build = vi.spyOn(loadSqlGenerator.peek()!, 'generateMigrationPlan');
+    try {
+      const first = useSyncStore.getState().currentMigrationPlan();
+      useSyncStore.getState().setCommittedMigration(ref);
+      // The detail panel asks this on every render.
+      for (let i = 0; i < 5; i++) expect(useSyncStore.getState().commitMatchesPlan()).toBe(true);
+      expect(useSyncStore.getState().currentMigrationPlan()).toBe(first);
+      expect(build).toHaveBeenCalledTimes(1);
+
+      useSyncStore.getState().toggleColumnSelection('ORDERS', 'DROP_ME');
+      expect(useSyncStore.getState().currentMigrationPlan()).not.toBe(first);
+      expect(useSyncStore.getState().commitMatchesPlan()).toBe(false);
+    } finally {
+      build.mockRestore();
+    }
+  });
+});
+

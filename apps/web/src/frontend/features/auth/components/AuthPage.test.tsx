@@ -51,9 +51,11 @@ const type = (label: RegExp, value: string) => fireEvent.change(screen.getByLabe
 describe('first-time sign-up', () => {
   it('is shown when no account can sign in yet', async () => {
     apiSetupState.mockResolvedValue({ setupRequired: true, setupEmail: null, setupCodeRequired: false });
+    // Asked alongside the setup state (one round trip, not two); setup still wins.
+    apiMe.mockResolvedValue(null);
     await useAuthStore.getState().init();
     expect(useAuthStore.getState().status).toBe('setup');
-    expect(apiMe).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().user).toBeNull();
   });
 
   it('checks the server rules as you type and refuses mismatches before sending', async () => {

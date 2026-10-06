@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  findTsqlTopClause,
   hasTopLevelOrderBy,
   isPageableStatement,
   trimPageProbe,
@@ -49,6 +50,88 @@ describe('sql-page-wrap', () => {
     expect(sql).toBe(
       'SELECT id, name FROM dbo.users ORDER BY name OFFSET 0 ROWS FETCH NEXT 51 ROWS ONLY'
     );
+  });
+
+  describe('T-SQL TOP + OFFSET (TOP and OFFSET cannot share a query block)', () => {
+    it('folds TOP n into FETCH and keeps the user ORDER BY', () => {
+      expect(wrapSqlForPage('SELECT TOP 10 * FROM dbo.orders ORDER BY id DESC', 'sqlserver', 0, 200)).toBe(
+        'SELECT * FROM dbo.orders ORDER BY id DESC OFFSET 0 ROWS FETCH NEXT 10 ROWS ONLY'
+      );
+    });
+
+    it('folds TOP (n) and caps later pages at n', () => {
+      const sql = 'SELECT DISTINCT TOP (25) id, name FROM t ORDER BY name;';
+      expect(wrapSqlForPage(sql, 'azuresql', 0, 10)).toBe(
+        'SELECT DISTINCT id, name FROM t ORDER BY name OFFSET 0 ROWS FETCH NEXT 11 ROWS ONLY'
+      );
+      // Rows 20..24 remain; no probe row past TOP so hasNext ends false.
+      expect(wrapSqlForPage(sql, 'azuresql', 20, 10)).toBe(
+        'SELECT DISTINCT id, name FROM t ORDER BY name OFFSET 20 ROWS FETCH NEXT 5 ROWS ONLY'
+      );
+    });
+
+    it('nests (empty page) once offset reaches TOP n', () => {
+      expect(wrapSqlForPage('SELECT TOP 5 id FROM t ORDER BY id', 'sqlserver', 5, 10)).toBe(
+        'SELECT * FROM (SELECT TOP 5 id FROM t ORDER BY id) AS fox_page ORDER BY (SELECT NULL) OFFSET 5 ROWS FETCH NEXT 11 ROWS ONLY'
+      );
+    });
+
+    it('nests TOP without ORDER BY unchanged', () => {
+      expect(wrapSqlForPage('SELECT TOP (20) id FROM t', 'sqlserver', 0, 10)).toBe(
+        'SELECT * FROM (SELECT TOP (20) id FROM t) AS fox_page ORDER BY (SELECT NULL) OFFSET 0 ROWS FETCH NEXT 11 ROWS ONLY'
+      );
+    });
+
+    it('nests TOP PERCENT, WITH TIES and non-literal TOP, keeping TOP', () => {
+      for (const sql of [
+        'SELECT TOP 10 PERCENT id FROM t ORDER BY id',
+        'SELECT TOP (3) WITH TIES id, score FROM t ORDER BY score DESC',
+        'SELECT TOP (@n) id FROM t ORDER BY id',
+      ]) {
+        expect(wrapSqlForPage(sql, 'sqlserver', 0, 10)).toBe(
+          `SELECT * FROM (${sql}) AS fox_page ORDER BY (SELECT NULL) OFFSET 0 ROWS FETCH NEXT 11 ROWS ONLY`
+        );
+      }
+    });
+
+    it('does not mistake a column named top for the keyword', () => {
+      expect(wrapSqlForPage('SELECT [top], "top" FROM t ORDER BY [top]', 'sqlserver', 0, 10)).toBe(
+        'SELECT [top], "top" FROM t ORDER BY [top] OFFSET 0 ROWS FETCH NEXT 11 ROWS ONLY'
+      );
+      expect(wrapSqlForPage('SELECT id, x AS top_n FROM t ORDER BY id', 'sqlserver', 0, 10)).toBe(
+        'SELECT id, x AS top_n FROM t ORDER BY id OFFSET 0 ROWS FETCH NEXT 11 ROWS ONLY'
+      );
+    });
+
+    it('ignores TOP in subqueries, strings and comments', () => {
+      for (const sql of [
+        'SELECT id FROM (SELECT TOP 5 id FROM t ORDER BY id) x ORDER BY id',
+        "SELECT 'TOP 5' AS s FROM t ORDER BY s",
+        'SELECT /* TOP 5 */ id FROM t ORDER BY id',
+      ]) {
+        expect(wrapSqlForPage(sql, 'sqlserver', 0, 10)).toBe(`${sql} OFFSET 0 ROWS FETCH NEXT 11 ROWS ONLY`);
+      }
+    });
+
+    it('finds TOP on the main SELECT after a CTE', () => {
+      expect(
+        wrapSqlForPage('WITH c AS (SELECT TOP 1 id FROM t ORDER BY id) SELECT TOP 3 id FROM c ORDER BY id', 'sqlserver', 0, 10)
+      ).toBe('WITH c AS (SELECT TOP 1 id FROM t ORDER BY id) SELECT id FROM c ORDER BY id OFFSET 0 ROWS FETCH NEXT 3 ROWS ONLY');
+    });
+
+    it('leaves a branch TOP in a UNION alone', () => {
+      const sql = 'SELECT TOP 5 a FROM t UNION ALL SELECT b FROM u ORDER BY a';
+      expect(wrapSqlForPage(sql, 'sqlserver', 0, 10)).toBe(`${sql} OFFSET 0 ROWS FETCH NEXT 11 ROWS ONLY`);
+    });
+
+    it('findTsqlTopClause reports flags', () => {
+      expect(findTsqlTopClause('select top 10 percent with ties * from t order by a')).toMatchObject({
+        count: 10,
+        percent: true,
+        withTies: true,
+      });
+      expect(findTsqlTopClause('SELECT [top] FROM t')).toBeNull();
+    });
   });
 
   it('hasTopLevelOrderBy ignores ORDER BY inside subqueries/strings', () => {

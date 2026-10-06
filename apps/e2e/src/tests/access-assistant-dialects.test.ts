@@ -62,6 +62,27 @@ const SUPPORTS_GRANT_BUILDER: readonly string[] = [
   'tidb',
 ];
 
+/**
+ * The role every seed creates (docker/init/<engine>), as each catalog names
+ * it: SELECT on a table, EXECUTE on a function where the engine has routines,
+ * and one database-, schema- or system-wide grant, as the also-holds line
+ * words it. Reading routine grants needs the catalog the engine keeps them in
+ * (mysql.procs_priv on MySQL and MariaDB), so the E2E login must be able to.
+ */
+const SEEDED: Record<string, { principal: string; schema: string; table: string; fn?: string; wide: RegExp }> = {
+  postgres: { principal: 'fox_reader', schema: 'demo_a', table: 'customers', fn: 'fn_get_discount', wide: /CONNECT on database foxdb/ },
+  yugabytedb: { principal: 'fox_reader', schema: 'demo_a', table: 'customers', fn: 'fn_get_discount', wide: /CONNECT on database foxdb/ },
+  cockroachdb: { principal: 'fox_reader', schema: 'demo_a', table: 'customers', fn: 'fn_get_discount', wide: /CONNECT on database foxdb/ },
+  // A Postgres stand-in: its routines would prove nothing about Redshift's.
+  redshift: { principal: 'fox_reader', schema: 'demo_a', table: 'customers', wide: /USAGE on schema demo_a/ },
+  mysql: { principal: 'fox_reader@%', schema: 'demo_a', table: 'customers', fn: 'fn_get_discount', wide: /SHOW VIEW on schema demo_a/ },
+  mariadb: { principal: 'fox_reader', schema: 'demo_a', table: 'customers', fn: 'fn_get_discount', wide: /SHOW VIEW on schema demo_a/ },
+  tidb: { principal: 'fox_reader@%', schema: 'demo_a', table: 'customers', wide: /SHOW VIEW on schema demo_a/ },
+  sqlserver: { principal: 'fox_reader', schema: 'demo_a', table: 'customers', fn: 'fn_get_discount', wide: /VIEW DEFINITION on the database/ },
+  oracle: { principal: 'FOX_READER', schema: 'DEMO_A', table: 'CUSTOMERS', fn: 'FN_GET_DISCOUNT', wide: /CREATE SESSION \(server-wide\)/ },
+  db2: { principal: 'FOX_READER', schema: 'DEMO_A', table: 'CUSTOMERS', fn: 'FN_GET_DISCOUNT', wide: /CONNECT on the database/ },
+};
+
 /** `E2E_DIALECTS=oracle,tidb` narrows a run to those engines. */
 const only = (process.env.E2E_DIALECTS ?? '')
   .split(',')
@@ -90,25 +111,7 @@ describe.skipIf(configured.length === 0)('Access Assistant (all configured diale
     await driver.reload();
     await driver.waitForSelector('[data-testid="toolbar"]', { timeout: 30_000 });
 
-  
-  /**
-   * A run that reached no database proved nothing, so it must not report green.
-   *
-   * Every per-dialect test skips when its connection could not be made, which is
-   * right for one sick container — but when *all* of them skip, vitest still
-   * reports the file as passed. That is how a suite comes to certify engines it
-   * never touched: the API process had died, every connection failed, and forty
-   * skipped tests looked like success.
-   */
-  it('reached at least one database', () => {
-    expect(
-      credNameByDialect.size,
-      `no connection could be made to any of: ${configured.join(', ')}. ` +
-        `Reasons: ${[...unreachable.entries()].map(([d, why]) => `${d}: ${why}`).join(' | ') || 'none recorded'}`
-    ).toBeGreaterThan(0);
-  });
-
-  for (const dialect of configured) {
+    for (const dialect of configured) {
       const cfg = getSourceConfig(dialect)!;
       const name = `E2E Access ${dialect} ${runId}`;
       try {
@@ -135,6 +138,23 @@ describe.skipIf(configured.length === 0)('Access Assistant (all configured diale
   });
 
   /**
+   * A run that reached no database proved nothing, so it must not report green.
+   *
+   * Every per-dialect test skips when its connection could not be made, which is
+   * right for one sick container — but when *all* of them skip, vitest still
+   * reports the file as passed. That is how a suite comes to certify engines it
+   * never touched: the API process had died, every connection failed, and forty
+   * skipped tests looked like success.
+   */
+  it('reached at least one database', () => {
+    expect(
+      credNameByDialect.size,
+      `no connection could be made to any of: ${configured.join(', ')}. ` +
+        `Reasons: ${[...unreachable.entries()].map(([d, why]) => `${d}: ${why}`).join(' | ') || 'none recorded'}`
+    ).toBeGreaterThan(0);
+  });
+
+  /**
    * Access uses one workspace chip (`name · dialect`) for Users, Permission, and Diff.
    */
   const usersLabel = (dialect: string) => `${credNameByDialect.get(dialect)!} · ${dialect}`;
@@ -146,6 +166,70 @@ describe.skipIf(configured.length === 0)('Access Assistant (all configured diale
       ? chip
       : driver.locator('[data-testid="user-connection"]');
     await select.selectOption({ label });
+  }
+
+  /** Principals tab on this connection, loaded: rows, or why there are none. */
+  async function openPrincipals(dialect: string) {
+    await driver.locator(byTestId('access-tab-permission')).click();
+    await driver.waitForSelector(byTestId('access-permission-panel'), { timeout: 15_000 });
+    await selectConnection(dialect);
+    // Wait for the load to finish (Reload is enabled again) and an answer:
+    // rows, or why there are none.
+    const settle = () =>
+      driver.waitForFunction(
+        () => {
+          const reload = document.querySelector('[data-testid="access-permission-reload"]');
+          if (!(reload instanceof HTMLButtonElement) || reload.disabled) return false;
+          return (
+            document.querySelector('[data-testid^="access-permission-row-"]') !== null ||
+            document.querySelector('[data-testid="access-permission-unsupported"]') !== null ||
+            document.querySelector('[data-testid="access-permission-error"]') !== null
+          );
+        },
+        undefined,
+        { timeout: 120_000 }
+      );
+    await settle();
+    const rows = driver.locator('[data-testid^="access-permission-row-"]');
+    if ((await rows.count()) === 0) {
+      // The catalog read is limited to 20 a minute, and this suite reads it
+      // several times per engine. Read again, waiting out a refusal.
+      await clickRateLimited(driver, {
+        click: () => driver.locator(byTestId('access-permission-reload')).click(),
+        path: /^\/api\/schema\/db-access$/,
+        label: 'Principals reload',
+        returnErrors: true,
+      });
+      await settle();
+    }
+    if ((await rows.count()) === 0) {
+      const said = await driver.locator(byTestId('access-permission-panel')).innerText();
+      expect.fail(`${dialect}: no users or roles to grant to. The panel said: ${said.slice(0, 400)}`);
+    }
+    return rows;
+  }
+
+  /** The Grants stage, once every schema's objects are in the grid. */
+  async function openGrantsStage(dialect: string) {
+    await driver.locator(byTestId('access-permission-stage-grants')).click();
+    // The grid loads every schema's objects, Oracle's and Db2's slowly, and a
+    // preset ticks the rows loaded when it is clicked. Wait for all of them.
+    const loaded = await driver
+      .waitForFunction(
+        () => {
+          const stage = document.querySelector('[data-testid="access-grants-stage"]');
+          return (
+            stage !== null &&
+            !/Reading schema objects/.test(stage.textContent ?? '') &&
+            document.querySelector('[data-testid^="matrix-cell-"]') !== null
+          );
+        },
+        undefined,
+        { timeout: 120_000 }
+      )
+      .then(() => true)
+      .catch(() => false);
+    expect(loaded, `${dialect}: the grid never listed any objects`).toBe(true);
   }
 
   for (const dialect of configured) {
@@ -288,63 +372,9 @@ describe.skipIf(configured.length === 0)('Access Assistant (all configured diale
       it('Principals → Grants previews GRANT SQL for a preset', async () => {
         if (!SUPPORTS_GRANT_BUILDER.includes(dialect)) return;
 
-        await driver.locator(byTestId('access-tab-permission')).click();
-        await driver.waitForSelector(byTestId('access-permission-panel'), { timeout: 15_000 });
-        await selectConnection(dialect);
-        // Wait for the load to finish (Reload is enabled again) and an answer:
-        // rows, or why there are none.
-        const settle = () =>
-          driver.waitForFunction(
-            () => {
-              const reload = document.querySelector('[data-testid="access-permission-reload"]');
-              if (!(reload instanceof HTMLButtonElement) || reload.disabled) return false;
-              return (
-                document.querySelector('[data-testid^="access-permission-row-"]') !== null ||
-                document.querySelector('[data-testid="access-permission-unsupported"]') !== null ||
-                document.querySelector('[data-testid="access-permission-error"]') !== null
-              );
-            },
-            undefined,
-            { timeout: 120_000 }
-          );
-        await settle();
-        const rows = driver.locator('[data-testid^="access-permission-row-"]');
-        if ((await rows.count()) === 0) {
-          // The catalog read is limited to 20 a minute, and this suite reads it
-          // three times per engine. Read again, waiting out a refusal.
-          await clickRateLimited(driver, {
-            click: () => driver.locator(byTestId('access-permission-reload')).click(),
-            path: /^\/api\/schema\/db-access$/,
-            label: 'Principals reload',
-            returnErrors: true,
-          });
-          await settle();
-        }
-        if ((await rows.count()) === 0) {
-          const said = await driver.locator(byTestId('access-permission-panel')).innerText();
-          expect.fail(`${dialect}: no users or roles to grant to. The panel said: ${said.slice(0, 400)}`);
-        }
+        const rows = await openPrincipals(dialect);
         await rows.first().click();
-
-        await driver.locator(byTestId('access-permission-stage-grants')).click();
-        // The grid loads every schema's objects, Oracle's and Db2's slowly, and a
-        // preset ticks the rows loaded when it is clicked. Wait for all of them.
-        const loaded = await driver
-          .waitForFunction(
-            () => {
-              const stage = document.querySelector('[data-testid="access-grants-stage"]');
-              return (
-                stage !== null &&
-                !/Reading schema objects/.test(stage.textContent ?? '') &&
-                document.querySelector('[data-testid^="matrix-cell-"]') !== null
-              );
-            },
-            undefined,
-            { timeout: 120_000 }
-          )
-          .then(() => true)
-          .catch(() => false);
-        expect(loaded, `${dialect}: the grid never listed any objects`).toBe(true);
+        await openGrantsStage(dialect);
         // Before any preset: the grid shows what this principal holds now.
         await saveScreenshot(driver, `access-grants-held-${dialect}`);
         await driver.locator(byTestId('access-grants-preset-read-only')).click();
@@ -366,6 +396,40 @@ describe.skipIf(configured.length === 0)('Access Assistant (all configured diale
         const sql = await driver.locator(`${byTestId('access-grants-sql')} pre`).innerText();
         expect(settled, `${dialect}: the read-only preset produced no SQL: ${sql}`).toBe(true);
         await saveScreenshot(driver, `access-grants-${dialect}`);
+      }, 200_000);
+
+      const seeded = SEEDED[dialect];
+      it.runIf(seeded)('Grants opens on the seeded role: one view, held boxes ticked, the rest listed under it', async () => {
+        const { principal, schema, table, fn, wide } = seeded!;
+        await openPrincipals(dialect);
+        const row = driver.locator(byTestId(`access-permission-row-${principal}`));
+        expect(await row.count(), `${dialect}: the seeded role ${principal} is not listed (run scripts/seed/seed-all.sh ${dialect})`).toBe(1);
+        await row.click();
+        await openGrantsStage(dialect);
+
+        // One view: no "Desired matrix" / "Live catalog" switch.
+        expect(await driver.locator(byTestId('access-grants-stage')).innerText()).not.toMatch(/Desired matrix|Live catalog/);
+
+        /** Each grid cell for this object and privilege: whether it is ticked. */
+        const ticked = (kind: string, name: string, permission: string) =>
+          driver
+            .locator('[data-testid^="matrix-cell-cat-"]')
+            .evaluateAll(
+              (els, suffix) =>
+                els.filter((e) => e.getAttribute('data-testid')!.endsWith(suffix)).map((e) => (e as HTMLInputElement).checked),
+              `-${schema}.${kind}.${name}-${permission}`
+            );
+        expect(await ticked('table', table, 'read'), `${dialect}: SELECT on ${schema}.${table}`).toEqual([true]);
+        if (fn) {
+          expect(await ticked('function', fn, 'execute-function'), `${dialect}: EXECUTE on ${schema}.${fn}`).toEqual([true]);
+        }
+
+        const also = driver.locator(byTestId('access-grants-also-holds'));
+        expect(await also.count(), `${dialect}: nothing listed outside the grid`).toBe(1);
+        expect(await also.innerText()).toMatch(wide);
+        // Nothing changed, so nothing to apply.
+        expect(await driver.locator(`${byTestId('access-grants-sql')} pre`).innerText()).toMatch(/Nothing to change/);
+        await saveScreenshot(driver, `access-grants-seeded-${dialect}`);
       }, 200_000);
 
       if (dialect === 'sqlserver' || dialect === 'azuresql') {

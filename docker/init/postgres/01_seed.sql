@@ -286,3 +286,15 @@ FOR EACH ROW EXECUTE FUNCTION demo_b._trg_item_check();
 
 -- [REMOVED index on a MODIFIED table]
 CREATE INDEX idx_b_orders_created ON demo_b.orders(created_at);
+
+-- A role that holds one table grant, one function grant and one database- or
+-- schema-wide grant, so the Access Grants view has something real to open on
+-- (apps/e2e access-assistant-dialects: the function row opens ticked, the wide
+-- grant is listed under the grid). Re-runnable: the role outlives the schemas.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fox_reader') THEN CREATE ROLE fox_reader NOLOGIN; END IF;
+  EXECUTE format('GRANT CONNECT ON DATABASE %I TO fox_reader', current_database());
+END $$;
+GRANT USAGE ON SCHEMA demo_a TO fox_reader;
+GRANT SELECT ON demo_a.customers TO fox_reader;
+GRANT EXECUTE ON FUNCTION demo_a.fn_get_discount(DECIMAL, INTEGER) TO fox_reader;

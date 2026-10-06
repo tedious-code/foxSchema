@@ -1,0 +1,20 @@
+<!--
+  A disk ClickHouse may write backups to, so BACKUP … TO Disk('backups', …)
+  from the Backup & Restore panel (and backup-live.test.ts) runs locally.
+  Without it the server refuses: the disk must be listed under
+  <backups><allowed_disk>. Mounted into config.d by docker-compose.yml.
+-->
+<clickhouse>
+  <storage_configuration>
+    <disks>
+      <backups>
+        <type>local</type>
+        <path>/var/lib/clickhouse/backups/</path>
+      </backups>
+    </disks>
+  </storage_configuration>
+  <backups>
+    <allowed_disk>backups</allowed_disk>
+    <allowed_path>/var/lib/clickhouse/backups/</allowed_path>
+  </backups>
+</clickhouse>

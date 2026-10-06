@@ -88,8 +88,12 @@ seed_db2() {
   # db2's CLP -f flag needs an actual filesystem path, not stdin.
   require_container foxschema-db2 || return 1
   step docker cp "$INIT/db2/01_seed.sql" foxschema-db2:/tmp/01_seed.sql || return 1
+  # Not a bare `connect && -tvf`: bash execs the last command of -c, so the
+  # second db2 got a new CLP back end with no connection (SQL1024N on every
+  # statement). Anything after it keeps one back end. CLP exits 1-2 for
+  # "no rows" and warnings, 4+ for errors.
   step docker exec foxschema-db2 \
-    su - db2inst1 -c "db2 connect to foxdb && db2 -tvf /tmp/01_seed.sql -z /tmp/foxschema_seed.log" || return 1
+    su - db2inst1 -c "db2 connect to foxdb && db2 -tvf /tmp/01_seed.sql -z /tmp/foxschema_seed.log; rc=\$?; db2 terminate >/dev/null; [ \$rc -lt 4 ]" || return 1
   echo "  ✓ done"
 }
 

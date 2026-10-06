@@ -173,3 +173,12 @@ FROM   products
 WHERE  stock > 0;
 
 CREATE INDEX idx_b_orders_created ON orders(created_at);
+
+-- A role that holds one table grant, one function grant and one database- or
+-- schema-wide grant, so the Access Grants view has something real to open on
+-- (apps/e2e access-assistant-dialects: the function row opens ticked, the wide
+-- grant is listed under the grid). Re-runnable: the role outlives the schemas.
+-- TiDB has no stored routines, so it holds the table and schema grants only.
+CREATE ROLE IF NOT EXISTS 'fox_reader';
+GRANT SHOW VIEW ON demo_a.* TO 'fox_reader';
+GRANT SELECT ON demo_a.customers TO 'fox_reader';

@@ -16,7 +16,9 @@ export function engineLabel(key: string): string {
 
 /** Whether a connection can use this engine at all (any case). */
 export function isKnownEngine(dialect: string): boolean {
-  return (dialect || '').toLowerCase() in PROVIDER_SETTINGS;
+  // Own keys only: `in` also finds `constructor` and `__proto__` on the
+  // prototype, which then answered as engines with a function for a reason.
+  return Object.hasOwn(PROVIDER_SETTINGS, (dialect || '').toLowerCase());
 }
 
 /** For an engine Fox Schema does not know. */

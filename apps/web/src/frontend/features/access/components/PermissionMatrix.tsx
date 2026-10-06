@@ -93,6 +93,9 @@ const BAND: Record<'DML' | 'DDL', { heading: string; title: string }> = {
 };
 
 /** What a cell will do when the SQL runs, against what the principal holds now. */
+/** A stable empty list, so a matrix without choices keeps the same props. */
+const NO_CHOICES: readonly string[] = [];
+
 type CellChange = 'held' | 'grant' | 'revoke' | 'none';
 const CELL_STYLE: Record<CellChange, { td: string; title: string }> = {
   held: { td: '', title: 'Held now' },
@@ -109,7 +112,7 @@ const newRow = (kind: GridObjectKind): MatrixRow => ({
   permissions: [],
 });
 
-export const PermissionMatrix: React.FC<{
+const PermissionMatrixGrid: React.FC<{
   dialect: string;
   principal: AccessPrincipal;
   action: 'grant' | 'revoke' | 'deny';
@@ -154,7 +157,7 @@ export const PermissionMatrix: React.FC<{
   action,
   schema,
   withGrantOption,
-  tableChoices = [],
+  tableChoices = NO_CHOICES,
   catalog,
   applyPreset,
   onChange,
@@ -384,6 +387,19 @@ export const PermissionMatrix: React.FC<{
     [dialect, rowKey]
   );
 
+  const removeRow = useCallback((id: string) => setRows((p) => p.filter((r) => r.id !== id)), []);
+
+  // One array per kind for the dialect, so memoised rows see the same columns.
+  const columnsByKind = useMemo(
+    () => ({
+      table: gridColumnsFor(dialect, 'table'),
+      view: gridColumnsFor(dialect, 'view'),
+      procedure: gridColumnsFor(dialect, 'procedure'),
+      function: gridColumnsFor(dialect, 'function'),
+    }),
+    [dialect]
+  );
+
   /** Whether the loaded rows span more than one schema. */
   const multiSchema = useMemo(
     () => new Set(rows.map((r) => r.schema ?? '')).size > 1,
@@ -403,7 +419,7 @@ export const PermissionMatrix: React.FC<{
   return (
     <div className="flex flex-col gap-4" data-testid="permission-matrix">
       {kinds.map((kind) => {
-        const columns = gridColumnsFor(dialect, kind);
+        const columns = columnsByKind[kind];
         const kindRows = rows.filter((r) => r.kind === kind);
         const meta = KIND_META[kind];
         const bands = columns.reduce<{ band: 'DML' | 'DDL'; span: number }[]>((acc, c) => {
@@ -492,112 +508,20 @@ export const PermissionMatrix: React.FC<{
                 </thead>
                 <tbody>
                   {kindRows.map((row) => (
-                    <tr key={row.id} className="border-b border-slate-800/50 last:border-0">
-                      <td className="px-3 py-1">
-                        {/*
-                          * With a whole database loaded, `orders` is ambiguous:
-                          * several schemas have one, and the row's schema is
-                          * what the GRANT will name. Shown only when the grid
-                          * actually spans more than one, so the single-schema
-                          * case (and every MySQL/Oracle connection, which has
-                          * no schema level at all) stays uncluttered.
-                          */}
-                        {multiSchema && (
-                          <span
-                            className="mr-1.5 rounded bg-slate-800 px-1 py-0.5 font-mono text-[10px] text-slate-400"
-                            data-testid={`matrix-schema-${row.id}`}
-                            title="Schema this object belongs to"
-                          >
-                            {row.schema || '—'}
-                          </span>
-                        )}
-                        {/*
-                          * A row from the catalog names a real object: text,
-                          * not an input. It used to be an editable box under
-                          * the schema badge — two lines per row, and a rename
-                          * there pointed the GRANT at an object that may not
-                          * exist. Rows the reader adds keep their input.
-                          */}
-                        {row.id.startsWith('cat-') ? (
-                          <span
-                            data-testid={`matrix-name-${row.id}`}
-                            className="font-mono text-[12px] text-slate-200"
-                          >
-                            {row.name}
-                          </span>
-                        ) : kind === 'table' || kind === 'view' ? (
-                          <Autocomplete
-                            value={row.name}
-                            onChange={(v) => update(row.id, { name: v })}
-                            options={tableChoices.map((t) => ({ value: t, label: t }))}
-                            placeholder={`${meta.label} name`}
-                            data-testid={`matrix-name-${row.id}`}
-                          />
-                        ) : (
-                          <input
-                            className={inputCls}
-                            value={row.name}
-                            onChange={(e) => update(row.id, { name: e.target.value })}
-                            placeholder={`${meta.label} name`}
-                            data-testid={`matrix-name-${row.id}`}
-                          />
-                        )}
-                      </td>
-                      {columns.map(({ permission, support }) => {
-                        const on = row.permissions.includes(permission);
-                        const had = held?.get(rowKey(row))?.includes(permission) ?? false;
-                        const change: CellChange = !held || !support.available
-                          ? 'none'
-                          : on && had
-                            ? 'held'
-                            : on
-                              ? 'grant'
-                              : had
-                                ? 'revoke'
-                                : 'none';
-                        return (
-                          <td
-                            key={permission}
-                            data-change={change}
-                            className={`text-center border-l border-slate-800/40 px-1 ${CELL_STYLE[change].td}`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={on && support.available}
-                              disabled={!support.available}
-                              onChange={() => toggle(row.id, permission)}
-                              title={support.available ? CELL_STYLE[change].title || undefined : support.reason}
-                              data-testid={`matrix-cell-${row.id}-${permission}`}
-                              className={
-                                support.available
-                                  ? 'accent-emerald-500 cursor-pointer'
-                                  : 'opacity-25 cursor-not-allowed'
-                              }
-                            />
-                          </td>
-                        );
-                      })}
-                      <td className="px-1 text-right whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => toggleRow(row.id)}
-                          data-testid={`matrix-row-all-${row.id}`}
-                          title={`Tick or clear every privilege on ${row.name || 'this row'}`}
-                          className="mr-1.5 text-[10px] text-slate-500 hover:text-slate-200"
-                        >
-                          All
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setRows((p) => p.filter((r) => r.id !== row.id))}
-                          title="Remove this row"
-                          data-testid={`matrix-remove-${row.id}`}
-                          className="text-slate-600 hover:text-red-400"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
+                    <MatrixRowView
+                      key={row.id}
+                      row={row}
+                      kind={kind}
+                      columns={columns}
+                      multiSchema={multiSchema}
+                      tracksHeld={!!held}
+                      heldPermissions={held?.get(rowKey(row))}
+                      tableChoices={tableChoices}
+                      onUpdate={update}
+                      onToggle={toggle}
+                      onToggleRow={toggleRow}
+                      onRemove={removeRow}
+                    />
                   ))}
                   {kindRows.length === 0 && (
                     <tr>
@@ -669,3 +593,152 @@ export const PermissionMatrix: React.FC<{
     </div>
   );
 };
+
+/**
+ * One object's row. Memoised on the row and plain props: a cell click replaces
+ * only its own row object, so the other rows (hundreds, each a dozen
+ * checkboxes) are not rendered again.
+ */
+const MatrixRowView = React.memo(function MatrixRowView({
+  row,
+  kind,
+  columns,
+  multiSchema,
+  tracksHeld,
+  heldPermissions,
+  tableChoices,
+  onUpdate,
+  onToggle,
+  onToggleRow,
+  onRemove,
+}: {
+  row: MatrixRow;
+  kind: GridObjectKind;
+  columns: ReturnType<typeof gridColumnsFor>;
+  multiSchema: boolean;
+  /** Whether the grid shows held privileges at all (an existing principal). */
+  tracksHeld: boolean;
+  heldPermissions: readonly AccessPermission[] | undefined;
+  tableChoices: readonly string[];
+  onUpdate: (id: string, patch: Partial<MatrixRow>) => void;
+  onToggle: (id: string, permission: AccessPermission) => void;
+  onToggleRow: (id: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  const meta = KIND_META[kind];
+  return (
+    <tr className="border-b border-slate-800/50 last:border-0">
+      <td className="px-3 py-1">
+        {/*
+          * With a whole database loaded, `orders` is ambiguous:
+          * several schemas have one, and the row's schema is
+          * what the GRANT will name. Shown only when the grid
+          * actually spans more than one, so the single-schema
+          * case (and every MySQL/Oracle connection, which has
+          * no schema level at all) stays uncluttered.
+          */}
+        {multiSchema && (
+          <span
+            className="mr-1.5 rounded bg-slate-800 px-1 py-0.5 font-mono text-[10px] text-slate-400"
+            data-testid={`matrix-schema-${row.id}`}
+            title="Schema this object belongs to"
+          >
+            {row.schema || '—'}
+          </span>
+        )}
+        {/*
+          * A row from the catalog names a real object: text,
+          * not an input. It used to be an editable box under
+          * the schema badge — two lines per row, and a rename
+          * there pointed the GRANT at an object that may not
+          * exist. Rows the reader adds keep their input.
+          */}
+        {row.id.startsWith('cat-') ? (
+          <span
+            data-testid={`matrix-name-${row.id}`}
+            className="font-mono text-[12px] text-slate-200"
+          >
+            {row.name}
+          </span>
+        ) : kind === 'table' || kind === 'view' ? (
+          <Autocomplete
+            value={row.name}
+            onChange={(v) => onUpdate(row.id, { name: v })}
+            options={tableChoices.map((t) => ({ value: t, label: t }))}
+            placeholder={`${meta.label} name`}
+            data-testid={`matrix-name-${row.id}`}
+          />
+        ) : (
+          <input
+            className={inputCls}
+            value={row.name}
+            onChange={(e) => onUpdate(row.id, { name: e.target.value })}
+            placeholder={`${meta.label} name`}
+            data-testid={`matrix-name-${row.id}`}
+          />
+        )}
+      </td>
+      {columns.map(({ permission, support }) => {
+        const on = row.permissions.includes(permission);
+        const had = heldPermissions?.includes(permission) ?? false;
+        const change: CellChange = !tracksHeld || !support.available
+          ? 'none'
+          : on && had
+            ? 'held'
+            : on
+              ? 'grant'
+              : had
+                ? 'revoke'
+                : 'none';
+        return (
+          <td
+            key={permission}
+            data-change={change}
+            className={`text-center border-l border-slate-800/40 px-1 ${CELL_STYLE[change].td}`}
+          >
+            <input
+              type="checkbox"
+              checked={on && support.available}
+              disabled={!support.available}
+              onChange={() => onToggle(row.id, permission)}
+              title={support.available ? CELL_STYLE[change].title || undefined : support.reason}
+              data-testid={`matrix-cell-${row.id}-${permission}`}
+              className={
+                support.available
+                  ? 'accent-emerald-500 cursor-pointer'
+                  : 'opacity-25 cursor-not-allowed'
+              }
+            />
+          </td>
+        );
+      })}
+      <td className="px-1 text-right whitespace-nowrap">
+        <button
+          type="button"
+          onClick={() => onToggleRow(row.id)}
+          data-testid={`matrix-row-all-${row.id}`}
+          title={`Tick or clear every privilege on ${row.name || 'this row'}`}
+          className="mr-1.5 text-[10px] text-slate-500 hover:text-slate-200"
+        >
+          All
+        </button>
+        <button
+          type="button"
+          onClick={() => onRemove(row.id)}
+          title="Remove this row"
+          data-testid={`matrix-remove-${row.id}`}
+          className="text-slate-600 hover:text-red-400"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </td>
+    </tr>
+  );
+});
+
+/**
+ * Memoised: a catalog of 1,000 objects is about 8,600 checkboxes, and a cell
+ * click used to render the whole grid twice, once for its own state and again
+ * when the parent stored the change set. The parent's props are stable.
+ */
+export const PermissionMatrix = React.memo(PermissionMatrixGrid);

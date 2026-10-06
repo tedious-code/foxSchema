@@ -1,4 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { vi, describe, expect, it } from 'vitest';
+
+// TypeScript samples compile on the server; here the same compiler call stands in.
+vi.mock('@/shared/api/sqlApi', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/shared/api/sqlApi')>()),
+  transpileCodeCell: vi.fn((await import('./transpileLikeServer')).transpileLikeServer),
+}));
 import { splitSqlStatements, checkStatement, parseCodeCell } from '@/shared/lib/sql-splitter';
 import {
   SQL_EDITOR_SAMPLE_BOOKMARKS,

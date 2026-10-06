@@ -100,6 +100,23 @@ type PopoverState = {
  * In [n], kind badge, preview, and a per-cell Play — same splitter/run pipeline
  * as the toolbar Run.
  */
+/** Everything a row shows about its statement, from its text alone. */
+function analyse(
+  stmt: SplitStatement,
+  last: boolean,
+  safeMode: boolean,
+  variables: ReturnType<typeof useSqlEditorStore.getState>['variables']
+) {
+  const status = checkStatement(stmt, { last });
+  const codeKind = isCodeCellKind(stmt.kind) ? stmt.kind : null;
+  const codeBadge = codeKind ? codeCellBadge(codeKind) : null;
+  const verb = codeKind ? null : statementVerb(stmt.text);
+  const dmlBadge = safeMode && verb && isMutatingDmlStatement(stmt.text) ? DML_BADGE[verb] : null;
+  const noWhere = dmlBadge ? dmlLacksWhere(stmt.text) : false;
+  const resolved = resolveSql(stmt.text, variables);
+  return { status, codeKind, codeBadge, dmlBadge, noWhere, resolved };
+}
+
 export const StatementStrip: React.FC<Props> = ({
   statements,
   checked,
@@ -112,6 +129,29 @@ export const StatementStrip: React.FC<Props> = ({
   const [height, setHeight] = useState(loadHeight);
   const safeMode = useSqlEditorStore((s) => s.safeMode);
   const variables = useSqlEditorStore((s) => s.variables);
+  // What each row shows about its statement, by statement text. A keystroke
+  // changes one statement, so the rest are not checked and resolved again:
+  // re-analysing every statement per keystroke was 17 ms at 1,700 of them.
+  // Holds only the statements of the last render, and starts over when the
+  // variables or Safe mode, which every answer reads, change.
+  const analysisCache = useRef<{
+    variables: typeof variables;
+    safeMode: boolean;
+    byText: Map<string, ReturnType<typeof analyse>>;
+  } | null>(null);
+  const previous =
+    analysisCache.current?.variables === variables && analysisCache.current.safeMode === safeMode
+      ? analysisCache.current.byText
+      : new Map<string, ReturnType<typeof analyse>>();
+  const byText = new Map<string, ReturnType<typeof analyse>>();
+  const analyses = statements.map((stmt, i) => {
+    const last = i === statements.length - 1;
+    const key = `${last ? 1 : 0}|${stmt.kind ?? ''}|${stmt.text}`;
+    const found = byText.get(key) ?? previous.get(key) ?? analyse(stmt, last, safeMode, variables);
+    byText.set(key, found);
+    return found;
+  });
+  analysisCache.current = { variables, safeMode, byText };
   const [popover, setPopover] = useState<PopoverState | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -211,17 +251,10 @@ export const StatementStrip: React.FC<Props> = ({
     <div className="shrink-0 flex flex-col border-b border-slate-800 bg-slate-950" data-testid="sql-statement-strip">
       <div className="px-2 py-1.5 flex flex-col gap-1 overflow-y-auto" style={{ height }}>
         {statements.map((stmt, i) => {
-          const status = checkStatement(stmt, { last: i === statements.length - 1 });
+          const { status, codeKind, codeBadge, dmlBadge, noWhere, resolved } = analyses[i]!;
           const ok = status.level === 'ok';
           const isChecked = checked.includes(i);
-          const codeKind = isCodeCellKind(stmt.kind) ? stmt.kind : null;
           const playBlocked = sqlNeedsDestination && !codeKind;
-          const codeBadge = codeKind ? codeCellBadge(codeKind) : null;
-          const verb = codeKind ? null : statementVerb(stmt.text);
-          const dmlBadge =
-            safeMode && verb && isMutatingDmlStatement(stmt.text) ? DML_BADGE[verb] : null;
-          const noWhere = dmlBadge ? dmlLacksWhere(stmt.text) : false;
-          const resolved = resolveSql(stmt.text, variables);
           const isCopied = copiedIndex === i;
           const accent = codeKind
             ? 'border-l-teal-400/80 bg-teal-950/20'

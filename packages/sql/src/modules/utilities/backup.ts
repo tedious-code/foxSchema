@@ -44,6 +44,40 @@ export function backupSupport(dialect: string): Omit<BackupDialect, 'build'> | u
   return support;
 }
 
+/** One backup the engine recorded, as `BackupDialect.history` reports it. */
+export interface BackupHistoryEntry {
+  finishedAt: string;
+  location: string;
+  sizeBytes: number | null;
+  /** What `restoreFrom` takes to restore this backup. */
+  restoreKey: string;
+}
+
+/** The query listing this connection's recorded backups, or null where the engine keeps none. */
+export function backupHistoryQuery(conn: BackupConnection): string | null {
+  return resolveBackup(conn.dialect)?.history?.(conn) ?? null;
+}
+
+/** History rows in any column case (Db2 answers in capitals), newest first as queried. */
+export function normalizeBackupHistory(rows: readonly Record<string, unknown>[]): BackupHistoryEntry[] {
+  const field = (row: Record<string, unknown>, name: string): unknown => {
+    const key = Object.keys(row).find((k) => k.toLowerCase() === name);
+    return key === undefined ? undefined : row[key];
+  };
+  const text = (v: unknown) => (v instanceof Date ? v.toISOString() : v == null ? '' : String(v).trim());
+  return rows
+    .map((row) => {
+      const size = Number(field(row, 'size_bytes'));
+      return {
+        finishedAt: text(field(row, 'finished_at')),
+        location: text(field(row, 'location')),
+        sizeBytes: field(row, 'size_bytes') == null || !Number.isFinite(size) ? null : size,
+        restoreKey: text(field(row, 'restore_key')),
+      };
+    })
+    .filter((e) => e.restoreKey);
+}
+
 /** A first-time reader's settings for an engine. */
 export function defaultBackupSettings(dialect: string): BackupSettings {
   const support = resolveBackup(dialect);
@@ -104,7 +138,7 @@ export function parseTableList(text: string): string[] {
  */
 export function buildBackupCommands(
   conn: BackupConnection,
-  settings: Partial<BackupSettings> & { fileName?: string; tables?: readonly string[] },
+  settings: Partial<BackupSettings> & { fileName?: string; tables?: readonly string[]; restoreFrom?: string },
   now: Date = new Date()
 ): BackupCommands | { error: string } {
   const support = resolveBackup(conn.dialect);
@@ -116,6 +150,7 @@ export function buildBackupCommands(
     ...settled,
     fileName: settings.fileName?.trim() || backupFileName(conn.database, now),
     tables: support.tables ? [...(settings.tables ?? [])].map((t) => t.trim()).filter(Boolean) : [],
+    restoreFrom: settings.restoreFrom?.trim() || undefined,
   };
   return support.build(conn, request);
 }

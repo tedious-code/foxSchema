@@ -14,10 +14,19 @@ import { sqlString } from '../../modules/utilities/backup-helpers.js';
 
 const ident = (name: string) => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ? name : `\`${name.replace(/`/g, '``')}\``);
 
+/** A backup's name in system.backups, `Disk('backups', 'x.zip')`, read back to its parts. */
+function pickedDisk(name: string | undefined): { disk: string; file: string } | null {
+  const m = name ? /^Disk\('([^']*)',\s*'([^']*)'\)$/.exec(name.trim()) : null;
+  return m ? { disk: m[1]!, file: m[2]! } : null;
+}
+
 function build(conn: BackupConnection, req: BackupRequest): BackupCommands {
   const disk = req.folder.trim() || 'backups';
   const file = `${req.fileName}${req.compress ? '.zip' : ''}`;
   const target = `Disk(${sqlString(disk)}, ${sqlString(file)})`;
+  // Rebuilt from its parts and quoted again, never pasted from the catalog.
+  const picked = pickedDisk(req.restoreFrom);
+  const restoreTarget = picked ? `Disk(${sqlString(picked.disk)}, ${sqlString(picked.file)})` : target;
   const db = ident(conn.database);
   const restored = ident(`${conn.database}_restored`);
   const what = req.tables.length > 0 ? req.tables.map((t) => `TABLE ${db}.${ident(t)}`).join(', ') : `DATABASE ${db}`;
@@ -28,7 +37,7 @@ function build(conn: BackupConnection, req: BackupRequest): BackupCommands {
   return {
     language: 'sql',
     backup: `BACKUP ${what} TO ${target};`,
-    restore: `${req.tables.length > 0 ? `CREATE DATABASE IF NOT EXISTS ${restored};\n` : ''}RESTORE ${restoreWhat} FROM ${target};`,
+    restore: `${req.tables.length > 0 ? `CREATE DATABASE IF NOT EXISTS ${restored};\n` : ''}RESTORE ${restoreWhat} FROM ${restoreTarget};`,
     location: `${disk}:${file}`,
     notes: [
       `The disk ${disk} must be listed under <backups><allowed_disk> in the server configuration.`,
@@ -51,5 +60,11 @@ export const clickHouseBackup: BackupDialect = {
   tables: true,
   schemaLimit: false,
   passwordNote: 'Runs as SQL on this connection; the user needs the BACKUP privilege.',
+  // Kept in memory by the server: backups since it last started.
+  history: () => `SELECT end_time AS finished_at, name AS location, total_size AS size_bytes, name AS restore_key
+FROM system.backups
+WHERE status = 'BACKUP_CREATED'
+ORDER BY end_time DESC
+LIMIT 20`,
   build,
 };

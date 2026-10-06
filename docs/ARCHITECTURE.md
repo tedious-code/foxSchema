@@ -197,6 +197,68 @@ uses PL/SQL exception blocks; DB2 (all versions) uses SQL PL `CONTINUE HANDLER F
 synchronously in the browser. `applyMigration` sends the full `MigrationStep[]` plan to the
 backend and streams results back via SSE.
 
+## Frontend loading and delivery
+
+A first visit downloads index.html and what it names: about 140 KB gzip (116 KB Brotli)
+since 2026-10-06, down from 398 KB. CI keeps it under 170 KB gzip
+(`npm run bundle:first-load` after `npm run build -w @foxschema/web`); the report lists the
+largest files when it fails. Everything else loads when it is used:
+
+- **Views** load from `app/shell/viewLoaders.ts`. App.tsx renders them with `lazy()`, and
+  the activity rail calls `prefetchView` on hover or focus, so a view's code is usually
+  already loaded by the time the click lands.
+- **Panels that open on a click** (admin console, credentials, applies history, new
+  connection) are `lazy()` inside `MountWhenOpened`. That mounts a panel on its first open
+  and keeps it mounted afterwards, so its state survives closing exactly as before.
+- **Heavy libraries** (sql-formatter, Prettier, faker, lodash, date-fns, zod, ajv) load
+  through `shared/lib/loadOnce.ts`: one shared promise, retried after a failure. A
+  component that needs one while rendering uses `useLoaded(loader)`, which re-renders
+  once when the library arrives. `useSqlFormat` is the example: DDL shows unformatted
+  for that first moment, then formatted.
+- **The shell imports a feature by deep path**, not through its barrel, whenever the
+  barrel also re-exports a whole workspace (`object-detail`, `schema-diff`,
+  `sql-editor`). A barrel import from `TopToolbar` kept the Compare workspace in the
+  first download.
+- **The code-cell worker is an ES module worker** (`worker.format: 'es'`). The default
+  IIFE format inlined faker, lodash and date-fns into the worker.
+- **TypeScript code cells compile on the server** (`POST /api/sql/code-cell/transpile`,
+  the same `transpileTs` Node cells use) and run in the browser. The browser no longer
+  downloads the TypeScript compiler (3.4 MB).
+- **Stores stay out of the first page.** The shell reads recent queries from
+  `app/store/recentQueries.ts`, a small copy that follows the SQL editor store once it
+  loads; Home and the command palette load that store on a click. The sync store loads
+  the migration generator with the first browse or compare (`loadSqlGenerator`), and
+  `sqlGenerator()` throws if a path uses it earlier, rather than returning an empty
+  script. The Compare button asks `schemaCompareBlocker` from
+  `packages/sql/src/modules/capabilities/schema-compare.ts`, which reads the dialect key
+  list (`SQL_DIALECT_KEYS`, checked against `DIALECT_MAP` by `satisfies`) instead of
+  loading every dialect.
+- **Sign-in, onboarding and the signup offer** are lazy: a signed-in first page does not
+  carry them. Startup asks for the setup state and the session at once, and starts
+  loading the view the reader last had open while it does.
+- **React has its own chunk** (`vendor-react`), so it stays cached across releases while
+  the app's entry chunk changes name with every app change.
+
+The server sends the build pre-compressed. `src/build/precompress.ts` writes `.br` and
+`.gz` copies at build time, and `packages/server/src/api/static-assets.ts` serves them:
+Brotli, then gzip, then the file itself. Hashed `/assets/*` files are cached for a year
+(`immutable`); index.html and other paths get `no-cache`. A missing `/assets/*` file is a
+404, not index.html. A tab left open across a release then hits `vite:preloadError`,
+and `main.tsx` reloads it once. The CLI package leaves the compressed copies out
+(loopback gains nothing from them).
+
+Rendering on the hot paths (what to keep when editing these components):
+
+- The SQL editor store saves through `shared/lib/deferredLocalStorage.ts`: 400 ms after
+  the last change and at once on `pagehide` / hidden, not on every keystroke. Code that
+  reads the saved copy in the same page dispatches `pagehide` first (the e2e
+  `SqlEditorPage` does).
+- The migration plan is cached in the sync store on the identity of its inputs
+  (`cachedPlan`), so Execute, the Git commit check and the review notes share one build.
+- The Compare tree rows, the permission matrix rows and the results panel are
+  `React.memo` and are passed stable props; an inline callback or a default `[]` prop
+  breaks that. The statement strip caches each statement's checks by its text.
+
 ## Adding a dialect (checklist)
 
 1. Create the dialect files in `packages/sql/src/providers/<name>/` and the driver files in `packages/db/src/providers/<name>/`

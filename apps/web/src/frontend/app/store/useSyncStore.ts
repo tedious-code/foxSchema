@@ -19,7 +19,7 @@ import {
 } from '@/shared/api/authApi';
 import type { CommittedMigrationRef, ConnectionConfig, SyncState } from './sync-types';
 import type { MigrationStep } from '@foxschema/sql';
-import { sqlGeneratorModule, buildRef, buildMapping, regenerateSql, buildIncludedDiffs } from './sync-helpers';
+import { buildRef, buildMapping, regenerateSql, buildIncludedDiffs, loadSqlGenerator, sqlGenerator } from './sync-helpers';
 import { toast } from './toastStore';
 import { useUiStore } from './uiStore';
 import {
@@ -37,6 +37,63 @@ function mirrorSessionPasswordsToSqlEditor(): void {
 }
 
 export type { MigrationProgressItem } from './sync-types';
+
+/**
+ * The migration plan for the current comparison and selections, built once per
+ * change to them. Execute, the commit check and the review notes all ask for it,
+ * and the commit check asks on every render: it used to rebuild and serialise
+ * the whole plan each time (6 ms at 800 changed objects, so every keystroke in
+ * the search box). Keyed on the identity of each input; the store replaces
+ * them on every change and never edits one in place.
+ */
+let planCache: { inputs: readonly unknown[]; plan: MigrationStep[]; key?: string } | null = null;
+
+function cachedPlan(s: SyncState): { plan: MigrationStep[]; key?: string } {
+  const inputs = [
+    s.compareResult,
+    s.syncSelection,
+    s.memberSelection,
+    s.indexSelection,
+    s.columnSelection,
+    s.triggerSelection,
+    s.sourceConfig,
+    s.targetConfig,
+    s.nonDestructive,
+    s.targetServerVersion,
+  ] as const;
+  if (planCache && inputs.every((value, i) => value === planCache!.inputs[i])) return planCache;
+  planCache = { inputs, plan: buildPlan(s) };
+  return planCache;
+}
+
+function buildPlan(s: SyncState): MigrationStep[] {
+  const { compareResult, targetConfig } = s;
+  if (!compareResult) return [];
+  // The same diffs the preview was built from. This used to filter the raw
+  // tables by object selection alone, so Execute ignored every finer opt-in
+  // and opt-out — role members and index opt-ins already, and now columns and
+  // triggers. A preview that does not match what runs is the one thing a
+  // migration tool must never do.
+  const includedDiffs = buildIncludedDiffs(compareResult.tables, {
+    selection: s.syncSelection,
+    memberSelection: s.memberSelection,
+    indexSelection: s.indexSelection,
+    columnSelection: s.columnSelection,
+    triggerSelection: s.triggerSelection,
+  });
+  return sqlGenerator().generateMigrationPlan(
+    includedDiffs,
+    targetConfig.dialect,
+    buildMapping(s),
+    compareResult.tables
+  );
+}
+
+/** The plan as text, for telling whether it is still the one committed to Git. */
+function planKeyOf(s: SyncState): string {
+  const entry = cachedPlan(s);
+  return (entry.key ??= JSON.stringify(entry.plan));
+}
 
 export const useSyncStore = create<SyncState>()(
   persist(
@@ -666,7 +723,11 @@ export const useSyncStore = create<SyncState>()(
       // Refresh the schema list so we browse against current server state
       await get().loadSchemaList(side);
       const ref = buildRef(side === 'source' ? get().sourceConfig : get().targetConfig);
-      const { tables, warnings } = await loadSchema(ref, get().selectedObjectTypes);
+      // Selecting objects in Browse regenerates SQL, so the generator comes too.
+      const [{ tables, warnings }] = await Promise.all([
+        loadSchema(ref, get().selectedObjectTypes),
+        loadSqlGenerator(),
+      ]);
       const result = buildBrowseResult(tables, side);
       set({
         compareResult: result,
@@ -712,11 +773,15 @@ export const useSyncStore = create<SyncState>()(
       // Read configs after the refresh — it may have re-resolved the selected schema
       const { sourceConfig, targetConfig, selectedObjectTypes } = get();
 
-      // Load + diff both schemas on the server; only the result comes back
-      const diffResult = await compareSchemas(buildRef(sourceConfig), buildRef(targetConfig), selectedObjectTypes);
+      // Load + diff both schemas on the server; only the result comes back. The
+      // generator loads alongside, before any path that needs it can run.
+      const [diffResult] = await Promise.all([
+        compareSchemas(buildRef(sourceConfig), buildRef(targetConfig), selectedObjectTypes),
+        loadSqlGenerator(),
+      ]);
 
       // Nothing is auto-selected — the user opts objects into the deployment
-      const sql = sqlGeneratorModule.generateMigrationSql([], targetConfig.dialect, buildMapping(get()));
+      const sql = sqlGenerator().generateMigrationSql([], targetConfig.dialect, buildMapping(get()));
 
       set({
         compareResult: diffResult,
@@ -769,36 +834,14 @@ export const useSyncStore = create<SyncState>()(
     await get().applyMigration();
   },
 
-  currentMigrationPlan: () => {
-    const s = get();
-    const { compareResult, targetConfig } = s;
-    if (!compareResult) return [];
-    // The same diffs the preview was built from. This used to filter the raw
-    // tables by object selection alone, so Execute ignored every finer opt-in
-    // and opt-out — role members and index opt-ins already, and now columns and
-    // triggers. A preview that does not match what runs is the one thing a
-    // migration tool must never do.
-    const includedDiffs = buildIncludedDiffs(compareResult.tables, {
-      selection: s.syncSelection,
-      memberSelection: s.memberSelection,
-      indexSelection: s.indexSelection,
-      columnSelection: s.columnSelection,
-      triggerSelection: s.triggerSelection,
-    });
-    return sqlGeneratorModule.generateMigrationPlan(
-      includedDiffs,
-      targetConfig.dialect,
-      buildMapping(get()),
-      compareResult.tables
-    );
-  },
+  currentMigrationPlan: () => cachedPlan(get()).plan,
 
   setCommittedMigration: (ref) =>
-    set({ committedMigration: ref ? { ...ref, planKey: JSON.stringify(get().currentMigrationPlan()) } : null }),
+    set({ committedMigration: ref ? { ...ref, planKey: planKeyOf(get()) } : null }),
 
   commitMatchesPlan: () => {
     const c = get().committedMigration;
-    return !!c && c.planKey === JSON.stringify(get().currentMigrationPlan());
+    return !!c && c.planKey === planKeyOf(get());
   },
 
   applyMigration: async () => {

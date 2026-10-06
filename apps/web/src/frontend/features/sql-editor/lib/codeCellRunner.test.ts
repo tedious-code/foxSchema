@@ -1,5 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { detectCodeCell, prepareCodeCellSource, runCodeCell } from './codeCellRunner';
+import { transpileCodeCell } from '@/shared/api/sqlApi';
+
+// TypeScript cells compile on the server (POST /sql/code-cell/transpile, tested
+// in editor.routes.test.ts); here the same compiler call stands in for it.
+vi.mock('@/shared/api/sqlApi', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/shared/api/sqlApi')>()),
+  transpileCodeCell: vi.fn((await import('./transpileLikeServer')).transpileLikeServer),
+}));
 
 describe('detectCodeCell', () => {
   it('detects js and ts fences', () => {
@@ -61,6 +69,7 @@ return last.rows.map((r) => ({ id: r[0], n: Number(r[0]) * 2 }));
   });
 
   it('transpiles TypeScript cells before execution', async () => {
+    vi.mocked(transpileCodeCell).mockClear();
     const { result } = await runCodeCell({
       statement: `-- @ts
 const factor: number = 3;
@@ -83,6 +92,7 @@ return out;
       [2, 6],
       [4, 12],
     ]);
+    expect(transpileCodeCell).toHaveBeenCalledTimes(1);
   });
 
   it('includes secret variables in the cell scope', async () => {

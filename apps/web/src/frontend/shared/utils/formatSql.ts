@@ -1,4 +1,5 @@
-import { format, type FormatOptionsWithLanguage } from 'sql-formatter';
+import type { GrammarName } from './sqlFormatterGrammars';
+import { loadOnce } from '../lib/loadOnce';
 import {
   codeCellNeedsTs,
   findCodeFences,
@@ -14,10 +15,7 @@ import type { Dialect } from '../lib/provider-settings';
  * `[dbo].[t]`, `x::int` or `$$ … $$`, so Format quietly did nothing for Azure
  * SQL, CockroachDB, YugabyteDB and Redshift.
  */
-const LANGUAGE_BY_DIALECT: Record<
-  Exclude<Dialect, 'redis' | 'mongodb'>,
-  NonNullable<FormatOptionsWithLanguage['language']>
-> = {
+const LANGUAGE_BY_DIALECT: Record<Exclude<Dialect, 'redis' | 'mongodb'>, GrammarName> = {
   db2: 'db2',
   mysql: 'mysql',
   mariadb: 'mariadb',
@@ -34,7 +32,7 @@ const LANGUAGE_BY_DIALECT: Record<
   clickhouse: 'clickhouse',
 };
 
-function languageFor(dialect: string): NonNullable<FormatOptionsWithLanguage['language']> {
+function languageFor(dialect: string): GrammarName {
   const key = dialect.toLowerCase();
   return Object.hasOwn(LANGUAGE_BY_DIALECT, key)
     ? LANGUAGE_BY_DIALECT[key as keyof typeof LANGUAGE_BY_DIALECT]
@@ -42,14 +40,24 @@ function languageFor(dialect: string): NonNullable<FormatOptionsWithLanguage['la
 }
 
 /**
+ * sql-formatter, fetched on first use. At 250 kB it was a third of the app's
+ * main chunk, and it only formats what a reader opens, so it is no longer part
+ * of the first page load. `formatSql` returns its input unchanged until this
+ * has loaded: await `loadSqlFormatter()`, or in a component `useSqlFormat`.
+ */
+export const loadSqlFormatter = loadOnce(() => import('./sqlFormatterGrammars'));
+
+/**
  * Pretty-prints catalog DDL (views, triggers, routines often come back as one line).
- * Falls back to the raw text when the formatter can't parse vendor-specific syntax.
+ * Falls back to the raw text when the formatter can't parse vendor-specific syntax,
+ * or has not loaded yet (see `loadSqlFormatter`, and `useSqlFormat` in components).
  */
 export function formatSql(sql: string, dialect: string): string {
-  if (!sql || !sql.trim()) return sql;
+  const sqlFormatter = loadSqlFormatter.peek();
+  if (!sql || !sql.trim() || !sqlFormatter) return sql;
   try {
-    return format(sql, {
-      language: languageFor(dialect),
+    return sqlFormatter.formatDialect(sql, {
+      dialect: sqlFormatter.GRAMMARS[languageFor(dialect)],
       keywordCase: 'upper',
       tabWidth: 1,
       indentStyle: 'tabularLeft',
@@ -101,32 +109,19 @@ type PrettierBundle = {
   format: typeof import('prettier/standalone').format;
   estree: unknown;
   babel: unknown;
-  typescript: unknown;
 };
 
-let prettierBundle: Promise<PrettierBundle> | null = null;
-
-function loadPrettier(): Promise<PrettierBundle> {
-  if (!prettierBundle) {
-    prettierBundle = Promise.all([
-      import('prettier/standalone'),
-      import('prettier/plugins/estree'),
-      import('prettier/plugins/babel'),
-      import('prettier/plugins/typescript'),
-    ])
-      .then(([standalone, estree, babel, typescript]) => ({
-        format: standalone.format,
-        estree,
-        babel,
-        typescript,
-      }))
-      .catch((err) => {
-        prettierBundle = null;
-        throw err;
-      });
-  }
-  return prettierBundle;
-}
+const loadPrettier = loadOnce(async (): Promise<PrettierBundle> => {
+  // No typescript plugin (890 kB): babel's `babel-ts` parser reads TS cells,
+  // and printed the same output on interfaces, enums, generics, `as`, `!` and
+  // `satisfies`.
+  const [standalone, estree, babel] = await Promise.all([
+    import('prettier/standalone'),
+    import('prettier/plugins/estree'),
+    import('prettier/plugins/babel'),
+  ]);
+  return { format: standalone.format, estree, babel };
+});
 
 function formatSetDirectiveLine(d: SetDirective): string {
   if (d.mode === 'scalar') return `-- @set ${d.name}`;
@@ -146,12 +141,11 @@ export async function formatCodeCellBody(
   let formatted = jsBody;
   if (jsBody.trim()) {
     try {
-      const { format: prettierFormat, estree, babel, typescript } = await loadPrettier();
-      const ts = codeCellNeedsTs(kind);
+      const { format: prettierFormat, estree, babel } = await loadPrettier();
       const pretty = await prettierFormat(jsBody, {
         ...PRETTIER_OPTS,
-        parser: ts ? 'typescript' : 'babel',
-        plugins: [ts ? typescript : babel, estree] as never[],
+        parser: codeCellNeedsTs(kind) ? 'babel-ts' : 'babel',
+        plugins: [babel, estree] as never[],
       });
       formatted = pretty.replace(/\n$/, '');
     } catch {
@@ -185,6 +179,7 @@ function formatSqlSegment(segment: string, dialect: string): string {
  */
 export async function formatEditorSql(sql: string, dialect: string): Promise<string> {
   if (!sql || !sql.trim()) return sql;
+  await loadSqlFormatter();
 
   const fences = findCodeFences(sql);
   if (fences.length === 0) return formatSql(sql, dialect);

@@ -98,6 +98,11 @@ jobs:
       # resolver could see it. Nothing else in this workflow builds the
       # frontend, which is the artifact users actually run.
       - run: npm run build -w @foxschema/web
+      # What a first visit downloads (index.html and the files it names). Over
+      # budget means something heavy became a static import on the first page;
+      # the report lists the largest files. Was 398 KB gzip before on-demand
+      # loading (2026-10-05), 210 KB after #481, 140 KB after the second round.
+      - run: node scripts/bundle/first-load.mjs apps/web/dist --budget-gzip-kb=170
 
   lint:
     # A version-bump commit changes four package.json version fields and

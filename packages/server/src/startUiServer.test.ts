@@ -15,13 +15,19 @@
  * So the assertions here are about assembly and routing rules, not payloads:
  * that it boots at all, that a real file wins over the SPA fallback, that an
  * unknown app path gets index.html, and that an unknown API path still gets
- * JSON rather than a page.
+ * JSON rather than a page. Also how the build is sent: the compressed copy the
+ * browser accepts, a year's cache for hashed assets, and none for index.html.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
+import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { brotliCompressSync, brotliDecompressSync, gunzipSync, gzipSync } from 'node:zlib';
 import { startUiServer, type StartedUiServer } from './startUiServer';
+import { IMMUTABLE_ASSET, REVALIDATE } from './api/static-assets';
+
+const SCRIPT = `export const app = ${JSON.stringify('fox'.repeat(500))};`;
 
 describe('single-origin server', () => {
   let started: StartedUiServer;
@@ -34,6 +40,10 @@ describe('single-origin server', () => {
     writeFileSync(join(staticDir, 'index.html'), '<!doctype html><title>Fox Schema</title>');
     mkdirSync(join(staticDir, 'assets'));
     writeFileSync(join(staticDir, 'assets', 'app.css'), 'body{color:red}');
+    // What the build's precompress step leaves beside each file.
+    writeFileSync(join(staticDir, 'assets', 'app-abc123.js'), SCRIPT);
+    writeFileSync(join(staticDir, 'assets', 'app-abc123.js.br'), brotliCompressSync(SCRIPT));
+    writeFileSync(join(staticDir, 'assets', 'app-abc123.js.gz'), gzipSync(SCRIPT));
     // Port 0 so this cannot collide with a dev server or another test file.
     started = await startUiServer({ port: 0, host: '127.0.0.1', staticDir });
   }, 120_000);
@@ -43,6 +53,23 @@ describe('single-origin server', () => {
   });
 
   const get = (path: string) => fetch(`http://127.0.0.1:${started.port}${path}`);
+
+  /** The response as sent: fetch would decode it and hide the encoding. */
+  const raw = (path: string, acceptEncoding: string) =>
+    new Promise<{ status: number; headers: Record<string, string | string[] | undefined>; body: Buffer }>(
+      (done, fail) => {
+        const req = request(
+          { host: '127.0.0.1', port: started.port, path, headers: { 'accept-encoding': acceptEncoding } },
+          (res) => {
+            const chunks: Buffer[] = [];
+            res.on('data', (c: Buffer) => chunks.push(c));
+            res.on('end', () => done({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks) }));
+          }
+        );
+        req.on('error', fail);
+        req.end();
+      }
+    );
 
   it('boots and serves the API', async () => {
     const res = await get('/api/health');
@@ -67,6 +94,41 @@ describe('single-origin server', () => {
     const res = await get('/schema/compare');
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toMatch(/text\/html/);
+  });
+
+  it('sends the Brotli copy, else the gzip copy, else the file itself', async () => {
+    const br = await raw('/assets/app-abc123.js', 'gzip, deflate, br');
+    expect(br.headers['content-encoding']).toBe('br');
+    expect(br.headers['content-type']).toMatch(/javascript/);
+    expect(br.headers.vary).toMatch(/accept-encoding/i);
+    expect(brotliDecompressSync(br.body).toString()).toBe(SCRIPT);
+
+    const gz = await raw('/assets/app-abc123.js', 'gzip');
+    expect(gz.headers['content-encoding']).toBe('gzip');
+    expect(gunzipSync(gz.body).toString()).toBe(SCRIPT);
+
+    const plain = await raw('/assets/app-abc123.js', 'identity');
+    expect(plain.headers['content-encoding']).toBeUndefined();
+    expect(plain.body.toString()).toBe(SCRIPT);
+  });
+
+  it('lets a browser keep hashed assets, and revalidate the page that names them', async () => {
+    expect((await raw('/assets/app-abc123.js', 'br')).headers['cache-control']).toBe(IMMUTABLE_ASSET);
+    expect((await raw('/assets/app.css', 'br')).headers['cache-control']).toBe(IMMUTABLE_ASSET);
+    for (const path of ['/', '/schema/compare']) {
+      const page = await get(path);
+      expect(page.headers.get('cache-control')).toBe(REVALIDATE);
+      expect(page.headers.get('content-security-policy')).toBeTruthy();
+    }
+    expect((await get('/api/health')).headers.get('cache-control')).toMatch(/no-store/);
+  });
+
+  it('answers a missing hashed asset with a 404, not the SPA page', async () => {
+    // A tab open across a release asks for chunks the new build does not have;
+    // index.html in their place fails to load as a module, with no way to recover.
+    const res = await get('/assets/app-old999.js');
+    expect(res.status).toBe(404);
+    expect(res.headers.get('content-type')).not.toMatch(/text\/html/);
   });
 
   it('answers an unknown API path with JSON, not the SPA page', async () => {

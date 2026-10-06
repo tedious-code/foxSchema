@@ -8,16 +8,15 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **933** buttons, text boxes, selects and textareas.
+Every control has a test ID: **939** buttons, text boxes, selects and textareas.
 
 ## access
 
 - **AccessGrantsStage** · `features/access/components/AccessGrantsStage.tsx`
+  - `access-grants-also-holds` · p
   - `access-grants-change-{action}` · li
   - `access-grants-copy` · button · Copy
   - `access-grants-diff` · ul
-  - `access-grants-mode` · div in Segmented
-  - `access-grants-mode-{value}` · button in Segmented
   - `access-grants-open-sql` · button · Open in SQL Editor
   - `access-grants-preset-{p}` · button
   - `access-grants-presets` · div
@@ -1427,10 +1426,25 @@ Every control has a test ID: **933** buttons, text boxes, selects and textareas.
   - `backup-scope-{value}` · button in Segmented
   - `backup-tables` · textarea · orders, customers
   - `backup-unsupported` · div in EmptyState · No backup commands
-  - `restore-command` · section in CommandBlock · Restore
-  - `restore-command-copy` · button in CommandBlock · Restore
+  - `restore-command` · section in CommandBlock
+  - `restore-command-copy` · button in CommandBlock
   - `restore-command-open-sql` · button in CommandBlock · Open in SQL Editor
-  - `restore-command-text` · pre in CommandBlock · Restore
+  - `restore-command-text` · pre in CommandBlock
+- **BackupServerActions** · `features/utilities/components/BackupServerActions.tsx`
+  - `backup-history` · ul
+  - `backup-history-clear-pick` · button · Restore the newest instead
+  - `backup-history-empty` · p
+  - `backup-history-error` · p
+  - `backup-history-load` · button
+  - `backup-history-pick-{i}` · button
+  - `backup-history-row-{i}` · li
+  - `backup-run` · button · Run backup now
+  - `backup-run-cancel` · button · Cancel
+  - `backup-run-confirm` · button · Run it
+  - `backup-run-confirm-box` · div
+  - `backup-run-error` · p
+  - `backup-run-status` · span
+  - `backup-server-actions` · section
 - **CloneTableModal** · `features/utilities/components/CloneTableModal.tsx`
   - `clone-apply` · button · Apply clone
   - `clone-archive-preview` · p

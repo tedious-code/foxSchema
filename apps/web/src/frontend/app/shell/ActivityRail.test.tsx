@@ -9,6 +9,9 @@ import { DEFAULT_ROLE_PERMISSIONS } from '@foxschema/shared';
 import { useAuthStore } from '@/app/store/authStore';
 import { useUiStore } from '@/app/store/uiStore';
 import { ActivityRail } from './ActivityRail';
+import { prefetchView } from './viewLoaders';
+
+vi.mock('./viewLoaders', () => ({ prefetchView: vi.fn() }));
 
 describe('ActivityRail', () => {
   it('keeps workspace testids and opens Home from the logo', () => {
@@ -44,5 +47,16 @@ describe('ActivityRail', () => {
     expect(useUiStore.getState().activeView).toBe('home');
     fireEvent.click(screen.getByTestId('view-settings-btn'));
     expect(useUiStore.getState().activeView).toBe('settings');
+  });
+
+  it('starts loading a view when the pointer or keyboard reaches its button', () => {
+    useUiStore.setState({ activeView: 'sync' });
+    render(<ActivityRail />);
+    fireEvent.pointerEnter(screen.getByTestId('view-access-btn'));
+    expect(prefetchView).toHaveBeenLastCalledWith('access');
+    fireEvent.focus(screen.getByTestId('view-sql-editor-btn'));
+    expect(prefetchView).toHaveBeenLastCalledWith('sqlEditor');
+    fireEvent.pointerEnter(screen.getByTestId('view-settings-btn'));
+    expect(prefetchView).toHaveBeenLastCalledWith('settings');
   });
 });

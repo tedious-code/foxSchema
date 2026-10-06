@@ -313,19 +313,21 @@ export function DelimitedSourceEditor({ kind, config, onChange }: Props) {
 
   const patchZod = (code: string) => {
     setZodText(code);
-    const compiled = compileZodSchema(code);
-    if (compiled === null) {
+    // zod loads with the first schema typed; results arrive in keystroke order.
+    void compileZodSchema(code).then((compiled) => {
+      if (compiled === null) {
+        setZodError(null);
+        patch({ schema: undefined, schemaSource: undefined });
+        return;
+      }
+      if ('error' in compiled) {
+        // Keep the last good schema until the code compiles again.
+        setZodError(compiled.error);
+        return;
+      }
       setZodError(null);
-      patch({ schema: undefined, schemaSource: undefined });
-      return;
-    }
-    if ('error' in compiled) {
-      // Keep the last good schema until the code compiles again.
-      setZodError(compiled.error);
-      return;
-    }
-    setZodError(null);
-    patch({ schema: compiled.schema, schemaSource: code });
+      patch({ schema: compiled.schema, schemaSource: code });
+    });
   };
 
   const runPreview = async (source: 'sample' | 'file') => {

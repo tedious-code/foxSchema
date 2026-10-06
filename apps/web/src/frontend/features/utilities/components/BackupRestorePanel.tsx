@@ -26,6 +26,7 @@ import {
   type BackupRunsOn,
   type BackupScope,
   type BackupSettings,
+  type BackupHistoryEntry,
 } from '@foxschema/sql';
 import { useSyncStore } from '@/app/store/useSyncStore';
 import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
@@ -33,6 +34,7 @@ import { useUiStore } from '@/app/store/uiStore';
 import { apiGetBackupSettings, apiSaveBackupSettings } from '@/shared/api/backupApi';
 import { writeClipboard } from '@/shared/utils/clipboard';
 import { dialectLabel } from '@/shared/lib/dialectLabel';
+import { BackupServerActions } from './BackupServerActions';
 import { EmptyState, Field, Segmented, inputCls } from '@/features/access/components/controls';
 
 const RUNS_ON: Record<BackupRunsOn, { label: string; body: string; Icon: React.ComponentType<{ className?: string }> }> = {
@@ -131,6 +133,8 @@ export const BackupRestorePanel: React.FC<{ lockedConnectionId?: string }> = ({ 
   const [fileName, setFileName] = useState('');
   const [tablesText, setTablesText] = useState('');
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | { error: string }>('idle');
+  /** A backup picked from the server's history, for the restore to read. */
+  const [picked, setPicked] = useState<BackupHistoryEntry | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -153,6 +157,7 @@ export const BackupRestorePanel: React.FC<{ lockedConnectionId?: string }> = ({ 
     setFileName(conn?.database ? backupFileName(conn.database, new Date()) : '');
     setTablesText('');
     setSaveState('idle');
+    setPicked(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `saved` arrives on its own below
   }, [lockedConnectionId, dialect, conn?.database]);
   // Saved defaults arrive after the first paint. They apply only if the reader
@@ -174,9 +179,9 @@ export const BackupRestorePanel: React.FC<{ lockedConnectionId?: string }> = ({ 
         schema: conn.schema,
         username: conn.username,
       },
-      { ...settings, fileName, tables: parseTableList(tablesText) }
+      { ...settings, fileName, tables: parseTableList(tablesText), restoreFrom: picked?.restoreKey }
     );
-  }, [conn, support, dialect, settings, fileName, tablesText]);
+  }, [conn, support, dialect, settings, fileName, tablesText, picked]);
 
   const baseline = savedForDialect ?? defaultBackupSettings(dialect);
   const changed = !sameSettings(settings, baseline);
@@ -228,7 +233,11 @@ export const BackupRestorePanel: React.FC<{ lockedConnectionId?: string }> = ({ 
       <header className="flex flex-wrap items-start gap-3">
         <p className="min-w-0 flex-1 text-[12px] text-slate-300">
           <span className="font-semibold text-slate-100">{support.tool}</span>
-          <span className="text-slate-400"> · Fox Schema writes these commands; it does not run them.</span>
+          <span className="text-slate-400">
+            {support.runsOn === 'server' && language === 'sql'
+              ? ' · Fox Schema writes these commands, and runs the backup only when you ask it to.'
+              : ' · Fox Schema writes these commands; it does not run them.'}
+          </span>
         </p>
         <div
           className="flex max-w-md items-start gap-2 rounded-md border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-100"
@@ -368,8 +377,15 @@ export const BackupRestorePanel: React.FC<{ lockedConnectionId?: string }> = ({ 
             canOpenInEditor={language === 'sql'}
             onOpen={() => openInEditor(commands.backup)}
           />
+          <BackupServerActions
+            connection={conn}
+            runnable={support.runsOn === 'server' && language === 'sql'}
+            commands={commands}
+            picked={picked}
+            onPick={setPicked}
+          />
           <CommandBlock
-            title="Restore"
+            title={picked ? `Restore · the backup from ${picked.finishedAt}` : 'Restore'}
             text={commands.restore}
             testId="restore-command"
             canOpenInEditor={language === 'sql'}

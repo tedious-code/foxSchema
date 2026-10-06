@@ -80,10 +80,8 @@ export async function ensureFoxschemaSqlLanguage(
   if (foxschemaSqlLanguageReady) return true;
 
   try {
-    await Promise.all([
-      import('monaco-editor/languages/definitions/javascript/register'),
-      import('monaco-editor/languages/definitions/typescript/register'),
-    ]);
+    // javascript/register is already loaded: monaco-setup imports it statically.
+    await import('monaco-editor/languages/definitions/typescript/register');
     const { conf: sqlConf, language: sqlLanguage } = await import(
       'monaco-editor/languages/definitions/sql/sql'
     );

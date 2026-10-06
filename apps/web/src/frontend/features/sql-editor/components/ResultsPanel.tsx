@@ -1933,7 +1933,7 @@ const CredentialResultsSection: React.FC<{
  * under each credential are also stacked vertically (not side by side).
  * `sideBySide` stacks statements with credential grids as columns.
  */
-export const ResultsPanel: React.FC<Props> = ({
+const ResultsPanelView: React.FC<Props> = ({
   runs,
   statements,
   statementIndices,
@@ -2078,3 +2078,10 @@ export const ResultsPanel: React.FC<Props> = ({
     </div>
   );
 };
+
+/**
+ * Memoised: typing in the editor re-rendered every visible results grid on
+ * each keystroke, though nothing in them had changed. The editor passes stable
+ * props, so the results now render only when they do.
+ */
+export const ResultsPanel = React.memo(ResultsPanelView);

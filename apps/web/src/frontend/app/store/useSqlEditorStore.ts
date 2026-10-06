@@ -84,6 +84,8 @@ import {
 } from '@/shared/lib/sql-variables';
 import { connectionNeedsSecret } from '@/shared/lib/provider-settings';
 import { useSyncStore } from './useSyncStore';
+import { SQL_EDITOR_PERSIST_KEY, SQL_EDITOR_PERSIST_VERSION, useRecentQueries } from './recentQueries';
+import { deferredLocalStorage } from '@/shared/lib/deferredLocalStorage';
 import type { SchemaCacheEntry } from '@/features/sql-editor/lib/sqlEditorBridge';
 import {
   getCaretOffset,
@@ -768,15 +770,13 @@ export const useSqlEditorStore = create<SqlEditorState>()(
           ...destPatch,
         });
         // Keep Schema Sync source/target configs warm with the same session password.
-        void import('./useSyncStore').then(({ useSyncStore }) => {
-          const sync = useSyncStore.getState();
-          if (sync.selectedSourceConnectionId === id) {
-            sync.applySavedConnection('source', id, trimmed);
-          }
-          if (sync.selectedTargetConnectionId === id) {
-            sync.applySavedConnection('target', id, trimmed);
-          }
-        });
+        const sync = useSyncStore.getState();
+        if (sync.selectedSourceConnectionId === id) {
+          sync.applySavedConnection('source', id, trimmed);
+        }
+        if (sync.selectedTargetConnectionId === id) {
+          sync.applySavedConnection('target', id, trimmed);
+        }
         if (resumeExecute) {
           void get().execute({
             ...(connectionIds?.length ? { connectionIds } : {}),
@@ -2261,8 +2261,11 @@ export const useSqlEditorStore = create<SqlEditorState>()(
       },
     }),
     {
-      name: 'foxschema-sql-editor',
-      version: 8,
+      name: SQL_EDITOR_PERSIST_KEY,
+      version: SQL_EDITOR_PERSIST_VERSION,
+      // Written 400 ms after the last change (and when the page is hidden),
+      // not on every keystroke: the snapshot is 90 kB to 1 MB.
+      storage: deferredLocalStorage(),
       // Persist tabs + destinations mode + bookmarks + recent + variables. Never passwords/results.
       // Secret variable payloads are stripped (session-only values).
       partialize: (state) => {
@@ -2492,6 +2495,15 @@ export const useSqlEditorStore = create<SqlEditorState>()(
     }
   )
 );
+
+// The shell's copy of recent queries (app/store/recentQueries.ts) follows this
+// store from the moment it loads; before that it reads the saved snapshot.
+useRecentQueries.setState({ recentQueries: useSqlEditorStore.getState().recentQueries });
+useSqlEditorStore.subscribe((state, prev) => {
+  if (state.recentQueries !== prev.recentQueries) {
+    useRecentQueries.setState({ recentQueries: state.recentQueries });
+  }
+});
 
 /**
  * Catch SQL inserted while no editor pane is mounted.

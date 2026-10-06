@@ -184,6 +184,7 @@ export {
   formatRowCount,
   groupObjectSizes,
   filterTableSizeGroups,
+  indexTableSizeGroups,
   lookupTableSizeGroup,
   lookupIndexSizeRow,
 } from './modules/utilities/dba-utilities.js';
@@ -196,6 +197,11 @@ export {
   backupFileName,
   parseTableList,
   buildBackupCommands,
+  backupHistoryQuery,
+  normalizeBackupHistory,
+} from './modules/utilities/backup.js';
+export type {
+  BackupHistoryEntry,
 } from './modules/utilities/backup.js';
 export type {
   BackupCommands,
@@ -218,6 +224,7 @@ export type {
   SystemInfoMetric,
   ObjectSizeRow,
   TableSizeGroup,
+  TableSizeLookup,
 } from './modules/utilities/dba-utilities.js';
 export {
   dialectSupportsDbAccess,
@@ -347,8 +354,9 @@ export {
   dialectFeatureReason,
   knownDialects,
   DIALECT_FEATURES,
-  schemaCompareBlocker,
 } from './modules/capabilities/dialect-features.js';
+export { schemaCompareBlocker, schemaCompareSupport } from './modules/capabilities/schema-compare.js';
+export { SQL_DIALECT_KEYS, hasSqlDialect, type SqlDialectKey } from './modules/dialect/sql-dialect-keys.js';
 export type {
   DialectFeature,
   DialectFeatureSupport,
@@ -475,6 +483,8 @@ export {
   compileGridChanges,
   gridObjectKey,
   heldGridPermissions,
+  splitHeldPrivileges,
+  describeHeldPrivilege,
   expandToInstance,
   accessStatementPlace,
   qualifyDatabaseSql,

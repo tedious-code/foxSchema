@@ -224,7 +224,12 @@ cd apps/web && npx tsc --noEmit     # typecheck (covers packages too)
 npx vitest run                      # all tests, from the repository root
 npx eslint .
 npm run build -w @foxschema/web     # the bundler catches what tsc cannot
+npm run bundle:first-load           # first-visit download vs its budget (after the build)
 ```
+
+A new static import of something heavy on the first page shows up in
+`bundle:first-load`. Load it on demand instead; docs/ARCHITECTURE.md
+("Frontend loading and delivery") lists the helpers for each case.
 
 Run `npx vitest run` from the repository root. Running it from `apps/web`
 selects a different project configuration and reports failures that are not

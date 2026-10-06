@@ -5,14 +5,14 @@
  *
  * Workflow designer — ported from FoxAgent (components/TriggerInlineSettings.tsx).
  */
+import { useLoaded } from '@/shared/lib/useLoaded';
 import { useMemo, useState } from 'react';
 import type { CredentialMeta, WorkflowSummary } from '../api/engineClient';
 import { TimezoneSelect } from './controls';
 import {
   CRON_EXECUTION_TYPES,
   LOCAL_TIMEZONE,
-  computeNextRuns,
-  describeCron,
+  loadCronTools,
   formatInZone,
 } from '../lib/cron';
 import {
@@ -62,10 +62,12 @@ export function TriggerInlineSettings({
       : JSON.stringify(manual.inputData, null, 2),
   );
   const [inputError, setInputError] = useState<string | null>(null);
+  // undefined while the cron libraries load; null for an invalid expression.
+  const cronTools = useLoaded(loadCronTools);
   const nextRuns = useMemo(
-    () => (cron ? computeNextRuns(cron.cron, cron.timezone, 3) : null),
+    () => (cron ? (cronTools ? cronTools.nextRuns(cron.cron, cron.timezone, 3) : undefined) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed to the two fields the preview reads; depending on `cron` would recompute on every unrelated keystroke in the inspector
-    [cron?.cron, cron?.timezone],
+    [cronTools, cron?.cron, cron?.timezone],
   );
 
   if (manual) {
@@ -112,7 +114,7 @@ export function TriggerInlineSettings({
           value={cron.cron}
           onChange={(event) => onChange({ ...cron, cron: event.target.value })}
         />
-        <div className="hint">{describeCron(cron.cron)}</div>
+        <div className="hint">{cronTools?.describe(cron.cron) ?? ''}</div>
 
         <label>Time zone</label>
         <div className="inspector-timezone">
@@ -276,7 +278,9 @@ export function TriggerInlineSettings({
         )}
 
         <label>Next runs · {cron.timezone}</label>
-        {nextRuns === null ? (
+        {nextRuns === undefined ? (
+          <div className="hint">Loading the schedule preview…</div>
+        ) : nextRuns === null ? (
           <div className="hint">
             Enter a valid cron expression to preview run times.
           </div>

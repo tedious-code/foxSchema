@@ -19,67 +19,12 @@
  * deploy; history uses the identical mechanism to pick objects to revert. Those
  * are the same gesture over the same shape, so they are the same code.
  */
-import React, { useState } from 'react';
-import {
-  Box,
-  ChevronDown,
-  ChevronRight,
-  Eye,
-  FunctionSquare,
-  Hash,
-  Layers,
-  SquareTerminal,
-  Table2,
-  Users,
-  Zap,
-} from 'lucide-react';
-import type { IndexDiff, TableDiff, DbObjectType } from '@/shared/lib/types';
+import React from 'react';
+import type { TableDiff } from '@/shared/lib/types';
 import { highlightMatch } from '@/features/schema-diff/lib/highlight';
+import { TYPE_META, TYPE_ORDER } from './objectTypeMeta';
 
-export interface TypeMeta {
-  icon: React.ReactElement;
-  group: string;
-  color: string;
-}
-
-/**
- * Icon, plural label and colour per object type.
- *
- * Exported because `TopToolbar` renders the same pills with counts — that bar
- * has the horizontal room this panel's narrow, resizable width does not.
- */
-export const TYPE_META: Record<DbObjectType, TypeMeta> = {
-  TABLE: { icon: <Table2 className="w-3.5 h-3.5 text-cyan-400" />, group: 'Tables', color: 'text-cyan-400' },
-  MQT: { icon: <Layers className="w-3.5 h-3.5 text-teal-400" />, group: 'MQTs', color: 'text-teal-400' },
-  VIEW: { icon: <Eye className="w-3.5 h-3.5 text-purple-400" />, group: 'Views', color: 'text-purple-400' },
-  FUNCTION: {
-    icon: <FunctionSquare className="w-3.5 h-3.5 text-amber-400" />,
-    group: 'Functions',
-    color: 'text-amber-400',
-  },
-  PROCEDURE: {
-    icon: <SquareTerminal className="w-3.5 h-3.5 text-orange-400" />,
-    group: 'Procedures',
-    color: 'text-orange-400',
-  },
-  TRIGGER: { icon: <Zap className="w-3.5 h-3.5 text-rose-400" />, group: 'Triggers', color: 'text-rose-400' },
-  SEQUENCE: { icon: <Hash className="w-3.5 h-3.5 text-sky-400" />, group: 'Sequences', color: 'text-sky-400' },
-  TYPE: { icon: <Box className="w-3.5 h-3.5 text-indigo-400" />, group: 'Types', color: 'text-indigo-400' },
-  ROLE: { icon: <Users className="w-3.5 h-3.5 text-pink-400" />, group: 'Roles', color: 'text-pink-400' },
-};
-
-/** Display order of the groups. Tables first — that is what people look for. */
-export const TYPE_ORDER: DbObjectType[] = [
-  'TABLE',
-  'MQT',
-  'VIEW',
-  'FUNCTION',
-  'PROCEDURE',
-  'TRIGGER',
-  'SEQUENCE',
-  'TYPE',
-  'ROLE',
-];
+export { TYPE_META, TYPE_ORDER, type TypeMeta } from './objectTypeMeta';
 
 export function statusBadgeClass(status: TableDiff['status']): string {
   switch (status) {
@@ -154,17 +99,6 @@ export interface SchemaDiffTreeProps {
  *
  * The `N idx` count stays on the name line: it is a summary, not a second copy.
  */
-
-function indexDisplayName(idx: IndexDiff): string {
-  return idx.source?.name || idx.target?.name || idx.name;
-}
-
-function indexInfo(idx: IndexDiff): { columns: string[]; unique: boolean } | null {
-  const info = idx.source || idx.target;
-  if (!info) return null;
-  return { columns: info.columns ?? [], unique: !!info.unique };
-}
-
 export function SchemaDiffTree({
   tables,
   selectedName,
@@ -176,12 +110,6 @@ export function SchemaDiffTree({
   selectionTitle = 'Include this change',
   emptyMessage = 'No matching schema objects.',
 }: SchemaDiffTreeProps): React.ReactElement {
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-
-  const toggleExpand = (tableName: string) => {
-    setExpanded((prev) => ({ ...prev, [tableName]: !prev[tableName] }));
-  };
-
   const groups = TYPE_ORDER.map((type) => ({
     type,
     items: tables.filter((t) => t.objectType === type),
@@ -207,87 +135,115 @@ export function SchemaDiffTree({
           </div>
 
           <div className="space-y-1">
-            {group.items.map((table) => {
-              const isSelected = selectedName === table.tableName;
-              const matchedIn = matchLocationOf(table, query);
-              const isOpen = !!expanded[table.tableName];
-              const indexes = table.indexDiffs ?? [];
-              return (
-                <div
-                  key={table.tableName}
-                  data-testid="diff-item"
-                  data-object={table.tableName}
-                  data-status={table.status}
-                  onClick={() => onSelect?.(table)}
-                  className={`rounded-lg border transition ${
-                    onSelect ? 'cursor-pointer' : ''
-                  } ${
-                    isSelected
-                      ? 'bg-slate-800/80 border-slate-700/80 shadow-md shadow-indigo-500/5'
-                      : 'bg-slate-950/30 border-transparent hover:border-slate-800/80 hover:bg-slate-900/40'
-                  }`}
-                >
-                  <div className="group flex items-center justify-between p-2.5">
-                    <div className="flex items-center gap-2 min-w-0">
-                      {selection && table.status !== 'UNCHANGED' ? null : (
-                        <span className="w-5 shrink-0" />
-                      )}
-                      {selection && table.status !== 'UNCHANGED' ? (
-                        <input data-testid={`diff-tree-toggle-selection-${table.tableName}`}
-                          type="checkbox"
-                          checked={!!selection[table.tableName]}
-                          onChange={() => onToggleSelection?.(table.tableName)}
-                          onClick={(e) => e.stopPropagation()}
-                          title={selectionTitle}
-                          className="w-4 h-4 accent-cyan-500 cursor-pointer shrink-0"
-                        />
-                      ) : (
-                        <span className="w-4 shrink-0" />
-                      )}
-                      <span className="shrink-0">{TYPE_META[table.objectType].icon}</span>
-                      <div className="flex flex-col min-w-0">
-                        <span
-                          className={`text-sm font-semibold truncate ${
-                            isSelected ? 'text-slate-100' : 'text-slate-300 group-hover:text-slate-200'
-                          }`}
-                        >
-                          {highlightMatch(table.tableName, query)}
-                        </span>
-                        {matchedIn && (
-                          <span
-                            className="text-[10px] text-slate-500 truncate"
-                            title={`Search matched in ${matchedIn}`}
-                          >
-                            matched in {matchedIn}
-                          </span>
-                        )}
-                      </div>
-                      {indexes.length > 0 && (
-                        <span
-                          className="text-[10px] font-mono text-slate-500 shrink-0"
-                          title="Index count. The indexes themselves, with their deploy checkboxes, are in the blueprint."
-                        >
-                          {indexes.length} idx
-                        </span>
-                      )}
-                    </div>
-
-                    {showStatusBadge && (
-                      <span
-                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ml-2 ${statusBadgeClass(
-                          table.status
-                        )}`}
-                      >
-                        {table.status}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {group.items.map((table) => (
+              <DiffTreeRow
+                key={table.tableName}
+                table={table}
+                isSelected={selectedName === table.tableName}
+                checkbox={selection && table.status !== 'UNCHANGED' ? !!selection[table.tableName] : null}
+                query={query}
+                showStatusBadge={showStatusBadge}
+                selectionTitle={selectionTitle}
+                onSelect={onSelect}
+                onToggleSelection={onToggleSelection}
+              />
+            ))}
           </div>
         </div>
       ))}
     </div>
   );
 }
+
+/**
+ * One object's line. Memoised on plain values: the Compare tree holds
+ * thousands, and ticking one re-rendered all of them (25 ms at 2,500, and
+ * again on every search keystroke).
+ */
+const DiffTreeRow = React.memo(function DiffTreeRow({
+  table,
+  isSelected,
+  checkbox,
+  query,
+  showStatusBadge,
+  selectionTitle,
+  onSelect,
+  onToggleSelection,
+}: {
+  table: TableDiff;
+  isSelected: boolean;
+  /** Tick state when this row has a checkbox, null when it has none. */
+  checkbox: boolean | null;
+  query: string;
+  showStatusBadge: boolean;
+  selectionTitle: string;
+  onSelect?: (table: TableDiff) => void;
+  onToggleSelection?: (tableName: string) => void;
+}) {
+  const matchedIn = matchLocationOf(table, query);
+  const indexes = table.indexDiffs ?? [];
+  return (
+    <div
+      data-testid="diff-item"
+      data-object={table.tableName}
+      data-status={table.status}
+      onClick={() => onSelect?.(table)}
+      className={`rounded-lg border transition ${onSelect ? 'cursor-pointer' : ''} ${
+        isSelected
+          ? 'bg-slate-800/80 border-slate-700/80 shadow-md shadow-indigo-500/5'
+          : 'bg-slate-950/30 border-transparent hover:border-slate-800/80 hover:bg-slate-900/40'
+      }`}
+    >
+      <div className="group flex items-center justify-between p-2.5">
+        <div className="flex items-center gap-2 min-w-0">
+          {checkbox === null && <span className="w-5 shrink-0" />}
+          {checkbox !== null ? (
+            <input data-testid={`diff-tree-toggle-selection-${table.tableName}`}
+              type="checkbox"
+              checked={checkbox}
+              onChange={() => onToggleSelection?.(table.tableName)}
+              onClick={(e) => e.stopPropagation()}
+              title={selectionTitle}
+              className="w-4 h-4 accent-cyan-500 cursor-pointer shrink-0"
+            />
+          ) : (
+            <span className="w-4 shrink-0" />
+          )}
+          <span className="shrink-0">{TYPE_META[table.objectType].icon}</span>
+          <div className="flex flex-col min-w-0">
+            <span
+              className={`text-sm font-semibold truncate ${
+                isSelected ? 'text-slate-100' : 'text-slate-300 group-hover:text-slate-200'
+              }`}
+            >
+              {highlightMatch(table.tableName, query)}
+            </span>
+            {matchedIn && (
+              <span className="text-[10px] text-slate-500 truncate" title={`Search matched in ${matchedIn}`}>
+                matched in {matchedIn}
+              </span>
+            )}
+          </div>
+          {indexes.length > 0 && (
+            <span
+              className="text-[10px] font-mono text-slate-500 shrink-0"
+              title="Index count. The indexes themselves, with their deploy checkboxes, are in the blueprint."
+            >
+              {indexes.length} idx
+            </span>
+          )}
+        </div>
+
+        {showStatusBadge && (
+          <span
+            className={`text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ml-2 ${statusBadgeClass(
+              table.status
+            )}`}
+          >
+            {table.status}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+});

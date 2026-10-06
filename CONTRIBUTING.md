@@ -120,6 +120,13 @@ buttons with a bare Playwright `click` and then wait for the UI to look settled.
   and [`apps/cli/src/tui/__tests__/README.md`](apps/cli/src/tui/__tests__/README.md)
   (they document the mock seams and some real timing gotchas).
 - Real cross-dialect behavior → the E2E suite.
+  Selectors: every control has a `data-testid`. Use `byTestId(...)` from
+  `apps/e2e/src/helpers/test-ids.ts` (typed against the generated catalog).
+  After adding a control, run `npm run test-ids` so `docs/testing/TEST_IDS.md`
+  and `apps/e2e/src/generated/test-ids.ts` stay in sync. How to write a test:
+  [docs/testing/WRITING_E2E.md](docs/testing/WRITING_E2E.md). An MCP server over
+  the catalog (`.mcp.json` → `scripts/test-ids/mcp-server.mjs`) helps agents
+  find IDs. CI comments each PR that changes the catalog.
 
 Add or update tests with your change; a PR that changes behavior without tests will
 be asked for them.
@@ -132,13 +139,13 @@ Each dialect spans both packages: `sql-dialect.ts` / `settings.ts` under
 (settings, adapter, provider, sql-dialect). The exact contract — required vs.
 optional hooks, cross-cutting invariants (casing, index/FK naming, DROP ordering),
 and per-dialect gotchas — is documented in
-[`packages/sql/src/providers/DIALECTS.md`](packages/sql/src/providers/DIALECTS.md)
-(tracked; allowlisted in `.gitignore`),
+[`packages/sql/src/providers/DIALECTS.md`](packages/sql/src/providers/DIALECTS.md),
 with the step-by-step checklist in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 Read `DIALECTS.md` before touching any `*.sql-dialect.ts` or `sql-generator.module.ts`.
 Wire-compatible relatives (MariaDB/TiDB, Cockroach/Yugabyte/Redshift, Azure SQL)
 must go through `dialectFamily()` in `packages/sql/src/providers/provider-settings.ts`
-— do not re-list `d === 'mysql' || d === 'mariadb' || …`.
+— do not re-list `d === 'mysql' || d === 'mariadb' || …`. Backup/restore commands
+are `<d>.backup.ts` registered in `packages/sql/src/modules/utilities/backup.registry.ts`.
 
 ## Conventions worth knowing
 

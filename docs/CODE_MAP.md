@@ -120,7 +120,7 @@ database/    The metadata store and its migrations.
 |---|---|
 | `access` | Database permission inspection and DBA utilities |
 | `admin` | Install-wide settings, secrets, cloud credentials |
-| `backup` | Per-user backup defaults (`GET`/`PUT /api/backup-settings`). Commands themselves are built in `@foxschema/sql` (`modules/utilities/backup.ts` + `providers/<d>/*.backup.ts`); Fox Schema never runs them. |
+| `backup` | Per-user backup defaults (`GET`/`PUT /api/backup-settings`). Commands themselves are built in `@foxschema/sql` (`modules/utilities/backup.ts` + `providers/<d>/*.backup.ts`); the panel runs only a server-side SQL backup, after confirmation, and lists the backups the server recorded (`backupHistoryQuery`); restores are never run. |
 | `auth` | Login, sessions, SSO |
 | `authorization` | Role permissions (RBAC) and the permission guard |
 | `compare` | Schema comparison |

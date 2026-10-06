@@ -470,9 +470,9 @@ saved credential at the top, then a tool:
   columns so apps keep working. Toggle **Keep indexes** and **Foreign keys (auto)**
   for the new table; Insert SQL or Apply. Inbound FKs from other tables still point
   at the archive until you update them.
-- **Backup & Restore** — Fox Schema **writes** the backup and restore commands
-  for this connection; it does **not** run them. The amber banner says *where*
-  they run, because that is what the folder means:
+- **Backup & Restore** — Fox Schema writes the backup and restore commands
+  for this connection. The amber banner says *where* they run, because that is
+  what the folder means:
   - **Your machine** (`pg_dump`, `mysqldump`, `sqlite3`, SqlPackage, `mongodump`,
     `redis-cli --rdb`) — the file is written where you paste and run the command.
   - **Database server** (SQL Server `BACKUP DATABASE`, Oracle Data Pump, Db2,
@@ -487,6 +487,17 @@ saved credential at the top, then a tool:
   (SQL Server, CockroachDB, ClickHouse, DuckDB) offer **Open in SQL Editor**;
   shell tools you copy. Names with spaces are quoted so a pasted command does
   not split.
+
+  Where the backup is SQL the database server runs (SQL Server, CockroachDB,
+  ClickHouse, DuckDB), **Run backup now** runs it on this connection after a
+  confirmation that names the file and the connection. It needs **Change
+  schema** (`editor.ddl`), because the server treats BACKUP as a schema change.
+  Where the server records its backups (SQL Server's `msdb`, Db2's
+  `DB_HISTORY`, ClickHouse's `system.backups`), **List backups on this server**
+  shows them newest first; **Restore this** points the restore command at that
+  backup, and **Restore the newest instead** puts it back. A restore is never
+  run from here: it replaces a database, so it stays a command you open in the
+  SQL Editor and run yourself.
 
 **Insights** (estimated where the engine has no physical figure)
 
@@ -565,8 +576,10 @@ The Access workspace opens on **Permissions** (a principal list). Pick a user
 or role, then **Account** / **Grants** / **Effective**:
 
 - **Account** — identity, membership, add / drop.
-- **Grants** — an object × privilege grid that opens on what that principal
-  **holds now**. A new tick is GRANT; clearing a held box is REVOKE. Boxes that
+- **Grants** — one view: an object × privilege grid that opens on what that
+  principal **holds now** (EXECUTE on procedures and functions included), a line
+  under it listing what it also holds that the grid cannot show, and the
+  database- and schema-wide grants to edit those. A new tick is GRANT; clearing a held box is REVOKE. Boxes that
   already match the catalog do not appear in the SQL. Privileges the grid cannot
   show (CONNECT on the database, USAGE on a schema, DENY, unknown verbs) are
   never touched — ticking SELECT on one table does not revoke the rest of the

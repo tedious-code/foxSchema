@@ -156,7 +156,7 @@ GitLab, Bitbucket and Azure DevOps over HTTPS with an access token.
 ## Backup & Restore
 
 **Utils → Backup & Restore** writes the engine's backup and restore commands
-for the credential at the top of the workspace. Fox Schema never runs them.
+for the credential at the top of the workspace.
 
 - The amber banner says where the command runs (your machine, the database
   server, or a cloud snapshot) — that is what the folder field means.
@@ -164,6 +164,10 @@ for the credential at the top of the workspace. Fox Schema never runs them.
   *your default for this engine* (`GET` / `PUT /api/backup-settings`).
 - SQL commands (SQL Server, CockroachDB, ClickHouse, DuckDB) open in the
   Editor; shell tools you copy.
+- Where the backup is server-side SQL, **Run backup now** runs it after a
+  confirmation (needs Change schema). SQL Server, Db2 and ClickHouse list the
+  backups they recorded; pick one and the restore reads it. Restores still only
+  open in the SQL Editor.
 
 See [USER_GUIDE.md](../USER_GUIDE.md#utilities).
 
@@ -171,8 +175,9 @@ See [USER_GUIDE.md](../USER_GUIDE.md#utilities).
 
 **Access → Permissions → Grants** opens on the privileges that principal
 already holds. The SQL is only the difference (new ticks GRANT, cleared boxes
-REVOKE). Privileges the grid cannot show — CONNECT, schema USAGE, DENY — are
-not revoked as a side-effect of ticking one table. Permission **Diff** is a
+REVOKE). EXECUTE on procedures and functions is read too, so those rows open
+ticked. Privileges the grid cannot show — CONNECT, schema USAGE, DENY — are
+listed under it and not revoked as a side-effect of ticking one table. Permission **Diff** is a
 separate tab (desired state vs catalog, including DENY).
 
 ## Sessions

@@ -264,7 +264,7 @@ Rendering on the hot paths (what to keep when editing these components):
 1. Create the dialect files in `packages/sql/src/providers/<name>/` and the driver files in `packages/db/src/providers/<name>/`
 2. Register in `provider-settings.ts`, `adapter-registry.ts`, `provider-registry.ts`, `modules/dialect/registry.ts`
    (and `modules/access/user-sql.registry.ts` / `modules/access/access-sql.registry.ts` when the engine has account or GRANT SQL).
-   Backup/restore commands: `<d>.backup.ts` in `modules/utilities/backup.registry.ts`. Fox Schema writes the commands and never runs them.
+   Backup/restore commands: `<d>.backup.ts` in `modules/utilities/backup.registry.ts`. A `history` query, where the engine records its backups, lets the panel list them; a server-side SQL backup can be run from the panel, a restore never is.
 3. Add the dialect name to the `Dialect` union **and** the `DIALECTS` array in
    `packages/sql/src/providers/provider-settings.ts` (`dialect-registry.test.ts`
    fails until they match `PROVIDER_SETTINGS`). Nothing in `apps/web` needs

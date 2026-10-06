@@ -108,7 +108,10 @@ const uiOut = join(cliRoot, 'ui-dist');
 if (existsSync(join(webDist, 'index.html'))) {
   rmSync(uiOut, { recursive: true, force: true });
   mkdirSync(uiOut, { recursive: true });
-  cpSync(webDist, uiOut, { recursive: true });
+  // Not the .br/.gz copies: the CLI serves on loopback, where compression saves
+  // nothing, and they would add ~7 MB to the package. The server falls back to
+  // the plain files when there is no copy.
+  cpSync(webDist, uiOut, { recursive: true, filter: (src) => !/\.(br|gz)$/.test(src) });
   console.log('✔ copied apps/web/dist → ui-dist');
 } else {
   console.log('⚠ apps/web/dist missing — run `npm run build -w @foxschema/web` before publishing');

@@ -35,8 +35,8 @@ describe('objectSourceScript', () => {
     expect(isScriptableObject('MQT')).toBe(false);
   });
 
-  it('returns definition for a view and ensures a trailing semicolon', () => {
-    const sql = objectSourceScript(
+  it('returns definition for a view and ensures a trailing semicolon', async () => {
+    const sql = await objectSourceScript(
       view({ name: 'v_orders', definition: 'CREATE VIEW v_orders AS SELECT 1 AS id' }),
       'postgres'
     );
@@ -44,14 +44,14 @@ describe('objectSourceScript', () => {
     expect(sql.trimEnd().endsWith(';')).toBe(true);
   });
 
-  it('falls back when definition is missing', () => {
-    const sql = objectSourceScript(view({ name: 'v_empty' }), 'postgres');
+  it('falls back when definition is missing', async () => {
+    const sql = await objectSourceScript(view({ name: 'v_empty' }), 'postgres');
     expect(sql).toMatch(/No definition available/i);
     expect(sql).toContain('v_empty');
   });
 
-  it('opens a procedure as a single editor cell (inner semicolons stay in the body)', () => {
-    const sql = objectSourceScript(
+  it('opens a procedure as a single editor cell (inner semicolons stay in the body)', async () => {
+    const sql = await objectSourceScript(
       routine({
         name: 'bump_qty',
         objectType: 'PROCEDURE',
@@ -70,8 +70,8 @@ END`,
     expect(stmts[0]!.text).toMatch(/UPDATE\s+items/i);
   });
 
-  it('opens a function as a single editor cell', () => {
-    const sql = objectSourceScript(
+  it('opens a function as a single editor cell', async () => {
+    const sql = await objectSourceScript(
       routine({
         name: 'status_label',
         objectType: 'FUNCTION',

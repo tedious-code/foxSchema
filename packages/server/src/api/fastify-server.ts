@@ -54,6 +54,7 @@ import { BODY_LIMIT, buildApiRoutes } from './server';
 import { ERROR_STATUS, type ErrorCode } from '@foxschema/shared';
 import fastifyCors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
+import { isAssetPath, staticOptions } from './static-assets';
 import { bindRoutes } from '../platform/http/fastify-bind';
 import {
   isAllowedOrigin,
@@ -233,7 +234,7 @@ export async function createFastifyApp(
   // signal.
   // --- The built frontend, when this server also serves it -----------------
   if (options.staticDir) {
-    await app.register(fastifyStatic, { root: options.staticDir, wildcard: false });
+    await app.register(fastifyStatic, staticOptions(options.staticDir));
   }
 
   // --- The API ------------------------------------------------------------
@@ -246,8 +247,11 @@ export async function createFastifyApp(
   // owner: this function. When a staticDir is given, anything that is not an
   // API path and matched no file is the client-side router's problem and gets
   // index.html; an API path always gets JSON, because a 404 there is real.
+  // A missing /assets/ file is a real 404 too: a tab left open across a release
+  // asks for a chunk the new build no longer has, and index.html in its place
+  // fails as a module with a misleading MIME error. On a 404 the page reloads.
   app.setNotFoundHandler((req, reply) => {
-    if (!req.url.startsWith('/api') && options.staticDir) {
+    if (!req.url.startsWith('/api') && !isAssetPath(req.url) && options.staticDir) {
       return reply.sendFile('index.html', options.staticDir);
     }
     return reply.code(404).send({ ok: false, error: 'Not found', code: 'not_found' });

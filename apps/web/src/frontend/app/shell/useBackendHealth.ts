@@ -50,6 +50,11 @@ export function useBackendHealth(): { status: BackendHealth; checkNow: () => voi
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const tick = async () => {
+      // No probe from a hidden tab; showing it again probes at once (below).
+      if (document.visibilityState === 'hidden') {
+        timer = setTimeout(tick, OK_INTERVAL_MS);
+        return;
+      }
       const ac = new AbortController();
       const killer = setTimeout(() => ac.abort(), PROBE_TIMEOUT_MS);
       const ok = await probe(ac.signal);

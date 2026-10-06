@@ -12,6 +12,7 @@
  * Number fields also accept simple `=` formulas (`=10+5`, `=100*1.1`).
  */
 import type { PeekField } from '@/features/sql-editor/lib/peekRowValidation';
+import { loadOnce } from '@/shared/lib/loadOnce';
 
 export type PeekGeneratorId =
   | 'string'
@@ -98,16 +99,11 @@ type FakerLike = {
   };
 };
 
-let fakerPromise: Promise<FakerLike | null> | null = null;
-
-async function loadFaker(): Promise<FakerLike | null> {
-  if (!fakerPromise) {
-    fakerPromise = import('@faker-js/faker/locale/en')
-      .then((m) => m.faker as unknown as FakerLike)
-      .catch(() => null);
-  }
-  return fakerPromise;
-}
+// A failed fetch is retried on the next value rather than cached as "no faker".
+const loadFaker = loadOnce(async () => {
+  const { faker } = await import('@faker-js/faker/locale/en');
+  return faker as unknown as FakerLike;
+});
 
 const FIRST_NAMES = [
   'Ava', 'Noah', 'Mia', 'Liam', 'Zoe', 'Ethan', 'Chloe', 'Lucas',
@@ -301,7 +297,7 @@ export async function generatePeekValueAsync(
   id: PeekGeneratorId,
   field?: Pick<PeekField, 'kind' | 'maxLength' | 'scale'>
 ): Promise<string> {
-  const faker = await loadFaker();
+  const faker = await loadFaker().catch(() => null);
   if (!faker) return syncFallback(id, field);
   try {
     let out = fromFaker(faker, id, field);

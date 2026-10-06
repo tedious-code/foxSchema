@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { lazy, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { LogOut, Palette, ArrowUpCircle, Globe, Shield, MonitorX } from 'lucide-react';
 import { apiSignOutOthers } from '@/shared/api/authApi';
@@ -8,7 +8,12 @@ import { useUiStore } from '@/app/store/uiStore';
 import { checkForUpdates, type UpdateInfo } from '@/shared/api/updatesApi';
 import { useAnchoredPopover } from '@/shared/lib/useAnchoredPopover';
 import { maybeToastUpdateAvailable } from '@/app/shell/updateToast';
-import { AdminAccessPanel } from '@/features/admin';
+import { MountWhenOpened } from '@/shared/components/MountWhenOpened';
+
+// Admins only, and only on a click: loaded on the first open.
+const AdminAccessPanel = lazy(() =>
+  import('@/features/admin/components/AdminAccessPanel').then((m) => ({ default: m.AdminAccessPanel }))
+);
 
 export function ProfileMenu(): React.ReactElement | null {
   const { user, logout } = useAuthStore();
@@ -168,7 +173,9 @@ export function ProfileMenu(): React.ReactElement | null {
 
       {menu}
 
-      <AdminAccessPanel open={showAdmin} onClose={() => setShowAdmin(false)} />
+      <MountWhenOpened open={showAdmin}>
+        <AdminAccessPanel open={showAdmin} onClose={() => setShowAdmin(false)} />
+      </MountWhenOpened>
     </div>
   );
 }

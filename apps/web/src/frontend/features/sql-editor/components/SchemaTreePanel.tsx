@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSyncStore } from '@/app/store/useSyncStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useUiStore } from '@/app/store/uiStore';
 import { Search, Layers } from 'lucide-react';
 import type { TableDiff } from '@/shared/lib/types';
@@ -10,6 +11,8 @@ const MAX_WIDTH = 640;
 
 export const SchemaTreePanel: React.FC = () => {
   const syncPane = useUiStore((s) => s.syncPane);
+  // Only these fields: a whole-store subscription re-rendered every row of the
+  // tree on any store write, twice per object during a migration.
   const {
     compareResult,
     browseMode,
@@ -32,7 +35,31 @@ export const SchemaTreePanel: React.FC = () => {
     setNonDestructive,
     continueOnError,
     setContinueOnError,
-  } = useSyncStore();
+  } = useSyncStore(
+    useShallow((s) => ({
+      compareResult: s.compareResult,
+      browseMode: s.browseMode,
+      browseSide: s.browseSide,
+      sourceConfig: s.sourceConfig,
+      targetConfig: s.targetConfig,
+      selectedTable: s.selectedTable,
+      setSelectedTable: s.setSelectedTable,
+      filterStatus: s.filterStatus,
+      setFilterStatus: s.setFilterStatus,
+      searchTerm: s.searchTerm,
+      setSearchTerm: s.setSearchTerm,
+      typeFilter: s.typeFilter,
+      toggleTypeFilter: s.toggleTypeFilter,
+      clearTypeFilter: s.clearTypeFilter,
+      syncSelection: s.syncSelection,
+      toggleSyncSelection: s.toggleSyncSelection,
+      setAllSyncSelection: s.setAllSyncSelection,
+      nonDestructive: s.nonDestructive,
+      setNonDestructive: s.setNonDestructive,
+      continueOnError: s.continueOnError,
+      setContinueOnError: s.setContinueOnError,
+    }))
+  );
 
   const [panelWidth, setPanelWidth] = useState(340);
   // "Unchanged" is an independent toggle (not part of the All/Added/Removed/Modified

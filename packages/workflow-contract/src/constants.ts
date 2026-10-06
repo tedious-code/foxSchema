@@ -62,3 +62,19 @@ export function foxSchemaEndpoint(
 
 /** The SSE event that tells a run-event stream's client the run is over and the stream is closing. */
 export const RUN_STREAM_END_EVENT = 'end';
+
+/**
+ * The kinds of trigger a workflow can have. The engine's trigger schema fails to
+ * compile unless it accepts exactly these. Defined here rather than in the
+ * engine so the designer can list them without loading the engine's validators.
+ */
+export const TRIGGER_KINDS = ['manual', 'cron', 'webhook', 'http', 'poll', 'parent'] as const;
+
+export type TriggerKind = (typeof TRIGGER_KINDS)[number];
+
+/** Run states a run never leaves. `paused` and `interrupted` can still resume. */
+export const TERMINAL_RUN_STATUSES = ['succeeded', 'failed', 'cancelled'] as const;
+
+export function isTerminalRunStatus(status: string): boolean {
+  return (TERMINAL_RUN_STATUSES as readonly string[]).includes(status);
+}

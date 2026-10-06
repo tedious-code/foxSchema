@@ -9,7 +9,7 @@ import { SqlGeneratorModule } from '@/shared/lib/sql-generator';
 import { findDropDependencies } from '@foxschema/sql';
 import { findMissingFkTargets, findNarrowingTypeChanges, extractReviewNotices, resolveDialect } from '@/shared/lib/migration-validation';
 import { buildIncludedDiffs, applySelectionsForScan, buildMapping } from '@/app/store/sync-helpers';
-import { formatSql } from '@/shared/utils/formatSql';
+import { useSqlFormat, type SqlFormat } from '@/shared/utils/useSqlFormat';
 import { SchemaBlueprint, DiffBriefingPanel } from '@/features/schema-diff';
 import { DetailTabs, type DetailTab } from '@/features/schema-diff';
 import {
@@ -42,9 +42,9 @@ const ddlGenerator = new SqlGeneratorModule();
 /** Skip synchronous format on huge DDL (same gate as Migration SQL tab). */
 const FORMAT_SQL_MAX = 50_000;
 
-function formatSqlBounded(sql: string, dialect: string): string {
+function formatSqlBounded(format: SqlFormat, sql: string, dialect: string): string {
   if (!sql || sql.length > FORMAT_SQL_MAX) return sql;
-  return formatSql(sql, dialect);
+  return format(sql, dialect);
 }
 
 // Persisted "skip the deploy confirmation" preference.
@@ -63,6 +63,8 @@ export const ObjectDetailPanel: React.FC = () => {
   const committedMigration = useSyncStore((s) => s.committedMigration);
   const commitMatchesPlan = useSyncStore((s) => s.commitMatchesPlan);
   const [showCommit, setShowCommit] = useState(false);
+  // sql-formatter loads on demand; the memos below re-run when it arrives.
+  const format = useSqlFormat();
   React.useEffect(() => {
     if (canUseGit) void loadGitRepos();
   }, [canUseGit, loadGitRepos]);
@@ -246,18 +248,18 @@ export const ObjectDetailPanel: React.FC = () => {
   // NOTE: must stay above any early return — hooks run unconditionally every render.
   const formattedSql = useMemo(() => {
     if (activeTab !== 'SQL' || !generatedSql) return generatedSql ?? '';
-    return formatSqlBounded(generatedSql, targetConfig.dialect);
-  }, [activeTab, generatedSql, targetConfig.dialect]);
+    return formatSqlBounded(format, generatedSql, targetConfig.dialect);
+  }, [format, activeTab, generatedSql, targetConfig.dialect]);
 
   // Blueprint definition viewer — memoize so re-renders (search, checkboxes) don't reformat.
   const blueprintDefinitionSql = useMemo(() => {
     if (!selectedTable || selectedTable.objectType === 'TABLE') return '';
     const src = selectedTable.sourceTable?.definition;
     const tgt = selectedTable.targetTable?.definition;
-    if (src) return formatSqlBounded(src, sourceConfig.dialect);
-    if (tgt) return formatSqlBounded(tgt ?? '', targetConfig.dialect);
+    if (src) return formatSqlBounded(format, src, sourceConfig.dialect);
+    if (tgt) return formatSqlBounded(format, tgt ?? '', targetConfig.dialect);
     return '';
-  }, [selectedTable, sourceConfig.dialect, targetConfig.dialect]);
+  }, [format, selectedTable, sourceConfig.dialect, targetConfig.dialect]);
 
   // Non-table DDL Diff sides — only when that tab is open.
   const ddlDiffSides = useMemo(() => {
@@ -273,10 +275,10 @@ export const ObjectDetailPanel: React.FC = () => {
       ? ddlGenerator.generateObjectDdl(selectedTable.targetTable, targetConfig.dialect)
       : '';
     return {
-      sourceDdl: stripSchemas(formatSqlBounded(rawSource, sourceConfig.dialect)),
-      targetDdl: stripSchemas(formatSqlBounded(rawTarget, targetConfig.dialect)),
+      sourceDdl: stripSchemas(formatSqlBounded(format, rawSource, sourceConfig.dialect)),
+      targetDdl: stripSchemas(formatSqlBounded(format, rawTarget, targetConfig.dialect)),
     };
-  }, [selectedTable, activeTab, sourceConfig.dialect, sourceConfig.schema, targetConfig.dialect, targetConfig.schema]);
+  }, [format, selectedTable, activeTab, sourceConfig.dialect, sourceConfig.schema, targetConfig.dialect, targetConfig.schema]);
 
   // Expanded trigger DDL diffs — format only when a row is open.
   const formattedTriggerDdls = useMemo(() => {
@@ -286,15 +288,15 @@ export const ObjectDetailPanel: React.FC = () => {
       if (!expandedTriggers[trg.name]) continue;
       out[trg.name] = {
         oldDdl: trg.target?.definition
-          ? formatSqlBounded(trg.target.definition, targetConfig.dialect).trim()
+          ? formatSqlBounded(format, trg.target.definition, targetConfig.dialect).trim()
           : '',
         newDdl: trg.source?.definition
-          ? formatSqlBounded(trg.source.definition, sourceConfig.dialect).trim()
+          ? formatSqlBounded(format, trg.source.definition, sourceConfig.dialect).trim()
           : '',
       };
     }
     return out;
-  }, [selectedTable, expandedTriggers, sourceConfig.dialect, targetConfig.dialect]);
+  }, [format, selectedTable, expandedTriggers, sourceConfig.dialect, targetConfig.dialect]);
 
   if (!selectedTable) {
     if (compareResult && !browseMode) {

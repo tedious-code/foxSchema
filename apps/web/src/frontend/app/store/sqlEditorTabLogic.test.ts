@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { splitSqlStatements } from '@/shared/lib/sql-splitter';
 import {
   addTab,
   checkedAfterSqlChange,
@@ -18,6 +19,12 @@ import {
   destinationIdsPatch,
   toggleStatementCheck,
 } from './sqlEditorTabLogic';
+
+// The real splitter, watched: the run helpers must not call it when handed a split.
+vi.mock('@/shared/lib/sql-splitter', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/shared/lib/sql-splitter')>();
+  return { ...real, splitSqlStatements: vi.fn(real.splitSqlStatements) };
+});
 
 describe('sqlEditorTabLogic', () => {
   it('addTab appends Query N and activates it', () => {
@@ -197,5 +204,20 @@ SELECT 3;`;
         b,
       ],
     });
+  });
+});
+
+describe('run helpers reuse a split the caller already has', () => {
+  it('give the same answer, without splitting the script again', () => {
+    const sql = 'select 1;\nupdate t set a = 1;\nselect 2;';
+    const split = splitSqlStatements(sql);
+    const caret = sql.indexOf('update') + 3;
+    expect(statementsToRun(sql, [], caret, split)).toEqual(statementsToRun(sql, [], caret));
+    expect(indicesToRun(sql, [], caret, split)).toEqual([1]);
+    vi.mocked(splitSqlStatements).mockClear();
+    statementsToRun(sql, [], caret, split);
+    indicesToRun(sql, [2, 0], caret, split);
+    resolveRunStatements(sql, [], null, caret, split);
+    expect(splitSqlStatements).not.toHaveBeenCalled();
   });
 });

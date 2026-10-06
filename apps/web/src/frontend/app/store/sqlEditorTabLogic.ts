@@ -1,5 +1,12 @@
 import { detectCodeCell } from '@/features/sql-editor/lib/codeCellRunner';
 import { splitSqlStatements } from '@/shared/lib/sql-splitter';
+
+/**
+ * `sql` split into statements. Each helper below takes the split as an optional
+ * last argument: the editor already holds it, and splitting a large script
+ * again in every helper on every keystroke was most of the typing cost.
+ */
+type Split = ReturnType<typeof splitSqlStatements>;
 import { reattachSetComments } from '@/shared/lib/sql-variables';
 
 export type ResultsLayout = 'byCredential' | 'sideBySide';
@@ -132,9 +139,13 @@ export function checkedAfterSqlChange(
  * A caret between two statements belongs to the one it follows — that is the
  * statement just typed. Before the first statement it belongs to the first.
  */
-export function statementIndexAtOffset(sql: string, offset: number | null | undefined): number | null {
+export function statementIndexAtOffset(
+  sql: string,
+  offset: number | null | undefined,
+  split?: Split
+): number | null {
   if (typeof offset !== 'number' || !Number.isFinite(offset)) return null;
-  const all = splitSqlStatements(sql);
+  const all = split ?? splitSqlStatements(sql);
   if (all.length === 0) return null;
   for (let i = 0; i < all.length; i++) {
     const statement = all[i]!;
@@ -156,12 +167,13 @@ export function statementIndexAtOffset(sql: string, offset: number | null | unde
 export function statementsToRun(
   sql: string,
   checkedStatements: number[],
-  caretOffset?: number | null
+  caretOffset?: number | null,
+  split?: Split
 ): string[] {
-  const all = splitSqlStatements(sql);
+  const all = split ?? splitSqlStatements(sql);
   if (all.length === 0) return [];
   const enriched = reattachSetComments(sql, all);
-  const fallback = statementIndexAtOffset(sql, caretOffset) ?? 0;
+  const fallback = statementIndexAtOffset(sql, caretOffset, all) ?? 0;
   if (checkedStatements.length === 0) return [enriched[fallback] ?? enriched[0]!];
   const uniq = [...new Set(checkedStatements)]
     .filter((i) => i >= 0 && i < enriched.length)
@@ -174,12 +186,13 @@ export function statementsToRun(
 export function indicesToRun(
   sql: string,
   checkedStatements: number[],
-  caretOffset?: number | null
+  caretOffset?: number | null,
+  split?: Split
 ): number[] {
-  const all = splitSqlStatements(sql);
+  const all = split ?? splitSqlStatements(sql);
   if (all.length === 0) return [];
   // Must stay in step with statementsToRun or Out [n] labels the wrong cell.
-  const fallback = statementIndexAtOffset(sql, caretOffset) ?? 0;
+  const fallback = statementIndexAtOffset(sql, caretOffset, all) ?? 0;
   if (checkedStatements.length === 0) return [fallback];
   const uniq = [...new Set(checkedStatements)]
     .filter((i) => i >= 0 && i < all.length)
@@ -216,10 +229,11 @@ export function resolveRunStatements(
   sql: string,
   checkedStatements: number[],
   selectedSql: string | null | undefined,
-  caretOffset?: number | null
+  caretOffset?: number | null,
+  split?: Split
 ): string[] {
   if (selectedSql?.trim()) return statementsFromSelection(selectedSql);
-  return statementsToRun(sql, checkedStatements, caretOffset);
+  return statementsToRun(sql, checkedStatements, caretOffset, split);
 }
 
 export function toggleStatementCheck(checked: number[], index: number): number[] {

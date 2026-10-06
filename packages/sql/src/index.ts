@@ -184,6 +184,7 @@ export {
   formatRowCount,
   groupObjectSizes,
   filterTableSizeGroups,
+  indexTableSizeGroups,
   lookupTableSizeGroup,
   lookupIndexSizeRow,
 } from './modules/utilities/dba-utilities.js';
@@ -218,6 +219,7 @@ export type {
   SystemInfoMetric,
   ObjectSizeRow,
   TableSizeGroup,
+  TableSizeLookup,
 } from './modules/utilities/dba-utilities.js';
 export {
   dialectSupportsDbAccess,

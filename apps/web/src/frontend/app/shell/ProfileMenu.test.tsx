@@ -15,7 +15,7 @@ vi.mock('@/shared/api/updatesApi', () => ({
 vi.mock('./updateToast', () => ({
   maybeToastUpdateAvailable: vi.fn(),
 }));
-vi.mock('@/features/admin', () => ({
+vi.mock('@/features/admin/components/AdminAccessPanel', () => ({
   AdminAccessPanel: ({ open }: { open: boolean }) =>
     open ? <div data-testid="admin-access-panel">Access control</div> : null,
 }));
@@ -56,11 +56,12 @@ describe('ProfileMenu', () => {
     await vi.waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Signed out 2 other sessions' })));
   });
 
-  it('opens Access control from the avatar menu for the local admin', () => {
+  it('opens Access control from the avatar menu for the local admin', async () => {
     render(<ProfileMenu />);
     fireEvent.click(screen.getByTestId('profile-menu-trigger'));
     fireEvent.click(screen.getByTestId('profile-access-control'));
-    expect(screen.getByTestId('admin-access-panel')).toBeTruthy();
+    // The panel's code loads on the first open.
+    expect(await screen.findByTestId('admin-access-panel')).toBeTruthy();
   });
 
   it('hides Access control when the signed-in role cannot manage app users', () => {

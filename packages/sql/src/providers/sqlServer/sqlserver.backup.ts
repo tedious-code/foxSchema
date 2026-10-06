@@ -18,6 +18,8 @@ const nString = (value: string) => `N'${value.replace(/'/g, "''")}'`;
 function build(conn: BackupConnection, req: BackupRequest): BackupCommands {
   const db = bracket(conn.database);
   const location = joinPath(req.folder, `${req.fileName}.bak`);
+  // A file picked from msdb's history; any path is quoted as a string.
+  const restoreFile = req.restoreFrom || location;
   const options = ['COPY_ONLY', 'INIT', 'CHECKSUM', ...(req.compress ? ['COMPRESSION'] : []), 'STATS = 10'];
   return {
     language: 'sql',
@@ -25,7 +27,7 @@ function build(conn: BackupConnection, req: BackupRequest): BackupCommands {
     restore: [
       'USE [master];',
       `ALTER DATABASE ${db} SET SINGLE_USER WITH ROLLBACK IMMEDIATE;`,
-      `RESTORE DATABASE ${db}\n  FROM DISK = ${nString(location)}\n  WITH REPLACE, RECOVERY, STATS = 10;`,
+      `RESTORE DATABASE ${db}\n  FROM DISK = ${nString(restoreFile)}\n  WITH REPLACE, RECOVERY, STATS = 10;`,
       `ALTER DATABASE ${db} SET MULTI_USER;`,
     ].join('\n'),
     location,
@@ -50,5 +52,15 @@ export const sqlServerBackup: BackupDialect = {
   tables: false,
   schemaLimit: false,
   passwordNote: 'Runs as SQL on this connection; the login needs BACKUP DATABASE (db_backupoperator) and, to restore, dbcreator.',
+  // msdb records every backup the server took, by file.
+  history: (conn) => `SELECT TOP (20)
+  b.backup_finish_date AS finished_at,
+  m.physical_device_name AS location,
+  b.backup_size AS size_bytes,
+  m.physical_device_name AS restore_key
+FROM msdb.dbo.backupset b
+JOIN msdb.dbo.backupmediafamily m ON m.media_set_id = b.media_set_id
+WHERE b.database_name = ${nString(conn.database)} AND b.type = 'D'
+ORDER BY b.backup_finish_date DESC;`,
   build,
 };

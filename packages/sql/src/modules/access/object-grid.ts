@@ -362,6 +362,24 @@ export function heldGridPermissions(
   dialect: string,
   fallbackSchema = ''
 ): Map<string, AccessPermission[]> {
+  return splitHeldPrivileges(privileges, objects, dialect, fallbackSchema).held;
+}
+
+/**
+ * What a principal holds, split into what the grid shows and everything else.
+ *
+ * `held` is `heldGridPermissions`. `elsewhere` is each privilege row the grid
+ * cannot show: database-, schema- and system-wide grants, DENY rows, grants on
+ * an object that is not a row, and privileges no column can show. A grid that
+ * opens on what is held still let a reader conclude that nothing else was;
+ * listing these under it says otherwise.
+ */
+export function splitHeldPrivileges(
+  privileges: readonly DbPrivilege[],
+  objects: readonly { schema?: string | null; kind: GridObjectKind; name: string }[],
+  dialect: string,
+  fallbackSchema = ''
+): { held: Map<string, AccessPermission[]>; elsewhere: DbPrivilege[] } {
   // A privilege row names schema and object; the grid knows the kind. Rows
   // whose schema is not reported (MySQL's by-name grants) match on name alone.
   const byName = new Map<string, { schema: string; kind: GridObjectKind; name: string }[]>();
@@ -370,8 +388,12 @@ export function heldGridPermissions(
     byName.set(n, [...(byName.get(n) ?? []), { ...o, schema: o.schema?.trim() || fallbackSchema }]);
   }
   const held = new Map<string, AccessPermission[]>();
+  const elsewhere: DbPrivilege[] = [];
   for (const p of privileges) {
-    if (p.state === 'deny' || !p.objectName) continue;
+    if (p.state === 'deny' || !p.objectName) {
+      elsewhere.push(p);
+      continue;
+    }
     const privilege = (p.privilege || '').trim().toUpperCase();
     const schema = (p.objectSchema ?? '').trim().toLowerCase();
     // Either side may not know the schema: MySQL-family grants name the
@@ -381,6 +403,7 @@ export function heldGridPermissions(
       const own = (o.schema ?? '').trim().toLowerCase();
       return !schema || !own || own === schema;
     });
+    let shown = false;
     for (const o of candidates) {
       const cells = prunedPermissions(
         dialect,
@@ -388,11 +411,32 @@ export function heldGridPermissions(
         GRID_COLUMNS[o.kind].filter((c) => EVERY_PRIVILEGE.has(privilege) || CELL_PRIVILEGE[c] === privilege)
       );
       if (cells.length === 0) continue;
+      shown = true;
       const key = gridObjectKey(o);
       held.set(key, [...new Set([...(held.get(key) ?? []), ...cells])]);
     }
+    if (!shown) elsewhere.push(p);
   }
-  return held;
+  return { held, elsewhere };
+}
+
+/** One held privilege the grid does not show, in a few words: "CONNECT on database shop". */
+export function describeHeldPrivilege(p: DbPrivilege): string {
+  const verb = `${p.state === 'deny' ? 'DENY ' : ''}${(p.privilege || '').trim().toUpperCase()}`;
+  const object = [p.objectSchema, p.objectName].filter(Boolean).join('.');
+  switch (p.objectType) {
+    case 'DATABASE':
+      return object ? `${verb} on database ${object}` : `${verb} on the database`;
+    case 'SCHEMA':
+      return `${verb} on schema ${p.objectName ?? p.objectSchema ?? ''}`.trim();
+    case 'GLOBAL':
+    case 'SYSTEM':
+      return `${verb} (server-wide)`;
+    case 'ROLE':
+      return `member of ${p.objectName ?? p.privilege}`;
+    default:
+      return object ? `${verb} on ${object}` : verb;
+  }
 }
 
 /** What a grid edit changes: GRANTs for new ticks, REVOKEs for held ones cleared. */

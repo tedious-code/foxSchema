@@ -217,6 +217,33 @@ describe('AccessPermissionPanel — one session', () => {
     expect(screen.getByTestId('matrix-summary').textContent).toMatch(/1 privilege held now · 0 to grant · 0 to revoke/);
   });
 
+  it('is one view: the grid, what else is held, and database-wide grants under it', async () => {
+    const wide = (privilege: string, objectType: 'DATABASE' | 'SCHEMA', objectName: string) => ({
+      grantee: 'alice',
+      privilege,
+      objectType,
+      objectSchema: null,
+      objectName,
+      grantable: false,
+      grantor: null,
+      state: 'grant' as const,
+    });
+    fetchDbAccess.mockResolvedValue({
+      ...catalog,
+      privileges: [...catalog.privileges, wide('CONNECT', 'DATABASE', 'shop'), wide('USAGE', 'SCHEMA', 'public')],
+    });
+    await grantsStageFor('alice');
+    await waitFor(() => expect(cell('read').checked).toBe(true));
+    // The grid cannot draw these, so it says they exist rather than hiding them.
+    const also = await screen.findByTestId('access-grants-also-holds');
+    expect(also.textContent).toMatch(/CONNECT on database shop/);
+    expect(also.textContent).toMatch(/USAGE on schema public/);
+    // Database- and schema-wide grants are edited below; there is no second mode.
+    expect(screen.getByTestId('db-access-section-general')).toBeTruthy();
+    expect(screen.queryByTestId('db-access-section-table')).toBeNull();
+    expect(screen.queryByTestId('access-grants-mode')).toBeNull();
+  });
+
   it('grants a new tick without revoking what is already held', async () => {
     await grantsStageFor('alice');
     await waitFor(() => expect(cell('read').checked).toBe(true));

@@ -30,6 +30,8 @@ export {
   compileGridChanges,
   gridObjectKey,
   heldGridPermissions,
+  splitHeldPrivileges,
+  describeHeldPrivilege,
   expandToInstance,
   accessStatementPlace,
   qualifyDatabaseSql,

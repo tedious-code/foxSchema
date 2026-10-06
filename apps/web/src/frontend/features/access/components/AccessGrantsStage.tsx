@@ -16,7 +16,8 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Copy, FileCode2 } from 'lucide-react';
 import {
   buildAccessSql,
-  heldGridPermissions,
+  splitHeldPrivileges,
+  describeHeldPrivilege,
   permissionsForPreset,
   type AccessPermission,
   type AccessPreset,
@@ -26,7 +27,6 @@ import {
 } from '../lib/access';
 import { useAllSchemaObjects } from '../lib/useAllSchemaObjects';
 import { PermissionMatrix } from './PermissionMatrix';
-import { Segmented } from './controls';
 import {
   DbAccessPermissionSections,
   type DbAccessConfirmRequest,
@@ -63,8 +63,6 @@ function changeLabel(action: 'grant' | 'revoke', req: PermissionRequest): string
   return `${action === 'grant' ? 'Grant' : 'Revoke'} ${privileges} on ${where}`;
 }
 
-type GrantsMode = 'matrix' | 'live';
-
 export const AccessGrantsStage: React.FC<{
   dialect: string;
   connectionId: string;
@@ -88,7 +86,6 @@ export const AccessGrantsStage: React.FC<{
   onConfirm,
   onError,
 }) => {
-  const [mode, setMode] = useState<GrantsMode>('matrix');
   const [activePreset, setActivePreset] = useState<AccessPreset | 'custom'>('custom');
   const [gridPreset, setGridPreset] = useState<{
     permissions: AccessPermission[];
@@ -96,7 +93,7 @@ export const AccessGrantsStage: React.FC<{
   } | null>(null);
   const [changes, setChanges] = useState<GridChanges>({ grant: [], revoke: [] });
   const [resetNonce, setResetNonce] = useState<number | undefined>(undefined);
-  const catalog = useAllSchemaObjects(connectionId, mode === 'matrix');
+  const catalog = useAllSchemaObjects(connectionId, true);
 
   const accessPrincipal = useMemo(
     () => ({
@@ -106,11 +103,15 @@ export const AccessGrantsStage: React.FC<{
     [principal]
   );
 
-  /** What this principal holds on the grid's objects, so the grid opens on it. */
-  const held = useMemo(
-    () => heldGridPermissions(privileges, catalog.objects, dialect, defaultSchema || ''),
+  /**
+   * What this principal holds on the grid's objects, so the grid opens on it,
+   * and what else it holds, which the grid cannot show but must not hide.
+   */
+  const { held, elsewhere } = useMemo(
+    () => splitHeldPrivileges(privileges, catalog.objects, dialect, defaultSchema || ''),
     [privileges, catalog.objects, dialect, defaultSchema]
   );
+  const alsoHolds = useMemo(() => [...new Set(elsewhere.map(describeHeldPrivilege))], [elsewhere]);
   const onChanges = useCallback((next: GridChanges) => setChanges(next), []);
 
   const sqlText = useMemo(() => {
@@ -152,149 +153,144 @@ export const AccessGrantsStage: React.FC<{
 
   return (
     <div className="space-y-3" data-testid="access-grants-stage">
-      <div className="flex flex-wrap items-center gap-2">
-        <Segmented
-          testId="access-grants-mode"
-          value={mode}
-          onChange={(v) => setMode(v as GrantsMode)}
-          options={[
-            { value: 'matrix', label: 'Desired matrix' },
-            { value: 'live', label: 'Live catalog' },
-          ]}
-        />
-        <p className="text-[11px] text-slate-500">
-          Fox Schema generates GRANT/REVOKE SQL — it does not apply it.
-        </p>
+      <p className="text-[11px] text-slate-500">
+        Fox Schema generates GRANT/REVOKE SQL — it does not apply it.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-1.5" data-testid="access-grants-presets">
+        <span className={sectionLabelCls}>
+          Presets
+        </span>
+        {(Object.keys(PRESET_LABEL) as Exclude<AccessPreset, 'custom'>[]).map((p) => (
+          <button
+            key={p}
+            type="button"
+            data-testid={`access-grants-preset-${p}`}
+            aria-pressed={activePreset === p}
+            onClick={() => applyPreset(p)}
+            className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold transition ${
+              activePreset === p
+                ? 'border-sky-500/50 bg-sky-500/15 text-sky-100'
+                : 'border-slate-700 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            {PRESET_LABEL[p]}
+          </button>
+        ))}
+        <button
+          type="button"
+          data-testid="access-grants-reset"
+          title={`Put every box back to what ${principal.name} holds now`}
+          onClick={() => {
+            setActivePreset('custom');
+            setResetNonce((n) => (n ?? 0) + 1);
+          }}
+          className="rounded-md border border-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-500 hover:text-slate-300"
+        >
+          Reset to current
+        </button>
       </div>
 
-      {mode === 'live' ? (
-        <DbAccessPermissionSections
-          dialect={dialect}
-          connectionId={connectionId}
-          database={database}
-          defaultSchema={defaultSchema}
-          principal={{
-            type: accessPrincipal.type,
-            name: principal.name,
-            kind: principal.kind,
-          }}
-          privileges={privileges}
-          canGrant={canGrant}
-          grantSupported={grantSupported}
-          generateOnly
-          onConfirm={onConfirm}
-          onError={onError}
-        />
-      ) : (
-        <>
-          <div className="flex flex-wrap items-center gap-1.5" data-testid="access-grants-presets">
-            <span className={sectionLabelCls}>
-              Presets
-            </span>
-            {(Object.keys(PRESET_LABEL) as Exclude<AccessPreset, 'custom'>[]).map((p) => (
-              <button
-                key={p}
-                type="button"
-                data-testid={`access-grants-preset-${p}`}
-                aria-pressed={activePreset === p}
-                onClick={() => applyPreset(p)}
-                className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold transition ${
-                  activePreset === p
-                    ? 'border-sky-500/50 bg-sky-500/15 text-sky-100'
-                    : 'border-slate-700 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {PRESET_LABEL[p]}
-              </button>
-            ))}
+      {catalog.loading && (
+        <p className="text-[11px] text-slate-500">Reading schema objects…</p>
+      )}
+
+      <PermissionMatrix
+        dialect={dialect}
+        principal={accessPrincipal}
+        action="grant"
+        schema={defaultSchema || ''}
+        catalog={catalog.objects}
+        applyPreset={gridPreset}
+        held={held}
+        onChanges={onChanges}
+        resetNonce={resetNonce}
+      />
+
+      {alsoHolds.length > 0 && (
+        <p className="text-[11px] text-slate-400" data-testid="access-grants-also-holds">
+          <span className="font-semibold text-slate-300">
+            {principal.name} also holds, outside this grid:
+          </span>{' '}
+          {alsoHolds.join(' · ')}
+        </p>
+      )}
+
+      {changes.grant.length + changes.revoke.length > 0 && (
+        <ul className="space-y-1" data-testid="access-grants-diff">
+          {[
+            ...changes.grant.map((r) => ['grant', r] as const),
+            ...changes.revoke.map((r) => ['revoke', r] as const),
+          ].map(([action, r], i) => (
+            <li
+              key={i}
+              data-testid={`access-grants-change-${action}`}
+              className={`rounded border px-2 py-1 text-[11px] font-semibold ${CHANGE_STYLE[action]}`}
+            >
+              {changeLabel(action, r)}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div
+        className="rounded-lg border border-slate-800 bg-slate-950/60 p-3"
+        data-testid="access-grants-sql"
+      >
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <h3 className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+            Grant SQL
+          </h3>
+          <div className="flex gap-1.5">
             <button
               type="button"
-              data-testid="access-grants-reset"
-              title={`Put every box back to what ${principal.name} holds now`}
-              onClick={() => {
-                setActivePreset('custom');
-                setResetNonce((n) => (n ?? 0) + 1);
-              }}
-              className="rounded-md border border-slate-700 px-2.5 py-1 text-[11px] font-semibold text-slate-500 hover:text-slate-300"
+              data-testid="access-grants-copy"
+              disabled={!sqlText.trim()}
+              onClick={() => void writeClipboard(sqlText)}
+              className="inline-flex items-center gap-1 rounded-md border border-slate-600 px-2 py-1 text-[11px] font-bold text-slate-200 disabled:opacity-40"
             >
-              Reset to current
+              <Copy className="w-3 h-3" /> Copy
+            </button>
+            <button
+              type="button"
+              data-testid="access-grants-open-sql"
+              disabled={!sqlText.trim()}
+              onClick={openSql}
+              className="inline-flex items-center gap-1 rounded-md border border-sky-500/40 bg-sky-500/15 px-2 py-1 text-[11px] font-bold text-sky-100 disabled:opacity-40"
+            >
+              <FileCode2 className="w-3 h-3" /> Open in SQL Editor
             </button>
           </div>
-
-          {catalog.loading && (
-            <p className="text-[11px] text-slate-500">Reading schema objects…</p>
-          )}
-
-          <PermissionMatrix
-            dialect={dialect}
-            principal={accessPrincipal}
-            action="grant"
-            schema={defaultSchema || ''}
-            catalog={catalog.objects}
-            applyPreset={gridPreset}
-            held={held}
-            onChanges={onChanges}
-            resetNonce={resetNonce}
-          />
-
-          {changes.grant.length + changes.revoke.length > 0 && (
-            <ul className="space-y-1" data-testid="access-grants-diff">
-              {[
-                ...changes.grant.map((r) => ['grant', r] as const),
-                ...changes.revoke.map((r) => ['revoke', r] as const),
-              ].map(([action, r], i) => (
-                <li
-                  key={i}
-                  data-testid={`access-grants-change-${action}`}
-                  className={`rounded border px-2 py-1 text-[11px] font-semibold ${CHANGE_STYLE[action]}`}
-                >
-                  {changeLabel(action, r)}
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <div
-            className="rounded-lg border border-slate-800 bg-slate-950/60 p-3"
-            data-testid="access-grants-sql"
-          >
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <h3 className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
-                Grant SQL
-              </h3>
-              <div className="flex gap-1.5">
-                <button
-                  type="button"
-                  data-testid="access-grants-copy"
-                  disabled={!sqlText.trim()}
-                  onClick={() => void writeClipboard(sqlText)}
-                  className="inline-flex items-center gap-1 rounded-md border border-slate-600 px-2 py-1 text-[11px] font-bold text-slate-200 disabled:opacity-40"
-                >
-                  <Copy className="w-3 h-3" /> Copy
-                </button>
-                <button
-                  type="button"
-                  data-testid="access-grants-open-sql"
-                  disabled={!sqlText.trim()}
-                  onClick={openSql}
-                  className="inline-flex items-center gap-1 rounded-md border border-sky-500/40 bg-sky-500/15 px-2 py-1 text-[11px] font-bold text-sky-100 disabled:opacity-40"
-                >
-                  <FileCode2 className="w-3 h-3" /> Open in SQL Editor
-                </button>
-              </div>
-            </div>
-            <pre className="text-[11px] font-mono text-slate-300 whitespace-pre-wrap max-h-40 overflow-y-auto">
-              {sqlText.trim() ||
-                (catalog.loading
-                  ? 'Reading schema objects…'
-                  : `Nothing to change: the grid matches what ${principal.name} holds now. Tick a box to grant it, untick one to revoke it.`)}
-            </pre>
-            <p className="mt-2 text-[10px] text-slate-500">
-              Fox Schema does not apply this SQL. The database stays the source of truth.
-            </p>
-          </div>
-        </>
-      )}
+        </div>
+        <pre className="text-[11px] font-mono text-slate-300 whitespace-pre-wrap max-h-40 overflow-y-auto">
+          {sqlText.trim() ||
+            (catalog.loading
+              ? 'Reading schema objects…'
+              : `Nothing to change: the grid matches what ${principal.name} holds now. Tick a box to grant it, untick one to revoke it.`)}
+        </pre>
+        <p className="mt-2 text-[10px] text-slate-500">
+          Fox Schema does not apply this SQL. The database stays the source of truth.
+        </p>
+      </div>
+      {/*
+        * Database- and schema-wide grants: a different scope from the
+        * grid's rows, so a section of their own rather than a second
+        * mode that redrew the same objects another way.
+        */}
+      <DbAccessPermissionSections
+        dialect={dialect}
+        connectionId={connectionId}
+        database={database}
+        defaultSchema={defaultSchema}
+        principal={{ type: accessPrincipal.type, name: principal.name, kind: principal.kind }}
+        privileges={privileges}
+        canGrant={canGrant}
+        grantSupported={grantSupported}
+        generateOnly
+        generalOnly
+        onConfirm={onConfirm}
+        onError={onError}
+      />
     </div>
   );
 };

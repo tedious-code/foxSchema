@@ -199,6 +199,12 @@ interface Props {
    * but the parent copies it or opens the SQL Editor instead of executing.
    */
   generateOnly?: boolean;
+  /**
+   * Only the database- and schema-wide section. The Access Grants view draws
+   * objects in its own grid and shows this section under it for the grants
+   * the grid cannot hold.
+   */
+  generalOnly?: boolean;
   onConfirm: (req: DbAccessConfirmRequest) => void;
   onError?: (message: string) => void;
 }
@@ -218,6 +224,7 @@ export const DbAccessPermissionSections: React.FC<Props> = ({
   grantSupported,
   running = false,
   generateOnly = false,
+  generalOnly = false,
   onConfirm,
   onError,
 }) => {
@@ -426,19 +433,23 @@ export const DbAccessPermissionSections: React.FC<Props> = ({
 
   return (
     <div className="space-y-2" data-testid="db-access-permission-sections">
-      <div className="flex items-center justify-between gap-2">
-        <div className={sectionLabelCls}>
-          Permissions
-        </div>
-        <span className="text-[10px] text-slate-500 truncate">
-          Dialect-aware GRANT/REVOKE · {dialect}
-        </span>
-      </div>
-      <p className="text-[11px] text-slate-500">
-        Expand a section to load objects, then <strong className="font-semibold text-slate-400">Grant</strong>{' '}
-        on a row to set privileges — a row showing — holds none yet. Preview SQL uses this dialect’s
-        emitter (Postgres, MySQL, SQL Server, Oracle, Db2, … each differ).
-      </p>
+      {!generalOnly && (
+        <>
+          <div className="flex items-center justify-between gap-2">
+            <div className={sectionLabelCls}>
+              Permissions
+            </div>
+            <span className="text-[10px] text-slate-500 truncate">
+              Dialect-aware GRANT/REVOKE · {dialect}
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            Expand a section to load objects, then <strong className="font-semibold text-slate-400">Grant</strong>{' '}
+            on a row to set privileges — a row showing — holds none yet. Preview SQL uses this dialect’s
+            emitter (Postgres, MySQL, SQL Server, Oracle, Db2, … each differ).
+          </p>
+        </>
+      )}
 
       {/* General */}
       <section className="rounded-lg border border-slate-800 overflow-hidden" data-testid="db-access-section-general">
@@ -520,7 +531,7 @@ export const DbAccessPermissionSections: React.FC<Props> = ({
       </section>
 
       {/* Object kinds */}
-      {KIND_ORDER.map((kind) => {
+      {!generalOnly && KIND_ORDER.map((kind) => {
         const meta = KIND_META[kind];
         const open = !!expanded[kind];
         const rows = open ? objectsOfKind(kind) : [];

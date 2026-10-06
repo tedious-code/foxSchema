@@ -16,6 +16,8 @@ import { joinPath, shellArg } from '../../modules/utilities/backup-helpers.js';
 
 function build(conn: BackupConnection, req: BackupRequest): BackupCommands {
   const db = shellArg(conn.database.toUpperCase());
+  // An image picked from DB_HISTORY: Db2 names it by its 14-digit timestamp.
+  const takenAt = req.restoreFrom && /^\d{14}$/.test(req.restoreFrom) ? req.restoreFrom : null;
   const folder = req.folder.trim() || '/database/backups';
   if (req.scope === 'schema') {
     const schema = (conn.schema || conn.username || '').toUpperCase();
@@ -31,11 +33,13 @@ function build(conn: BackupConnection, req: BackupRequest): BackupCommands {
   return {
     language: 'shell',
     backup: `db2 BACKUP DATABASE ${db} TO ${shellArg(folder)}${req.compress ? ' COMPRESS' : ''} WITHOUT PROMPTING`,
-    restore: `db2 RESTORE DATABASE ${db} FROM ${shellArg(folder)} REPLACE EXISTING WITHOUT PROMPTING`,
+    restore: `db2 RESTORE DATABASE ${db} FROM ${shellArg(folder)}${takenAt ? ` TAKEN AT ${takenAt}` : ''} REPLACE EXISTING WITHOUT PROMPTING`,
     location: folder,
     notes: [
       'An offline backup fails while anything is connected: db2 force application all, or add ONLINE once archive logging is on.',
-      `With more than one image in the folder, add TAKEN AT <timestamp> to the restore; db2 list history backup all for ${db} shows them.`,
+      takenAt
+        ? `The restore reads the image taken at ${takenAt}.`
+        : `With more than one image in the folder, pick one under Backups on this server, or add TAKEN AT <timestamp> to the restore.`,
       'REPLACE EXISTING overwrites the database.',
     ],
   };
@@ -55,5 +59,12 @@ export const db2Backup: BackupDialect = {
   tables: false,
   schemaLimit: false,
   passwordNote: 'Runs as the instance owner on the server, who needs no password there.',
+  // Read with SQL on this connection; the restore itself is a CLP command.
+  history: () => `SELECT START_TIME AS finished_at, LOCATION AS location, CAST(NULL AS BIGINT) AS size_bytes,
+       START_TIME AS restore_key
+FROM SYSIBMADM.DB_HISTORY
+WHERE OPERATION = 'B' AND OBJECTTYPE = 'D' AND COALESCE(SQLCODE, 0) >= 0
+ORDER BY START_TIME DESC
+FETCH FIRST 20 ROWS ONLY`,
   build,
 };

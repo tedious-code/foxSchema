@@ -61,6 +61,12 @@ export type DbPrivilegeObjectType =
   | 'ROLE'
   | 'SYSTEM'
   | 'COLUMN'
+  /** EXECUTE (and kin) on a procedure. */
+  | 'PROCEDURE'
+  /** EXECUTE (and kin) on a function. */
+  | 'FUNCTION'
+  /** A procedure or a function, where the catalog does not say which (Postgres). */
+  | 'ROUTINE'
   | 'OTHER';
 
 export interface DbPrivilege {
@@ -631,6 +637,14 @@ export function buildGrantRevokeSql(args: DbAccessGrantArgs): { sql: string } | 
     return emitGrant({ action, privilege: privSql, on, grantee: granteeSql, grantOption });
   }
 
+  const routine = objectType === 'PROCEDURE' || objectType === 'FUNCTION' || objectType === 'ROUTINE';
+  if (routine && fam === 'clickhouse') return { error: 'ClickHouse has no procedures or functions to grant on.' };
+  if (routine && (fam === 'mysql' || fam === 'mariadb')) {
+    // MySQL says which: EXECUTE ON PROCEDURE db.p or ON FUNCTION db.f.
+    if (objectType === 'ROUTINE') return { error: 'Say whether this is a procedure or a function.' };
+    return emitGrant({ action, privilege: privSql, on: `ON ${objectType} ${objectSql}`, grantee: granteeSql, grantOption });
+  }
+
   if (fam === 'mysql' || fam === 'mariadb' || fam === 'clickhouse') {
     // These name the whole server `*.*` and a whole database `db`.* — a bare
     // `db` is a table reference, so a database-level grant landed on a table
@@ -650,8 +664,19 @@ export function buildGrantRevokeSql(args: DbAccessGrantArgs): { sql: string } | 
     });
   }
 
-  // Postgres, Oracle and Db2 share the keyword form; Db2 differs only in that
-  // a database authority is granted ON DATABASE with no object named.
+  // Oracle names an object with no keyword: GRANT SELECT ON hr.orders.
+  // `ON TABLE` is Postgres and Db2 syntax, and Oracle rejects it.
+  if (fam === 'oracle' && objectType !== 'SYSTEM' && objectType !== 'SCHEMA' && objectType !== 'DATABASE') {
+    return emitGrant({ action, privilege: privSql, on: `ON ${objectSql}`, grantee: granteeSql, grantOption });
+  }
+  if (routine && fam === 'db2' && objectType === 'ROUTINE') {
+    return { error: 'Say whether this is a procedure or a function.' };
+  }
+
+  // Postgres and Db2 share the keyword form; Db2 differs only in that a
+  // database authority is granted ON DATABASE with no object named. A routine
+  // is ON PROCEDURE / ON FUNCTION, or ON ROUTINE on Postgres when the catalog
+  // did not say which.
   const on =
     objectType === 'SYSTEM'
       ? ''
@@ -661,7 +686,9 @@ export function buildGrantRevokeSql(args: DbAccessGrantArgs): { sql: string } | 
           ? fam === 'db2'
             ? 'ON DATABASE'
             : `ON DATABASE ${namedObject()}`
-          : `ON TABLE ${objectSql}`;
+          : routine
+            ? `ON ${objectType} ${objectSql}`
+            : `ON TABLE ${objectSql}`;
   return emitGrant({ action, privilege: privSql, on, grantee: granteeSql, grantOption });
 }
 
@@ -712,6 +739,9 @@ function normalizeObjectType(raw: unknown): DbPrivilegeObjectType {
   if (s.includes('DATABASE')) return 'DATABASE';
   if (s.includes('ROLE')) return 'ROLE';
   if (s.includes('SYSTEM') || s.includes('SERVER')) return 'SYSTEM';
+  if (s.includes('PROCEDURE')) return 'PROCEDURE';
+  if (s.includes('FUNCTION')) return 'FUNCTION';
+  if (s.includes('ROUTINE')) return 'ROUTINE';
   if (s.includes('TABLE') || s.includes('OBJECT') || s.includes('VIEW') || s.includes('OBJECT_OR_COLUMN')) {
     return 'TABLE';
   }
@@ -821,6 +851,22 @@ ORDER BY CASE WHEN r.rolcanlogin THEN 1 ELSE 0 END, r.rolname
  * foreign servers), so `GRANT ALL ON SCHEMA` and `GRANT ALL ON DATABASE` both
  * read as nothing. A NULL ACL is the owner-only default and yields no rows.
  */
+/**
+ * EXECUTE on functions and procedures, so a routine row in the Grants grid
+ * opens ticked when it is held. Grants to PUBLIC are listed under PUBLIC, not
+ * under each role, so the default EXECUTE every function carries is not read
+ * as something a role was given.
+ */
+const PG_ROUTINE_GRANTS = `SELECT grantee,
+       privilege_type,
+       'ROUTINE',
+       routine_schema,
+       routine_name,
+       CASE WHEN is_grantable = 'YES' THEN 1 ELSE 0 END,
+       grantor
+FROM information_schema.role_routine_grants
+WHERE routine_schema NOT IN ('pg_catalog', 'information_schema')`;
+
 const PG_PRIVILEGES = `
 SELECT grantee,
        privilege_type AS privilege,
@@ -853,6 +899,8 @@ SELECT CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE pg_get_userbyid(a.grantee) END
 FROM pg_database d
 CROSS JOIN LATERAL aclexplode(d.datacl) a
 WHERE d.datname = current_database()
+UNION ALL
+${PG_ROUTINE_GRANTS}
 UNION ALL
 SELECT m.rolname,
        g.rolname,
@@ -887,6 +935,8 @@ SELECT grantee,
        grantor
 FROM information_schema.usage_privileges
 WHERE object_type = 'SCHEMA'
+UNION ALL
+${PG_ROUTINE_GRANTS}
 UNION ALL
 SELECT m.rolname,
        g.rolname,
@@ -1007,6 +1057,19 @@ FROM information_schema.SCHEMA_PRIVILEGES${inSchema}`,
        NULL
 FROM information_schema.USER_PRIVILEGES
 WHERE PRIVILEGE_TYPE <> 'USAGE'`);
+  }
+  if (opts.roles) {
+    // EXECUTE on a procedure or function. Only mysql.procs_priv records it,
+    // so only the rungs that may read mysql.* include it.
+    parts.push(`SELECT CONCAT('''', p.User, '''@''', p.Host, ''''),
+       'EXECUTE',
+       IF(p.Routine_type = 'FUNCTION', 'FUNCTION', 'PROCEDURE'),
+       p.Db,
+       p.Routine_name,
+       CASE WHEN FIND_IN_SET('Grant', p.Proc_priv) > 0 THEN 1 ELSE 0 END,
+       NULL
+FROM mysql.procs_priv p
+WHERE FIND_IN_SET('Execute', p.Proc_priv) > 0`);
   }
   if (opts.roles === 'mysql') {
     // Quoted the way information_schema quotes a grantee, so one normalizer
@@ -1266,6 +1329,14 @@ UNION ALL
 SELECT TRIM(GRANTEE), 'DELETE', 'TABLE', TRIM(TABSCHEMA), TRIM(TABNAME),
        CASE WHEN DELETEAUTH = 'G' THEN 1 ELSE 0 END, TRIM(GRANTOR)
 FROM SYSCAT.TABAUTH WHERE DELETEAUTH IN ('Y', 'G')
+UNION ALL
+SELECT TRIM(A.GRANTEE), 'EXECUTE',
+       CASE WHEN R.ROUTINETYPE = 'P' THEN 'PROCEDURE' ELSE 'FUNCTION' END,
+       TRIM(A.SCHEMA), TRIM(R.ROUTINENAME),
+       CASE WHEN A.EXECUTEAUTH = 'G' THEN 1 ELSE 0 END, TRIM(A.GRANTOR)
+FROM SYSCAT.ROUTINEAUTH A
+JOIN SYSCAT.ROUTINES R ON R.ROUTINESCHEMA = A.SCHEMA AND R.SPECIFICNAME = A.SPECIFICNAME
+WHERE A.EXECUTEAUTH IN ('Y', 'G') AND A.SCHEMA NOT LIKE 'SYS%'
 UNION ALL
 SELECT TRIM(GRANTEE), TRIM(ROLENAME), 'ROLE', NULL, TRIM(ROLENAME), 0, NULL
 FROM SYSCAT.ROLEAUTH

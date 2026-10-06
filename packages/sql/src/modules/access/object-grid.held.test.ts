@@ -13,7 +13,14 @@
 import { describe, expect, it } from 'vitest';
 import { buildAccessSql } from './access-sql';
 import type { DbPrivilege } from './db-access';
-import { compileGridChanges, gridObjectKey, heldGridPermissions, type GridRow } from './object-grid';
+import {
+  compileGridChanges,
+  describeHeldPrivilege,
+  gridObjectKey,
+  heldGridPermissions,
+  splitHeldPrivileges,
+  type GridRow,
+} from './object-grid';
 
 const priv = (privilege: string, objectSchema: string | null, objectName: string | null, extra: Partial<DbPrivilege> = {}): DbPrivilege => ({
   grantee: 'reporting',
@@ -125,5 +132,73 @@ describe('compileGridChanges', () => {
   it('never revokes from a row the reader removed from the grid', () => {
     const rows = rowsAsHeld.filter((r) => r.name !== 'orders');
     expect(compileGridChanges(rows, held, options).revoke).toEqual([]);
+  });
+});
+
+describe('splitHeldPrivileges', () => {
+  const objects = [{ schema: 'public', kind: 'table' as const, name: 'orders' }];
+  const priv = (over: Partial<DbPrivilege>): DbPrivilege => ({
+    grantee: 'report_user',
+    privilege: 'SELECT',
+    objectType: 'TABLE',
+    objectSchema: 'public',
+    objectName: 'orders',
+    grantable: false,
+    grantor: null,
+    state: 'grant',
+    ...over,
+  });
+
+  it('lists what the grid cannot show, and keeps what it can as held', () => {
+    const { held, elsewhere } = splitHeldPrivileges(
+      [
+        priv({}),
+        priv({ privilege: 'CONNECT', objectType: 'DATABASE', objectSchema: null, objectName: 'shop' }),
+        priv({ privilege: 'USAGE', objectType: 'SCHEMA', objectSchema: null, objectName: 'public' }),
+        priv({ privilege: 'SELECT', objectName: 'archive' }),
+        priv({ privilege: 'DELETE', state: 'deny' }),
+      ],
+      objects,
+      'postgres',
+      'public'
+    );
+    expect(held.get(gridObjectKey(objects[0]!))).toEqual(['read']);
+    expect(elsewhere.map(describeHeldPrivilege)).toEqual([
+      'CONNECT on database shop',
+      'USAGE on schema public',
+      'SELECT on public.archive',
+      'DENY DELETE on public.orders',
+    ]);
+  });
+
+  it('agrees with heldGridPermissions on what is held', () => {
+    const privileges = [priv({}), priv({ privilege: 'INSERT' })];
+    expect(splitHeldPrivileges(privileges, objects, 'postgres', 'public').held).toEqual(
+      heldGridPermissions(privileges, objects, 'postgres', 'public')
+    );
+  });
+});
+
+describe('routine rows open ticked', () => {
+  it('reads a held EXECUTE onto the function’s row', () => {
+    const objects = [{ schema: 'shop', kind: 'function' as const, name: 'tax' }];
+    const held = heldGridPermissions(
+      [
+        {
+          grantee: 'app',
+          privilege: 'EXECUTE',
+          objectType: 'FUNCTION',
+          objectSchema: 'shop',
+          objectName: 'tax',
+          grantable: false,
+          grantor: null,
+          state: 'grant',
+        },
+      ],
+      objects,
+      'postgres',
+      'shop'
+    );
+    expect(held.get(gridObjectKey(objects[0]!))).toEqual(['execute-function']);
   });
 });

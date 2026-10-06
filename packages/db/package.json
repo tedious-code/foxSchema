@@ -21,9 +21,9 @@
     "ibm_db": "^4.0.1",
     "mongodb": ">=6",
     "mssql": "^12.7.0",
-    "mysql2": "3.24.4",
+    "mysql2": "3.24.5",
     "oracledb": "^7.0.1",
-    "pg": "^8.23.0",
+    "pg": "8.23.1",
     "redis": ">=4"
   },
   "peerDependenciesMeta": {

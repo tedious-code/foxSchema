@@ -3,7 +3,7 @@
  * Cloud / CI SQLite e2e runner — no Docker dialects.
  *
  * Runs the suites that work with a local `npm run dev` + sqlite3:
- *   smoke, auth, sqlite compare, schema-history, access, sql-editor
+ *   smoke, auth, sqlite compare, schema-history, access, sql-editor, feedback
  *
  * Exit non-zero if any suite fails. Prints a short summary at the end.
  */
@@ -22,6 +22,7 @@ const suites = [
   { name: 'access', args: ['run', 'test:access'] },
   { name: 'sql-editor', args: ['run', 'test:sql-editor'] },
   { name: 'workflow', args: ['run', 'test:workflow'] },
+  { name: 'feedback', args: ['run', 'test:feedback'] },
 ];
 
 const results = [];

@@ -19,6 +19,10 @@ vi.mock('@/features/admin/components/AdminAccessPanel', () => ({
   AdminAccessPanel: ({ open }: { open: boolean }) =>
     open ? <div data-testid="admin-access-panel">Access control</div> : null,
 }));
+vi.mock('@/features/feedback', () => ({
+  FeedbackDialog: ({ open, version }: { open: boolean; version: string | null }) =>
+    open ? <div data-testid="feedback-dialog">Send feedback · {version ?? 'no version'}</div> : null,
+}));
 vi.mock('@/app/settings/SettingsPanel', () => ({
   SettingsPanel: () => null,
 }));
@@ -62,6 +66,16 @@ describe('ProfileMenu', () => {
     fireEvent.click(screen.getByTestId('profile-access-control'));
     // The panel's code loads on the first open.
     expect(await screen.findByTestId('admin-access-panel')).toBeTruthy();
+  });
+
+  it('opens Send feedback from the avatar menu, for any signed-in role', async () => {
+    useAuthStore.setState({ user: { ...useAuthStore.getState().user!, role: 'viewer', permissions: [] } });
+    render(<ProfileMenu />);
+    fireEvent.click(screen.getByTestId('profile-menu-trigger'));
+    fireEvent.click(screen.getByTestId('profile-send-feedback'));
+    // Loaded on the first open; the menu closes behind it.
+    expect((await screen.findByTestId('feedback-dialog')).textContent).toContain('no version');
+    expect(screen.queryByTestId('profile-menu-dropdown')).toBeNull();
   });
 
   it('hides Access control when the signed-in role cannot manage app users', () => {

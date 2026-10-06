@@ -120,6 +120,11 @@ const ALWAYS = [
     label: 'SQL Editor',
   },
   {
+    key: 'feedback',
+    file: 'src/tests/send-feedback.test.ts',
+    label: 'Send feedback',
+  },
+  {
     key: 'schema-browse',
     file: 'src/tests/schema-browse.test.ts',
     label: 'Browse',

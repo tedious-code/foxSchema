@@ -612,6 +612,23 @@ the Editor. A migration run from Git also shows the commit it applied; **Git**
 in the header opens the branch view described in
 [Commit the migration to Git first](#commit-the-migration-to-git-first).
 
+## Send feedback
+
+**Send feedback** is on the profile menu (the avatar at the foot of the left
+rail). Choose **Something is wrong**, **An idea** or **A question**, give it a
+title and the details, then **Open on GitHub**: a new issue on
+[tedious-code/foxSchema](https://github.com/tedious-code/foxSchema/issues) opens
+in a new tab, filled in with what you wrote. Review it and submit it there with
+your GitHub account. Fox Schema holds no GitHub token and sends nothing itself.
+
+Issues are public. **Include app details** adds the Fox Schema version, your
+browser, the workspace you were in and the engines your saved connections use
+(`postgres`, `oracle`, never a host, database or connection name); the dialog
+lists exactly those lines, and you can untick them. A line that looks like it
+carries a password (`postgres://user:secret@…`, `PASSWORD '…'`) is flagged
+before you send. A description too long for a link opens with its start, and
+says so, so you can paste the rest on GitHub.
+
 ## Troubleshooting
 
 **UI looks disconnected / API returns 403 "This origin is not allowed".** In

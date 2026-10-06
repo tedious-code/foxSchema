@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **939** buttons, text boxes, selects and textareas.
+Every control has a test ID: **947** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -439,6 +439,7 @@ Every control has a test ID: **939** buttons, text boxes, selects and textareas.
   - `profile-menu-trigger` · button
   - `profile-preferences` · button · Preferences
   - `profile-role` · p
+  - `profile-send-feedback` · button · Send feedback
   - `profile-sign-out` · button · Sign out
   - `profile-sign-out-others` · button · Sign out other sessions
 - **SettingsPanel** · `app/settings/SettingsPanel.tsx`
@@ -587,6 +588,23 @@ Every control has a test ID: **939** buttons, text boxes, selects and textareas.
   - `file-picker-refresh` · button · Refresh
   - `file-picker-select` · button
   - `file-picker-up` · button · Parent directory
+
+## feedback
+
+- **FeedbackDialog** · `features/feedback/components/FeedbackDialog.tsx`
+  - `feedback-cancel` · button · Cancel
+  - `feedback-close` · button · Close
+  - `feedback-description` · textarea
+  - `feedback-details` · ul
+  - `feedback-dialog` · div · Send feedback
+  - `feedback-include-details` · input
+  - `feedback-kind` · div · Kind of feedback
+  - `feedback-kind-{k}` · button
+  - `feedback-open-github` · button · Open on GitHub
+  - `feedback-secret-warning` · p
+  - `feedback-sent` · p
+  - `feedback-title` · input · One line
+  - `feedback-truncated` · p
 
 ## git
 

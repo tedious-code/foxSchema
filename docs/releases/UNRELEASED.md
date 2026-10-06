@@ -11,6 +11,15 @@ Notes for the next release. At ship time, rename this file to that version's
   files, DB users & grants) — not a SQL Editor sidebar.
 - Saved credentials are grouped by dialect; Home continues last compare / query.
 
+## Send feedback
+
+**Send feedback** on the profile menu turns a bug, an idea or a question into a
+GitHub issue. It opens pre-filled on GitHub and you submit it with your own
+account: Fox Schema holds no token and posts nothing. The app details it adds
+(version, browser, workspace, engines in use, never a host or database) are
+listed first and can be left out, and a line that looks like a password is
+flagged before anything leaves.
+
 ## A development server stays on this machine
 
 - Without `NODE_ENV=production`, `npm start` in `apps/web` now listens on

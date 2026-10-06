@@ -1,6 +1,6 @@
 import React, { lazy, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { LogOut, Palette, ArrowUpCircle, Globe, Shield, MonitorX } from 'lucide-react';
+import { LogOut, Palette, ArrowUpCircle, Globe, Shield, MonitorX, MessageSquarePlus } from 'lucide-react';
 import { apiSignOutOthers } from '@/shared/api/authApi';
 import { toast } from '@/app/store/toastStore';
 import { useAuthStore } from '@/app/store/authStore';
@@ -15,12 +15,18 @@ const AdminAccessPanel = lazy(() =>
   import('@/features/admin/components/AdminAccessPanel').then((m) => ({ default: m.AdminAccessPanel }))
 );
 
+// Only on a click, like the admin panel: nobody pays for it on first load.
+const FeedbackDialog = lazy(() =>
+  import('@/features/feedback').then((m) => ({ default: m.FeedbackDialog }))
+);
+
 export function ProfileMenu(): React.ReactElement | null {
   const { user, logout } = useAuthStore();
   const setActiveView = useUiStore((s) => s.setActiveView);
   const canAdminAccess = useAuthStore((s) => s.can('admin.users') || s.can('admin.roles'));
   const [open, setOpen] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   // Beside the avatar, not below it: the avatar sits at the foot of the left
@@ -114,6 +120,19 @@ export function ProfileMenu(): React.ReactElement | null {
           </button>
           )}
 
+          <button
+            type="button"
+            data-testid="profile-send-feedback"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(false);
+              setShowFeedback(true);
+            }}
+            className="w-full flex items-center gap-2 px-4 py-3 text-sm font-semibold text-slate-300 hover:text-slate-100 hover:bg-slate-800/60 transition cursor-pointer"
+          >
+            <MessageSquarePlus className="w-4 h-4" /> Send feedback
+          </button>
+
           <a
             href="https://foxschema.com"
             target="_blank"
@@ -172,6 +191,10 @@ export function ProfileMenu(): React.ReactElement | null {
       </button>
 
       {menu}
+
+      <MountWhenOpened open={showFeedback}>
+        <FeedbackDialog open={showFeedback} onClose={() => setShowFeedback(false)} version={update?.current ?? null} />
+      </MountWhenOpened>
 
       <MountWhenOpened open={showAdmin}>
         <AdminAccessPanel open={showAdmin} onClose={() => setShowAdmin(false)} />

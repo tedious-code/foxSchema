@@ -829,6 +829,8 @@ export const TestIds = {
       profilePreferences: 'profile-preferences',
       /** p */
       profileRole: 'profile-role',
+      /** button · Send feedback */
+      profileSendFeedback: 'profile-send-feedback',
       /** button · Sign out */
       profileSignOut: 'profile-sign-out',
       /** button · Sign out other sessions */
@@ -1113,6 +1115,36 @@ export const TestIds = {
       filePickerSelect: 'file-picker-select',
       /** button · Parent directory */
       filePickerUp: 'file-picker-up',
+    },
+  },
+  feedback: {
+    FeedbackDialog: {
+      /** button · Cancel */
+      feedbackCancel: 'feedback-cancel',
+      /** button · Close */
+      feedbackClose: 'feedback-close',
+      /** textarea */
+      feedbackDescription: 'feedback-description',
+      /** ul */
+      feedbackDetails: 'feedback-details',
+      /** div · Send feedback */
+      feedbackDialog: 'feedback-dialog',
+      /** input */
+      feedbackIncludeDetails: 'feedback-include-details',
+      /** div · Kind of feedback */
+      feedbackKind: 'feedback-kind',
+      /** button */
+      feedbackKindForK: (k: string | number) => `feedback-kind-${k}`,
+      /** button · Open on GitHub */
+      feedbackOpenGithub: 'feedback-open-github',
+      /** p */
+      feedbackSecretWarning: 'feedback-secret-warning',
+      /** p */
+      feedbackSent: 'feedback-sent',
+      /** input · One line */
+      feedbackTitle: 'feedback-title',
+      /** p */
+      feedbackTruncated: 'feedback-truncated',
     },
   },
   git: {
@@ -3895,6 +3927,19 @@ export type TestId =
   | 'dismiss-warnings-btn'
   | 'error-banner'
   | 'execute-btn'
+  | 'feedback-cancel'
+  | 'feedback-close'
+  | 'feedback-description'
+  | 'feedback-details'
+  | 'feedback-dialog'
+  | 'feedback-include-details'
+  | 'feedback-kind'
+  | `feedback-kind-${string}`
+  | 'feedback-open-github'
+  | 'feedback-secret-warning'
+  | 'feedback-sent'
+  | 'feedback-title'
+  | 'feedback-truncated'
   | `file-import-${string}`
   | 'file-import-csv-json'
   | `file-import-delete-${string}`
@@ -4227,6 +4272,7 @@ export type TestId =
   | 'profile-menu-trigger'
   | 'profile-preferences'
   | 'profile-role'
+  | 'profile-send-feedback'
   | 'profile-sign-out'
   | 'profile-sign-out-others'
   | 'report-connection'

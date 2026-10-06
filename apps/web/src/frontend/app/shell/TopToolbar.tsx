@@ -1,27 +1,34 @@
-import React, { useState } from 'react';
+import React, { lazy, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSyncStore } from '@/app/store/useSyncStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useUiStore } from '@/app/store/uiStore';
 import { ArrowRight, ArrowLeftRight, RefreshCw, AlertCircle, Zap, Settings, KeyRound, X, Layers, Camera, Search } from 'lucide-react';
-import { TYPE_META, TYPE_ORDER } from '@/features/schema-diff';
+// Direct paths, not the feature barrels: this toolbar is in every first page
+// load, and the barrels re-export the Compare workspace and the diff tree.
+import { TYPE_META, TYPE_ORDER } from '@/features/schema-diff/components/objectTypeMeta';
 import type { DbObjectType } from '@/shared/lib/types';
 import { connectionNeedsSecret } from '@/shared/lib/provider-settings';
 import { schemaCompareBlocker } from '@/shared/lib/dialect-features';
-import { ConnectionModal } from '@/features/connections';
+import { MountWhenOpened } from '@/shared/components/MountWhenOpened';
 import { PasswordInput } from '@/shared/components/PasswordInput';
 import { useAuthStore } from '@/app/store/authStore';
 import { captureSchema } from '@/features/lokee-weave/api/lokeeApi';
 import { toast } from '@/app/store/toastStore';
 import { getSessionPassword, setSessionPassword } from '@/shared/lib/sessionPasswords';
 import { HistoryCompareBar } from '@/features/lokee-weave/components/HistoryCompareBar';
-import { BrowseBar } from '@/features/object-detail';
+import { BrowseBar } from '@/features/object-detail/components/BrowseBar';
 import { ActivityIndicator } from './ActivityIndicator';
-import { DiffBriefingChips } from '@/features/schema-diff';
-import { diffBriefing } from '@/features/schema-diff';
+import { DiffBriefingChips } from '@/features/schema-diff/components/DiffBriefingChips';
+import { diffBriefing } from '@/features/schema-diff/lib/diffBriefing';
 import { ConnectionChip } from './ConnectionChips';
 import { pointsToSameDatabase } from './sameDatabase';
 import { openCommandPalette } from './commandPaletteEvent';
+
+// Opened on a click: loaded on the first open.
+const ConnectionModal = lazy(() =>
+  import('@/features/connections/components/ConnectionModal').then((m) => ({ default: m.ConnectionModal }))
+);
 
 function connectionSummary(config: {
   schema: string;
@@ -427,6 +434,7 @@ export const TopToolbar: React.FC = () => {
         </div>
       )}
 
+      <MountWhenOpened open={showConnectionModal}>
       <ConnectionModal
         open={showConnectionModal}
         mode="credential"
@@ -449,6 +457,7 @@ export const TopToolbar: React.FC = () => {
           applySavedConnection(side, saved.id, sessionPw);
         }}
       />
+      </MountWhenOpened>
 
       {pendingPassword && createPortal(
         <div

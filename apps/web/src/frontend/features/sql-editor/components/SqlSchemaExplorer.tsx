@@ -36,8 +36,8 @@ import {
   formatBytes,
   formatRowCount,
   groupObjectSizes,
+  indexTableSizeGroups,
   lookupIndexSizeRow,
-  lookupTableSizeGroup,
   type TableSizeGroup,
 } from '@foxschema/sql';
 
@@ -132,6 +132,8 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
   const [blueprintTable, setBlueprintTable] = useState<TableSchema | null>(null);
   const [blueprintMode, setBlueprintMode] = useState<BlueprintMode>('edit');
   const [sizeGroups, setSizeGroups] = useState<TableSizeGroup[]>([]);
+  // Indexed once per load: every table row looks itself up on each render.
+  const sizeOf = useMemo(() => indexTableSizeGroups(sizeGroups), [sizeGroups]);
 
   const selectExplorerId = (id: string) => {
     setExplorerId(id);
@@ -387,7 +389,7 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
                             })
                           }
                           dialect={conn?.dialect ?? 'sql'}
-                          sizeGroup={lookupTableSizeGroup(sizeGroups, t.name, conn?.schema)}
+                          sizeGroup={sizeOf(t.name, conn?.schema)}
                           onOpenBlueprint={
                             t.objectType === 'TABLE' || t.objectType === 'MQT'
                               ? () => {
@@ -404,7 +406,7 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
                           onPeek={(name) => explorerId && void openDataPeek(explorerId, name)}
                           onOpenSource={
                             isScriptableObject(t.objectType)
-                              ? () => setSql(objectSourceScript(t, conn?.dialect ?? 'sql'))
+                              ? () => void objectSourceScript(t, conn?.dialect ?? 'sql').then(setSql)
                               : undefined
                           }
                         />

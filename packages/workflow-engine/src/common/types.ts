@@ -6,6 +6,7 @@
  * Workflow engine — moved from FoxAgent (packages/common/src/types.ts).
  */
 import type { TriggerDef } from './definitions/workflow.js';
+import { isTerminalRunStatus, TERMINAL_RUN_STATUSES } from '@foxschema/workflow-contract';
 
 // Run lifecycle for a workflow run — the top-level record a trigger creates.
 // `interrupted` is the crash/lease-expiry state that a resume treats exactly
@@ -20,15 +21,15 @@ export type RunStatus =
   | 'failed'
   | 'cancelled';
 
-/** States a run never leaves. `paused` and `interrupted` can still resume. */
-const TERMINAL_RUN_STATUSES: readonly RunStatus[] = ['succeeded', 'failed', 'cancelled'];
+// Terminal states are defined with the wire contract so the browser can test a
+// run without loading the engine; this keeps them a subset of RunStatus.
+const _terminalAreRunStatuses: readonly RunStatus[] = TERMINAL_RUN_STATUSES;
+void _terminalAreRunStatuses;
 
 /** States in which a run holds its workflow's place: admitted, not finished, not parked. */
 export const ACTIVE_RUN_STATUSES = ['queued', 'running'] as const satisfies readonly RunStatus[];
 
-export function isTerminalRunStatus(status: string): boolean {
-  return (TERMINAL_RUN_STATUSES as readonly string[]).includes(status);
-}
+export { isTerminalRunStatus };
 
 // Per-pipeline status within a workflow run. `skipped` is what a false run
 // gate on a completion edge produces (vs `failed` — matters for alerting).

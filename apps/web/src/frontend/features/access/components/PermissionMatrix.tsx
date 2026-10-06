@@ -109,7 +109,7 @@ const newRow = (kind: GridObjectKind): MatrixRow => ({
   permissions: [],
 });
 
-export const PermissionMatrix: React.FC<{
+const PermissionMatrixGrid: React.FC<{
   dialect: string;
   principal: AccessPrincipal;
   action: 'grant' | 'revoke' | 'deny';
@@ -669,3 +669,10 @@ export const PermissionMatrix: React.FC<{
     </div>
   );
 };
+
+/**
+ * Memoised: a catalog of 1,000 objects is about 8,600 checkboxes, and a cell
+ * click used to render the whole grid twice, once for its own state and again
+ * when the parent stored the change set. The parent's props are stable.
+ */
+export const PermissionMatrix = React.memo(PermissionMatrixGrid);

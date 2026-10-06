@@ -5,6 +5,7 @@
  *
  * Workflow engine — moved from FoxAgent (packages/common/src/definitions/workflow.ts).
  */
+import { TRIGGER_KINDS, type TriggerKind } from '@foxschema/workflow-contract';
 import { CronExpressionParser } from 'cron-parser';
 import { conditionsSchema } from './conditions.js';
 import { isValidJsonSchema } from './io-schema.js';
@@ -272,16 +273,9 @@ export type TriggerDef = z.infer<typeof triggerSchema>;
  * Anything that adds or removes a kind now fails to compile until this array
  * matches.
  */
-export const TRIGGER_KINDS = [
-  'manual',
-  'cron',
-  'webhook',
-  'http',
-  'poll',
-  'parent',
-] as const;
-
-export type TriggerKind = (typeof TRIGGER_KINDS)[number];
+// The list itself lives in the contract package, so the browser can read it
+// without this module's schemas.
+export { TRIGGER_KINDS, type TriggerKind };
 
 type AssertKindsMatch = [TriggerDef['kind']] extends [TriggerKind]
   ? [TriggerKind] extends [TriggerDef['kind']]

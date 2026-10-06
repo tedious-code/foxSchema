@@ -195,6 +195,41 @@ uses PL/SQL exception blocks; DB2 (all versions) uses SQL PL `CONTINUE HANDLER F
 synchronously in the browser. `applyMigration` sends the full `MigrationStep[]` plan to the
 backend and streams results back via SSE.
 
+## Frontend loading and delivery
+
+A first visit downloads index.html and what it names: about 210 KB gzip (175 KB Brotli)
+since 2026-10-05, down from 398 KB. CI keeps it under 240 KB gzip
+(`npm run bundle:first-load` after `npm run build -w @foxschema/web`); the report lists the
+largest files when it fails. Everything else loads when it is used:
+
+- **Views** load from `app/shell/viewLoaders.ts`. App.tsx renders them with `lazy()`, and
+  the activity rail calls `prefetchView` on hover or focus, so a view's code is usually
+  already loaded by the time the click lands.
+- **Panels that open on a click** (admin console, credentials, applies history, new
+  connection) are `lazy()` inside `MountWhenOpened`. That mounts a panel on its first open
+  and keeps it mounted afterwards, so its state survives closing exactly as before.
+- **Heavy libraries** (sql-formatter, Prettier, faker, lodash, date-fns, zod, ajv) load
+  through `shared/lib/loadOnce.ts`: one shared promise, retried after a failure. A
+  component that needs one while rendering uses `useLoaded(loader)`, which re-renders
+  once when the library arrives. `useSqlFormat` is the example: DDL shows unformatted
+  for that first moment, then formatted.
+- **The shell imports a feature by deep path**, not through its barrel, whenever the
+  barrel also re-exports a whole workspace (`object-detail`, `schema-diff`,
+  `sql-editor`). A barrel import from `TopToolbar` kept the Compare workspace in the
+  first download.
+- **The code-cell worker is an ES module worker** (`worker.format: 'es'`). The default
+  IIFE format inlined faker, lodash and date-fns into the worker.
+- **React has its own chunk** (`vendor-react`), so it stays cached across releases while
+  the app's entry chunk changes name with every app change.
+
+The server sends the build pre-compressed. `src/build/precompress.ts` writes `.br` and
+`.gz` copies at build time, and `packages/server/src/api/static-assets.ts` serves them:
+Brotli, then gzip, then the file itself. Hashed `/assets/*` files are cached for a year
+(`immutable`); index.html and other paths get `no-cache`. A missing `/assets/*` file is a
+404, not index.html. A tab left open across a release then hits `vite:preloadError`,
+and `main.tsx` reloads it once. The CLI package leaves the compressed copies out
+(loopback gains nothing from them).
+
 ## Adding a dialect (checklist)
 
 1. Create the dialect files in `packages/sql/src/providers/<name>/` and the driver files in `packages/db/src/providers/<name>/`

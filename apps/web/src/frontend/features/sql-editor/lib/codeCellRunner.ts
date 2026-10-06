@@ -31,12 +31,12 @@ import {
   type CodeCellResult,
   type CodeCellVars,
 } from './codeCellExec';
+import { loadOnce } from '@/shared/lib/loadOnce';
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 const DEFAULT_NODE_TIMEOUT_MS = 10_000;
 
 let nextId = 1;
-let workerCtorPromise: Promise<(new () => Worker) | null> | null = null;
 
 export type RunCodeCellArgs = {
   /** Full statement text including fence markers (and optional `@set` lines). */
@@ -118,14 +118,15 @@ function toStatementResult(result: CodeCellResult, started: number): SqlStatemen
   };
 }
 
+const fetchWorkerCtor = loadOnce(async () => {
+  const mod = await import('./codeCell.worker.ts?worker');
+  return (mod as { default?: new () => Worker }).default ?? null;
+});
+
+/** A failed fetch runs this cell in-process and is retried on the next run. */
 async function loadWorkerCtor(): Promise<(new () => Worker) | null> {
   if (typeof Worker === 'undefined') return null;
-  if (!workerCtorPromise) {
-    workerCtorPromise = import('./codeCell.worker.ts?worker')
-      .then((mod) => (mod as { default?: new () => Worker }).default ?? null)
-      .catch(() => null);
-  }
-  return workerCtorPromise;
+  return fetchWorkerCtor().catch(() => null);
 }
 
 function runInWorker(args: {

@@ -1,11 +1,6 @@
 import React, { Suspense, lazy, useEffect } from 'react';
 import { TopToolbar } from '@/app/shell/TopToolbar';
 import { ActivityRail } from '@/app/shell/ActivityRail';
-// Deep import, not the feature barrel: the barrel re-exports the editor,
-// which pulls Monaco (2.6 MB) into the eager graph and makes the lazy() below
-// decorative. Rolldown said so — INEFFECTIVE_DYNAMIC_IMPORT.
-import { SchemaTreePanel } from '@/features/sql-editor/components/SchemaTreePanel';
-import { ObjectDetailPanel } from '@/features/object-detail';
 import { ErrorBoundary } from '@/app/shell/ErrorBoundary';
 import { LoadingScreen } from '@/app/shell/LoadingScreen';
 import { AuthPage } from '@/features/auth';
@@ -19,26 +14,42 @@ import { AlertCircle, AlertTriangle, Loader2, X } from 'lucide-react';
 import { BackendOfflineBanner } from '@/app/shell/BackendOfflineBanner';
 import { HomeView } from '@/app/shell/HomeView';
 import { CommandPalette } from '@/app/shell/CommandPalette';
+import {
+  loadAccessView,
+  loadObjectDetailPanel,
+  loadSchemaTreePanel,
+  loadSettingsPanel,
+  loadSnapshotsView,
+  loadSqlEditorView,
+  loadUtilitiesView,
+  loadWorkflowView,
+} from '@/app/shell/viewLoaders';
 
+// Every view loads when first shown (or when its rail button is hovered); the
+// first screen is Home. viewLoaders.ts says where each one comes from.
+const SchemaTreePanel = lazy(() => loadSchemaTreePanel().then((m) => ({ default: m.SchemaTreePanel })));
+const ObjectDetailPanel = lazy(() =>
+  loadObjectDetailPanel().then((m) => ({ default: m.ObjectDetailPanel }))
+);
 const AccessView = lazy(() =>
-  import('@/features/access').then((m) => ({ default: m.AccessView }))
+  loadAccessView().then((m) => ({ default: m.AccessView }))
 );
 const SqlEditorView = lazy(() =>
-  import('@/features/sql-editor/components/SqlEditorView').then((m) => ({
+  loadSqlEditorView().then((m) => ({
     default: m.SqlEditorView,
   }))
 );
 const UtilitiesView = lazy(() =>
-  import('@/features/utilities').then((m) => ({ default: m.UtilitiesView }))
+  loadUtilitiesView().then((m) => ({ default: m.UtilitiesView }))
 );
 const LokeeWeaveView = lazy(() =>
-  import('@/features/lokee-weave').then((m) => ({ default: m.LokeeWeaveView }))
+  loadSnapshotsView().then((m) => ({ default: m.LokeeWeaveView }))
 );
 const SettingsPanel = lazy(() =>
-  import('@/app/settings/SettingsPanel').then((m) => ({ default: m.SettingsPanel }))
+  loadSettingsPanel().then((m) => ({ default: m.SettingsPanel }))
 );
 const WorkflowView = lazy(() =>
-  import('@/features/workflow').then((m) => ({ default: m.WorkflowView }))
+  loadWorkflowView().then((m) => ({ default: m.WorkflowView }))
 );
 
 const Workspace: React.FC = () => {
@@ -159,14 +170,14 @@ const Workspace: React.FC = () => {
             </Suspense>
           </ErrorBoundary>
         ) : (
-          <>
+          <Suspense fallback={<LoadingScreen />}>
             <ErrorBoundary>
               <SchemaTreePanel />
             </ErrorBoundary>
             <ErrorBoundary>
               <ObjectDetailPanel />
             </ErrorBoundary>
-          </>
+          </Suspense>
         )}
       </main>
       <ToastHost />

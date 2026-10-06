@@ -13,6 +13,7 @@ import {
   formatRowCount,
   groupObjectSizes,
   lookupIndexSizeRow,
+  indexTableSizeGroups,
   lookupTableSizeGroup,
   normalizeConnectionPoolRows,
   normalizeObjectSizeRows,
@@ -184,6 +185,30 @@ describe('dialect-dba-utilities', () => {
     expect(filtered).toHaveLength(1);
     expect(filtered[0]?.tableName).toBe('ORDERS');
     expect(filtered[0]?.indexes).toHaveLength(1);
+  });
+
+  it('indexes size groups once with the same matching as a single lookup', () => {
+    const group = (schemaName: string | null, tableName: string, rowCount: number) => ({
+      schemaName,
+      tableName,
+      rowCount,
+      dataBytes: 0,
+      indexBytes: 0,
+      totalBytes: 0,
+      indexes: [],
+    });
+    const groups = [group('sales', 'Orders', 1), group('public', 'ORDERS', 2), group(null, 'items', 3)];
+    const sizeOf = indexTableSizeGroups(groups);
+    // An exact schema match wins over the first table of that name, in any case.
+    expect(sizeOf('orders', 'PUBLIC')?.rowCount).toBe(2);
+    // No schema, or a schema with no match: the first table of that name.
+    expect(sizeOf('orders')?.rowCount).toBe(1);
+    expect(sizeOf('orders', 'archive')?.rowCount).toBe(1);
+    expect(sizeOf('ITEMS', 'public')?.rowCount).toBe(3);
+    expect(sizeOf('missing')).toBeUndefined();
+    for (const [t, s] of [['orders', 'PUBLIC'], ['orders', undefined], ['items', 'x'], ['nope', null]] as const) {
+      expect(sizeOf(t, s)).toBe(lookupTableSizeGroup(groups, t, s));
+    }
   });
 
   it('builds DB2 sizes with total >= data and index rows', () => {

@@ -34,8 +34,8 @@ import {
   formatRowCount,
   fragmentationSeverity,
   groupObjectSizes,
+  indexTableSizeGroups,
   lookupIndexSizeRow,
-  lookupTableSizeGroup,
   type TableSizeGroup,
 } from '@foxschema/sql';
 import {
@@ -161,6 +161,8 @@ export const IndexManagementModal: React.FC<Props> = ({
     Record<string, { frag: IndexFragmentationApiRow | null; defragSql: string[]; tableError?: string }>
   >({});
   const [sizeGroups, setSizeGroups] = useState<TableSizeGroup[]>([]);
+  // Indexed once per load: each table, and each index row while sorting, looks itself up.
+  const sizeOf = useMemo(() => indexTableSizeGroups(sizeGroups), [sizeGroups]);
   const [loadingSchema, setLoadingSchema] = useState(false);
   const [loadingFrag, setLoadingFrag] = useState(false);
   const [runningDefrag, setRunningDefrag] = useState(false);
@@ -298,7 +300,7 @@ export const IndexManagementModal: React.FC<Props> = ({
       map.set(row.tableName, list);
     }
     const groups = [...map.entries()].map(([tableName, rows]) => {
-      const size = lookupTableSizeGroup(sizeGroups, tableName, conn?.schema);
+      const size = sizeOf(tableName, conn?.schema);
       return {
         tableName,
         rows,
@@ -317,7 +319,7 @@ export const IndexManagementModal: React.FC<Props> = ({
       sort,
       (g) => tableSortValue(sort.key, g),
       (row, g) => {
-        const size = lookupTableSizeGroup(sizeGroups, g.tableName, conn?.schema);
+        const size = sizeOf(g.tableName, conn?.schema);
         const idxSize = lookupIndexSizeRow(size, row.index.name);
         return indexSortValue(sort.key, {
           indexName: row.index.name,
@@ -337,7 +339,7 @@ export const IndexManagementModal: React.FC<Props> = ({
       },
       (row) => row.index.name
     );
-  }, [filteredRows, sizeGroups, sort, conn?.schema]);
+  }, [filteredRows, sizeOf, sort, conn?.schema]);
 
   const groupedTableKey = grouped.map((g) => g.tableName).join('\0');
 
@@ -1126,7 +1128,7 @@ export const IndexManagementModal: React.FC<Props> = ({
                   const tableAllSelected =
                     tableKeys.length > 0 && tableKeys.every((k) => selected.has(k));
                   const tableSomeSelected = tableKeys.some((k) => selected.has(k));
-                  const size = lookupTableSizeGroup(sizeGroups, tableName, conn?.schema);
+                  const size = sizeOf(tableName, conn?.schema);
                   const avgSeverity = fragmentationSeverity(avgFrag);
                   const tableUsage = pickLatestIndexUsage(
                     rows.map((r) => ({

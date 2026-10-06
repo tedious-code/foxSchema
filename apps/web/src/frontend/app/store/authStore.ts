@@ -47,6 +47,9 @@ function statusFor(user: AuthUser | null): AuthStatus {
   return user.onboardingCompleted ? 'ready' : 'onboarding';
 }
 
+/** The startup read in flight, so a second `init()` joins it instead of asking again. */
+let initRun: Promise<void> | null = null;
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   status: 'loading',
   user: null,
@@ -57,14 +60,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   can: (permission) => userCan(get().user, permission),
 
   // Every install signs in. Until one account can, the first admin is set up.
-  init: async () => {
-    const setupState = await apiSetupState();
-    if (setupState.setupRequired) {
-      set({ setupState, user: null, status: 'setup' });
-      return;
-    }
-    await get().refreshMe();
-  },
+  //
+  // Both reads at once: they are independent, and in series they were two
+  // round trips before the first screen. `apiMe` answers null rather than
+  // throwing when no one is signed in, so asking during setup is harmless.
+  init: () =>
+    (initRun ??= (async () => {
+      const [setupState, user] = await Promise.all([apiSetupState(), apiMe()]);
+      if (setupState.setupRequired) {
+        set({ setupState, user: null, status: 'setup' });
+        return;
+      }
+      set({ user, status: statusFor(user) });
+    })().finally(() => {
+      initRun = null;
+    })),
 
   refreshMe: async () => {
     const user = await apiMe();

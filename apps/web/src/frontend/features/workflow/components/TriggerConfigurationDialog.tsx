@@ -5,6 +5,7 @@
  *
  * Workflow designer — ported from FoxAgent (components/TriggerConfigurationDialog.tsx).
  */
+import { useLoaded } from '@/shared/lib/useLoaded';
 import Editor from '@monaco-editor/react';
 import {
   CalendarClock,
@@ -28,7 +29,7 @@ import type { CredentialMeta, WorkflowSummary } from '../api/engineClient';
 import {
   CRON_EXECUTION_TYPES,
   LOCAL_TIMEZONE,
-  computeNextRuns,
+  loadCronTools,
   formatInZone,
 } from '../lib/cron';
 import {
@@ -114,14 +115,17 @@ function SchedulePreview({
   runs,
   timezone,
 }: {
-  runs: Date[] | null;
+  /** undefined while the cron libraries load; null for an invalid expression. */
+  runs: Date[] | null | undefined;
   timezone: string;
 }): React.JSX.Element {
   const showLocal = timezone !== LOCAL_TIMEZONE;
   return (
     <div className="schedule-preview span-2">
       <strong>Next 5 Runs · {timezone}</strong>
-      {runs === null ? (
+      {runs === undefined ? (
+        <div className="schedule-preview-empty">Loading the schedule preview…</div>
+      ) : runs === null ? (
         <div className="schedule-preview-empty">
           Enter a valid cron expression to preview run times.
         </div>
@@ -275,13 +279,16 @@ export function TriggerConfigurationDialog({
   const sections = trigger ? getSections(trigger.kind) : [];
 
   const cronTrigger = trigger?.kind === 'cron' ? trigger : null;
+  const cronTools = useLoaded(loadCronTools);
   const nextRuns = useMemo(
     () =>
       cronTrigger
-        ? computeNextRuns(cronTrigger.cron, cronTrigger.timezone)
+        ? cronTools
+          ? cronTools.nextRuns(cronTrigger.cron, cronTrigger.timezone)
+          : undefined
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed to the two fields the preview reads; depending on `cronTrigger` would recompute on every unrelated keystroke in the dialog
-    [cronTrigger?.cron, cronTrigger?.timezone],
+    [cronTools, cronTrigger?.cron, cronTrigger?.timezone],
   );
 
   // Honour the focus request once, when the dialog opens. `triggers` is

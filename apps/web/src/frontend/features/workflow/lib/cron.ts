@@ -5,8 +5,7 @@
  *
  * Workflow designer — ported from FoxAgent (lib/cron.ts).
  */
-import { CronExpressionParser } from 'cron-parser';
-import cronstrue from 'cronstrue';
+import { loadOnce } from '@/shared/lib/loadOnce';
 
 /** The viewer's own IANA timezone, used to show fire times in local time too. */
 export const LOCAL_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -18,14 +17,6 @@ export const CRON_EXECUTION_TYPES: Record<
   workflow: { label: 'Run this workflow', description: 'Start a run of the current workflow on each fire.' },
   http: { label: 'Call an HTTP endpoint', description: 'Send an HTTP request to an external service on each fire.' },
 };
-
-export function describeCron(expression: string): string {
-  try {
-    return cronstrue.toString(expression, { verbose: false });
-  } catch {
-    return 'Invalid cron expression';
-  }
-}
 
 export function formatInZone(date: Date, timeZone?: string): string {
   return new Intl.DateTimeFormat('en-US', {
@@ -40,20 +31,39 @@ export function formatInZone(date: Date, timeZone?: string): string {
   }).format(date);
 }
 
-/** Next `count` fire times for a cron expression evaluated in `timezone`. */
-export function computeNextRuns(
-  cron: string,
-  timezone: string,
-  count = 5,
-): Date[] | null {
-  try {
-    const interval = CronExpressionParser.parse(cron, { tz: timezone });
-    const runs: Date[] = [];
-    for (let index = 0; index < count; index += 1) {
-      runs.push(interval.next().toDate());
-    }
-    return runs;
-  } catch {
-    return null;
-  }
-}
+/**
+ * Describing and stepping through a cron expression: cron-parser, cronstrue
+ * and luxon, 120 kB the designer needs only once a cron trigger is shown.
+ * Components read it with `useLoaded(loadCronTools)`; until then a preview
+ * says it is loading rather than that the expression is invalid.
+ */
+export const loadCronTools = loadOnce(async () => {
+  const [{ CronExpressionParser }, { default: cronstrue }] = await Promise.all([
+    import('cron-parser'),
+    import('cronstrue'),
+  ]);
+  return {
+    /** Plain-English reading of an expression, or that it is invalid. */
+    describe(expression: string): string {
+      try {
+        return cronstrue.toString(expression, { verbose: false });
+      } catch {
+        return 'Invalid cron expression';
+      }
+    },
+    /** The next `count` fire times in `timezone`, or null for an invalid expression. */
+    nextRuns(cron: string, timezone: string, count = 5): Date[] | null {
+      try {
+        const interval = CronExpressionParser.parse(cron, { tz: timezone });
+        const runs: Date[] = [];
+        for (let index = 0; index < count; index += 1) {
+          runs.push(interval.next().toDate());
+        }
+        return runs;
+      } catch {
+        return null;
+      }
+    },
+  };
+});
+

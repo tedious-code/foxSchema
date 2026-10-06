@@ -146,7 +146,8 @@ export function validateCodeCellRequest(
   };
 }
 
-async function transpileTs(body: string): Promise<string> {
+/** Strip a TypeScript cell to JavaScript. Used for Node cells, and for browser cells via /sql/code-cell/transpile. */
+export async function transpileTs(body: string): Promise<string> {
   const ts = await import('typescript');
   const out = ts.transpileModule(body, {
     compilerOptions: {

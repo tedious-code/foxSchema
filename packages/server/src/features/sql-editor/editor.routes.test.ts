@@ -30,7 +30,10 @@ const RESOLVED = {
   option: { host: 'db.internal', port: 5432, database: 'orders', password: 'hunter2' },
 };
 
-async function serve(over: Partial<Parameters<typeof createEditorRoutes>[0]> = {}) {
+async function serve(
+  over: Partial<Parameters<typeof createEditorRoutes>[0]> = {},
+  actor: Pick<AuthedRequest, 'appRole' | 'permissions'> = { appRole: 'admin' }
+) {
   const router = createEditorRoutes({
     resolveRef: vi.fn().mockResolvedValue(RESOLVED),
     MAX_STATEMENTS: 10,
@@ -45,7 +48,8 @@ async function serve(over: Partial<Parameters<typeof createEditorRoutes>[0]> = {
     // The auth fields live on AuthedRequest, not on every FastifyRequest.
     const authed = req as unknown as AuthedRequest;
     authed.userId = 'test-user';
-    authed.appRole = 'admin';
+    authed.appRole = actor.appRole;
+    authed.permissions = actor.permissions;
   });
   bindRoutes(app, router.flatten());
   await app.ready();
@@ -130,3 +134,37 @@ describe('Server Beam pre-flight', () => {
     expect(res.json().error ?? '').not.toContain('cannot reach');
   });
 });
+
+describe('TypeScript cells compile on the server', () => {
+  const transpile = (body: unknown) =>
+    app!.inject({ method: 'POST', url: '/sql/code-cell/transpile', payload: body as object });
+
+  it('returns the JavaScript, types stripped, without running it', async () => {
+    await serve();
+    // Running this would throw; compiling it must not.
+    const res = await transpile({ source: 'const n: number = 2;\nthrow new Error(`ran ${n}`);' });
+    expect(res.statusCode).toBe(200);
+    const { js } = res.json() as { js: string };
+    expect(js).toContain('const n = 2;');
+    expect(js).not.toContain(': number');
+  });
+
+  it('answers a type error with the compiler’s words, as a 400', async () => {
+    await serve();
+    const res = await transpile({ source: 'const x: = 1;' });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.stringify(res.json())).toMatch(/Type expected|expected/i);
+  });
+
+  it('is refused to someone who cannot open the SQL editor', async () => {
+    await serve({}, { appRole: 'viewer', permissions: new Set() });
+    expect((await transpile({ source: 'const a: number = 1;' })).statusCode).toBe(403);
+  });
+
+  it('refuses a missing or oversized source', async () => {
+    await serve();
+    expect((await transpile({})).statusCode).toBe(400);
+    expect((await transpile({ source: 'x'.repeat(100_001) })).statusCode).toBe(400);
+  });
+});
+

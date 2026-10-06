@@ -3,8 +3,6 @@ import { TopToolbar } from '@/app/shell/TopToolbar';
 import { ActivityRail } from '@/app/shell/ActivityRail';
 import { ErrorBoundary } from '@/app/shell/ErrorBoundary';
 import { LoadingScreen } from '@/app/shell/LoadingScreen';
-import { AuthPage } from '@/features/auth';
-import { OnboardingWizard } from '@/features/auth';
 import { useSyncStore } from '@/app/store/useSyncStore';
 import { useAuthStore } from '@/app/store/authStore';
 import { useUiStore } from '@/app/store/uiStore';
@@ -24,6 +22,15 @@ import {
   loadUtilitiesView,
   loadWorkflowView,
 } from '@/app/shell/viewLoaders';
+
+// Only someone signed out or not yet onboarded sees these, so a signed-in
+// first page does not carry them.
+const AuthPage = lazy(() =>
+  import('@/features/auth/components/AuthPage').then((m) => ({ default: m.AuthPage }))
+);
+const OnboardingWizard = lazy(() =>
+  import('@/features/auth/components/OnboardingWizard').then((m) => ({ default: m.OnboardingWizard }))
+);
 
 // Every view loads when first shown (or when its rail button is hovered); the
 // first screen is Home. viewLoaders.ts says where each one comes from.
@@ -243,8 +250,20 @@ const App: React.FC = () => {
       </div>
     );
   }
-  if (status === 'anon' || status === 'setup') return <AuthPage />;
-  if (status === 'onboarding') return <OnboardingWizard />;
+  if (status === 'anon' || status === 'setup') {
+    return (
+      <Suspense fallback={<LoadingScreen />}>
+        <AuthPage />
+      </Suspense>
+    );
+  }
+  if (status === 'onboarding') {
+    return (
+      <Suspense fallback={<LoadingScreen />}>
+        <OnboardingWizard />
+      </Suspense>
+    );
+  }
   return <Workspace />;
 };
 

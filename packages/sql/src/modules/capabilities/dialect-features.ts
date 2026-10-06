@@ -36,12 +36,15 @@
  * a new engine would have fallen through as unknown and lost every feature
  * with no test failing.
  */
-import { tryResolveDialect } from '../dialect/registry.js';
 import { supportsAccessBuilder } from '../access/intent.js';
 import { userManagementSupport } from '../access/user-sql.js';
 import { nonSqlPermissionsReason } from '../access/non-sql-engines.js';
 import { supportsCommandMode } from '../command-mode/cli.registry.js';
 import { PROVIDER_SETTINGS } from '../../providers/provider-settings.js';
+import { fallbackReason, isKnownEngine, unknownEngineReason } from './feature-reasons.js';
+import { schemaCompareSupport } from './schema-compare.js';
+
+export { schemaCompareBlocker } from './schema-compare.js';
 
 /** A top-level feature, one per control the app can offer for a connection. */
 export type DialectFeature =
@@ -81,11 +84,6 @@ export type FeatureSupport =
 
 export type DialectFeatureSupport = Record<DialectFeature, FeatureSupport>;
 
-/** The engine's own name, so a sentence does not read "mongodb has no…". */
-function label(key: string): string {
-  return PROVIDER_SETTINGS[key]?.label ?? key;
-}
-
 /**
  * Reasons no other module owns.
  *
@@ -115,20 +113,14 @@ const DECLARED: Record<string, Partial<Record<DialectFeature, string>>> = {
   duckdb: {
     dbAccess: 'DuckDB has no grants — the file’s permissions are the access control.',
   },
+  // Their schemaCompare reasons live with that check, in schema-compare.ts.
   redis: {
-    schemaCompare: 'Redis has no schema to compare — keys are not tables.',
     commandMode: 'Redis does not take SQL, so there is nothing to hand to a client.',
   },
   mongodb: {
-    schemaCompare: 'MongoDB has no schema to compare — collections are not tables.',
     commandMode: 'MongoDB does not take SQL, so there is nothing to hand to a client.',
   },
 };
-
-/** The reason a derived `false` needs, when the source of the answer has none. */
-function fallbackReason(key: string, feature: DialectFeature): string {
-  return `Fox Schema does not offer ${feature} for ${label(key)}.`;
-}
 
 function support(supported: boolean, reason: () => string | undefined): FeatureSupport {
   if (supported) return { supported: true };
@@ -141,9 +133,9 @@ function buildFeatures(key: string): DialectFeatureSupport {
     declared[feature] ?? otherwise ?? fallbackReason(key, feature);
 
   return Object.freeze({
-    // Exactly the engines with a SQL dialect — asked, not listed, so adding one
-    // to DIALECT_MAP cannot leave this behind.
-    schemaCompare: support(tryResolveDialect(key) !== undefined, () => say('schemaCompare')),
+    // Exactly the engines with a SQL dialect. The light check the Compare
+    // button uses, so the button and this table give one answer.
+    schemaCompare: schemaCompareSupport(key),
     // Redis and MongoDB have permissions that are simply not SQL, and the
     // access module already words that — including the tool to use. Everything
     // else says so above, because who is at fault differs per engine and a
@@ -173,11 +165,9 @@ function buildFeatures(key: string): DialectFeatureSupport {
 const CACHE = new Map<string, DialectFeatureSupport>();
 
 function unknownFeatures(dialect: string): DialectFeatureSupport {
-  const reason = (feature: DialectFeature) =>
-    `Fox Schema does not know ${dialect || 'this engine'}, so it cannot offer ${feature}.`;
   const out = {} as DialectFeatureSupport;
   for (const feature of DIALECT_FEATURES) {
-    out[feature] = { supported: false, reason: reason(feature) };
+    out[feature] = { supported: false, reason: unknownEngineReason(dialect, feature) };
   }
   return Object.freeze(out);
 }
@@ -185,7 +175,7 @@ function unknownFeatures(dialect: string): DialectFeatureSupport {
 /** Every feature answer for one engine. Unknown engines support nothing. */
 export function dialectFeatures(dialect: string): DialectFeatureSupport {
   const key = (dialect || '').toLowerCase();
-  if (!(key in PROVIDER_SETTINGS)) return unknownFeatures(dialect);
+  if (!isKnownEngine(key)) return unknownFeatures(dialect);
   const cached = CACHE.get(key);
   if (cached) return cached;
   const built = buildFeatures(key);
@@ -204,25 +194,6 @@ export function dialectFeatureReason(
   feature: DialectFeature
 ): string | undefined {
   return dialectFeatures(dialect)[feature].reason;
-}
-
-/**
- * Why this pair of engines cannot be compared, or null when they can.
- *
- * Comparing takes two connections and either side disqualifies it, so the
- * button and the store were asking the same two-part question in two copies
- * that had already drifted by one guard clause. One answer cannot disagree
- * with itself.
- */
-export function schemaCompareBlocker(source: string, target: string): string | null {
-  for (const [side, dialect] of [
-    ['Source', source],
-    ['Target', target],
-  ] as const) {
-    const answer = dialectFeatures(dialect).schemaCompare;
-    if (!answer.supported) return `${side}: ${answer.reason}`;
-  }
-  return null;
 }
 
 /** Engines this answers for, which is every engine a connection can use. */

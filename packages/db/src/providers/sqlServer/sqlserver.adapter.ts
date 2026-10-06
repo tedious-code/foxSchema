@@ -63,7 +63,10 @@ export class MssqlAdapter implements DriverAdapter {
     params.forEach((value, i) => req.input(`p${i}`, value));
 
     const result = await req.query(sql);
-    return result.recordset as T[];
+    // mssql leaves `recordset` undefined for a statement that returns no result
+    // set (INSERT/UPDATE/DELETE/DDL). Callers rely on an array — notably
+    // ConnectionFactory.executeQuery reads `rows.length` — so normalise it.
+    return (result.recordset ?? []) as T[];
   }
 
   /**

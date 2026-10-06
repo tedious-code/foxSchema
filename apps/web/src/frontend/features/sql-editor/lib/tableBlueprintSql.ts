@@ -9,7 +9,7 @@ import {
   type CanonicalType,
   type IndexFeatureSupport,
   quoteIdentifierIfNeeded,
-} from '@foxschema/sql';
+} from '@foxschema/ui-shared';
 
 /** Quote an identifier when it is not a plain SQL name. */
 export function quoteIdent(name: string, dialect: string): string {

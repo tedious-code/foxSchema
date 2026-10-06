@@ -5,7 +5,7 @@
  *
  * The signed-in user's backup defaults, one set per engine.
  */
-import type { BackupSettings } from '@foxschema/sql';
+import type { BackupSettings } from '@foxschema/ui-shared';
 import { api } from './client';
 
 export async function apiGetBackupSettings(): Promise<Record<string, BackupSettings>> {

@@ -12,7 +12,7 @@ import {
   snapshotTargetConnectionId,
 } from '@/features/sql-editor/lib/dataMigratePlans';
 import type { ClassifiedRowDiff } from '@/features/sql-editor/lib/resultRowDiff';
-import { DIALECT_MAP, identityInsertFor } from '@foxschema/sql';
+import { DIALECT_MAP, identityInsertFor } from '@foxschema/ui-shared';
 
 const DEST_CONN = 'conn-dest-b';
 

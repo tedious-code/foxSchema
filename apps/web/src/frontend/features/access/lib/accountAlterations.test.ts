@@ -12,7 +12,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { ALTERATION_LABEL, availableAlterations, dropSafetyNotes } from './accountAlterations';
-import type { DbPrincipal, DbPrivilege } from '@foxschema/sql';
+import type { DbPrincipal, DbPrivilege } from '@foxschema/ui-shared';
 
 const support = (over: Partial<Record<string, boolean>> = {}) =>
   ({ canRename: false, canDisable: false, canExpire: false, ...over }) as never;

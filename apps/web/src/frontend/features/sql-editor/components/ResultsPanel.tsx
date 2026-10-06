@@ -43,7 +43,7 @@ import {
   collapsedColumnsFor,
   rowKeyFor,
   tablesInOrigins,
-} from '@foxschema/sql';
+} from '@foxschema/ui-shared';
 import {
   cellDiffKey,
   compareResultGrids,

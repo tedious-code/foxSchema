@@ -37,7 +37,7 @@ import {
   indexTableSizeGroups,
   lookupIndexSizeRow,
   type TableSizeGroup,
-} from '@foxschema/sql';
+} from '@foxschema/ui-shared';
 import {
   fetchDbaUtility,
   fetchIndexFragmentationBatch,

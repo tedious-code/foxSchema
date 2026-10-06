@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, FileText } from 'lucide-react';
-import type { DropDependency } from '@foxschema/sql';
+import type { DropDependency } from '@foxschema/ui-shared';
 
 interface Props {
   deps: DropDependency[];

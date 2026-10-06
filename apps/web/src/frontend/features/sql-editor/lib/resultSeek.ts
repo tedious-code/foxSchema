@@ -11,7 +11,7 @@ import {
   parseTopLevelOrderBy,
   uniqueKeyCoversOrder,
   uniqueKeysFromTable,
-} from '@foxschema/sql';
+} from '@foxschema/ui-shared';
 import type { TableSchema } from '@/shared/lib/types';
 import {
   fromClauseIsMultiTable,

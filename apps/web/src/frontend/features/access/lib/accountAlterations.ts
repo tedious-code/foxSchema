@@ -18,7 +18,7 @@ import {
   type PrincipalType,
   type UserAlteration,
   type userManagementSupport,
-} from '@foxschema/sql';
+} from '@foxschema/ui-shared';
 
 /** What each alteration is called on screen. One wording, both screens. */
 export const ALTERATION_LABEL: Record<UserAlteration, string> = {

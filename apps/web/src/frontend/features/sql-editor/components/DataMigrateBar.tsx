@@ -29,7 +29,7 @@ import {
   selectMigrateOps,
   type ClassifiedRowDiff,
 } from '@/features/sql-editor/lib/resultRowDiff';
-import { identityInsertFor } from '@foxschema/sql';
+import { identityInsertFor } from '@foxschema/ui-shared';
 import { assessPeekEditability, resolvePeekKeyColumns } from '@/features/sql-editor/lib/rowDml';
 import { singleTableForResultEdit } from '@/shared/lib/tablePreview';
 import type { TableSchema } from '@/shared/lib/types';

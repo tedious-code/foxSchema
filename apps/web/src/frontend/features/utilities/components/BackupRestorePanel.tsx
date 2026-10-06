@@ -27,7 +27,7 @@ import {
   type BackupScope,
   type BackupSettings,
   type BackupHistoryEntry,
-} from '@foxschema/sql';
+} from '@foxschema/ui-shared';
 import { useSyncStore } from '@/app/store/useSyncStore';
 import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
 import { useUiStore } from '@/app/store/uiStore';

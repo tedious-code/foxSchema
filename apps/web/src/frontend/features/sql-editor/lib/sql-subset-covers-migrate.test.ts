@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseSqlSubset, subsetValue } from '@foxschema/sql';
+import { parseSqlSubset, subsetValue } from '@foxschema/ui-shared';
 import { buildPeekDelete, buildPeekInsert, buildPeekUpdate } from '@/features/sql-editor/lib/rowDml';
 
 /**

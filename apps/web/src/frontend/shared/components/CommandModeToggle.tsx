@@ -17,7 +17,7 @@
  */
 import React, { useMemo, useState } from 'react';
 import { Copy, Check, Terminal, Download } from 'lucide-react';
-import { buildCliCommand, formatCommand, type CliTarget, type CommandFormat } from '@foxschema/sql';
+import { buildCliCommand, formatCommand, type CliTarget, type CommandFormat } from '@foxschema/ui-shared';
 
 interface Props {
   sql: string;

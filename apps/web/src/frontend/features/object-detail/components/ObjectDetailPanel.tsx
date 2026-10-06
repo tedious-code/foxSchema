@@ -6,7 +6,7 @@ import { Play, RefreshCw, FileText, CheckCircle2, Copy, AlertTriangle, GitCommit
 import { CommitMigrationDialog, commitRequirement, useGitStore } from '@/features/git';
 import { executeGate } from '../lib/executeGate';
 import { SqlGeneratorModule } from '@/shared/lib/sql-generator';
-import { findDropDependencies } from '@foxschema/sql';
+import { findDropDependencies } from '@foxschema/ui-shared';
 import { findMissingFkTargets, findNarrowingTypeChanges, extractReviewNotices, resolveDialect } from '@/shared/lib/migration-validation';
 import { buildIncludedDiffs, applySelectionsForScan } from '@/app/store/sync-helpers';
 import { useSqlFormat, type SqlFormat } from '@/shared/utils/useSqlFormat';

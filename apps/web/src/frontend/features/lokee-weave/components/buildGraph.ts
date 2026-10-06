@@ -14,7 +14,7 @@
  * still occupies its lane, joined by a "reused" edge — the graph draws several
  * historical positions pointing at one immutable stored object.
  */
-import type { LokeeObjectType } from '@foxschema/sql';
+import type { LokeeObjectType } from '@foxschema/ui-shared';
 import {
   DEFAULT_HISTORY_OBJECT_TYPES,
   DEFAULT_LAYOUT,

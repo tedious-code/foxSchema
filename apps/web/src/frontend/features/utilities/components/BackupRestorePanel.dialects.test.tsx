@@ -15,7 +15,7 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { DIALECTS } from '@foxschema/sql';
+import { DIALECTS } from '@foxschema/ui-shared';
 import { BackupRestorePanel } from './BackupRestorePanel';
 
 const FILE_ENGINES = new Set(['sqlite', 'duckdb']);

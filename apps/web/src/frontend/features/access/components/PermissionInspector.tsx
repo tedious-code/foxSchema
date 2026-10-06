@@ -12,7 +12,7 @@ import {
   type EffectiveAccess,
   type EffectiveObject,
 } from '../lib/access';
-import type { DbPrincipal, DbPrivilege } from '@foxschema/sql';
+import type { DbPrincipal, DbPrivilege } from '@foxschema/ui-shared';
 import { inputCls, labelCls } from './controls';
 import { connectionOptionLabel } from '@/shared/lib/dialectLabel';
 

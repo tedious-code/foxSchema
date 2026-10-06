@@ -14,7 +14,7 @@
  */
 
 import { sqlTag as sql, renderSqlQuery } from './sql-splitter';
-import { qualifiedNameParts as tableNameParts, splitSelectItems } from '@foxschema/sql';
+import { qualifiedNameParts as tableNameParts, splitSelectItems } from '@foxschema/ui-shared';
 import type { ForeignKeyInfo, TableSchema } from './types';
 
 export interface PreviewQuery {

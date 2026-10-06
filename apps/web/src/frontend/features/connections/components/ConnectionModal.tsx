@@ -16,7 +16,7 @@ import {
   type ConnectionAuthMethod,
 } from '@/shared/lib/provider-settings';
 import type { DriverInfo } from '@/shared/lib/types';
-import { IBM_DB_VERSION } from '@foxschema/sql';
+import { IBM_DB_VERSION } from '@foxschema/ui-shared';
 import { fetchSchemaList, checkDriver as apiCheckDriver, installDriver as apiInstallDriver } from "@/shared/api/schemaApi";
 import { PasswordInput } from '@/shared/components/PasswordInput';
 import { Autocomplete } from '@/shared/components/Autocomplete';

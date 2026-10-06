@@ -164,10 +164,12 @@ A few rules that have bitten people before (the full set is in [CLAUDE.md](CLAUD
   are encrypted server-side; only host/database/schema/port/username reach the browser.
 - **Keep React hooks above any early `return`** (a rules-of-hooks crash has happened).
 - **The frontend may import browser-safe workspace packages** via Vite aliases
-  (`@foxschema/sql`, `@foxschema/shared`, `@foxschema/workflow-contract`,
+  (`@foxschema/ui-shared`, `@foxschema/shared`, `@foxschema/workflow-contract`,
   `@foxschema/workflow-engine/definitions`). Thin facades live in
   `apps/web/src/frontend/shared/lib/`. Never import `@foxschema/db` or
-  `@foxschema/server` from the UI.
+  `@foxschema/server` from the UI, and take dialect code from
+  `@foxschema/ui-shared`, not `@foxschema/sql`: to use something new from the
+  engine in the browser, add it to `packages/ui-shared/src/index.ts`.
 
 ## Pull requests
 

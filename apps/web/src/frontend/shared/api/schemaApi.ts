@@ -8,7 +8,7 @@ import type {
   MigrationEvent,
   TableSchema,
 } from '../lib/types';
-import { nonSecretFingerprint, type DbPrincipal, type DbPrivilege } from '@foxschema/sql';
+import { nonSecretFingerprint, type DbPrincipal, type DbPrivilege } from '@foxschema/ui-shared';
 import { getApiBase, parseJsonBody, parseJsonResponse } from './apiBase';
 
 // Re-exported for existing callers; the one copy lives in `@foxschema/sql`.

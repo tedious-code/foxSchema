@@ -13,7 +13,7 @@ import {
 } from '@/shared/api/sqlApi';
 import type { ConnectionRef } from '@/shared/api/schemaApi';
 import { usesServerBeam } from '@foxschema/shared';
-import { errorMessage } from '@foxschema/sql';
+import { errorMessage } from '@foxschema/ui-shared';
 export { usesServerBeam };
 import type { SetDirective, SqlVariable } from '@/shared/lib/sql-variables';
 import { parseSetDirectives } from '@/shared/lib/sql-variables';

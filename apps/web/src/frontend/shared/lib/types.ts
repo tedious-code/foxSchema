@@ -24,4 +24,4 @@ export type {
   MigrationEvent,
   DriverInfo,
   SavedConnection,
-} from '@foxschema/sql';
+} from '@foxschema/ui-shared';

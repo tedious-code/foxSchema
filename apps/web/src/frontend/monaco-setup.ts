@@ -13,7 +13,7 @@ import 'monaco-editor/languages/features/json/register';
 import editorWorker from 'monaco-editor/editor/editor.worker?worker';
 import jsonWorker from 'monaco-editor/languages/features/json/json.worker?worker';
 import { FOXSCHEMA_SQL_LANG, FOXSCRIPT_LANG } from '@/features/sql-editor/lib/foxschemaSqlLanguage';
-import { dialectFamily } from '@foxschema/sql';
+import { dialectFamily } from '@foxschema/ui-shared';
 
 // SQL highlighting runs on the main thread (basic-languages); only JSON needs a
 // language worker — everything else uses the core editor worker.

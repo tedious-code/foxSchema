@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useSyncStore } from '@/app/store/useSyncStore';
 import { SCHEMA_ROUTINE_SCOPE, useSqlEditorStore } from '@/app/store/useSqlEditorStore';
-import { quoteIdentifierIfNeeded } from '@foxschema/sql';
+import { quoteIdentifierIfNeeded } from '@foxschema/ui-shared';
 import { getProviderSettings } from '@/shared/lib/provider-settings';
 import { TYPE_META } from '@/features/schema-diff';
 import {
@@ -39,7 +39,7 @@ import {
   indexTableSizeGroups,
   lookupIndexSizeRow,
   type TableSizeGroup,
-} from '@foxschema/sql';
+} from '@foxschema/ui-shared';
 
 /** Imperative API for the Schema section header (New table). */
 export interface SqlSchemaExplorerHandle {

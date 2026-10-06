@@ -20,7 +20,7 @@ import {
   normalizeBackupHistory,
   type BackupCommands,
   type BackupHistoryEntry,
-} from '@foxschema/sql';
+} from '@foxschema/ui-shared';
 import { useAuthStore } from '@/app/store/authStore';
 import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
 import type { useSyncStore } from '@/app/store/useSyncStore';

@@ -15,7 +15,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Download, Loader2, Play, X } from 'lucide-react';
-import type { TableDiff } from '@foxschema/sql';
+import type { TableDiff } from '@foxschema/ui-shared';
 import {
   compareLokeeVersions,
   executeLokeeRevert,

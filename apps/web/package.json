@@ -29,7 +29,7 @@
     "@foxschema/db": "*",
     "@foxschema/server": "*",
     "@foxschema/shared": "*",
-    "@foxschema/sql": "*",
+    "@foxschema/ui-shared": "*",
     "@foxschema/workflow-contract": "*",
     "@foxschema/workflow-engine": "*",
     "@monaco-editor/react": "4.7.0",

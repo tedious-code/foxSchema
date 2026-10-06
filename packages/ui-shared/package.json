@@ -1,0 +1,24 @@
+{
+  "name": "@foxschema/ui-shared",
+  "version": "0.1.0",
+  "description": "The part of Fox Schema's dialect engine the web app may use: a curated, by-reference re-export of @foxschema/sql. The frontend imports this, never @foxschema/sql directly.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tedious-code/foxschema.git",
+    "directory": "packages/ui-shared"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "sideEffects": false,
+  "private": true,
+  "//": "`private` and the TS-source `exports` follow packages/sql — see the note there. Browser code imports this package, so it may depend on nothing but @foxschema/sql; src/ui-shared.test.ts enforces that.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@foxschema/sql": "*"
+  }
+}

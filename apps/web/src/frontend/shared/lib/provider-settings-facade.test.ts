@@ -17,7 +17,7 @@
  * equal one. That is the difference this test exists to catch.
  */
 import { describe, expect, it } from 'vitest';
-import * as core from '@foxschema/sql';
+import * as core from '@foxschema/ui-shared';
 import * as facade from './provider-settings';
 
 describe('provider-settings is a facade over @foxschema/sql', () => {

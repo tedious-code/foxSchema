@@ -16,7 +16,7 @@
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
-import type { DbPrincipal, DbPrivilege, DbPrivilegeObjectType } from '@foxschema/sql';
+import type { DbPrincipal, DbPrivilege, DbPrivilegeObjectType } from '@foxschema/ui-shared';
 import type { SchemaObject } from '../lib/useAllSchemaObjects';
 
 let objects: SchemaObject[] = [];

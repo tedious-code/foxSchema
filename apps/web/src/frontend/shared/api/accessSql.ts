@@ -16,7 +16,7 @@
  * quotes, backticks, brackets and dollar-quoting, and terminates a statement
  * on `;` wherever it sits, so `GRANT a; GRANT b;` on one line splits in two.
  */
-import { splitSqlStatements } from '@foxschema/sql';
+import { splitSqlStatements } from '@foxschema/ui-shared';
 import type { ConnectionRef } from './schemaApi';
 import { executeSql } from './sqlApi';
 

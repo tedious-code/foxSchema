@@ -31,7 +31,7 @@ import {
   DbAccessPermissionSections,
   type DbAccessConfirmRequest,
 } from './DbAccessPermissionSections';
-import type { DbPrincipal } from '@foxschema/sql';
+import type { DbPrincipal } from '@foxschema/ui-shared';
 import { sectionLabelCls } from '@/shared/components/surfaces';
 import { writeClipboard } from '@/shared/utils/clipboard';
 

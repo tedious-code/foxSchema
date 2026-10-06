@@ -9,6 +9,10 @@ packages/sql                Dialect knowledge: SQL generation, schema compare,
                             statement splitting, type mapping. No dependencies,
                             no Node built-ins — it runs in a browser too.
 
+packages/ui-shared          The part of sql the web app may use: each name the
+                            frontend needs, re-exported by reference. The
+                            frontend imports this, never sql directly.
+
 packages/db                 Database drivers and the connection runtime: connection
                             factory, pooling, circuit breaker. Depends on sql.
 
@@ -44,15 +48,18 @@ apps/e2e                    Browser tests that drive the running application.
 Imports may only run in one direction:
 
 ```
-sql  ←  db      ←  server  ←  web, cli
-sql  ←  shared  ←  server, web, cli
+sql  ←  db         ←  server  ←  web (serving entry only), cli
+sql  ←  ui-shared  ←  web (frontend)
+sql  ←  shared     ←  server, web, cli
 workflow-contract  ←  server, web, workflow-engine, workflow-server
 sql, db  ←  workflow-engine  ←  workflow-server
 ```
 
-`packages/sql/src/purity.test.ts` and `packages/shared/src/purity.test.ts`
-enforce this. The frontend must never import `@foxschema/db` or
-`@foxschema/server`.
+`packages/sql/src/purity.test.ts`, `packages/shared/src/purity.test.ts`,
+`packages/ui-shared/src/ui-shared.test.ts` and
+`apps/web/src/frontend/architecture.test.ts` enforce this. The frontend must
+never import `@foxschema/db` or `@foxschema/server`, and takes dialect code
+from `@foxschema/ui-shared`, never `@foxschema/sql` directly.
 
 ### Nav registry — `packages/shared/src/nav.ts`
 
@@ -87,7 +94,8 @@ modules/     One folder per domain, named to match the frontend feature
 `dialect` and `sql-text` are the foundations: the other folders build on
 them, never the reverse.
 
-Code outside this package imports the `@foxschema/sql` barrel. Module paths
+Code outside this package imports the `@foxschema/sql` barrel; the frontend
+imports the same names from `@foxschema/ui-shared`. Module paths
 are internal — `exports` in `package.json` maps only `.`, so a deep import
 does not resolve.
 
@@ -208,6 +216,7 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | Dialect-specific SQL | `packages/sql/src/providers/<dialect>/` |
 | A new driver | `packages/db/src/providers/<dialect>/` |
 | Something the frontend and backend both need | `packages/shared/src/` |
+| The browser needs a function or type from `@foxschema/sql` | Add it to `packages/ui-shared/src/index.ts`, then import it from `@foxschema/ui-shared` |
 | New screen or panel | `apps/web/src/frontend/features/<domain>/` |
 | Reusable UI or helper | `apps/web/src/frontend/shared/` |
 | Calling an API endpoint | use `api` from `@/shared/api/client` — never `fetch` directly |

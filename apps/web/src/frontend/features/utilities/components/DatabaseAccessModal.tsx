@@ -32,7 +32,7 @@ import {
   type DbPrivilege,
   type DbPrivilegeObjectType,
   type PrivilegeGroup,
-} from '@foxschema/sql';
+} from '@foxschema/ui-shared';
 import { PERMISSION_META } from '@foxschema/shared';
 import { PasswordInput } from '@/shared/components/PasswordInput';
 import { fetchDbAccess, invalidateDbAccessCache } from '@/shared/api/schemaApi';

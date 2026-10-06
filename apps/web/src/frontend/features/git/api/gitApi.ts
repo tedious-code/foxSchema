@@ -8,7 +8,7 @@
 import { api } from '@/shared/api/client';
 import type { AppRole } from '@foxschema/shared';
 import type { ConnectionRef } from '@/shared/api/schemaApi';
-import type { MigrationFileHeader, MigrationStep } from '@foxschema/sql';
+import type { MigrationFileHeader, MigrationStep } from '@foxschema/ui-shared';
 
 export interface GitRepo {
   id: string;

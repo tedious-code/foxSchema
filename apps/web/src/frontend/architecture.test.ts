@@ -18,7 +18,13 @@
  * `shared` must not depend on a feature, or it can no longer be reused without
  * pulling a business domain along with it.
  *
- * `packages/sql` and `packages/shared` guard their boundaries the same way.
+ * From other packages, the frontend imports only browser-safe ones: dialect
+ * code through `@foxschema/ui-shared` (never `@foxschema/sql` directly), wire
+ * contracts from `@foxschema/shared`, and the workflow contract. Never the
+ * server or the driver runtime.
+ *
+ * `packages/sql`, `packages/shared` and `packages/ui-shared` guard their
+ * boundaries the same way.
  */
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
@@ -128,6 +134,17 @@ describe('frontend layering', () => {
       )
       .map((i) => `${i.from} → ${i.spec}`);
     expect(banned).toEqual([]);
+  });
+
+  it('dialect code comes through @foxschema/ui-shared, never @foxschema/sql', () => {
+    // @foxschema/sql is the engine the server, the CLI and the driver layer
+    // share. The frontend's part of it is the named list in packages/ui-shared,
+    // so the browser taking on more of the engine is a change to that list, not
+    // one more import somewhere in a feature.
+    const direct = imports
+      .filter((i) => i.spec === '@foxschema/sql' || i.spec.startsWith('@foxschema/sql/'))
+      .map((i) => `${i.from} → ${i.spec}`);
+    expect(direct).toEqual([]);
   });
 
   it('no import escapes the frontend root', () => {

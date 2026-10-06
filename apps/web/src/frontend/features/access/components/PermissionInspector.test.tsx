@@ -5,7 +5,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import type { DbPrincipal, DbPrivilege } from '@foxschema/sql';
+import type { DbPrincipal, DbPrivilege } from '@foxschema/ui-shared';
 import { PermissionInspector } from './PermissionInspector';
 
 const fetchDbAccess = vi.fn();

@@ -293,3 +293,17 @@ END;
 
 -- [REMOVED index on a MODIFIED table]
 CREATE INDEX demo_b.idx_b_orders_created ON demo_b.orders(created_at);
+
+-- A role that holds one table grant, one function grant and one database- or
+-- schema-wide grant, so the Access Grants view has something real to open on
+-- (apps/e2e access-assistant-dialects: the function row opens ticked, the wide
+-- grant is listed under the grid). Re-runnable: the role outlives the schemas.
+BEGIN
+  EXECUTE IMMEDIATE 'CREATE ROLE fox_reader';
+EXCEPTION WHEN OTHERS THEN
+  IF SQLCODE != -1921 THEN RAISE; END IF; -- ORA-01921: role already exists
+END;
+/
+GRANT CREATE SESSION TO fox_reader;
+GRANT SELECT ON demo_a.customers TO fox_reader;
+GRANT EXECUTE ON demo_a.fn_get_discount TO fox_reader;

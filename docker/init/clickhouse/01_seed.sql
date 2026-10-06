@@ -133,3 +133,12 @@ CREATE VIEW demo_b.v_active_products AS
 SELECT id, name, price
 FROM demo_b.products
 WHERE stock > 0;
+
+-- A role that holds one table grant, one function grant and one database- or
+-- schema-wide grant, so the Access Grants view has something real to open on
+-- (apps/e2e access-assistant-dialects: the function row opens ticked, the wide
+-- grant is listed under the grid). Re-runnable: the role outlives the schemas.
+-- ClickHouse has no stored routines, so it holds the table and schema grants only.
+CREATE ROLE IF NOT EXISTS fox_reader;
+GRANT SHOW TABLES ON demo_a.* TO fox_reader;
+GRANT SELECT ON demo_a.customers TO fox_reader;

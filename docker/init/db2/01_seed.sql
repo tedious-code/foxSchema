@@ -272,3 +272,21 @@ SELECT o.id, o.total, o.status, o.created_at,
        oi.qty, oi.unit_price
 FROM   DEMO_B.ORDERS o
 JOIN   DEMO_B.ORDER_ITEMS oi ON oi.order_id = o.id;
+
+-- A role that holds one table grant, one function grant and one database- or
+-- schema-wide grant, so the Access Grants view has something real to open on
+-- (apps/e2e access-assistant-dialects: the function row opens ticked, the wide
+-- grant is listed under the grid). Re-runnable: the role outlives the schemas.
+-- Db2's demo has no routines otherwise; this one exists to be granted on.
+CREATE OR REPLACE FUNCTION DEMO_A.FN_GET_DISCOUNT(P_PRICE DECIMAL(10,2), P_QTY INTEGER)
+  RETURNS DECIMAL(10,2) LANGUAGE SQL
+  RETURN CASE WHEN P_QTY >= 10 THEN P_PRICE * 0.9 ELSE P_PRICE END;
+--#SET TERMINATOR @
+BEGIN
+  DECLARE CONTINUE HANDLER FOR SQLSTATE '42710' BEGIN END; -- already exists
+  EXECUTE IMMEDIATE 'CREATE ROLE FOX_READER';
+END@
+--#SET TERMINATOR ;
+GRANT CONNECT ON DATABASE TO ROLE FOX_READER;
+GRANT SELECT ON TABLE DEMO_A.CUSTOMERS TO ROLE FOX_READER;
+GRANT EXECUTE ON FUNCTION DEMO_A.FN_GET_DISCOUNT TO ROLE FOX_READER;

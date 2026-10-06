@@ -52,8 +52,10 @@ export const sqlServerBackup: BackupDialect = {
   tables: false,
   schemaLimit: false,
   passwordNote: 'Runs as SQL on this connection; the login needs BACKUP DATABASE (db_backupoperator) and, to restore, dbcreator.',
-  // msdb records every backup the server took, by file.
-  history: (conn) => `SELECT TOP (20)
+  // msdb records every backup the server took, by file. No TOP: the SQL
+  // editor's pager appends OFFSET … FETCH to a statement that has an ORDER BY,
+  // and SQL Server refuses TOP beside OFFSET, so the listing failed there.
+  history: (conn) => `SELECT
   b.backup_finish_date AS finished_at,
   m.physical_device_name AS location,
   b.backup_size AS size_bytes,

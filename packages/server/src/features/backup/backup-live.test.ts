@@ -21,6 +21,11 @@
  *   FOX_IT_DB=1 npx vitest run packages/server/src/features/backup/backup-live.test.ts
  *
  * An engine that does not answer is skipped by name, with the reason.
+ *
+ * The Db2 case takes an offline backup, which forces every connection off
+ * FOXDB for a few seconds. Run this file on its own, or with
+ * --no-file-parallelism beside other live tests, or Db2 is skipped there
+ * (SQL1035N) for the duration.
  */
 import { execFile } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -37,6 +42,7 @@ import {
   type BackupConnection,
   type ConnectionOptions,
 } from '@foxschema/sql';
+import { wrapSqlForPage } from '../sql-editor/sql-page-wrap.service.js';
 
 const RUN = process.env.FOX_IT_DB === '1';
 const TAG = Date.now().toString(36).slice(-5);
@@ -95,6 +101,12 @@ async function inContainer(ctx: Ctx, container: string, user: string, command: s
   }
 }
 
+/**
+ * The history query as the panel runs it: through /sql/execute, which pages
+ * every read. Run bare, SQL Server's `TOP` passed here and failed in the app.
+ */
+const historySql = (conn: BackupConnection): string => wrapSqlForPage(backupHistoryQuery(conn)!, conn.dialect, 0, 100);
+
 const cleanups: Array<() => Promise<unknown>> = [];
 afterAll(async () => {
   for (const clean of cleanups.reverse()) await clean().catch(() => undefined);
@@ -117,7 +129,7 @@ describe.runIf(RUN)('backups on the real engines', () => {
     const commands = ok(buildBackupCommands(conn, settings));
     await exec('sqlserver', options, [commands.backup]);
 
-    const history = normalizeBackupHistory(rowsOf(await exec('sqlserver', options, [backupHistoryQuery(conn)!]).then((r) => r[0])));
+    const history = normalizeBackupHistory(rowsOf(await exec('sqlserver', options, [historySql(conn)]).then((r) => r[0])));
     expect(history[0]?.location, 'the backup just taken is the newest on record').toBe(commands.location);
 
     const restore = ok(buildBackupCommands(conn, { ...settings, restoreFrom: history[0]!.restoreKey })).restore;
@@ -150,7 +162,7 @@ describe.runIf(RUN)('backups on the real engines', () => {
       `for i in 1 2 3 4 5 6; do db2 force application all >/dev/null; sleep 1; ${commands.backup} && exit 0; sleep 4; done; exit 1`
     );
 
-    const rows = await ConnectionFactory.executeQuery<Record<string, unknown>>('db2', options, backupHistoryQuery(conn)!);
+    const rows = await ConnectionFactory.executeQuery<Record<string, unknown>>('db2', options, historySql(conn));
     const newest = normalizeBackupHistory(rows)[0];
     expect(newest?.restoreKey).toMatch(/^\d{14}$/);
     expect(newest?.location).toBe(folder);
@@ -187,7 +199,7 @@ describe.runIf(RUN)('backups on the real engines', () => {
       throw err;
     }
 
-    const history = normalizeBackupHistory(rowsOf((await exec('clickhouse', admin, [backupHistoryQuery(conn)!]))[0]));
+    const history = normalizeBackupHistory(rowsOf((await exec('clickhouse', admin, [historySql(conn)]))[0]));
     const file = commands.location.split(':')[1]!;
     const picked = history.find((e) => e.restoreKey.includes(file));
     expect(picked?.restoreKey, 'the backup just taken is on record').toBe(`Disk('backups', '${file}')`);

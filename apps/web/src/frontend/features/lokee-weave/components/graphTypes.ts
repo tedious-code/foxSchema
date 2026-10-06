@@ -11,7 +11,7 @@
  * reconstruct that however it likes.
  */
 import type { Edge, Node } from '@xyflow/react';
-import type { LokeeObjectType, ObjectChangeKind } from '@foxschema/sql';
+import type { LokeeObjectType, ObjectChangeKind } from '@foxschema/ui-shared';
 import type {
   GraphChangeStatus,
   VersionGraphObject,

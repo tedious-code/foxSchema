@@ -13,7 +13,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { DbPrivilege } from '@foxschema/sql';
+import type { DbPrivilege } from '@foxschema/ui-shared';
 
 const loadSchema = vi.fn().mockResolvedValue({
   tables: [{ name: 'orders', objectType: 'TABLE' }],

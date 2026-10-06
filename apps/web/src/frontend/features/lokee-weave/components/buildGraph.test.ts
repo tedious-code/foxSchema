@@ -18,7 +18,7 @@ import {
   type LokeeNode,
   type LokeeVersionNode,
 } from './graphTypes';
-import type { LokeeObjectType } from '@foxschema/sql';
+import type { LokeeObjectType } from '@foxschema/ui-shared';
 
 /** Narrows to a version node, so `.data` is the version payload not the union. */
 function versionNode(graph: BuiltGraph, id: string): LokeeVersionNode {

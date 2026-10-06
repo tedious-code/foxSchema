@@ -18,7 +18,7 @@ import {
   apiDeleteConnection,
 } from '@/shared/api/authApi';
 import type { CommittedMigrationRef, ConnectionConfig, SyncState } from './sync-types';
-import type { MigrationStep } from '@foxschema/sql';
+import type { MigrationStep } from '@foxschema/ui-shared';
 import { buildRef, buildMapping, regenerateSql, buildIncludedDiffs, loadSqlGenerator, sqlGenerator } from './sync-helpers';
 import { toast } from './toastStore';
 import { useUiStore } from './uiStore';

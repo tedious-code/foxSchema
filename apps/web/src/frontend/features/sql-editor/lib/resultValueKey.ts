@@ -26,7 +26,7 @@
 // Deterministic serialisation, shared with Lokee Weave's object hashing rather
 // than duplicated: two copies that disagreed would mean a cell counted as equal
 // while the schema object containing it hashed as changed.
-import { stableStringify } from '@foxschema/sql';
+import { stableStringify } from '@foxschema/ui-shared';
 
 const isDigit = (ch: string | undefined): boolean => ch !== undefined && ch >= '0' && ch <= '9';
 

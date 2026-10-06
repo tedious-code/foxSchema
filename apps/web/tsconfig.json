@@ -25,6 +25,7 @@
       "@foxschema/db": ["../../packages/db/src/index.ts"],
       "@foxschema/db/mail": ["../../packages/db/src/mail/smtp.ts"],
       "@foxschema/shared": ["../../packages/shared/src/index.ts"],
+      "@foxschema/ui-shared": ["../../packages/ui-shared/src/index.ts"],
       "@foxschema/server": ["../../packages/server/src/index.ts"]
     }
   },

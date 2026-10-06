@@ -15,7 +15,7 @@
  * name no connection, host, database or query: the version, the browser, the
  * workspace, and which engines are in use.
  */
-import { findLeftoverSecrets, scrubSecrets } from '@foxschema/sql';
+import { findLeftoverSecrets, scrubSecrets } from '@foxschema/ui-shared';
 
 /** Where feedback goes. Public, so anyone with a GitHub account can file one. */
 export const FEEDBACK_REPO = 'tedious-code/foxSchema';

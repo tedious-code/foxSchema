@@ -6,5 +6,5 @@ export {
   blockedColumns,
   columnExclusionBlock,
   supportsColumnSelection,
-} from '@foxschema/sql';
-export type { ExclusionBlock, ExclusionContext } from '@foxschema/sql';
+} from '@foxschema/ui-shared';
+export type { ExclusionBlock, ExclusionContext } from '@foxschema/ui-shared';

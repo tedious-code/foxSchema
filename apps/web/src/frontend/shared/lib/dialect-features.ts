@@ -13,4 +13,4 @@ export {
   schemaCompareBlocker,
   type DialectFeature,
   type FeatureSupport,
-} from '@foxschema/sql';
+} from '@foxschema/ui-shared';

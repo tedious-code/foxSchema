@@ -9,7 +9,7 @@
  * resolved and decrypted server-side, and an ad-hoc one carries only what the
  * user typed for this session.
  */
-import type { StoredWeaveObject } from '@foxschema/sql';
+import type { StoredWeaveObject } from '@foxschema/ui-shared';
 import type { ConnectionRef } from '@/shared/api/schemaApi';
 import type { VersionGraphDTO } from '@/features/lokee-weave/components/graphTypes';
 import type { CaptureResult, ForceMigrateErrorCode, ForceMigratePlanWire, LokeeDatabase, LokeeRevertErrorCode, ObjectHistoryEntry, ObjectInspectResult, RevertPlanWire, VersionCompare, VersionSummary } from '@foxschema/shared';

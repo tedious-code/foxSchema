@@ -93,9 +93,9 @@ export {
   type DbPrincipal,
   type DbPrincipalKind,
   type DbPrivilege,
-} from '@foxschema/sql';
+} from '@foxschema/ui-shared';
 
-import { accessFamily, type AccessPermission } from '@foxschema/sql';
+import { accessFamily, type AccessPermission } from '@foxschema/ui-shared';
 
 /** Which band of the permission grid a permission sits in: data (DML) or definition (DDL). */
 export function permissionBand(p: AccessPermission): 'DML' | 'DDL' {

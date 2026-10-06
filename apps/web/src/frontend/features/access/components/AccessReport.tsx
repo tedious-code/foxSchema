@@ -4,7 +4,7 @@ import { fetchDbAccess } from '@/shared/api/schemaApi';
 import { useSyncStore } from '@/app/store/useSyncStore';
 import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
 import { buildAccessReport, principalsWithAccessTo, type AccessReport as Report } from '../lib/access';
-import type { DbPrincipal, DbPrivilege } from '@foxschema/sql';
+import type { DbPrincipal, DbPrivilege } from '@foxschema/ui-shared';
 import { inputCls, labelCls } from './controls';
 import { connectionOptionLabel } from '@/shared/lib/dialectLabel';
 

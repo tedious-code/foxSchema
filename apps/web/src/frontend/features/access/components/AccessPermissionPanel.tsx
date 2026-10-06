@@ -28,7 +28,7 @@ import {
   privilegesForPrincipal,
   type DbPrincipal,
   type DbPrivilege,
-} from '@foxschema/sql';
+} from '@foxschema/ui-shared';
 import { fetchDbAccess } from '@/shared/api/schemaApi';
 import { useSyncStore } from '@/app/store/useSyncStore';
 import { AccessGrantsStage } from './AccessGrantsStage';

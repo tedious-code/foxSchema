@@ -29,7 +29,7 @@ import type { TableSchema } from '@/shared/lib/types';
 import { PeekRowEditor, type PeekRowEditorMode, type PeekRowEditorSubmit } from './PeekRowEditor';
 import { WriteConfirmDialog } from './WriteConfirmDialog';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
-import { supportsDialectFeature } from '@foxschema/sql';
+import { supportsDialectFeature } from '@foxschema/ui-shared';
 
 function recordPeekRun(args: {
   kind: string;

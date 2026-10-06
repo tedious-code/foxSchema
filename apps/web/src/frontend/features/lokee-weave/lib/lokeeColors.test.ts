@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DIALECT_MAP } from '@foxschema/sql';
+import { DIALECT_MAP } from '@foxschema/ui-shared';
 import { COLORED, TONE_FAMILIES } from '@/app/store/uiStore';
 import {
   OBJECT_STYLES,

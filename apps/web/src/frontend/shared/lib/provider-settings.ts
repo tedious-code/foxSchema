@@ -48,4 +48,4 @@ export {
   type ProviderConnectionSettings,
   /** The registry entry type. Named `ProviderSettings` here for the callers that used it. */
   type ProviderConnectionSettings as ProviderSettings,
-} from '@foxschema/sql';
+} from '@foxschema/ui-shared';

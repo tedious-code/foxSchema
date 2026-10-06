@@ -26,7 +26,7 @@ import {
   GitCommitVertical,
   X,
 } from 'lucide-react';
-import { CHANGE_KIND_LABEL, CHANGE_KIND_TITLE, type LokeeObjectType } from '@foxschema/sql';
+import { CHANGE_KIND_LABEL, CHANGE_KIND_TITLE, type LokeeObjectType } from '@foxschema/ui-shared';
 import { changeKindStyle, objectStyle, statusStyle } from '@/features/lokee-weave/lib/lokeeColors';
 import {
   objectDisplayName,

@@ -17,7 +17,7 @@ import {
   findCachedTable,
   tableNameParts,
 } from '@/shared/lib/tablePreview';
-import { formatBytes, formatRowCount } from '@foxschema/sql';
+import { formatBytes, formatRowCount } from '@foxschema/ui-shared';
 import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
 import { useSyncStore } from '@/app/store/useSyncStore';
 import { Panel, StatCard } from '@/shared/components/surfaces';

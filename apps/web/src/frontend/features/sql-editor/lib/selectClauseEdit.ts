@@ -2,7 +2,7 @@
  * Helpers to inject columns into a SELECT list (Schema click / column picker).
  */
 import { extractTableAliases } from '@/shared/lib/sql-splitter';
-import { escapeRegExp } from '@foxschema/sql';
+import { escapeRegExp } from '@foxschema/ui-shared';
 
 /** Find the SELECT … FROM span for the first SELECT in `sql` (heuristic). */
 export function findSelectListRange(

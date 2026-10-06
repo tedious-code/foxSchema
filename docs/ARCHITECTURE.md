@@ -74,6 +74,10 @@ packages/sql/           @foxschema/sql — dialect knowledge (pure, browser-safe
   src/cores/            Connection strings, catalog rows → TableSchema,
                         connection auth (password / Windows NTLM / Db2 LDAP)
 
+packages/ui-shared/     @foxschema/ui-shared — the part of @foxschema/sql the
+                        web app may use: a named, by-reference re-export. The
+                        frontend imports this, never @foxschema/sql directly
+
 packages/db/            @foxschema/db — Node runtime: drivers, pooling, execution
   src/providers/        One adapter and provider per dialect
   src/cores/            ConnectionFactory, pooling, circuit breaker
@@ -119,10 +123,19 @@ and `domain`) inside `encrypted_config`. Methods:
 never the secret. Windows integrated SSO (no password) is not implemented.
 
 The frontend imports **browser-safe** workspace packages through Vite aliases
-(`@foxschema/sql`, `@foxschema/shared`, `@foxschema/workflow-contract`,
+(`@foxschema/ui-shared`, `@foxschema/shared`, `@foxschema/workflow-contract`,
 `@foxschema/workflow-engine/definitions`). Facades live in
 `apps/web/src/frontend/shared/lib/`. `@foxschema/db` and `@foxschema/server`
 are not aliased — a UI import of either fails the build.
+
+Dialect code reaches the browser only through `@foxschema/ui-shared`, which
+names each `@foxschema/sql` export the frontend uses and re-exports it by
+reference. Importing `@foxschema/sql` from the frontend fails
+`apps/web/src/frontend/architecture.test.ts`. To use another part of the engine
+in the browser, add it to `packages/ui-shared/src/index.ts`, where the change
+shows up in review. `ui-shared.test.ts` checks that every name there is the
+`@foxschema/sql` export itself, so the browser and the server cannot drift. The
+bundle is unchanged: re-exports add no code.
 
 `shared/lib/provider-settings.ts` used to be a real copy of the dialect registry,
 kept on the theory that the browser should not pull the driver runtime in. It does
@@ -170,8 +183,9 @@ TiDB→MySQL); Redshift has its own module (GROUP, not ROLE). Db2 has no CREATE 
 GRANT CONNECT steps for the `foxschema-db2` container instead. GRANT/REVOKE is the
 same pattern: `<d>.access-sql.ts` / `modules/access/access-sql.registry.ts`
 (Redshift reuses Postgres GRANT; account DDL stays separate). Both stay in
-`@foxschema/sql` so the browser Access Assistant can generate SQL — do not put
-these emitters in `@foxschema/db` (Node drivers only).
+`@foxschema/sql` so the browser Access Assistant can generate SQL (through
+`@foxschema/ui-shared`) — do not put these emitters in `@foxschema/db` (Node
+drivers only).
 
 The `SqlDialect` interface has optional hooks; the generator uses a generic fallback when a
 hook is absent. Adding dialect-specific behavior = implement the hook in that dialect's file

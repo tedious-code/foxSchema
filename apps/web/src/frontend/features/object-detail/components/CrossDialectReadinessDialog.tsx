@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { GitCompareArrows, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
-import { CROSS_DIALECT_READINESS, type ReadinessLevel } from '@foxschema/sql';
+import { CROSS_DIALECT_READINESS, type ReadinessLevel } from '@foxschema/ui-shared';
 
 interface Props {
   open: boolean;

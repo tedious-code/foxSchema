@@ -17,7 +17,7 @@
  * shipped in the first draft of this file and was caught by screenshotting,
  * not by any test, which is why `lokeeColors.test.ts` now asserts it.
  */
-import type { LokeeObjectType, ObjectChangeKind, ReversalRisk } from '@foxschema/sql';
+import type { LokeeObjectType, ObjectChangeKind, ReversalRisk } from '@foxschema/ui-shared';
 
 export interface ObjectStyle {
   /** Short label for a chip — the full key is in the title attribute. */

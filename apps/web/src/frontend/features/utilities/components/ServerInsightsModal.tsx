@@ -22,7 +22,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { dialectSupportsDbaUtility, formatBytes, formatPct, type DbaUtilityKind } from '@foxschema/sql';
+import { dialectSupportsDbaUtility, formatBytes, formatPct, type DbaUtilityKind } from '@foxschema/ui-shared';
 import { fetchDbaUtility, type DbaUtilityResponse } from '@/shared/api/schemaApi';
 import { useSyncStore } from '@/app/store/useSyncStore';
 import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';

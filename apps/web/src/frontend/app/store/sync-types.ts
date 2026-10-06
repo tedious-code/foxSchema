@@ -1,7 +1,7 @@
 import type { ConnectionOptions, Dialect } from '@/shared/lib/provider-settings';
 import type { DbObjectType, SchemaCompareResult, TableDiff } from '@/shared/lib/types';
 import type { SavedConnectionSummary } from '@/shared/api/authApi';
-import type { MigrationStep } from '@foxschema/sql';
+import type { MigrationStep } from '@foxschema/ui-shared';
 
 /** A committed migration Execute will run: the file at that commit, not the live plan. */
 export interface CommittedMigrationRef {

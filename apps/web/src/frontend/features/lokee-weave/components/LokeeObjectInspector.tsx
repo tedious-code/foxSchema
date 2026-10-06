@@ -10,7 +10,7 @@
  * Indexes are stored but not a first-class inspector surface.
  */
 import React, { useEffect, useState } from 'react';
-import { isLokeeTableLikeType, lokeeColumnChangeSubtitle, lokeeTypeLabel } from '@foxschema/sql';
+import { isLokeeTableLikeType, lokeeColumnChangeSubtitle, lokeeTypeLabel } from '@foxschema/ui-shared';
 import { ChevronsUpDown, Loader2, X } from 'lucide-react';
 import {
   inspectLokeeObject,

@@ -25,7 +25,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { AlertTriangle, GripVertical, Lock, Unlock } from 'lucide-react';
-import type { LokeeObjectType } from '@foxschema/sql';
+import type { LokeeObjectType } from '@foxschema/ui-shared';
 import { OBJECT_STYLES, STATUS_STYLES, objectStyle, statusStyle } from '@/features/lokee-weave/lib/lokeeColors';
 import { LOKEE_NODE_TYPES } from './nodes';
 import { buildVersionGraph, carryMeasurements, offeredObjectTypes } from './buildGraph';

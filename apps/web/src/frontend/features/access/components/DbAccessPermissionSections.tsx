@@ -46,7 +46,7 @@ import {
 } from '@/features/access/lib/access';
 import { useAllSchemaObjects } from '@/features/access/lib/useAllSchemaObjects';
 import { sectionLabelCls } from '@/shared/components/surfaces';
-import { dialectFamily } from '@foxschema/sql';
+import { dialectFamily } from '@foxschema/ui-shared';
 
 type ActionMode = 'grant' | 'revoke';
 

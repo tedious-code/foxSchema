@@ -17,7 +17,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, ChevronUp, Database, Folder, Home, Loader2, RefreshCw, X } from 'lucide-react';
 import { browseFiles, type FileBrowseEntry, type FileBrowseResult } from '@/shared/api/fileApi';
-import { formatBytes } from '@foxschema/sql';
+import { formatBytes } from '@foxschema/ui-shared';
 
 export interface DatabaseFilePickerProps {
   /** Where to open. A file path opens its directory, with the name filled in. */

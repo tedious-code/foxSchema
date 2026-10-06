@@ -75,7 +75,7 @@ import {
 } from '../lib/accountAlterations';
 import type { AccessPrincipalDraft } from '../lib/access';
 import { writeClipboard } from '@/shared/utils/clipboard';
-import { describeAllowAll, dialectFamily, findAllowAllByName, type AllowAll } from '@foxschema/sql';
+import { describeAllowAll, dialectFamily, findAllowAllByName, type AllowAll } from '@foxschema/ui-shared';
 
 type Mode = 'idle' | 'add' | 'edit' | 'drop' | 'list';
 

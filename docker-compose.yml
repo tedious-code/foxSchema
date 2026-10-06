@@ -211,6 +211,8 @@ services:
       - "9000:9000"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
+      # A backup disk, so BACKUP … TO Disk('backups', …) runs.
+      - ./docker/init/clickhouse/backups.xml:/etc/clickhouse-server/config.d/backups.xml:ro
     ulimits:
       nofile:
         soft: 262144

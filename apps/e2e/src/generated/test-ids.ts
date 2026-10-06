@@ -9,16 +9,14 @@
 export const TestIds = {
   access: {
     AccessGrantsStage: {
+      /** p */
+      accessGrantsAlsoHolds: 'access-grants-also-holds',
       /** li */
       accessGrantsChange: (action: string | number) => `access-grants-change-${action}`,
       /** button · Copy */
       accessGrantsCopy: 'access-grants-copy',
       /** ul */
       accessGrantsDiff: 'access-grants-diff',
-      /** div */
-      accessGrantsMode: 'access-grants-mode',
-      /** button */
-      accessGrantsModeForValue: (value: string | number) => `access-grants-mode-${value}`,
       /** button · Open in SQL Editor */
       accessGrantsOpenSql: 'access-grants-open-sql',
       /** button */
@@ -2667,14 +2665,44 @@ export const TestIds = {
       backupTables: 'backup-tables',
       /** div · No backup commands */
       backupUnsupported: 'backup-unsupported',
-      /** section · Restore */
+      /** section */
       restoreCommand: 'restore-command',
-      /** button · Restore */
+      /** button */
       restoreCommandCopy: 'restore-command-copy',
       /** button · Open in SQL Editor */
       restoreCommandOpenSql: 'restore-command-open-sql',
-      /** pre · Restore */
+      /** pre */
       restoreCommandText: 'restore-command-text',
+    },
+    BackupServerActions: {
+      /** ul */
+      backupHistory: 'backup-history',
+      /** button · Restore the newest instead */
+      backupHistoryClearPick: 'backup-history-clear-pick',
+      /** p */
+      backupHistoryEmpty: 'backup-history-empty',
+      /** p */
+      backupHistoryError: 'backup-history-error',
+      /** button */
+      backupHistoryLoad: 'backup-history-load',
+      /** button */
+      backupHistoryPick: (i: string | number) => `backup-history-pick-${i}`,
+      /** li */
+      backupHistoryRow: (i: string | number) => `backup-history-row-${i}`,
+      /** button · Run backup now */
+      backupRun: 'backup-run',
+      /** button · Cancel */
+      backupRunCancel: 'backup-run-cancel',
+      /** button · Run it */
+      backupRunConfirm: 'backup-run-confirm',
+      /** div */
+      backupRunConfirmBox: 'backup-run-confirm-box',
+      /** p */
+      backupRunError: 'backup-run-error',
+      /** span */
+      backupRunStatus: 'backup-run-status',
+      /** section */
+      backupServerActions: 'backup-server-actions',
     },
     CloneTableModal: {
       /** button · Apply clone */
@@ -3304,11 +3332,10 @@ export const TestIds = {
 /** Any test ID in the web app; `${string}` is a part filled in at run time. */
 export type TestId =
   | 'access-connection'
+  | 'access-grants-also-holds'
   | `access-grants-change-${string}`
   | 'access-grants-copy'
   | 'access-grants-diff'
-  | 'access-grants-mode'
-  | `access-grants-mode-${string}`
   | 'access-grants-open-sql'
   | `access-grants-preset-${string}`
   | 'access-grants-presets'
@@ -3471,16 +3498,30 @@ export type TestId =
   | 'backup-folder'
   | 'backup-format'
   | `backup-format-${string}`
+  | 'backup-history'
+  | 'backup-history-clear-pick'
+  | 'backup-history-empty'
+  | 'backup-history-error'
+  | 'backup-history-load'
+  | `backup-history-pick-${string}`
+  | `backup-history-row-${string}`
   | 'backup-limit-schema'
   | 'backup-no-connection'
   | 'backup-notes'
   | 'backup-panel'
   | 'backup-reset'
+  | 'backup-run'
+  | 'backup-run-cancel'
+  | 'backup-run-confirm'
+  | 'backup-run-confirm-box'
+  | 'backup-run-error'
+  | 'backup-run-status'
   | 'backup-runs-on'
   | 'backup-save-default'
   | 'backup-save-status'
   | 'backup-scope'
   | `backup-scope-${string}`
+  | 'backup-server-actions'
   | 'backup-tables'
   | 'backup-unsupported'
   | 'blueprint-add-column'

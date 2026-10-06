@@ -60,6 +60,12 @@ export interface BackupRequest extends BackupSettings {
   fileName: string;
   /** Only these tables. Empty: everything in scope. */
   tables: readonly string[];
+  /**
+   * A backup picked from the engine's history (its `restore_key`), for the
+   * restore to read instead of the newest one in the folder. Each engine
+   * checks it and quotes it; one it cannot read leaves the restore as it was.
+   */
+  restoreFrom?: string;
 }
 
 /** What "folder" means on an engine, so the field can say so. */
@@ -96,5 +102,12 @@ export interface BackupDialect {
   schemaLimit: boolean;
   /** How the tool gets the password, since the command never contains it. */
   passwordNote: string;
+  /**
+   * The backups this engine has recorded, newest first, as one read-only query.
+   * Columns: `finished_at`, `location`, `size_bytes` (may be null) and
+   * `restore_key`, the value `BackupRequest.restoreFrom` takes. Absent where
+   * the engine keeps no record (a dump file on the client is just a file).
+   */
+  history?(conn: BackupConnection): string;
   build(conn: BackupConnection, request: BackupRequest): BackupCommands;
 }

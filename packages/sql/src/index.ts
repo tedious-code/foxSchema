@@ -197,6 +197,11 @@ export {
   backupFileName,
   parseTableList,
   buildBackupCommands,
+  backupHistoryQuery,
+  normalizeBackupHistory,
+} from './modules/utilities/backup.js';
+export type {
+  BackupHistoryEntry,
 } from './modules/utilities/backup.js';
 export type {
   BackupCommands,
@@ -478,6 +483,8 @@ export {
   compileGridChanges,
   gridObjectKey,
   heldGridPermissions,
+  splitHeldPrivileges,
+  describeHeldPrivilege,
   expandToInstance,
   accessStatementPlace,
   qualifyDatabaseSql,

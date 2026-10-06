@@ -10,7 +10,7 @@ import { BackupRestorePanel } from './BackupRestorePanel';
 
 const connections = [
   { id: 'pg', name: 'Shop', dialect: 'postgres', host: 'db.local', port: 5432, database: 'shop', schema: 'sales', username: 'fox' },
-  { id: 'ms', name: 'Ledger', dialect: 'sqlserver', host: 'sql.local', port: 1433, database: 'ledger', username: 'sa_like' },
+  { id: 'ms', name: 'Ledger', dialect: 'sqlserver', host: 'sql.local', port: 1433, database: 'ledger', username: 'sa_like', hasPassword: true },
   { id: 'odd', name: 'Odd', dialect: 'notadb', database: 'x' },
 ];
 vi.mock('@/app/store/useSyncStore', () => ({
@@ -19,9 +19,15 @@ vi.mock('@/app/store/useSyncStore', () => ({
 const setSql = vi.fn();
 const ensureConnectionSelected = vi.fn();
 vi.mock('@/app/store/useSqlEditorStore', () => ({
-  useSqlEditorStore: (sel: (s: { setSql: typeof setSql; ensureConnectionSelected: typeof ensureConnectionSelected }) => unknown) =>
-    sel({ setSql, ensureConnectionSelected }),
+  useSqlEditorStore: (sel: (s: { setSql: typeof setSql; ensureConnectionSelected: typeof ensureConnectionSelected; sessionPasswords: Record<string, string> }) => unknown) =>
+    sel({ setSql, ensureConnectionSelected, sessionPasswords: {} }),
 }));
+let canChangeSchema = true;
+vi.mock('@/app/store/authStore', () => ({
+  useAuthStore: (sel: (s: { can: () => boolean }) => unknown) => sel({ can: () => canChangeSchema }),
+}));
+const executeSql = vi.fn();
+vi.mock('@/shared/api/sqlApi', () => ({ executeSql: (...args: unknown[]) => executeSql(...args) }));
 const setActiveView = vi.fn();
 vi.mock('@/app/store/uiStore', () => ({
   useUiStore: (sel: (s: { setActiveView: typeof setActiveView }) => unknown) => sel({ setActiveView }),
@@ -37,6 +43,7 @@ vi.mock('@/shared/utils/clipboard', () => ({ writeClipboard: vi.fn(() => Promise
 const backupText = () => screen.getByTestId('backup-command-text').textContent ?? '';
 
 beforeEach(() => {
+  canChangeSchema = true;
   getSettings.mockResolvedValue({});
   saveSettings.mockImplementation((_d: string, s: unknown) => Promise.resolve(s));
 });
@@ -118,5 +125,47 @@ describe('BackupRestorePanel', () => {
     render(<BackupRestorePanel lockedConnectionId="pg" />);
     await waitFor(() => expect(screen.getByTestId('backup-save-status').textContent).toMatch(/could not be loaded/));
     expect(backupText()).toMatch(/^pg_dump /);
+  });
+
+  it('runs SQL Server’s backup on the server once confirmed, and restores a listed backup', async () => {
+    const ok = (columns: string[], rows: unknown[][], durationMs = 1) => ({
+      results: [{ ok: true, columns, rows, rowCount: rows.length, truncated: false, durationMs }],
+    });
+    executeSql
+      .mockResolvedValueOnce(ok([], [], 1200))
+      .mockResolvedValueOnce(
+        ok(['finished_at', 'location', 'size_bytes', 'restore_key'], [
+          ['2026-10-05 22:00', '/var/opt/mssql/backups/ledger_old.bak', 2_097_152, '/var/opt/mssql/backups/ledger_old.bak'],
+        ])
+      );
+    render(<BackupRestorePanel lockedConnectionId="ms" />);
+    await waitFor(() => expect(getSettings).toHaveBeenCalled());
+
+    // Nothing runs until the reader has seen where the file goes and agreed.
+    fireEvent.click(screen.getByTestId('backup-run'));
+    expect(executeSql).not.toHaveBeenCalled();
+    expect(screen.getByTestId('backup-run-confirm-box').textContent).toMatch(/Ledger/);
+    fireEvent.click(screen.getByTestId('backup-run-confirm'));
+    await waitFor(() => expect(screen.getByTestId('backup-run-status').textContent).toMatch(/Backup finished in 1\.2 s/));
+    expect(executeSql.mock.calls[0]![1]).toEqual([expect.stringMatching(/^BACKUP DATABASE \[ledger\]/)]);
+
+    // The finished backup is listed (read straight after), and picking it points the restore at it.
+    fireEvent.click(await screen.findByTestId('backup-history-pick-0'));
+    expect(screen.getByTestId('restore-command-text').textContent).toContain(
+      "FROM DISK = N'/var/opt/mssql/backups/ledger_old.bak'"
+    );
+  });
+
+  it('offers nothing to run or list for a tool that runs on the reader’s machine', async () => {
+    render(<BackupRestorePanel lockedConnectionId="pg" />);
+    await waitFor(() => expect(getSettings).toHaveBeenCalled());
+    expect(screen.queryByTestId('backup-server-actions')).toBeNull();
+  });
+
+  it('will not run a backup for someone who may not change the schema', async () => {
+    canChangeSchema = false;
+    render(<BackupRestorePanel lockedConnectionId="ms" />);
+    await waitFor(() => expect(getSettings).toHaveBeenCalled());
+    expect((screen.getByTestId('backup-run') as HTMLButtonElement).disabled).toBe(true);
   });
 });

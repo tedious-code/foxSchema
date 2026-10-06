@@ -7,9 +7,11 @@ import { describe, expect, it } from 'vitest';
 import { DIALECTS } from '../../providers/provider-settings.js';
 import {
   backupFileName,
+  backupHistoryQuery,
   backupSupport,
   buildBackupCommands,
   defaultBackupSettings,
+  normalizeBackupHistory,
   normalizeBackupSettings,
   parseTableList,
 } from './backup.js';
@@ -273,5 +275,57 @@ describe('file engines, Redshift, MongoDB, Redis', () => {
     const c = ok(buildBackupCommands(conn('redis', { port: 6379 }), {}, NOW));
     expect(c.backup).toBe('redis-cli -h db.local -p 6379 --user fox --askpass --rdb ./backups/shop_20261004_153005.rdb');
     expect(c.restore.split('\n').every((l) => l.startsWith('#'))).toBe(true);
+  });
+});
+
+describe('backups the server recorded', () => {
+  const conn = (dialect: string, database = "O'Brien") => ({ dialect, host: 'db', database, username: 'app' });
+
+  it('lists them where the engine keeps a record, and says so where it keeps none', () => {
+    const mssql = backupHistoryQuery(conn('sqlserver'))!;
+    expect(mssql).toContain('msdb.dbo.backupset');
+    expect(mssql).toContain("N'O''Brien'");
+    expect(backupHistoryQuery(conn('db2', 'SAMPLE'))).toContain('SYSIBMADM.DB_HISTORY');
+    expect(backupHistoryQuery(conn('clickhouse', 'shop'))).toContain('system.backups');
+    // A dump file on the client is just a file; nothing records it.
+    expect(backupHistoryQuery(conn('postgres', 'shop'))).toBeNull();
+  });
+
+  const restoreOf = (dialect: string, restoreFrom: string, database = 'shop') => {
+    const built = buildBackupCommands(conn(dialect, database), { restoreFrom }, new Date('2026-10-06T10:00:00Z'));
+    if ('error' in built) throw new Error(built.error);
+    return built;
+  };
+
+  it('restores the backup picked from that list', () => {
+    expect(restoreOf('sqlserver', "/var/opt/mssql/backups/it's.bak").restore).toContain(
+      "FROM DISK = N'/var/opt/mssql/backups/it''s.bak'"
+    );
+    const db2 = restoreOf('db2', '20261004093000', 'SAMPLE');
+    expect(db2.restore).toContain('TAKEN AT 20261004093000');
+    expect(db2.notes.join(' ')).toContain('taken at 20261004093000');
+    expect(restoreOf('clickhouse', "Disk('backups', 'shop_old.zip')").restore).toContain(
+      "FROM Disk('backups', 'shop_old.zip')"
+    );
+  });
+
+  it('ignores a pick it cannot read, rather than pasting it into SQL', () => {
+    expect(restoreOf('db2', '2026; DROP', 'SAMPLE').restore).not.toContain('TAKEN AT');
+    const ch = restoreOf('clickhouse', "Disk('a') ; DROP DATABASE shop");
+    expect(ch.restore).not.toContain('DROP DATABASE');
+    expect(ch.restore).toContain("FROM Disk('backups'");
+  });
+
+  it('reads rows in any column case and drops ones it cannot restore', () => {
+    expect(
+      normalizeBackupHistory([
+        { FINISHED_AT: '20261004093000', LOCATION: '/backups', SIZE_BYTES: null, RESTORE_KEY: '20261004093000' },
+        { finished_at: new Date('2026-10-05T01:02:03Z'), location: '/x.bak', size_bytes: '2048', restore_key: '/x.bak' },
+        { finished_at: 'later', location: '?', size_bytes: 1, restore_key: '' },
+      ])
+    ).toEqual([
+      { finishedAt: '20261004093000', location: '/backups', sizeBytes: null, restoreKey: '20261004093000' },
+      { finishedAt: '2026-10-05T01:02:03.000Z', location: '/x.bak', sizeBytes: 2048, restoreKey: '/x.bak' },
+    ]);
   });
 });

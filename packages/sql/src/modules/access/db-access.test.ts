@@ -703,3 +703,54 @@ describe('role membership WITH ADMIN OPTION', () => {
     expect(grant('sqlserver')).toEqual({ sql: 'ALTER ROLE [reader] ADD MEMBER [alice];' });
   });
 });
+
+describe('routine privileges', () => {
+  const sqlOf = (dialect: string) => buildDbAccessPrivilegeQueries({ dialect }).map((q) => q.sql).join('\n');
+
+  it('reads EXECUTE on procedures and functions where each engine records it', () => {
+    expect(sqlOf('postgres')).toContain('information_schema.role_routine_grants');
+    // Only the rung that may read mysql.* (the first) can see procs_priv.
+    expect(buildDbAccessPrivilegeQueries({ dialect: 'mysql' })[0]!.sql).toContain('mysql.procs_priv');
+    expect(sqlOf('db2')).toContain('SYSCAT.ROUTINEAUTH');
+  });
+
+  it('keeps the routine kind, which the revoke needs', () => {
+    const [p, f, r] = normalizeDbPrivileges([
+      { grantee: 'app', privilege: 'EXECUTE', object_type: 'PROCEDURE', object_schema: 'shop', object_name: 'close_day' },
+      { grantee: 'app', privilege: 'EXECUTE', object_type: 'FUNCTION', object_schema: 'shop', object_name: 'tax' },
+      { grantee: 'app', privilege: 'EXECUTE', object_type: 'ROUTINE', object_schema: 'shop', object_name: 'tax' },
+    ]);
+    expect([p!.objectType, f!.objectType, r!.objectType]).toEqual(['PROCEDURE', 'FUNCTION', 'ROUTINE']);
+  });
+
+  const revoke = (dialect: string, objectType: string) => {
+    const r = buildGrantRevokeSql({
+      dialect,
+      action: 'revoke',
+      privilege: 'EXECUTE',
+      objectType,
+      objectSchema: 'shop',
+      objectName: 'tax',
+      grantee: 'app',
+      granteeKind: 'user',
+    } as never);
+    return 'error' in r ? `error: ${r.error}` : r.sql;
+  };
+
+  it('revokes a routine grant with each engine’s own syntax', () => {
+    expect(revoke('postgres', 'ROUTINE')).toBe('REVOKE EXECUTE ON ROUTINE "shop"."tax" FROM "app";');
+    expect(revoke('postgres', 'FUNCTION')).toMatch(/^REVOKE EXECUTE ON FUNCTION "shop"\."tax" FROM/);
+    expect(revoke('db2', 'PROCEDURE')).toMatch(/^REVOKE EXECUTE ON PROCEDURE "shop"\."tax" FROM USER/);
+    expect(revoke('mysql', 'FUNCTION')).toMatch(/^REVOKE EXECUTE ON FUNCTION `shop`\.`tax` FROM 'app'@'%';$/);
+    expect(revoke('sqlserver', 'PROCEDURE')).toMatch(/ON OBJECT::\[shop\]\.\[tax\]/);
+    expect(revoke('mysql', 'ROUTINE')).toMatch(/^error: /);
+    expect(revoke('clickhouse', 'FUNCTION')).toMatch(/^error: /);
+  });
+
+  it('names an Oracle object with no keyword, as Oracle requires', () => {
+    expect(revoke('oracle', 'PROCEDURE')).toMatch(/^REVOKE EXECUTE ON "?shop"?\."?tax"? FROM /i);
+    for (const type of ['TABLE', 'PROCEDURE', 'FUNCTION']) {
+      expect(revoke('oracle', type)).not.toMatch(/ON (TABLE|PROCEDURE|FUNCTION|ROUTINE) /);
+    }
+  });
+});

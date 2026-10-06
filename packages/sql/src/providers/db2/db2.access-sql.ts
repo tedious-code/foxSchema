@@ -86,8 +86,10 @@ function emitDb2(ctx: EmitCtx): void {
       ['FUNCTION', functions],
     ] as const) {
       for (const name of names) {
+        // Db2 refuses a routine REVOKE without RESTRICT (SQL0104N).
+        const restrict = request.action === 'revoke' ? ' RESTRICT' : '';
         add(
-          `${verb} EXECUTE ON ${keyword} ${ident(scope.schema)}.${ident(name)} ${dir} ${grantee}${option};`,
+          `${verb} EXECUTE ON ${keyword} ${ident(scope.schema)}.${ident(name)} ${dir} ${grantee}${option}${restrict};`,
           `Lets ${request.principal.name} run ${keyword.toLowerCase()} ${scope.schema}.${name}.`,
           'elevated',
           execPerms

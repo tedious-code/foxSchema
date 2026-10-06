@@ -13,6 +13,7 @@
 
 import { quoteSqlIdentifier } from '../sql-text/sql-template.js';
 import { accessFamily } from './intent.js';
+import { nonSqlPermissionsReason } from './non-sql-engines.js';
 import { mysqlAccount, mysqlQuote, mysqlRoleRef } from './user-sql-helpers.js';
 
 export type DbAccessProbeMode = 'native' | 'estimated' | 'unsupported';
@@ -198,6 +199,11 @@ const SUPPORT: Record<string, DbAccessSupport> = {
   },
   sqlite: UNSUPPORTED,
   duckdb: UNSUPPORTED,
+  // These have accounts and permissions, just not SQL ones. Without an entry
+  // they took the generic information_schema fallback and were offered
+  // `GRANT EXECUTE ON FUNCTION …` text no Redis or MongoDB server can run.
+  redis: { ...UNSUPPORTED, hint: nonSqlPermissionsReason('redis')! },
+  mongodb: { ...UNSUPPORTED, hint: nonSqlPermissionsReason('mongodb')! },
 };
 
 export function dialectSupportsDbAccess(dialect: string): DbAccessSupport {
@@ -273,9 +279,15 @@ export function buildDbAccessPrivilegeQueries(opts: {
     // Most complete first. A login that may not read mysql.* loses the role
     // rows only; global grants come from information_schema, which every
     // login may read (it shows each its own).
+    // TiDB differs twice, both found against a live v8.5 server: it has no
+    // stored routines and no mysql.procs_priv (asking failed the first rung and
+    // cost the role memberships), and its information_schema TABLE_ and
+    // SCHEMA_PRIVILEGES are empty even for root, so its first rung reads the
+    // grant tables themselves.
+    const tidb = opts.dialect.toLowerCase() === 'tidb';
     const ladder = (filter: boolean): DbAccessQuery[] =>
       [
-        mysqlPrivilegesQuery({ schemaFilter: filter, global: true, roles: fam }),
+        mysqlPrivilegesQuery({ schemaFilter: filter, global: true, roles: fam, routines: !tidb, grantTables: tidb }),
         mysqlPrivilegesQuery({ schemaFilter: filter, global: true, roles: null }),
         mysqlPrivilegesQuery({ schemaFilter: filter, global: false, roles: null }),
       ].map((sql) => ({ sql, params: filter ? [schema, schema] : [] }));
@@ -639,6 +651,7 @@ export function buildGrantRevokeSql(args: DbAccessGrantArgs): { sql: string } | 
 
   const routine = objectType === 'PROCEDURE' || objectType === 'FUNCTION' || objectType === 'ROUTINE';
   if (routine && fam === 'clickhouse') return { error: 'ClickHouse has no procedures or functions to grant on.' };
+  if (routine && args.dialect.toLowerCase() === 'tidb') return { error: 'TiDB has no stored procedures or functions to grant on.' };
   if (routine && (fam === 'mysql' || fam === 'mariadb')) {
     // MySQL says which: EXECUTE ON PROCEDURE db.p or ON FUNCTION db.f.
     if (objectType === 'ROUTINE') return { error: 'Say whether this is a procedure or a function.' };
@@ -669,8 +682,17 @@ export function buildGrantRevokeSql(args: DbAccessGrantArgs): { sql: string } | 
   if (fam === 'oracle' && objectType !== 'SYSTEM' && objectType !== 'SCHEMA' && objectType !== 'DATABASE') {
     return emitGrant({ action, privilege: privSql, on: `ON ${objectSql}`, grantee: granteeSql, grantOption });
   }
-  if (routine && fam === 'db2' && objectType === 'ROUTINE') {
+  // CockroachDB has no ON ROUTINE (a syntax error on v26); its catalog always
+  // says which, so this is reached only with a kind nobody read.
+  if (objectType === 'ROUTINE' && args.dialect.toLowerCase() === 'cockroachdb') {
     return { error: 'Say whether this is a procedure or a function.' };
+  }
+  if (routine && fam === 'db2') {
+    if (objectType === 'ROUTINE') return { error: 'Say whether this is a procedure or a function.' };
+    // Db2 will not revoke EXECUTE without RESTRICT (SQL0104N, "Expected
+    // tokens may include: RESTRICT"); it is the only behaviour it has.
+    const built = emitGrant({ action, privilege: privSql, on: `ON ${objectType} ${objectSql}`, grantee: granteeSql, grantOption });
+    return action === 'revoke' ? { sql: built.sql.replace(/;$/, ' RESTRICT;') } : built;
   }
 
   // Postgres and Db2 share the keyword form; Db2 differs only in that a
@@ -857,15 +879,24 @@ ORDER BY CASE WHEN r.rolcanlogin THEN 1 ELSE 0 END, r.rolname
  * under each role, so the default EXECUTE every function carries is not read
  * as something a role was given.
  */
-const PG_ROUTINE_GRANTS = `SELECT grantee,
-       privilege_type,
-       'ROUTINE',
-       routine_schema,
-       routine_name,
-       CASE WHEN is_grantable = 'YES' THEN 1 ELSE 0 END,
-       grantor
-FROM information_schema.role_routine_grants
-WHERE routine_schema NOT IN ('pg_catalog', 'information_schema')`;
+/*
+ * The kind comes from information_schema.routines, so a revoke can say ON
+ * FUNCTION or ON PROCEDURE: CockroachDB rejects ON ROUTINE outright. ROUTINE
+ * is left only where the catalog has no type (a Postgres aggregate).
+ */
+const PG_ROUTINE_GRANTS = `SELECT g.grantee,
+       g.privilege_type,
+       COALESCE(r.routine_type, 'ROUTINE'),
+       g.routine_schema,
+       g.routine_name,
+       CASE WHEN g.is_grantable = 'YES' THEN 1 ELSE 0 END,
+       g.grantor
+FROM information_schema.role_routine_grants g
+LEFT JOIN information_schema.routines r
+  ON r.specific_catalog = g.specific_catalog
+ AND r.specific_schema = g.specific_schema
+ AND r.specific_name = g.specific_name
+WHERE g.routine_schema NOT IN ('pg_catalog', 'information_schema')`;
 
 const PG_PRIVILEGES = `
 SELECT grantee,
@@ -1027,9 +1058,13 @@ function mysqlPrivilegesQuery(opts: {
   schemaFilter: boolean;
   global: boolean;
   roles: 'mysql' | 'mariadb' | null;
+  /** Read mysql.procs_priv (with `roles`, since both need mysql.*). */
+  routines?: boolean;
+  /** Table and schema grants from mysql.tables_priv and mysql.db (TiDB). */
+  grantTables?: boolean;
 }): string {
   const inSchema = opts.schemaFilter ? '\nWHERE TABLE_SCHEMA = ?' : '';
-  const parts = [
+  const parts = opts.grantTables ? mysqlGrantTableParts(opts.schemaFilter) : [
     `SELECT GRANTEE AS grantee,
        PRIVILEGE_TYPE AS privilege,
        'TABLE' AS object_type,
@@ -1058,7 +1093,7 @@ FROM information_schema.SCHEMA_PRIVILEGES${inSchema}`,
 FROM information_schema.USER_PRIVILEGES
 WHERE PRIVILEGE_TYPE <> 'USAGE'`);
   }
-  if (opts.roles) {
+  if (opts.roles && opts.routines !== false) {
     // EXECUTE on a procedure or function. Only mysql.procs_priv records it,
     // so only the rungs that may read mysql.* include it.
     parts.push(`SELECT CONCAT('''', p.User, '''@''', p.Host, ''''),
@@ -1093,6 +1128,55 @@ FROM mysql.role_edges e`);
 FROM mysql.roles_mapping rm`);
   }
   return parts.join('\nUNION ALL\n');
+}
+
+/** mysql.db's Y/N column for each schema privilege. */
+const MYSQL_DB_PRIVILEGE_COLUMNS: Array<[string, string]> = [
+  ['SELECT', 'Select_priv'],
+  ['INSERT', 'Insert_priv'],
+  ['UPDATE', 'Update_priv'],
+  ['DELETE', 'Delete_priv'],
+  ['CREATE', 'Create_priv'],
+  ['DROP', 'Drop_priv'],
+  ['REFERENCES', 'References_priv'],
+  ['INDEX', 'Index_priv'],
+  ['ALTER', 'Alter_priv'],
+  ['CREATE VIEW', 'Create_view_priv'],
+  ['SHOW VIEW', 'Show_view_priv'],
+  ['TRIGGER', 'Trigger_priv'],
+];
+
+/** mysql.tables_priv's Table_priv SET members; `Grant` is the grant option, not a privilege. */
+const MYSQL_TABLE_PRIVILEGES = ['Select', 'Insert', 'Update', 'Delete', 'Create', 'Drop', 'References', 'Index', 'Alter', 'Create View', 'Show View', 'Trigger'];
+
+/**
+ * Table and schema grants read from the grant tables, one row per privilege,
+ * quoted like information_schema's so the same normaliser reads them. The
+ * first branch names the columns for the whole UNION.
+ */
+function mysqlGrantTableParts(schemaFilter: boolean): string[] {
+  const names = (list: readonly string[]) => list.map((n, i) => `SELECT '${n}'${i === 0 ? ' AS name' : ''}`).join(' UNION ALL ');
+  const dbColumn = `CASE p.name ${MYSQL_DB_PRIVILEGE_COLUMNS.map(([n, c]) => `WHEN '${n}' THEN d.${c}`).join(' ')} END`;
+  return [
+    `SELECT CONCAT('''', t.User, '''@''', t.Host, '''') AS grantee,
+       UPPER(p.name) AS privilege,
+       'TABLE' AS object_type,
+       t.Db AS object_schema,
+       t.Table_name AS object_name,
+       CASE WHEN FIND_IN_SET('Grant', t.Table_priv) > 0 THEN 1 ELSE 0 END AS grantable,
+       NULL AS grantor
+FROM mysql.tables_priv t
+JOIN (${names(MYSQL_TABLE_PRIVILEGES)}) p ON FIND_IN_SET(p.name, t.Table_priv) > 0${schemaFilter ? '\nWHERE t.Db = ?' : ''}`,
+    `SELECT CONCAT('''', d.User, '''@''', d.Host, ''''),
+       p.name,
+       'SCHEMA',
+       d.DB,
+       NULL,
+       CASE WHEN d.Grant_priv = 'Y' THEN 1 ELSE 0 END,
+       NULL
+FROM mysql.db d
+JOIN (${names(MYSQL_DB_PRIVILEGE_COLUMNS.map(([n]) => n))}) p ON ${dbColumn} = 'Y'${schemaFilter ? '\nWHERE d.DB = ?' : ''}`,
+  ];
 }
 
 /**
@@ -1156,15 +1240,21 @@ WHERE dp.name IS NOT NULL
 ORDER BY CASE WHEN dp.type IN ('R', 'A', 'G') THEN 0 ELSE 1 END, dp.name
 `.trim();
 
+/*
+ * permission_name, class_desc and state_desc carry a fixed catalog collation
+ * (Latin1_General_CI_AS_KS_WS); a role name in the second branch carries the
+ * database's. A database on the server default, SQL_Latin1_General_CP1_CI_AS,
+ * failed the UNION with a collation conflict, so no privileges were read at all.
+ */
 const MSSQL_PRIVILEGES = `
 SELECT dp.name AS grantee,
-       p.permission_name AS privilege,
-       p.class_desc AS object_type,
+       p.permission_name COLLATE DATABASE_DEFAULT AS privilege,
+       p.class_desc COLLATE DATABASE_DEFAULT AS object_type,
        OBJECT_SCHEMA_NAME(p.major_id) AS object_schema,
        OBJECT_NAME(p.major_id) AS object_name,
        CASE WHEN p.state = 'W' THEN 1 ELSE 0 END AS grantable,
        gp.name AS grantor,
-       p.state_desc AS state
+       p.state_desc COLLATE DATABASE_DEFAULT AS state
 FROM sys.database_permissions p
 JOIN sys.database_principals dp ON dp.principal_id = p.grantee_principal_id
 LEFT JOIN sys.database_principals gp ON gp.principal_id = p.grantor_principal_id
@@ -1311,7 +1401,7 @@ SELECT TRIM(GRANTEE) AS grantee, 'CONNECT' AS privilege, 'DATABASE' AS object_ty
        NULL AS object_schema, NULL AS object_name,
        CASE WHEN CONNECTAUTH = 'G' THEN 1 ELSE 0 END AS grantable, TRIM(GRANTOR) AS grantor
 FROM SYSCAT.DBAUTH
-WHERE CONNECTAUTH IN ('Y', 'G') AND GRANTEETYPE IN ('U', 'G')
+WHERE CONNECTAUTH IN ('Y', 'G') AND GRANTEETYPE IN ('U', 'G', 'R')
 UNION ALL
 SELECT TRIM(GRANTEE) AS grantee, 'SELECT' AS privilege, 'TABLE' AS object_type,
        TRIM(TABSCHEMA) AS object_schema, TRIM(TABNAME) AS object_name,

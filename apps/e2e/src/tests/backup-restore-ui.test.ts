@@ -4,7 +4,9 @@
  * The commands are unit-tested per engine; this checks the screen around
  * them: it says where the command runs, writes it for the chosen connection
  * without a password, keeps a saved folder as the user's default across a
- * reload, and hands SQL Server's BACKUP DATABASE to the SQL editor.
+ * reload, and hands SQL Server's BACKUP DATABASE to the SQL editor. On SQL
+ * Server it also runs the backup on the server, finds it in msdb's history,
+ * and points the restore at it.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright';
@@ -66,6 +68,9 @@ describe.skipIf(!hasConfig('postgres'))('Backup & Restore', () => {
     expect(command).toContain(`--username ${cfg.username}`);
     expect(command).not.toContain(cfg.password || '\u0000never');
     expect(await driver.locator(byTestId('restore-command-text')).innerText()).toMatch(/^pg_restore /);
+    // pg_dump runs on the reader's machine and Postgres keeps no record of it:
+    // nothing to run or list on the server.
+    expect(await driver.locator(byTestId('backup-server-actions')).count()).toBe(0);
     await saveScreenshot(driver, 'backup-restore-postgres');
   });
 
@@ -110,4 +115,42 @@ describe.skipIf(!hasConfig('postgres'))('Backup & Restore', () => {
     await driver.locator(byTestId('backup-command-open-sql')).click();
     await waitFor(driver, byTestId('sql-editor-view'), 15_000);
   });
+
+  it.skipIf(!hasConfig('sqlserver'))('runs SQL Server’s backup once confirmed, lists it, and restores the one picked', async () => {
+    await openBackupFor('sqlserver');
+    // A folder every SQL Server container has; the default must be made first.
+    await driver.locator(byTestId('backup-folder')).fill('/var/opt/mssql/data');
+    const restoreBefore = await driver.locator(byTestId('restore-command-text')).innerText();
+
+    await driver.locator(byTestId('backup-run')).click();
+    // Nothing runs until the reader has seen where the file goes.
+    expect(await driver.locator(byTestId('backup-run-confirm-box')).innerText()).toContain(names.sqlserver!);
+    await driver.locator(byTestId('backup-run-confirm')).click();
+    await driver.waitForFunction(
+      () =>
+        /Backup finished/.test(document.querySelector('[data-testid="backup-run-status"]')?.textContent ?? '') ||
+        document.querySelector('[data-testid="backup-run-error"]') !== null,
+      undefined,
+      { timeout: 120_000 }
+    );
+    const error = driver.locator(byTestId('backup-run-error'));
+    expect(await error.count(), (await error.innerText().catch(() => '')) || 'no error').toBe(0);
+    const file = (await driver.locator(byTestId('backup-run-status')).innerText()).replace(/^.*?: /, '').trim();
+    expect(file).toMatch(/^\/var\/opt\/mssql\/data\/.+\.bak$/);
+
+    // Listed straight after the run, newest first, from msdb.
+    await driver.waitForSelector(
+      [byTestId('backup-history-row-0'), byTestId('backup-history-empty'), byTestId('backup-history-error')].join(', '),
+      { timeout: 30_000 }
+    );
+    const listed = driver.locator(byTestId('backup-history-row-0'));
+    expect(await listed.count(), await driver.locator(byTestId('backup-server-actions')).innerText()).toBe(1);
+    expect(await listed.innerText()).toContain(file);
+    await driver.locator(byTestId('backup-history-pick-0')).click();
+    expect(await driver.locator(byTestId('restore-command-text')).innerText()).toContain(`FROM DISK = N'${file}'`);
+    await saveScreenshot(driver, 'backup-restore-sqlserver-picked');
+
+    await driver.locator(byTestId('backup-history-clear-pick')).click();
+    expect(await driver.locator(byTestId('restore-command-text')).innerText()).toBe(restoreBefore);
+  }, 200_000);
 });

@@ -358,3 +358,14 @@ GO
 -- [REMOVED index on a MODIFIED table]
 CREATE INDEX idx_b_orders_created ON demo_b.orders(created_at);
 GO
+
+-- A role that holds one table grant, one function grant and one database- or
+-- schema-wide grant, so the Access Grants view has something real to open on
+-- (apps/e2e access-assistant-dialects: the function row opens ticked, the wide
+-- grant is listed under the grid). Re-runnable: the role outlives the schemas.
+IF DATABASE_PRINCIPAL_ID('fox_reader') IS NULL CREATE ROLE fox_reader;
+GO
+GRANT VIEW DEFINITION TO fox_reader;
+GRANT SELECT ON demo_a.customers TO fox_reader;
+GRANT EXECUTE ON demo_a.fn_get_discount TO fox_reader;
+GO

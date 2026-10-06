@@ -51,7 +51,9 @@ Tag push  v*
 
 **Why not `--omit=dev` for the high check?** The soft warning runs without `--omit=dev` so developers see the full picture in the artifact report.
 
-**Lockfile note:** `package-lock.json` is currently gitignored. The workflow generates it with `npm install --package-lock-only --ignore-scripts`. For more reliable and faster audits, commit the lockfile. Remove `package-lock.json` from `.gitignore` and run `npm install` once locally.
+**Lockfile note:** `package-lock.json` is committed (see `.gitignore`). The
+audit job runs `npm ci --ignore-scripts` so it uses that graph rather than
+resolving fresh. Do not delete the lockfile from the repo.
 
 ### `secret-scan.yml`
 

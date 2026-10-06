@@ -280,8 +280,9 @@ export const SqlEditorView: React.FC = () => {
   // The caret decides which statement Run defaults to, so the button's count and
   // title have to follow it — otherwise the label disagrees with what runs.
   const runStatements = useMemo(
-    () => resolveRunStatements(tab.sql, tab.checkedStatements, selectedSqlForRun, caretOffset),
-    [tab.sql, tab.checkedStatements, selectedSqlForRun, caretOffset]
+    () =>
+      resolveRunStatements(tab.sql, tab.checkedStatements, selectedSqlForRun, caretOffset, statements),
+    [tab.sql, tab.checkedStatements, selectedSqlForRun, caretOffset, statements]
   );
   const canRunLocal = useMemo(
     () => canExecuteWithoutDestination(runStatements),
@@ -293,8 +294,8 @@ export const SqlEditorView: React.FC = () => {
   // something invisible and the user knowing their UPDATE is the one going out.
   const runIndices = useMemo(
     () =>
-      hasSelection ? [] : indicesToRun(tab.sql, tab.checkedStatements, caretOffset),
-    [hasSelection, tab.sql, tab.checkedStatements, caretOffset]
+      hasSelection ? [] : indicesToRun(tab.sql, tab.checkedStatements, caretOffset, statements),
+    [hasSelection, tab.sql, tab.checkedStatements, caretOffset, statements]
   );
   const runWhich =
     tab.checkedStatements.length === 0 && runIndices.length === 1
@@ -321,11 +322,15 @@ export const SqlEditorView: React.FC = () => {
   const onFormat = () => {
     void (async () => {
       const before = tab.sql;
-      const formatted = await formatEditorSql(before, dialect);
-      if (formatted !== before) setSql(formatted);
+      // The formatter is fetched on first use; a failed fetch says so rather
+      // than leaving the button looking like it did nothing.
+      const formatted = await formatEditorSql(before, dialect).catch(() => null);
+      if (formatted !== null && formatted !== before) setSql(formatted);
       const fences = (before.match(/^\s*--\s*@(?:js|ts|node|nodets)\b/gim) ?? []).length;
       const note =
-        formatted === before
+        formatted === null
+          ? 'Could not load the formatter. Check the connection and try again.'
+          : formatted === before
           ? fences > 0
             ? 'Already formatted (SQL + Prettier JS/TS)'
             : 'Already formatted'

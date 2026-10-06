@@ -26,25 +26,32 @@ const POLL_MS = 5000;
 export const ActivityIndicator: React.FC = () => {
   const [tasks, setTasks] = useState<ActivityTask[]>([]);
   const [open, setOpen] = useState(false);
+  const [nonce, setNonce] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     const poll = async () => {
-      try {
-        const res = await fetch(`${getApiBase()}/activity`, {
-          credentials: 'include',
-          cache: 'no-store',
-        });
-        if (res.ok) {
-          const body = (await res.json()) as { tasks?: ActivityTask[] };
-          if (!cancelled) setTasks(body.tasks ?? []);
+      // A hidden tab has no one to show this to; it catches up when shown.
+      if (document.visibilityState !== 'hidden') {
+        try {
+          const res = await fetch(`${getApiBase()}/activity`, {
+            credentials: 'include',
+            cache: 'no-store',
+          });
+          if (res.ok) {
+            const body = (await res.json()) as { tasks?: ActivityTask[] };
+            const next = body.tasks ?? [];
+            // Nothing running is the usual answer; keep the same empty list so
+            // the toolbar is not re-rendered every five seconds for it.
+            if (!cancelled) setTasks((prev) => (prev.length === 0 && next.length === 0 ? prev : next));
+          }
+        } catch {
+          // A failed poll is not worth surfacing: the offline banner already
+          // reports an unreachable backend, and two alarms for one cause is
+          // noise.
         }
-      } catch {
-        // A failed poll is not worth surfacing: the offline banner already
-        // reports an unreachable backend, and two alarms for one cause is
-        // noise.
       }
       if (!cancelled) timer = setTimeout(poll, POLL_MS);
     };
@@ -54,6 +61,15 @@ export const ActivityIndicator: React.FC = () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
+  }, [nonce]);
+
+  // Poll at once when the tab is looked at again, rather than up to 5 s later.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') setNonce((n) => n + 1);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
 
   if (tasks.length === 0) return null;

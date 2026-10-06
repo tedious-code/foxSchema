@@ -8,7 +8,7 @@
  * stay aligned. Credentials, Applies, and the account menu live here so the
  * Compare toolbar keeps horizontal room.
  */
-import React, { useMemo, useState } from 'react';
+import React, { lazy, useMemo, useState } from 'react';
 import {
   Camera,
   GitCompareArrows,
@@ -23,10 +23,18 @@ import {
 import { COMMUNITY_NAV, filterNav, type Permission } from '@foxschema/shared';
 import { useAuthStore } from '@/app/store/authStore';
 import { useUiStore, type ActiveView } from '@/app/store/uiStore';
-import { CredentialManager } from '@/features/connections';
-import { MigrationHistory } from '@/features/migrations';
+import { MountWhenOpened } from '@/shared/components/MountWhenOpened';
 import { FoxLogo } from './FoxLogo';
 import { ProfileMenu } from './ProfileMenu';
+import { prefetchView } from './viewLoaders';
+
+// Opened from the rail on a click: loaded on the first open.
+const CredentialManager = lazy(() =>
+  import('@/features/connections/components/CredentialManager').then((m) => ({ default: m.CredentialManager }))
+);
+const MigrationHistory = lazy(() =>
+  import('@/features/migrations/components/MigrationHistory').then((m) => ({ default: m.MigrationHistory }))
+);
 
 /** Maps COMMUNITY_NAV top-level ids onto shell ActiveView values. */
 const NAV_TO_VIEW: Record<string, ActiveView> = {
@@ -135,6 +143,8 @@ export function ActivityRail(): React.ReactElement | null {
               data-testid={item.testId}
               title={item.label}
               onClick={() => setActiveView(item.view)}
+              onPointerEnter={() => prefetchView(item.view)}
+              onFocus={() => prefetchView(item.view)}
               className={`flex w-12 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-[9px] font-bold uppercase tracking-wide transition ${
                 on
                   ? 'bg-slate-800 text-slate-100'
@@ -180,6 +190,8 @@ export function ActivityRail(): React.ReactElement | null {
             aria-label="Preferences"
             aria-current={activeView === 'settings' ? 'page' : undefined}
             onClick={() => setActiveView('settings')}
+            onPointerEnter={() => prefetchView('settings')}
+            onFocus={() => prefetchView('settings')}
             className={`flex w-12 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-[9px] font-bold uppercase tracking-wide transition ${
               activeView === 'settings'
                 ? 'bg-slate-800 text-slate-100'
@@ -192,8 +204,12 @@ export function ActivityRail(): React.ReactElement | null {
         </div>
       </nav>
 
-      <CredentialManager open={showCredentials} onClose={() => setShowCredentials(false)} />
-      <MigrationHistory open={showApplies} onClose={() => setShowApplies(false)} />
+      <MountWhenOpened open={showCredentials}>
+        <CredentialManager open={showCredentials} onClose={() => setShowCredentials(false)} />
+      </MountWhenOpened>
+      <MountWhenOpened open={showApplies}>
+        <MigrationHistory open={showApplies} onClose={() => setShowApplies(false)} />
+      </MountWhenOpened>
     </>
   );
 }

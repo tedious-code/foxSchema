@@ -768,15 +768,13 @@ export const useSqlEditorStore = create<SqlEditorState>()(
           ...destPatch,
         });
         // Keep Schema Sync source/target configs warm with the same session password.
-        void import('./useSyncStore').then(({ useSyncStore }) => {
-          const sync = useSyncStore.getState();
-          if (sync.selectedSourceConnectionId === id) {
-            sync.applySavedConnection('source', id, trimmed);
-          }
-          if (sync.selectedTargetConnectionId === id) {
-            sync.applySavedConnection('target', id, trimmed);
-          }
-        });
+        const sync = useSyncStore.getState();
+        if (sync.selectedSourceConnectionId === id) {
+          sync.applySavedConnection('source', id, trimmed);
+        }
+        if (sync.selectedTargetConnectionId === id) {
+          sync.applySavedConnection('target', id, trimmed);
+        }
         if (resumeExecute) {
           void get().execute({
             ...(connectionIds?.length ? { connectionIds } : {}),

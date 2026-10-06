@@ -5,7 +5,8 @@
  *
  * Workflow designer — ported from FoxAgent (components/HttpRequestEditor.tsx).
  */
-import Ajv from 'ajv';
+import { loadOnce } from '@/shared/lib/loadOnce';
+import { useLoaded } from '@/shared/lib/useLoaded';
 import { useMemo, useState } from 'react';
 import type { CredentialMeta } from '../api/engineClient';
 import { compileZodSchema } from '../lib/zodSchema';
@@ -713,10 +714,16 @@ function VariablesEditor({
 }
 
 // One lenient validator for live feedback — mirrors the runtime's ajv config.
-const bodyAjv = new Ajv({ allErrors: true, strict: false });
+// ajv (115 kB) loads when a body schema is first shown, not with the designer.
+const loadBodyAjv = loadOnce(async () => {
+  const { default: Ajv } = await import('ajv');
+  return new Ajv({ allErrors: true, strict: false });
+});
+type BodyAjv = Awaited<ReturnType<typeof loadBodyAjv>>;
 
 /** Check `data` against `schema`, phrased for the editor's verdict line. */
 function schemaVerdict(
+  bodyAjv: BodyAjv,
   schema: Record<string, unknown>,
   data: unknown,
   okMessage: string,
@@ -1073,6 +1080,8 @@ function BodySchemaEditor({
   const [testText, setTestText] = useState('');
 
   const schema = bodySchemaOf(value);
+  // Null until ajv has loaded; the verdicts below appear when it arrives.
+  const bodyAjv = useLoaded(loadBodyAjv);
 
   // Live verdict on the body currently composed in the Body tab. The payload is
   // derived inside the memo: built outside, it was a new object every render,
@@ -1081,20 +1090,21 @@ function BodySchemaEditor({
     const payload = bodyPayload(value);
     if (!schema || !payload) return null;
     if ('error' in payload) return { ok: false, message: payload.error };
-    return schemaVerdict(schema, payload.data, 'Body matches the schema.');
-  }, [schema, value]);
+    if (!bodyAjv) return null;
+    return schemaVerdict(bodyAjv, schema, payload.data, 'Body matches the schema.');
+  }, [bodyAjv, schema, value]);
 
   // Second section: paste sample data, see the same verdict the runtime gives.
   const testResult = useMemo(() => {
-    if (!schema || !testText.trim()) return null;
+    if (!bodyAjv || !schema || !testText.trim()) return null;
     let data: unknown;
     try {
       data = JSON.parse(testText);
     } catch {
       return { ok: false, message: 'Test data is not valid JSON.' };
     }
-    return schemaVerdict(schema, data, 'Test data passes the schema.');
-  }, [schema, testText]);
+    return schemaVerdict(bodyAjv, schema, data, 'Test data passes the schema.');
+  }, [bodyAjv, schema, testText]);
 
   if (method === 'GET' || method === 'HEAD') {
     return (
@@ -1113,19 +1123,21 @@ function BodySchemaEditor({
 
   const patchZod = (code: string) => {
     setZodText(code);
-    const compiled = compileZodSchema(code);
-    if (compiled === null) {
+    // zod loads with the first schema typed; results arrive in keystroke order.
+    void compileZodSchema(code).then((compiled) => {
+      if (compiled === null) {
+        setZodError(null);
+        onChange({ ...value, schema: undefined, schemaSource: undefined });
+        return;
+      }
+      if ('error' in compiled) {
+        // Keep the last good schema until the code compiles again.
+        setZodError(compiled.error);
+        return;
+      }
       setZodError(null);
-      onChange({ ...value, schema: undefined, schemaSource: undefined });
-      return;
-    }
-    if ('error' in compiled) {
-      // Keep the last good schema until the code compiles again.
-      setZodError(compiled.error);
-      return;
-    }
-    setZodError(null);
-    onChange({ ...value, schema: compiled.schema, schemaSource: code });
+      onChange({ ...value, schema: compiled.schema, schemaSource: code });
+    });
   };
 
   return (

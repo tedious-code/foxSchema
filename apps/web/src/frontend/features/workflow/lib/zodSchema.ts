@@ -5,7 +5,11 @@
  *
  * Workflow designer — ported from FoxAgent (lib/zod-schema.ts).
  */
-import { z as zod } from 'zod';
+import { loadOnce } from '@/shared/lib/loadOnce';
+
+// The author's code gets the whole `z` namespace, so all of zod (340 kB) is
+// kept: fetched when someone first types a schema, not with the designer.
+const loadZod = loadOnce(() => import('zod'));
 
 /**
  * Compile designer-authored Zod code into an ajv-compatible JSON Schema
@@ -13,9 +17,17 @@ import { z as zod } from 'zod';
  * ending in `return`. Runs only in the author's own browser — the server
  * stores and enforces the compiled JSON Schema, never the code.
  */
-export function compileZodSchema(
+export async function compileZodSchema(
   code: string,
-): { schema: Record<string, unknown> } | { error: string } | null {
+): Promise<{ schema: Record<string, unknown> } | { error: string } | null> {
+  // Every call waits on the same load, an empty one too, so results reach the
+  // editor in the order it asked for them.
+  let zod: typeof import('zod').z;
+  try {
+    zod = (await loadZod()).z;
+  } catch {
+    return code.trim() ? { error: 'Could not load Zod. Check the connection and try again.' } : null;
+  }
   if (!code.trim()) return null;
   try {
     let built: unknown;

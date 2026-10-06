@@ -1,10 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { loadCodeCellPackageModules, parseCodeCellImports } from './codeCellPackages';
 import {
-  parseCodeCellImports,
-  prepareCodeCellImports,
-  resolveCodeCellImportBindings,
-} from './codeCellPackages';
+  prepareCodeCellImports as prepareImports,
+  resolveCodeCellImportBindings as resolveBindings,
+} from '@/shared/lib/sql-splitter';
 import { executeCodeCell } from './codeCellExec';
+
+// The packages a browser cell can import, loaded the way the executor loads them.
+let modules: Record<string, object>;
+beforeAll(async () => {
+  modules = await loadCodeCellPackageModules('');
+});
+const prepareCodeCellImports = (body: string) => prepareImports(body, modules);
+const resolveCodeCellImportBindings = (specs: Parameters<typeof resolveBindings>[0]) =>
+  resolveBindings(specs, modules);
 
 describe('parseCodeCellImports', () => {
   it('accepts allowlisted default / named / namespace imports', () => {

@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { precompress } from './src/build/precompress.ts'
 
 const pkg = (p: string) => fileURLToPath(new URL(p, import.meta.url))
 
@@ -9,8 +10,36 @@ const pkg = (p: string) => fileURLToPath(new URL(p, import.meta.url))
 export default defineConfig({
   plugins: [
     react(),
-    tailwindcss()
+    tailwindcss(),
+    // .br and .gz beside every text file, sent by the server in place of it.
+    precompress()
   ],
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            // React changes far less often than the app. In its own file it stays
+            // cached across releases instead of riding in the entry chunk, whose
+            // name changes with every app change (and so do the lazy views that
+            // import it). Only React: a blanket node_modules group would pull
+            // Monaco, zod and TypeScript into the first page load.
+            {
+              name: 'vendor-react',
+              test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/,
+              priority: 20,
+            },
+          ],
+        },
+      },
+    },
+  },
+  worker: {
+    // The default (iife) inlines a worker's dynamic imports, which put faker,
+    // lodash and date-fns inside the code-cell worker. As a module worker they
+    // stay separate files, fetched only when a cell imports them.
+    format: 'es',
+  },
   resolve: {
     alias: [
       // Only the pure package is aliased. @foxschema/db is deliberately absent:
@@ -46,7 +75,10 @@ export default defineConfig({
     // apps/web. Without deduping, react-dom (hoisted to the root) binds to the
     // root react@18 and crashes at runtime ("Cannot read properties of undefined
     // (reading 'S')" — a react/react-dom major mismatch), leaving a blank page.
-    dedupe: ['react', 'react-dom'],
+    // ajv for the same reason in reverse: the root holds eslint's ajv 6, so npm
+    // nests an identical ajv 8 under this app and under workflow-engine, and the
+    // workflow chunk carried both copies (115 kB).
+    dedupe: ['react', 'react-dom', 'ajv'],
   },
   server: {
     // Explicit IPv4 bind — some Cursor/cloud port-forwards fail on

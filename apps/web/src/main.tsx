@@ -108,6 +108,22 @@ async function boot() {
   await afterApiReady()
 }
 
+// A tab left open across a release asks for chunks the new build no longer has
+// (the server answers 404). Reload once to pick up the new build; a second
+// failure within the minute is a real outage and is left to the error UI.
+window.addEventListener('vite:preloadError', (ev) => {
+  const KEY = 'foxschema-chunk-reload-at'
+  try {
+    const last = Number(sessionStorage.getItem(KEY) ?? 0)
+    if (Date.now() - last < 60_000) return
+    sessionStorage.setItem(KEY, String(Date.now()))
+  } catch {
+    return
+  }
+  ev.preventDefault()
+  window.location.reload()
+})
+
 window.addEventListener('error', (ev) => {
   // Only replace the UI if React never mounted a real screen (boot fallback still present).
   if (document.getElementById('boot-fallback')) {

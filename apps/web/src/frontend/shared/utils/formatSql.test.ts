@@ -1,12 +1,25 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import {
   formatCodeCellBody,
   formatEditorSql,
   formatSql,
+  loadSqlFormatter,
   splitCodeFenceSlice,
 } from './formatSql';
 
+// Runs first, while sql-formatter has not been fetched by anything in this file.
+it('returns SQL unchanged until sql-formatter has loaded, then formats it', async () => {
+  expect(loadSqlFormatter.peek()).toBeUndefined();
+  expect(formatSql('select id from orders', 'postgres')).toBe('select id from orders');
+  await loadSqlFormatter();
+  expect(formatSql('select id from orders', 'postgres')).toContain('SELECT');
+});
+
 describe('formatSql picks a grammar that parses each dialect', () => {
+  beforeAll(async () => {
+    await loadSqlFormatter();
+  });
+
   // Each input is one the generic 'sql' grammar throws on, so falling back to
   // it returns the text unchanged — Format silently doing nothing.
   it.each([

@@ -21,7 +21,7 @@ const FeedbackDialog = lazy(() =>
 );
 
 export function ProfileMenu(): React.ReactElement | null {
-  const { user, logout } = useAuthStore();
+  const { user, logout, launch } = useAuthStore();
   const setActiveView = useUiStore((s) => s.setActiveView);
   const canAdminAccess = useAuthStore((s) => s.can('admin.users') || s.can('admin.roles'));
   const [open, setOpen] = useState(false);
@@ -72,8 +72,9 @@ export function ProfileMenu(): React.ReactElement | null {
         >
           <div className="px-4 py-3 border-b border-slate-800">
             <p className="text-xs text-slate-500 uppercase tracking-wider font-bold">Signed in as</p>
-            <p className="text-sm text-slate-200 truncate" title={user.email}>
-              {user.email}
+            {/* A launch session's account is a placeholder until the owner creates theirs. */}
+            <p className="text-sm text-slate-200 truncate" title={launch ? undefined : user.email} data-testid="profile-email">
+              {launch ? 'This install’s owner (no account yet)' : user.email}
             </p>
             <p className="text-[11px] text-amber-300/90 mt-0.5 capitalize" data-testid="profile-role">
               Role: {user.role}

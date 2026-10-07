@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **947** buttons, text boxes, selects and textareas.
+Every control has a test ID: **954** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -435,6 +435,7 @@ Every control has a test ID: **947** buttons, text boxes, selects and textareas.
   - `home-view` · div · Home
 - **ProfileMenu** · `app/shell/ProfileMenu.tsx`
   - `profile-access-control` · button · App users & roles
+  - `profile-email` · p
   - `profile-menu-dropdown` · div
   - `profile-menu-trigger` · button
   - `profile-preferences` · button · Preferences
@@ -489,6 +490,18 @@ Every control has a test ID: **947** buttons, text boxes, selects and textareas.
 
 ## auth
 
+- **AccountBanners** · `features/auth/components/AccountBanners.tsx`
+  - `account-register-banner` · div
+  - `account-register-close` · button · Close
+  - `account-register-dialog` · div · Create your account
+  - `account-register-dismiss` · button · Hide until next time
+  - `account-register-open` · button · Create account
+  - `account-verify-banner` · form
+  - `account-verify-code` · input · Verification code
+  - `account-verify-dismiss` · button · Hide until next time
+  - `account-verify-resend` · button
+  - `account-verify-status` · span
+  - `account-verify-submit` · button · Verify
 - **AuthPage** · `features/auth/components/AuthPage.tsx`
   - `auth-forgot-link` · button · Forgot password?
   - `auth-have-code` · button · Have an invite or reset code?

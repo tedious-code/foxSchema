@@ -23,6 +23,12 @@ vi.mock('@/shared/api/authApi', () => ({
   apiSetupState: (...a: unknown[]) => apiSetupState(...a),
   apiSetup: (...a: unknown[]) => apiSetup(...a),
   apiMe: (...a: unknown[]) => apiMe(...a),
+  // The session the app starts from: whoever `apiMe` says, signed in normally.
+  apiSession: async (...a: unknown[]) => {
+    const user = await apiMe(...a);
+    return user ? { user, launch: false, registration: null, emailVerification: null } : null;
+  },
+  apiLaunch: vi.fn(async () => undefined),
   apiLogin: (...a: unknown[]) => apiLogin(...a),
   apiForgotPassword: (...a: unknown[]) => apiForgotPassword(...a),
   apiInspectCode: (...a: unknown[]) => apiInspectCode(...a),

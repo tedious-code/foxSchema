@@ -5,7 +5,7 @@ const me = vi.fn();
 vi.mock('@/shared/api/authApi', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   apiSetupState: () => setupState(),
-  apiMe: () => me(),
+  apiSession: () => me(),
 }));
 
 import { useAuthStore } from './authStore';
@@ -17,6 +17,7 @@ const deferred = <T,>() => {
 };
 
 const user = { id: 'u1', email: 'a@b.c', onboardingCompleted: true, role: 'owner', permissions: [] };
+const signedIn = { user, launch: false, registration: null, emailVerification: null };
 
 describe('auth startup', () => {
   beforeEach(() => {
@@ -27,7 +28,7 @@ describe('auth startup', () => {
 
   it('asks for the setup state and the session at once, and a second init joins the first', async () => {
     const setup = deferred<{ setupRequired: boolean }>();
-    const session = deferred<typeof user | null>();
+    const session = deferred<typeof signedIn | null>();
     setupState.mockReturnValue(setup.promise);
     me.mockReturnValue(session.promise);
 
@@ -37,7 +38,7 @@ describe('auth startup', () => {
     expect(me).toHaveBeenCalledTimes(1);
 
     setup.resolve({ setupRequired: false });
-    session.resolve(user);
+    session.resolve(signedIn);
     await Promise.all([first, second]);
     expect(useAuthStore.getState().status).toBe('ready');
   });

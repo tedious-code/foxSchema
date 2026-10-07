@@ -30,6 +30,8 @@ let relay: Server;
 let app: FastifyInstance;
 let base = '';
 let admin = '';
+/** The code setup sends the new admin to verify their address; taken out of the inbox. */
+let verification: Mail;
 
 /** Just enough SMTP to accept messages over a plain local connection. */
 function startRelay(): Promise<number> {
@@ -114,12 +116,30 @@ beforeAll(async () => {
   await app.listen({ port: 0, host: '127.0.0.1' });
   base = `http://127.0.0.1:${(app.server.address() as { port: number }).port}/api`;
   admin = (await call('POST', '/auth/setup', { email: 'boss@example.com', password: 'blue-lantern-42' })).cookie;
+  // Setup asks the new admin to verify their address. Set aside, so the tests
+  // below count only the mail they cause.
+  verification = await nextMail(1);
+  inbox.length = 0;
 }, 120_000);
 
 afterAll(async () => {
   for (const k of ['SMTP_HOST', 'SMTP_PORT', 'SMTP_SECURITY', 'SMTP_FROM', 'APP_PUBLIC_URL']) delete process.env[k];
   await app?.close();
   await new Promise((r) => relay.close(r));
+});
+
+describe('verifying the admin\'s email', () => {
+  it('emails the code through the install\'s own relay, and it verifies the address', async () => {
+    expect(verification.to).toContain('<boss@example.com>');
+    expect(verification.headers).toContain('Subject: Verify your email for Fox');
+    const code = codeIn(verification.text)!;
+    expect(code).toBeTruthy();
+    expect(verification.html).toContain(code);
+
+    expect((await call('GET', '/auth/me', undefined, admin)).json.emailVerification).toEqual({ verified: false });
+    expect((await call('POST', '/auth/verify', { code }, admin)).status).toBe(200);
+    expect((await call('GET', '/auth/me', undefined, admin)).json.emailVerification).toEqual({ verified: true });
+  });
 });
 
 describe('forgot password by email', () => {

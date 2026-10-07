@@ -66,7 +66,12 @@ export default defineConfig({
           // lexical half of the containment check and 41 workflow tests failed
           // on every Mac (CI runs Linux, where /tmp is not a link). The real-path
           // half resolves both sides itself.
-          env: { FOXFLOW_FILES_DIR: tmpdir() },
+          //
+          // FOX_VERIFY_MAIL_URL off: first-run setup sends a verification code,
+          // and without SMTP that goes to the Fox mail service on foxschema.com.
+          // A suite must never mail the real one; those that test it run their
+          // own stand-in.
+          env: { FOXFLOW_FILES_DIR: tmpdir(), FOX_VERIFY_MAIL_URL: 'off' },
           testTimeout: 15_000,
         },
       },

@@ -57,14 +57,63 @@ export async function apiSetup(email: string, password: string, code?: string, s
   return user;
 }
 
+/** When a launch session's account is due, and whether that time has come. */
+export interface RegistrationDue {
+  dueAt: string;
+  required: boolean;
+}
+
+/**
+ * The signed-in session. `launch` is the owner of a personal install who came
+ * in through `foxschema open` before creating an account; `registration` says
+ * when they must. `emailVerification` is set for an account asked to verify
+ * its address.
+ */
+export interface SessionInfo {
+  user: AuthUser;
+  launch: boolean;
+  registration: RegistrationDue | null;
+  emailVerification: { verified: boolean } | null;
+}
+
 /** Current session, or null if not signed in. */
-export async function apiMe(): Promise<AuthUser | null> {
+export async function apiSession(): Promise<SessionInfo | null> {
   try {
-    const { user } = await api.get<{ user: AuthUser }>('/auth/me', EMPTY_OK);
-    return user;
+    const body = await api.get<Partial<SessionInfo> & { user: AuthUser | null }>('/auth/me', EMPTY_OK);
+    if (!body?.user) return null;
+    return {
+      user: body.user,
+      launch: body.launch === true,
+      registration: body.registration ?? null,
+      emailVerification: body.emailVerification ?? null,
+    };
   } catch {
     return null;
   }
+}
+
+/** Current user, or null if not signed in. */
+export async function apiMe(): Promise<AuthUser | null> {
+  return (await apiSession())?.user ?? null;
+}
+
+/** Exchange the one-time token from a `foxschema open` launch link for a session. */
+export async function apiLaunch(token: string): Promise<AuthUser> {
+  const { user } = await api.post<{ user: AuthUser }>('/auth/launch', { token }, EMPTY_OK);
+  return user;
+}
+
+/** How a verification code went out: this install's mail server, or the Fox mail service. */
+export type VerifyDelivery = 'email' | 'service';
+
+/** Send (again) the code that verifies the signed-in account's email. */
+export async function apiSendVerification(): Promise<{ delivery?: VerifyDelivery; verified?: boolean; email?: string }> {
+  return api.post('/auth/verify/send', {}, EMPTY_OK);
+}
+
+/** Enter the code from the verification email. */
+export async function apiVerifyEmail(code: string): Promise<void> {
+  await api.post('/auth/verify', { code }, EMPTY_OK);
 }
 
 export async function apiLogin(email: string, password: string): Promise<AuthUser> {

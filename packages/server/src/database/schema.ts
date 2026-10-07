@@ -605,6 +605,26 @@ const MIGRATIONS: Migration[] = [
       ];
     },
   },
+  {
+    id: 27,
+    name: 'launch_sessions_and_email_verification',
+    statements: (d) => {
+      const t = types(d);
+      return [
+        // How a session began. 'launch' is the one `foxschema open` starts for
+        // the owner of a personal install before they have an account; it
+        // stops working once they create one or the grace period ends. NULL
+        // is every ordinary sign-in.
+        `ALTER TABLE sessions ADD COLUMN via ${t.str}`,
+        // When the owner proved the address by entering the code it received.
+        `ALTER TABLE users ADD COLUMN email_verified_at ${t.ts}`,
+        // Whether to ask this account to verify its address: set when the
+        // owner registers. Accounts an admin added, and every account that
+        // existed before this, are not asked.
+        `ALTER TABLE users ADD COLUMN email_verify_required ${t.int} NOT NULL DEFAULT 0`,
+      ];
+    },
+  },
 ];
 
 const SIGNUP_WIZARD_SHOWN_KEY = 'signup.wizard_shown';

@@ -567,6 +567,12 @@ export const TestIds = {
       adminPermExpandAll: 'admin-perm-expand-all',
       /** button · / */
       adminPermGroup: (group: string | number) => `admin-perm-group-${group}`,
+      /** div */
+      adminPolicy: 'admin-policy',
+      /** button */
+      adminPolicyForValue: (value: string | number) => `admin-policy-${value}`,
+      /** span */
+      adminPolicyHint: 'admin-policy-hint',
       /** p */
       adminRolesHint: 'admin-roles-hint',
       /** button · Save password */
@@ -585,6 +591,8 @@ export const TestIds = {
       adminTabUsers: 'admin-tab-users',
       /** button · Users and Roles */
       adminTabUsersRoles: 'admin-tab-users-roles',
+      /** button · Hand the admin role to this account. You become an owner. */
+      adminTransferAdmin: (id: string | number) => `admin-transfer-admin-${id}`,
       /** span */
       adminUnsaved: 'admin-unsaved',
       /** button */
@@ -609,6 +617,8 @@ export const TestIds = {
       adminUserRow: (id: string | number) => `admin-user-row-${id}`,
       /** div */
       adminUsersRolesPanel: 'admin-users-roles-panel',
+      /** p */
+      adminUsersStatus: 'admin-users-status',
     },
     IssuedCodeNotice: {
       /** div */
@@ -3504,6 +3514,9 @@ export type TestId =
   | `admin-perm-count-${string}`
   | 'admin-perm-expand-all'
   | `admin-perm-group-${string}`
+  | 'admin-policy'
+  | `admin-policy-${string}`
+  | 'admin-policy-hint'
   | 'admin-roles-hint'
   | 'admin-save-password'
   | 'admin-save-role-perms'
@@ -3514,6 +3527,7 @@ export type TestId =
   | 'admin-tab-sign-in'
   | 'admin-tab-users'
   | 'admin-tab-users-roles'
+  | `admin-transfer-admin-${string}`
   | 'admin-unsaved'
   | `admin-user-expand-${string}`
   | `admin-user-group-${string}`
@@ -3526,6 +3540,7 @@ export type TestId =
   | `admin-user-role-${string}`
   | `admin-user-row-${string}`
   | 'admin-users-roles-panel'
+  | 'admin-users-status'
   | 'app-error-boundary-dismiss'
   | 'app-toast'
   | 'applies-git-btn'

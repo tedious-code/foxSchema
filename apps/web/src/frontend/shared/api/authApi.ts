@@ -209,6 +209,32 @@ export async function apiAdminIssueCode(userId: string): Promise<IssuedCode & { 
   return api.post(`/admin/users/${encodeURIComponent(userId)}/code`, {}, EMPTY_OK);
 }
 
+// --- One admin or several --------------------------------------------------
+export type AdminPolicyValue = 'one' | 'several';
+
+export interface AdminPolicySettings {
+  adminPolicy: AdminPolicyValue;
+  /** `env` when FOX_ADMIN_POLICY sets it (read-only here); null before it is recorded. */
+  source: SettingSource | null;
+  activeAdmins: string[];
+}
+
+export async function apiAdminGetPolicy(): Promise<AdminPolicySettings> {
+  return api.get('/admin/policy', EMPTY_OK);
+}
+
+export async function apiAdminSetPolicy(adminPolicy: AdminPolicyValue): Promise<void> {
+  await api.put('/admin/policy', { adminPolicy }, EMPTY_OK);
+}
+
+/** Make `userId` the admin; the caller takes `demoteTo` in the same step. */
+export async function apiAdminTransferAdmin(
+  userId: string,
+  demoteTo: Exclude<AppRole, 'admin'> = 'owner'
+): Promise<void> {
+  await api.post(`/admin/users/${encodeURIComponent(userId)}/transfer-admin`, { demoteTo }, EMPTY_OK);
+}
+
 // --- Sign-in settings (SSO providers, email, public URL) --------------------
 export type SsoProviderId = 'google' | 'microsoft' | 'github';
 export type SettingSource = 'env' | 'app';

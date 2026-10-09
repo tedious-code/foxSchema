@@ -64,12 +64,15 @@ const ROUTES: RouteExpectation[] = [
   { method: 'DELETE', path: '/api/admin/sign-in/providers/:id', status: 404 },
   { method: 'PUT', path: '/api/admin/sign-in/providers/:id', status: 404 },
   { method: 'PUT', path: '/api/admin/sign-in/public-url', status: 200 },
+  { method: 'GET', path: '/api/admin/policy', status: 200 },
+  { method: 'PUT', path: '/api/admin/policy', status: 400 },
   { method: 'GET', path: '/api/admin/users', status: 200 },
   { method: 'POST', path: '/api/admin/users', status: 400 },
   { method: 'PUT', path: '/api/admin/users/:id/active', status: 400 },
   { method: 'POST', path: '/api/admin/users/:id/code', status: 404 },
   { method: 'PUT', path: '/api/admin/users/:id/password', status: 400 },
   { method: 'PUT', path: '/api/admin/users/:id/role', status: 400 },
+  { method: 'POST', path: '/api/admin/users/:id/transfer-admin', status: 404 },
   { method: 'GET', path: '/api/app-info', status: 200 },
   { method: 'GET', path: '/api/app-secrets', status: 200 },
   { method: 'POST', path: '/api/app-secrets', status: 400 },
@@ -276,7 +279,10 @@ describe('HTTP contract', () => {
       //
       // 115 -> 116: TypeScript code cells compile on the server
       // (/api/sql/code-cell/transpile) instead of downloading the compiler.
-      expect(ROUTES.length).toBe(116);
+      //
+      // 116 -> 119: one admin or several (/api/admin/policy) and handing the
+      // admin role over (/api/admin/users/:id/transfer-admin).
+      expect(ROUTES.length).toBe(119);
       expect(new Set(ROUTES.map((r) => `${r.method} ${r.path}`)).size).toBe(ROUTES.length);
     });
 

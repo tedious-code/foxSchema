@@ -7,6 +7,7 @@
  */
 import { getStore } from '../../database/store';
 import type { MetadataStore } from '../../database/stores/types';
+import { assertAdminSlotFree } from './admin-policy.service';
 import {
   APP_ROLES,
   DEFAULT_ROLE_PERMISSIONS,
@@ -66,8 +67,40 @@ export class RbacModule {
         throw new Error('Cannot demote the last active admin.');
       }
     }
+    if (role === 'admin' && currentRole !== 'admin' && currentlyActive) {
+      await assertAdminSlotFree(store, userId);
+    }
 
     await store.run('UPDATE users SET app_role = ? WHERE id = ?', [role, userId]);
+  }
+
+  /**
+   * Hand the admin role from `fromUserId` to `toUserId`, which becomes the
+   * admin while `fromUserId` takes `demoteTo`. One UPDATE, so no moment has
+   * both or neither as admin — the only way to change hands under the `one`
+   * policy, and safe under `several` too.
+   */
+  async transferAdmin(fromUserId: string, toUserId: string, demoteTo: AppRole = 'owner'): Promise<void> {
+    if (demoteTo === 'admin') throw new Error('The previous admin must take a role other than admin.');
+    if (fromUserId === toUserId) throw new Error('Choose another account to hand the admin role to.');
+    const store = await getStore();
+    const rows = await store.all<{ id: string; app_role: string | null; active: number | null }>(
+      'SELECT id, app_role, active FROM users WHERE id IN (?, ?)',
+      [fromUserId, toUserId]
+    );
+    const from = rows.find((r) => r.id === fromUserId);
+    const to = rows.find((r) => r.id === toUserId);
+    const isActive = (r: { active: number | null }) => r.active === null || Number(r.active) !== 0;
+    if (!from || toAppRole(from.app_role) !== 'admin' || !isActive(from)) {
+      throw new Error('Only an active admin can hand the admin role over.');
+    }
+    if (!to) throw new Error('User not found.');
+    if (!isActive(to)) throw new Error('Activate the account before making it the admin.');
+    if (toAppRole(to.app_role) === 'admin') throw new Error('That account is already an admin.');
+    await store.run(
+      `UPDATE users SET app_role = CASE WHEN id = ? THEN 'admin' ELSE ? END WHERE id IN (?, ?)`,
+      [toUserId, demoteTo, fromUserId, toUserId]
+    );
   }
 
   /** Replace the permission set for a non-admin role. Admin is always full. */
@@ -143,11 +176,16 @@ export class RbacModule {
 
   async setUserActive(userId: string, active: boolean): Promise<void> {
     const store = await getStore();
-    const exists = await store.get<{ id: string; app_role: string | null }>(
-      'SELECT id, app_role FROM users WHERE id = ?',
+    const exists = await store.get<{ id: string; app_role: string | null; active: number | null }>(
+      'SELECT id, app_role, active FROM users WHERE id = ?',
       [userId]
     );
     if (!exists) throw new Error('User not found.');
+    const wasActive = exists.active === null || Number(exists.active) !== 0;
+    if (active && !wasActive && toAppRole(exists.app_role) === 'admin') {
+      // Reactivating an old admin would make a second one.
+      await assertAdminSlotFree(store, userId);
+    }
     if (!active && toAppRole(exists.app_role) === 'admin') {
       const others = await store.get<{ n: number }>(
         `SELECT COUNT(*) AS n FROM users WHERE app_role = 'admin' AND id != ? AND (active IS NULL OR active != 0)`,

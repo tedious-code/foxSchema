@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { getStore } from '../../database/store';
 import { hashPassword, verifyPassword, newToken } from '../../platform/crypto/crypto';
 import { RbacModule, toAppRole } from '../authorization/rbac.service';
+import { assertAdminSlotFree } from '../authorization/admin-policy.service';
 import { assertPasswordAcceptable, type AppRole, type Permission } from '@foxschema/shared';
 import {
   CODE_TTL_MS,
@@ -196,6 +197,7 @@ export class AuthModule {
     const store = await getStore();
     const existing = await store.get('SELECT id FROM users WHERE email = ?', [email]);
     if (existing) throw new Error('An account with this email already exists.');
+    if (role === 'admin') await assertAdminSlotFree(store);
     const id = randomUUID();
     await store.run(
       'INSERT INTO users (id, email, password_hash, created_at, app_role, password_set) VALUES (?, ?, ?, ?, ?, ?)',

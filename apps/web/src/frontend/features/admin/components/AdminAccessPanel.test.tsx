@@ -17,6 +17,9 @@ const apiAdminSetUserActive = vi.fn();
 const apiAdminSetUserPassword = vi.fn();
 const apiAdminSetUserRole = vi.fn();
 const apiAdminIssueCode = vi.fn();
+const apiAdminGetPolicy = vi.fn();
+const apiAdminSetPolicy = vi.fn();
+const apiAdminTransferAdmin = vi.fn();
 
 vi.mock('@/shared/api/authApi', () => ({
   apiAdminCreateUser: (...args: unknown[]) => apiAdminCreateUser(...args),
@@ -27,6 +30,9 @@ vi.mock('@/shared/api/authApi', () => ({
   apiAdminSetUserPassword: (...args: unknown[]) => apiAdminSetUserPassword(...args),
   apiAdminSetUserRole: (...args: unknown[]) => apiAdminSetUserRole(...args),
   apiAdminIssueCode: (...args: unknown[]) => apiAdminIssueCode(...args),
+  apiAdminGetPolicy: (...args: unknown[]) => apiAdminGetPolicy(...args),
+  apiAdminSetPolicy: (...args: unknown[]) => apiAdminSetPolicy(...args),
+  apiAdminTransferAdmin: (...args: unknown[]) => apiAdminTransferAdmin(...args),
 }));
 
 import { AdminAccessPanel } from './AdminAccessPanel';
@@ -49,8 +55,12 @@ beforeEach(() => {
   apiAdminSetUserPassword.mockReset();
   apiAdminSetUserRole.mockReset();
   apiAdminIssueCode.mockReset();
+  apiAdminGetPolicy.mockReset();
+  apiAdminSetPolicy.mockReset();
+  apiAdminTransferAdmin.mockReset();
 
   apiAdminListUsers.mockResolvedValue({ users: [localUser] });
+  apiAdminGetPolicy.mockResolvedValue({ adminPolicy: 'several', source: 'app', activeAdmins: [localUser.email] });
   apiAdminRolePermissions.mockResolvedValue({
     matrix: {
       viewer: [...DEFAULT_ROLE_PERMISSIONS.viewer],
@@ -330,5 +340,87 @@ describe('AdminAccessPanel', () => {
     fireEvent.click(screen.getByTestId(`admin-user-expand-${editorUser.id}`));
     expect(screen.getByTestId(`admin-user-perms-${editorUser.id}`).textContent).toMatch(/Change data/);
     expect(screen.queryByTestId(`admin-user-perm-${editorUser.id}-admin.users`)).toBeNull();
+  });
+});
+
+describe('AdminAccessPanel — one admin or several', () => {
+  const editor = { ...localUser, id: 'ed', email: 'ed@example.com', role: 'editor' as const, permissions: [] };
+  const oldAdmin = { ...localUser, id: 'old', email: 'old@example.com', active: false };
+
+  const roleOption = (selectId: string, role: string) =>
+    [...(screen.getByTestId(selectId) as HTMLSelectElement).options].find((o) => o.value === role)!;
+
+  it('shows the policy and switches it', async () => {
+    apiAdminSetPolicy.mockResolvedValue(undefined);
+    render(<AdminAccessPanel open onClose={() => undefined} />);
+    const several = await screen.findByTestId('admin-policy-several');
+    expect(several.getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByTestId('admin-policy-hint').textContent).toMatch(/any admin can make/i);
+
+    fireEvent.click(screen.getByTestId('admin-policy-one'));
+    await waitFor(() => expect(apiAdminSetPolicy).toHaveBeenCalledWith('one'));
+    await waitFor(() => expect(apiAdminGetPolicy).toHaveBeenCalledTimes(2));
+  });
+
+  it('shows why switching failed, in the words of the server', async () => {
+    apiAdminSetPolicy.mockRejectedValue(new Error('This install has 2 active admins (a@x.com, b@x.com).'));
+    render(<AdminAccessPanel open onClose={() => undefined} />);
+    fireEvent.click(await screen.findByTestId('admin-policy-one'));
+    expect(await screen.findByText(/2 active admins \(a@x.com, b@x.com\)/)).toBeTruthy();
+  });
+
+  it('with one admin, offers Make admin instead of the admin role, and hands the role over', async () => {
+    apiAdminGetPolicy.mockResolvedValue({ adminPolicy: 'one', source: 'app', activeAdmins: [localUser.email] });
+    apiAdminListUsers.mockResolvedValue({ users: [localUser, editor, oldAdmin] });
+    apiAdminTransferAdmin.mockResolvedValue(undefined);
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<AdminAccessPanel open onClose={() => undefined} />);
+
+    await screen.findByTestId('admin-transfer-admin-ed');
+    expect(screen.getByTestId('admin-policy-hint').textContent).toMatch(/only one account can be admin/i);
+    expect(roleOption('admin-new-role', 'admin').disabled).toBe(true);
+    expect(roleOption('admin-user-role-ed', 'admin').disabled).toBe(true);
+    // Not offered for yourself, nor for an inactive account.
+    expect(screen.queryByTestId(`admin-transfer-admin-${localUser.id}`)).toBeNull();
+    expect(screen.queryByTestId('admin-transfer-admin-old')).toBeNull();
+    // Reactivating the old admin would make a second one.
+    const reactivate = screen.getByTestId('admin-active-old') as HTMLInputElement;
+    expect(reactivate.disabled).toBe(true);
+    expect(reactivate.title).toMatch(/allows one admin/i);
+
+    fireEvent.click(screen.getByTestId('admin-transfer-admin-ed'));
+    expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/make ed@example.com the admin/i));
+    await waitFor(() => expect(apiAdminTransferAdmin).toHaveBeenCalledWith('ed'));
+    // The former admin lost Manage users: no reload (it would 403), just the swap.
+    expect(await screen.findByTestId('admin-users-status')).toBeTruthy();
+    expect(screen.getByTestId('admin-users-status').textContent).toMatch(/ed@example.com is now the admin/);
+    expect(apiAdminListUsers).toHaveBeenCalledTimes(1);
+    confirm.mockRestore();
+  });
+
+  it('does nothing when the hand-over is not confirmed', async () => {
+    apiAdminGetPolicy.mockResolvedValue({ adminPolicy: 'one', source: 'app', activeAdmins: [localUser.email] });
+    apiAdminListUsers.mockResolvedValue({ users: [localUser, editor] });
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(<AdminAccessPanel open onClose={() => undefined} />);
+    fireEvent.click(await screen.findByTestId('admin-transfer-admin-ed'));
+    expect(apiAdminTransferAdmin).not.toHaveBeenCalled();
+    confirm.mockRestore();
+  });
+
+  it('with several admins, keeps the admin role selectable and offers no hand-over', async () => {
+    apiAdminListUsers.mockResolvedValue({ users: [localUser, editor] });
+    render(<AdminAccessPanel open onClose={() => undefined} />);
+    await screen.findByTestId('admin-user-role-ed');
+    expect(roleOption('admin-new-role', 'admin').disabled).toBe(false);
+    expect(roleOption('admin-user-role-ed', 'admin').disabled).toBe(false);
+    expect(screen.queryByTestId('admin-transfer-admin-ed')).toBeNull();
+  });
+
+  it('is read-only when the server sets it', async () => {
+    apiAdminGetPolicy.mockResolvedValue({ adminPolicy: 'one', source: 'env', activeAdmins: [localUser.email] });
+    render(<AdminAccessPanel open onClose={() => undefined} />);
+    expect(((await screen.findByTestId('admin-policy-several')) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByTestId('admin-policy-hint').textContent).toMatch(/FOX_ADMIN_POLICY/);
   });
 });

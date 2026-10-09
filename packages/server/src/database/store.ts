@@ -3,6 +3,7 @@ import { getMetadataDbConfig } from './config';
 import { createMetadataStore } from './stores/registry';
 import { runMigrations } from './schema';
 import { seedDefaultRolePermissions, backfillDatagridRolePermissions } from '../features/authorization/rbac.service';
+import { backfillAdminPolicy } from '../features/authorization/admin-policy.service';
 import type { MetadataStore } from './stores/types';
 
 // Default SQLite location, anchored to this module so it's independent of the
@@ -28,6 +29,7 @@ export function getStore(): Promise<MetadataStore> {
     await runMigrations(store);
     await seedDefaultRolePermissions(store);
     await backfillDatagridRolePermissions(store);
+    await backfillAdminPolicy(store);
     return store;
   })().catch((err) => {
     storePromise = null; // allow a retry after a failed connect/migrate

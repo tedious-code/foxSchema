@@ -6,6 +6,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   activeAdminCount,
+  adminSlotTaken,
+  canTransferAdminTo,
   groupPermissionsForDisplay,
   groupUsersByRole,
   permissionSetEqual,
@@ -122,5 +124,37 @@ describe('roleGroupLabel', () => {
   it('title-cases built-in roles', () => {
     expect(roleGroupLabel('admin')).toBe('Admin');
     expect(roleGroupLabel('viewer')).toBe('Viewer');
+  });
+});
+
+describe('one admin or several', () => {
+  const admin = { id: 'a', role: 'admin' as const, active: true };
+  const formerAdmin = { id: 'f', role: 'admin' as const, active: false };
+  const editor = { id: 'e', role: 'editor' as const, active: true };
+  const users = [admin, formerAdmin, editor];
+
+  it('adminSlotTaken: only under one, and only by another active admin', () => {
+    expect(adminSlotTaken(editor, { policy: 'one', users })).toBe(true);
+    expect(adminSlotTaken(null, { policy: 'one', users })).toBe(true);
+    expect(adminSlotTaken(admin, { policy: 'one', users })).toBe(false);
+    expect(adminSlotTaken(editor, { policy: 'several', users })).toBe(false);
+    expect(adminSlotTaken(editor, { policy: null, users })).toBe(false);
+    expect(adminSlotTaken(editor, { policy: 'one', users: [formerAdmin, editor] })).toBe(false);
+  });
+
+  it('canTransferAdminTo: the admin, under one, to an active non-admin other than itself', () => {
+    const me = { policy: 'one' as const, meId: 'a', meRole: 'admin' as const };
+    expect(canTransferAdminTo(editor, me)).toBe(true);
+    expect(canTransferAdminTo(admin, me)).toBe(false);
+    expect(canTransferAdminTo({ ...editor, active: false }, me)).toBe(false);
+    expect(canTransferAdminTo(formerAdmin, me)).toBe(false);
+    expect(canTransferAdminTo(editor, { ...me, policy: 'several' })).toBe(false);
+    expect(canTransferAdminTo(editor, { ...me, meRole: 'owner' })).toBe(false);
+  });
+
+  it('userActiveCheckboxLock: reactivating a former admin is locked under one while an admin is active', () => {
+    expect(userActiveCheckboxLock(formerAdmin, { meId: 'a', users, policy: 'one' }).disabled).toBe(true);
+    expect(userActiveCheckboxLock(formerAdmin, { meId: 'a', users, policy: 'several' }).disabled).toBe(false);
+    expect(userActiveCheckboxLock({ ...editor, active: false }, { meId: 'a', users, policy: 'one' }).disabled).toBe(false);
   });
 });

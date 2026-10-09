@@ -133,6 +133,8 @@ docker compose -f docker-compose.app.yml up -d
 | `FOX_GIT_DIR` | beside the metadata DB (`<dir>/git`), else `~/.foxschema/git` | Where Fox keeps local copies of the Git repositories migrations are committed to (bare clones; safe to delete — they are fetched again). |
 | `FOX_GIT_ALLOW_HTTP` | off | Development only: accept `http://` Git remotes. Ignored when `NODE_ENV=production`; production remotes are always `https://`. |
 | `FOX_TRUST_PROXY` | `loopback, linklocal, uniquelocal` | Which peers' `X-Forwarded-*` headers are believed. Only a proxy may say who the client is; trusting everyone let any client pick its own address and skip rate limits. Set to your proxy's address or CIDR if it is on a public IP, or `true` / `false`. A trusted peer that forwards for others is also charged as one connection on the sign-in, setup and reset limits, at ten clients' worth, so a client in a trusted range that invents `X-Forwarded-For` addresses cannot step around them. |
+| `FOX_REGISTRATION_GRACE_DAYS` | `7` | How long the owner of a personal install may use Fox through the `foxschema open` launch link before creating an account. `0` asks for the account straight away. See [Using Fox before creating an account](#using-fox-before-creating-an-account). |
+| `FOX_VERIFY_MAIL_URL` | `https://foxschema.com/wp-json/foxschema/v1/verify-email` | Where email-verification codes go when the install has no SMTP relay. `off` sends them nowhere: a new account then stays unverified until email is set up. See [Fox mail service](#fox-mail-service). |
 | `FOX_SETUP_ALLOW_LOCAL_WITHOUT_CODE` | off | Skip the first-run setup code for a direct loopback request. The `foxschema open` launcher sets this because it binds only to loopback. Never enable it behind a reverse proxy: an unlabelled proxy request is indistinguishable from a local one. |
 | `NODE_ENV` | `production` | Set in the image; enforces that `APP_ENCRYPTION_KEY` is present. |
 | `FOX_ALLOWED_ORIGINS` | — | Comma-separated browser origins allowed to call the API with cookies. When set, it is the entire allowlist. See [Origin policy](#origin-policy). |
@@ -313,6 +315,64 @@ foxschema.com, which holds one app for each.
 Turning it on trusts foxschema.com to say who is signing in, and it sees the
 emails used (it does not store them). It is off by default for that reason.
 An install's own Google or GitHub app, when configured, is used instead.
+
+### Using Fox before creating an account
+
+`foxschema open` lets the owner of a personal install in before they have an
+account. It mints a one-time token in the metadata database (which whoever runs
+the CLI already holds) and opens `http://localhost:<port>/#launch=<token>`; the
+app exchanges it for a **launch session** as the install's owner. The limits are
+what make that safe:
+
+- The token works **once**, for **two minutes**, and is stored only as SHA-256.
+  It travels in the URL fragment, so it never reaches a server log.
+- The server takes it only on a **personal install** (`LOCAL_SINGLE_USER` not
+  `false`) that **listens on loopback only**, and only from a **direct local
+  request** (no proxy headers). Docker images, shared servers and any install
+  opened to the network keep first-run setup exactly as above.
+- A launch session can never manage users or sign-in settings (SSO, email, the
+  public URL): **Access control** needs a real account.
+- After `FOX_REGISTRATION_GRACE_DAYS` (7) from the first launch, the launch
+  session is refused and the app shows *Create your account*. Creating the
+  account ends every launch session and every unused launch token for good.
+
+### Email verification
+
+The account created at first-run setup (from the setup page or from a launch
+session) is asked to verify its address: Fox sends a code, and the app shows a
+**Verify your email** banner until it is entered. Accounts an admin adds, and
+every account that existed before this, are not asked. Verification codes are
+60 random bits like reset codes, work once for 30 minutes, are never accepted as
+a reset or invite code, and are **never written to the server log** — a code
+read from the log would prove nothing about the address. They go out through
+the SMTP relay below when one is configured, otherwise through the Fox mail
+service.
+
+### Fox mail service
+
+Without an SMTP relay, Fox asks foxschema.com to deliver the verification code:
+
+```http
+POST https://foxschema.com/wp-json/foxschema/v1/verify-email
+Content-Type: application/json
+
+{ "email": "owner@example.com", "code": "ABCD-EFGH-JKMN", "expiresAt": "2026-10-07T12:30:00.000Z" }
+```
+
+Any `2xx` means sent. Any other status, or no answer within 5 seconds, is
+reported to the person, with **Send a new code** to retry.
+Fox checks the code itself; the service never learns whether it was entered.
+
+What the endpoint must do, since anyone can call it:
+
+- Send a **fixed** message — the address, the code, its lifetime, and "if you did
+  not create a Fox account, ignore this email" — and nothing else taken from the
+  request.
+- Accept only a valid address and a code matching `^[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$`.
+- Rate-limit per address and per client IP, and not store the code.
+
+The address is sent to foxschema.com for delivery; set `FOX_VERIFY_MAIL_URL=off`
+(or configure SMTP) for an install that must not do that.
 
 ### Email for invites and resets
 

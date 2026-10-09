@@ -47,10 +47,15 @@ function takeCodeFromLink(): string {
 
 type View = 'signin' | 'forgot' | 'code';
 
-const TITLES: Record<View | 'setup', { title: string; subtitle: string }> = {
+const TITLES: Record<View | 'setup' | 'due', { title: string; subtitle: string }> = {
   setup: {
     title: 'Create your account',
     subtitle: 'The first account on this install is its administrator. Saved connections and history stay as they are.',
+  },
+  due: {
+    title: 'Create your account to keep going',
+    subtitle:
+      'You have used Fox without an account long enough. Create it now: your connections and history stay as they are.',
   },
   signin: { title: 'Sign in to your workspace', subtitle: 'Welcome back.' },
   forgot: { title: 'Forgot your password?', subtitle: '' },
@@ -58,7 +63,7 @@ const TITLES: Record<View | 'setup', { title: string; subtitle: string }> = {
 };
 
 export const AuthPage: React.FC = () => {
-  const { status, setupState } = useAuthStore();
+  const { status, setupState, launch } = useAuthStore();
   const settingUp = status === 'setup' && !!setupState;
   const [linkCode, setLinkCode] = useState(takeCodeFromLink);
   const [view, setView] = useState<View>(linkCode ? 'code' : 'signin');
@@ -84,7 +89,7 @@ export const AuthPage: React.FC = () => {
     setView(next);
   };
 
-  const heading = TITLES[settingUp ? 'setup' : view];
+  const heading = TITLES[settingUp ? (launch ? 'due' : 'setup') : view];
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-100 p-4">
@@ -196,8 +201,11 @@ const SignInForm: React.FC<{
   );
 };
 
-/** Sign up, the first time: the install's administrator account. */
-const FirstAccountForm: React.FC = () => {
+/**
+ * Sign up, the first time: the install's administrator account. Also what a
+ * launch session's "Create your account" opens, in the workspace.
+ */
+export const FirstAccountForm: React.FC = () => {
   const { setup, setupState, error, busy } = useAuthStore();
   const boundEmail = setupState?.setupEmail ?? null;
   const [email, setEmail] = useState(boundEmail ?? '');

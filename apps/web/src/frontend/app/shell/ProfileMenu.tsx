@@ -1,6 +1,6 @@
 import React, { lazy, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { LogOut, Palette, ArrowUpCircle, Globe, Shield, MonitorX, MessageSquarePlus } from 'lucide-react';
+import { LogOut, Palette, ArrowUpCircle, Globe, Shield, MonitorX, MessageSquarePlus, UserPlus } from 'lucide-react';
 import { apiSignOutOthers } from '@/shared/api/authApi';
 import { toast } from '@/app/store/toastStore';
 import { useAuthStore } from '@/app/store/authStore';
@@ -21,9 +21,10 @@ const FeedbackDialog = lazy(() =>
 );
 
 export function ProfileMenu(): React.ReactElement | null {
-  const { user, logout } = useAuthStore();
+  const { user, logout, launch } = useAuthStore();
   const setActiveView = useUiStore((s) => s.setActiveView);
   const canAdminAccess = useAuthStore((s) => s.can('admin.users') || s.can('admin.roles'));
+  const setRegisterDialogOpen = useAuthStore((s) => s.setRegisterDialogOpen);
   const [open, setOpen] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -72,8 +73,9 @@ export function ProfileMenu(): React.ReactElement | null {
         >
           <div className="px-4 py-3 border-b border-slate-800">
             <p className="text-xs text-slate-500 uppercase tracking-wider font-bold">Signed in as</p>
-            <p className="text-sm text-slate-200 truncate" title={user.email}>
-              {user.email}
+            {/* A launch session's account is a placeholder until the owner creates theirs. */}
+            <p className="text-sm text-slate-200 truncate" title={launch ? undefined : user.email} data-testid="profile-email">
+              {launch ? 'This install’s owner (no account yet)' : user.email}
             </p>
             <p className="text-[11px] text-amber-300/90 mt-0.5 capitalize" data-testid="profile-role">
               Role: {user.role}
@@ -105,7 +107,22 @@ export function ProfileMenu(): React.ReactElement | null {
             <Palette className="w-4 h-4" /> Preferences
           </button>
 
-          {canAdminAccess && (
+          {/* Who else gets in is decided with an account: a launch session gets the
+              way to create one instead of a panel that would only refuse it. */}
+          {launch ? (
+          <button
+            type="button"
+            data-testid="profile-create-account"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(false);
+              setRegisterDialogOpen(true);
+            }}
+            className="w-full flex items-center gap-2 px-4 py-3 text-sm font-semibold text-amber-200 hover:text-amber-100 hover:bg-slate-800/60 transition cursor-pointer"
+          >
+            <UserPlus className="w-4 h-4" /> Create your account
+          </button>
+          ) : canAdminAccess && (
           <button
             type="button"
             data-testid="profile-access-control"

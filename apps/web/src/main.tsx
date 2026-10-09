@@ -73,18 +73,18 @@ function renderApp() {
   )
 }
 
-/** Don't let an hung /signup/state keep the splash up forever. */
-function signupStateWithTimeout(ms = 4000): Promise<{ shown: boolean }> {
+/** Don't let a hung request keep the splash up forever: on a timeout or a failure, `fallback`. */
+function settleWithin<T>(work: Promise<T>, fallback: T, ms = 4000): Promise<T> {
   return new Promise((resolve) => {
-    const timer = window.setTimeout(() => resolve({ shown: true }), ms)
-    getSignupState()
-      .then((s) => {
+    const timer = window.setTimeout(() => resolve(fallback), ms)
+    work
+      .then((value) => {
         window.clearTimeout(timer)
-        resolve(s)
+        resolve(value)
       })
       .catch(() => {
         window.clearTimeout(timer)
-        resolve({ shown: true })
+        resolve(fallback)
       })
   })
 }
@@ -95,11 +95,14 @@ async function afterApiReady() {
   // Sign-in and the signup offer are independent; ask both at once rather than
   // one after the other (App's own init() joins this one). And a returning
   // reader opens on the view they left, so start fetching its code now.
-  void useAuthStore.getState().init()
+  const signedIn = useAuthStore.getState().init()
   const lastView = useUiStore.getState().activeView
   if (lastView !== 'home') prefetchView(lastView, { inside: false })
-  const signup = await signupStateWithTimeout()
-  if (!signup.shown) {
+  const signup = await settleWithin(getSignupState(), { shown: true })
+  // Someone arriving by `foxschema open` launch link goes straight to the
+  // workspace; the account form they fill in later offers Fox news instead.
+  // Only waited on when the wizard would show, so it never delays a usual boot.
+  if (!signup.shown && !(await settleWithin(signedIn.then(() => useAuthStore.getState().launch), false))) {
     root.render(
       <React.StrictMode>
         <Suspense fallback={<LoadingScreen />}>

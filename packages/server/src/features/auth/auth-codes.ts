@@ -3,24 +3,34 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * One-time codes for password reset and invites.
+ * One-time codes: password reset, invites, email verification, and the
+ * launch link `foxschema open` signs the install's owner in with.
  *
- * A code is what someone types or follows from an email: 12 characters of
- * Crockford base32 (60 bits), grouped `ABCD-EFGH-JKMN`, with the letters that
- * read as digits left out and mapped back on input. Only its SHA-256 is
- * stored, so the metadata database never holds a code that works, and a
- * session token is stored the same way for the same reason.
+ * A code someone types or follows from an email is 12 characters of Crockford
+ * base32 (60 bits), grouped `ABCD-EFGH-JKMN`, with the letters that read as
+ * digits left out and mapped back on input. A launch token is never typed, so
+ * it is a session-strength random token instead. Only a SHA-256 is stored, so
+ * the metadata database never holds a code that works, and a session token is
+ * stored the same way for the same reason.
  */
 import { createHash, randomBytes } from 'node:crypto';
 
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
-export type AuthCodePurpose = 'reset' | 'invite';
+/** The codes that set a password: the only ones `/password/*` accepts. */
+export type PasswordCodePurpose = 'reset' | 'invite';
+
+export type AuthCodePurpose = PasswordCodePurpose | 'verify' | 'launch';
+
+export const PASSWORD_CODE_PURPOSES: readonly PasswordCodePurpose[] = ['reset', 'invite'];
 
 /** How long each kind of code works. */
 export const CODE_TTL_MS: Record<AuthCodePurpose, number> = {
   reset: 30 * 60 * 1000,
   invite: 7 * 24 * 60 * 60 * 1000,
+  verify: 30 * 60 * 1000,
+  // Long enough for a browser to open; a link that sits in history is dead.
+  launch: 2 * 60 * 1000,
 };
 
 export function newAuthCode(): string {

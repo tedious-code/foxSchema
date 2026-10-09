@@ -8,8 +8,17 @@ import { getStore } from '../../database/store';
 import { hashPassword, verifyPassword, newToken } from '../../platform/crypto/crypto';
 import { RbacModule, toAppRole } from '../authorization/rbac.service';
 import { assertPasswordAcceptable, type AppRole, type Permission } from '@foxschema/shared';
-import { CODE_TTL_MS, hashAuthCode, hashSecretToken, newAuthCode, type AuthCodePurpose } from './auth-codes';
+import {
+  CODE_TTL_MS,
+  PASSWORD_CODE_PURPOSES,
+  hashAuthCode,
+  hashSecretToken,
+  newAuthCode,
+  type AuthCodePurpose,
+  type PasswordCodePurpose,
+} from './auth-codes';
 import { clearFailures, lockedFor, recordFailure } from './sign-in-throttle';
+import { AppSettingsStore } from '../admin/app-settings.service';
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 /** A session's last use is written at most this often, not on every request. */
@@ -118,6 +127,35 @@ export interface SetupState {
   setupEmail: string | null;
 }
 
+/** When the owner first came in by launch link: the grace period runs from here. */
+const FIRST_LAUNCH_KEY = 'auth.launch.first_used_at';
+
+/**
+ * How long the owner of a personal install may use Fox through `foxschema
+ * open` before creating an account: `FOX_REGISTRATION_GRACE_DAYS`, 7 by
+ * default. 0 asks for the account straight away. Read per call.
+ */
+export function registrationGraceMs(): number {
+  const raw = process.env.FOX_REGISTRATION_GRACE_DAYS;
+  const days = raw === undefined || raw.trim() === '' ? 7 : Number(raw);
+  return Number.isFinite(days) && days > 0 ? days * 24 * 60 * 60 * 1000 : 0;
+}
+
+/** For a launch session: when the owner must have an account, and whether that time has come. */
+export interface RegistrationState {
+  dueAt: string;
+  required: boolean;
+}
+
+/** A signed-in session: who it is, and whether it is a launch session. */
+export interface ResolvedSession {
+  user: AuthUser;
+  launch: boolean;
+}
+
+const LAUNCH_LINK_EXPIRED = 'This launch link has expired or was already used. Run `foxschema open` again.';
+const VERIFY_CODE_WRONG = 'This code is wrong or has expired. Send a new one.';
+
 export class AuthModule {
   private rbac = new RbacModule();
 
@@ -201,13 +239,17 @@ export class AuthModule {
     return this.issueCode(row.id, 'reset');
   }
 
+  /**
+   * A reset or invite code that still works. Only those: a verification code
+   * has the same shape, and must never be accepted as one that sets a password.
+   */
   private async findCode(code: unknown) {
     const hash = hashAuthCode(code);
     if (!hash) return null;
     const store = await getStore();
     const row = await store.get<{
       user_id: string;
-      purpose: AuthCodePurpose;
+      purpose: PasswordCodePurpose;
       expires_at: string;
       used_at: string | null;
       email: string;
@@ -215,8 +257,8 @@ export class AuthModule {
     }>(
       `SELECT c.user_id, c.purpose, c.expires_at, c.used_at, u.email, u.active
          FROM auth_codes c JOIN users u ON u.id = c.user_id
-        WHERE c.code_hash = ?`,
-      [hash]
+        WHERE c.code_hash = ? AND c.purpose IN (${PASSWORD_CODE_PURPOSES.map(() => '?').join(', ')})`,
+      [hash, ...PASSWORD_CODE_PURPOSES]
     );
     if (!row || row.used_at || new Date(row.expires_at).getTime() < Date.now()) return null;
     if (row.active !== null && row.active !== undefined && Number(row.active) === 0) return null;
@@ -224,7 +266,7 @@ export class AuthModule {
   }
 
   /** Who a still-valid code is for, so the page can say so; null when it does not work. */
-  async inspectCode(code: unknown): Promise<{ email: string; purpose: AuthCodePurpose } | null> {
+  async inspectCode(code: unknown): Promise<{ email: string; purpose: PasswordCodePurpose } | null> {
     const row = await this.findCode(code);
     return row ? { email: row.email, purpose: row.purpose } : null;
   }
@@ -235,7 +277,7 @@ export class AuthModule {
    * The code works once. Every other session of the account ends, since a
    * reset is what someone does when they think their password is known.
    */
-  async redeemCode(code: unknown, password: string): Promise<{ user: AuthUser; token: string; purpose: AuthCodePurpose }> {
+  async redeemCode(code: unknown, password: string): Promise<{ user: AuthUser; token: string; purpose: PasswordCodePurpose }> {
     const found = await this.findCode(code);
     if (!found) throw new Error('This code is wrong or has expired. Ask for a new one.');
     assertPasswordAcceptable(password, found.email);
@@ -312,22 +354,27 @@ export class AuthModule {
       throw new Error('An account with this email already exists.');
     }
 
+    // The account registered here is asked to verify its address; the email
+    // it carried before (the local placeholder, or a bound one) proves nothing.
     let id: string;
     let onboarded = 0;
     if (local) {
       id = local.id;
       onboarded = local.onboarding_completed;
       await store.run(
-        "UPDATE users SET email = ?, password_hash = ?, app_role = 'admin', active = 1, password_set = 1 WHERE id = ?",
+        "UPDATE users SET email = ?, password_hash = ?, app_role = 'admin', active = 1, password_set = 1, email_verify_required = 1, email_verified_at = NULL WHERE id = ?",
         [normalized, await hashPassword(password), id]
       );
     } else {
       id = randomUUID();
       await store.run(
-        "INSERT INTO users (id, email, password_hash, created_at, app_role, password_set) VALUES (?, ?, ?, ?, 'admin', 1)",
+        "INSERT INTO users (id, email, password_hash, created_at, app_role, password_set, email_verify_required) VALUES (?, ?, ?, ?, 'admin', 1, 1)",
         [id, normalized, await hashPassword(password), new Date().toISOString()]
       );
     }
+    // The launch link got the owner this far; from now on it is the password.
+    await store.run("DELETE FROM sessions WHERE user_id = ? AND via = 'launch'", [id]);
+    await store.run("DELETE FROM auth_codes WHERE user_id = ? AND purpose = 'launch'", [id]);
     const user = await this.toAuthUser({ id, email: normalized, onboarding_completed: onboarded, app_role: 'admin' });
     return { user, token: await this.createSession(id) };
   }
@@ -453,14 +500,26 @@ export class AuthModule {
 
   /** Resolve a session token to its user, or null if missing/expired. */
   async getUserByToken(token: string | undefined): Promise<AuthUser | null> {
+    return (await this.resolveSession(token))?.user ?? null;
+  }
+
+  /**
+   * Resolve a session token to its user, and say whether it is a launch
+   * session. A launch session ends for good once anyone can sign in with a
+   * password: from then on there is an account, and the link stood in for one.
+   */
+  async resolveSession(token: string | undefined): Promise<ResolvedSession | null> {
     if (!token) return null;
     const store = await getStore();
     // Stored hashed: a copy of the metadata database holds no usable session.
     const stored = hashSecretToken(token);
-    const session = await store.get<{ user_id: string; expires_at: string; created_at: string; last_seen_at: string | null }>(
-      'SELECT user_id, expires_at, created_at, last_seen_at FROM sessions WHERE token = ?',
-      [stored]
-    );
+    const session = await store.get<{
+      user_id: string;
+      expires_at: string;
+      created_at: string;
+      last_seen_at: string | null;
+      via: string | null;
+    }>('SELECT user_id, expires_at, created_at, last_seen_at, via FROM sessions WHERE token = ?', [stored]);
     if (!session) return null;
 
     const now = Date.now();
@@ -484,21 +543,132 @@ export class AuthModule {
       return null;
     }
 
-    return this.toAuthUser(user);
+    const launch = session.via === 'launch';
+    if (launch && !(await this.setupState()).setupRequired) {
+      await store.run('DELETE FROM sessions WHERE token = ?', [stored]);
+      return null;
+    }
+    return { user: await this.toAuthUser(user), launch };
   }
 
-  private async createSession(userId: string): Promise<string> {
+  private async createSession(userId: string, via: 'launch' | null = null): Promise<string> {
     const token = newToken();
     const now = Date.now();
     const store = await getStore();
-    await store.run('INSERT INTO sessions (token, user_id, created_at, expires_at, last_seen_at) VALUES (?, ?, ?, ?, ?)', [
-      hashSecretToken(token),
-      userId,
-      new Date(now).toISOString(),
-      new Date(now + SESSION_TTL_MS).toISOString(),
-      new Date(now).toISOString(),
-    ]);
+    await store.run(
+      'INSERT INTO sessions (token, user_id, created_at, expires_at, last_seen_at, via) VALUES (?, ?, ?, ?, ?, ?)',
+      [
+        hashSecretToken(token),
+        userId,
+        new Date(now).toISOString(),
+        new Date(now + SESSION_TTL_MS).toISOString(),
+        new Date(now).toISOString(),
+        via,
+      ]
+    );
     return token;
+  }
+
+  // ── The launch link: using Fox before creating an account ───────────────────
+
+  /**
+   * A one-time link for `foxschema open` to sign the owner of a personal
+   * install in before they have an account; null once someone has one, or
+   * once the grace period is over and the account is required.
+   *
+   * Whoever can run the CLI already holds the metadata database, so the link
+   * gives them nothing they did not have; what it saves is the password they
+   * have not chosen yet. It works once, for two minutes, is stored hashed, and
+   * the server takes it only from this machine (see `/api/auth/launch`).
+   */
+  async issueLaunchToken(): Promise<string | null> {
+    if (!(await this.setupState()).setupRequired) return null;
+    if ((await this.registrationState()).required) return null;
+    const owner = await this.ownerAccount();
+    const store = await getStore();
+    await store.run("DELETE FROM auth_codes WHERE user_id = ? AND purpose = 'launch' AND used_at IS NULL", [owner.id]);
+    const token = newToken();
+    const now = Date.now();
+    await store.run(
+      'INSERT INTO auth_codes (code_hash, user_id, purpose, created_at, expires_at) VALUES (?, ?, ?, ?, ?)',
+      [hashSecretToken(token), owner.id, 'launch', new Date(now).toISOString(), new Date(now + CODE_TTL_MS.launch).toISOString()]
+    );
+    return token;
+  }
+
+  /** Exchange a launch token for a launch session. The first one starts the grace period. */
+  async redeemLaunchToken(token: unknown): Promise<{ user: AuthUser; token: string }> {
+    if (typeof token !== 'string' || token.length === 0 || token.length > 200) throw new Error(LAUNCH_LINK_EXPIRED);
+    const store = await getStore();
+    const hash = hashSecretToken(token);
+    const row = await store.get<{ user_id: string; expires_at: string; used_at: string | null }>(
+      "SELECT user_id, expires_at, used_at FROM auth_codes WHERE code_hash = ? AND purpose = 'launch'",
+      [hash]
+    );
+    if (!row || row.used_at || new Date(row.expires_at).getTime() < Date.now()) throw new Error(LAUNCH_LINK_EXPIRED);
+    // Claim it first, so two tabs racing with one link cannot both get in.
+    const claimed = await store.run('UPDATE auth_codes SET used_at = ? WHERE code_hash = ? AND used_at IS NULL', [
+      new Date().toISOString(),
+      hash,
+    ]);
+    if (claimed.changes === 0) throw new Error(LAUNCH_LINK_EXPIRED);
+    if (!(await this.setupState()).setupRequired) throw new Error('This install has an account now. Sign in with it.');
+    if ((await this.registrationState()).required) throw new Error('Create your account to keep using Fox.');
+
+    const user = await store.get<UserRow>(
+      'SELECT id, email, onboarding_completed, app_role, active FROM users WHERE id = ?',
+      [row.user_id]
+    );
+    if (!user) throw new Error(LAUNCH_LINK_EXPIRED);
+    assertUserActive(user);
+    const settings = new AppSettingsStore();
+    if (!(await settings.get(FIRST_LAUNCH_KEY))) await settings.set(FIRST_LAUNCH_KEY, new Date().toISOString());
+    return { user: await this.toAuthUser(user), token: await this.createSession(user.id, 'launch') };
+  }
+
+  /**
+   * When the owner must have created an account. The grace period starts the
+   * first time they come in by launch link; before that it has not started.
+   */
+  async registrationState(now = Date.now()): Promise<RegistrationState> {
+    const first = Date.parse((await new AppSettingsStore().get(FIRST_LAUNCH_KEY)) ?? '');
+    const due = (Number.isFinite(first) ? first : now) + registrationGraceMs();
+    return { dueAt: new Date(due).toISOString(), required: now >= due };
+  }
+
+  // ── Email verification ──────────────────────────────────────────────────────
+
+  /** Whether this account is asked to verify its address, and whether it has. */
+  async emailVerification(userId: string): Promise<{ required: boolean; verified: boolean }> {
+    const store = await getStore();
+    const row = await store.get<{ email_verify_required: number | null; email_verified_at: string | null }>(
+      'SELECT email_verify_required, email_verified_at FROM users WHERE id = ?',
+      [userId]
+    );
+    return { required: Number(row?.email_verify_required ?? 0) === 1, verified: !!row?.email_verified_at };
+  }
+
+  /** A code to prove `userId` reads mail at their address; an earlier one stops working. */
+  async issueVerifyCode(userId: string): Promise<IssuedCode> {
+    return this.issueCode(userId, 'verify');
+  }
+
+  /** Mark the address verified when `code` is the one sent to it. */
+  async verifyEmail(userId: string, code: unknown): Promise<void> {
+    const hash = hashAuthCode(code);
+    if (!hash) throw new Error(VERIFY_CODE_WRONG);
+    const store = await getStore();
+    const row = await store.get<{ expires_at: string; used_at: string | null }>(
+      "SELECT expires_at, used_at FROM auth_codes WHERE code_hash = ? AND user_id = ? AND purpose = 'verify'",
+      [hash, userId]
+    );
+    if (!row || row.used_at || new Date(row.expires_at).getTime() < Date.now()) throw new Error(VERIFY_CODE_WRONG);
+    const claimed = await store.run('UPDATE auth_codes SET used_at = ? WHERE code_hash = ? AND used_at IS NULL', [
+      new Date().toISOString(),
+      hash,
+    ]);
+    if (claimed.changes === 0) throw new Error(VERIFY_CODE_WRONG);
+    await store.run('UPDATE users SET email_verified_at = ? WHERE id = ?', [new Date().toISOString(), userId]);
   }
 
   /** End every session of `userId` except the one holding `keepToken`; how many ended. */

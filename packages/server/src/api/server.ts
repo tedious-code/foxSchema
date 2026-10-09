@@ -26,7 +26,7 @@ import { sweepOrphanedUploadFiles } from '../features/files/file-session.service
 import { UserModule } from '../features/users/user.service';
 import { createApiRoutes } from './routes';
 import { defaultApiRateLimit } from '../platform/guards/rate-limit';
-import { createAuthRoutes, authGuard } from '../features/auth/auth.routes';
+import { createAuthRoutes, authGuard, requireRegisteredAccount } from '../features/auth/auth.routes';
 import { createSsoRoutes } from '../features/auth/sso.routes';
 import { createSignInSettingsRoutes } from '../features/auth/sign-in-settings.routes';
 import { createGitRoutes } from '../features/git/git.routes';
@@ -87,14 +87,16 @@ export function buildApiRoutes(): RouteDefinition[] {
   // a single-user mode that attached a built-in local user to every request;
   // anyone who could reach the port was that user.
   const userGuard = authGuard(auth);
+  // Who can get in is decided by someone with an account, never by a launch link.
+  const registeredOnly = requireRegisteredAccount();
 
   const connectionStore = new ConnectionStore();
   root.use('/api/connections', userGuard, createConnectionStoreRoutes(connectionStore));
   root.use('/api/app-secrets', userGuard, createAppSecretsRoutes(new AppSecretsStore()));
   root.use('/api/user', userGuard, createUserRoutes(new UserModule()));
   root.use('/api/backup-settings', userGuard, createBackupSettingsRoutes());
-  root.use('/api/admin/sign-in', userGuard, createSignInSettingsRoutes());
-  root.use('/api/admin', userGuard, createAdminRoutes());
+  root.use('/api/admin/sign-in', userGuard, registeredOnly, createSignInSettingsRoutes());
+  root.use('/api/admin', userGuard, registeredOnly, createAdminRoutes());
   root.use('/api/git', userGuard, createGitRoutes(makeConnectionResolver(connectionModule, connectionStore).resolveRef));
   // FoxWorkflow control plane (settings + engine health proxy).
   root.use('/api/workflow', userGuard, createWorkflowRoutes());

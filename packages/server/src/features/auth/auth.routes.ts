@@ -14,16 +14,19 @@ import { AppSettingsStore } from '../admin/app-settings.service';
 import { sendError } from '../../platform/http/respond';
 import { rateLimit } from '../../platform/guards/rate-limit';
 import { getLogger } from '../../platform/logger/logger';
-import { isDirectLocalRequest, resetSetupCode, setupCode, setupCodeMatches } from './setup-code';
+import { isDirectLocalRequest, launchLinksAllowed, resetSetupCode, setupCode, setupCodeMatches } from './setup-code';
 
 export type { AuthedRequest };
 
 /** Put the resolved session user's identity + grants on the request. */
-export function attachAuthUser(user: AuthUser, req: AuthedRequest): void {
+export function attachAuthUser(user: AuthUser, req: AuthedRequest, launchSession = false): void {
   req.userId = user.id;
   req.appRole = user.role;
   req.permissions = new Set(user.permissions);
+  req.launchSession = launchSession;
 }
+
+const REGISTER_TO_CONTINUE = 'Create your account to keep using Fox. Your connections and history stay as they are.';
 
 /** Minimal cookie reader (avoids a cookie-parser dependency). */
 export function readCookie(req: AppRequest, name: string): string | undefined {
@@ -110,7 +113,9 @@ export function createAuthRoutes(
       sendError(res, 'conflict', 'Setup is already complete. Sign in instead.');
       return;
     }
-    if (!isDirectLocalRequest(req) && !setupCodeMatches(code)) {
+    // Someone who came in by launch link already proved they run the install.
+    const launched = (await auth.resolveSession(readCookie(req, SESSION_COOKIE)))?.launch === true;
+    if (!launched && !isDirectLocalRequest(req) && !setupCodeMatches(code)) {
       announceSetupCode();
       sendError(res, 'forbidden', 'Enter the setup code printed in the Fox server log.');
       return;
@@ -121,8 +126,86 @@ export function createAuthRoutes(
       setSessionCookie(res, token);
       res.send({ user });
       subscribeIfAsked(subscribe, user.email);
+      // The account form already offered Fox news, and a launch session never
+      // saw the separate signup wizard: don't ask again on the next load.
+      if (launched) {
+        signup.skip().catch((error: unknown) => {
+          getLogger().warn(
+            `Could not record the signup offer as answered: ${error instanceof Error ? error.message : String(error)}`
+          );
+        });
+      }
+      // After the reply: the account exists whether or not the mail goes out,
+      // and the app offers to send the code again.
+      sendVerificationCode(user).catch((error: unknown) => {
+        getLogger().warn(
+          `Could not send the email-verification code: ${error instanceof Error ? error.message : String(error)}`
+        );
+      });
     } catch (error: unknown) {
       sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Setup failed');
+    }
+  });
+
+  const sendVerificationCode = async (user: AuthUser) =>
+    mailer.sendVerification(await auth.issueVerifyCode(user.id));
+
+  /**
+   * The launch link `foxschema open` opens: exchange its one-time token for a
+   * session as the install's owner, before they have an account.
+   *
+   * Only on a personal install that listens on this machine alone, and only
+   * from this machine. The token is the proof; these keep a leaked one from
+   * working anywhere else.
+   */
+  router.post('/launch', signInLimiter, async (req: AppRequest, res: FastifyReply) => {
+    if (!launchLinksAllowed() || !isDirectLocalRequest(req)) {
+      sendError(res, 'forbidden', 'Launch links work only on a personal install, from the machine it runs on.');
+      return;
+    }
+    const { token } = (req.body ?? {}) as { token?: unknown };
+    try {
+      const { user, token: session } = await auth.redeemLaunchToken(token);
+      setSessionCookie(res, session);
+      res.send({ user });
+    } catch (error: unknown) {
+      sendError(res, 'unauthenticated', error instanceof Error ? error.message : 'This launch link does not work.');
+    }
+  });
+
+  const verifyLimiter = rateLimit({ name: 'email-verify', windowMs: 15 * 60 * 1000, max: 10 });
+
+  /** Send (again) the code that verifies the signed-in account's email. */
+  router.post('/verify/send', verifyLimiter, async (req: AppRequest, res: FastifyReply) => {
+    const session = await auth.resolveSession(readCookie(req, SESSION_COOKIE));
+    if (!session || session.launch) {
+      sendError(res, 'unauthenticated', 'Sign in to verify your email.');
+      return;
+    }
+    if ((await auth.emailVerification(session.user.id)).verified) {
+      res.send({ ok: true, verified: true });
+      return;
+    }
+    try {
+      res.send({ ok: true, delivery: await sendVerificationCode(session.user), email: session.user.email });
+    } catch (error: unknown) {
+      sendError(res, 'unavailable', error instanceof Error ? error.message : 'Could not send the code.');
+    }
+  });
+
+  /** Enter the code from the verification email. */
+  router.post('/verify', verifyLimiter, async (req: AppRequest, res: FastifyReply) => {
+    const session = await auth.resolveSession(readCookie(req, SESSION_COOKIE));
+    if (!session || session.launch) {
+      sendError(res, 'unauthenticated', 'Sign in to verify your email.');
+      return;
+    }
+    const { code } = (req.body ?? {}) as { code?: unknown };
+    try {
+      await auth.verifyEmail(session.user.id, code);
+      res.send({ ok: true, verified: true });
+    } catch (error: unknown) {
+      sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Could not verify the email.');
     }
   });
 
@@ -204,10 +287,21 @@ export function createAuthRoutes(
     res.send({ signedOut: await auth.signOutOtherSessions(user.id, token) });
   });
 
+  /**
+   * Who is signed in. A launch session also says when its account is due; an
+   * account asked to verify its email says whether it has.
+   */
   router.get('/me', async (req: AppRequest, res: FastifyReply) => {
-    const user = await auth.getUserByToken(readCookie(req, SESSION_COOKIE));
-    if (user) {
-      res.send({ user });
+    const session = await auth.resolveSession(readCookie(req, SESSION_COOKIE));
+    if (session) {
+      const { user, launch } = session;
+      const verification = launch ? null : await auth.emailVerification(user.id);
+      res.send({
+        user,
+        launch,
+        registration: launch ? await auth.registrationState() : null,
+        emailVerification: verification?.required ? { verified: verification.verified } : null,
+      });
       return;
     }
     // Nobody signed in is an answer, not an error: the app asks this on every
@@ -218,20 +312,45 @@ export function createAuthRoutes(
   return router;
 }
 
-/** Guard for protected routes — attaches userId + RBAC or 401s. */
+/**
+ * Guard for protected routes — attaches userId + RBAC or 401s.
+ *
+ * A launch session passes until its grace period is over; from then on the
+ * owner has to create the account before anything else works.
+ */
 export function authGuard(auth: AuthModule) {
   return async (req: AuthedRequest, res: FastifyReply, next: NextFunction) => {
     try {
-      const user = await auth.getUserByToken(readCookie(req, SESSION_COOKIE));
-      if (!user) {
+      const session = await auth.resolveSession(readCookie(req, SESSION_COOKIE));
+      if (!session) {
         sendError(res, 'unauthenticated', 'Authentication required');
         return;
       }
-      attachAuthUser(user, req);
+      if (session.launch && (await auth.registrationState()).required) {
+        sendError(res, 'forbidden', REGISTER_TO_CONTINUE);
+        return;
+      }
+      attachAuthUser(session.user, req, session.launch);
       next();
     } catch (err) {
       next(err);
     }
+  };
+}
+
+/**
+ * For routes that change who can get in: adding and managing users, and
+ * sign-in settings (SSO, mail, the public URL). A launch session never may,
+ * whatever its grace period: the owner creates their own account first.
+ * Mounted after `authGuard`.
+ */
+export function requireRegisteredAccount() {
+  return (req: AuthedRequest, res: FastifyReply, next: NextFunction) => {
+    if (req.launchSession) {
+      sendError(res, 'forbidden', 'Create your account first: managing users and sign-in needs one.');
+      return;
+    }
+    next();
   };
 }
 

@@ -9,6 +9,7 @@ import {
 import chalk from 'chalk';
 import { ensureUiEnv } from '../runtime/ensureUiEnv';
 import { openBrowser } from '../runtime/openBrowser';
+import { launchAddress } from '../runtime/launchLink';
 import { resolveStaticDir, resolveUiServerEntry } from '../runtime/resolvePaths';
 import { readCliPackageVersion } from '../runtime/packageVersion';
 import {
@@ -352,7 +353,7 @@ export async function runOpen(opts: OpenOptions = {}): Promise<void> {
       await stopForRelaunch(port);
     } else {
       console.log(chalk.green(`Fox Schema already running at ${url}`));
-      if (!opts.noOpen) await openBrowser(url);
+      if (!opts.noOpen) await openLaunched(url);
       return;
     }
   }
@@ -437,7 +438,7 @@ export async function runOpen(opts: OpenOptions = {}): Promise<void> {
 
   console.log(chalk.green.bold(`✔ Fox Schema is ready at ${url}`));
   if (!opts.noOpen) {
-    await openBrowser(url);
+    await openLaunched(url);
     console.log(chalk.dim('Opened in your browser. Run `foxschema stop` to shut down the server.'));
   } else {
     console.log(chalk.dim('Server started (--no-open). Run `foxschema stop` to shut it down.'));
@@ -445,6 +446,18 @@ export async function runOpen(opts: OpenOptions = {}): Promise<void> {
 
   // Reassure TypeScript / tooling that the lock file path was used.
   void existsSync(PID_FILE);
+}
+
+/**
+ * Open Fox in the browser, signed in as the install's owner while they have
+ * no account yet (see runtime/launchLink.ts).
+ */
+async function openLaunched(url: string): Promise<void> {
+  const target = await launchAddress(url);
+  await openBrowser(target.url);
+  if (target.launched) {
+    console.log(chalk.dim('Signed in as this install’s owner. Fox will ask you to create your account.'));
+  }
 }
 
 /** Stop the managed UI server started by `foxschema open`. */

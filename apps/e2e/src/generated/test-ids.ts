@@ -821,6 +821,10 @@ export const TestIds = {
     ProfileMenu: {
       /** button · App users & roles */
       profileAccessControl: 'profile-access-control',
+      /** button · Create your account */
+      profileCreateAccount: 'profile-create-account',
+      /** p */
+      profileEmail: 'profile-email',
       /** div */
       profileMenuDropdown: 'profile-menu-dropdown',
       /** button */
@@ -922,6 +926,30 @@ export const TestIds = {
     },
   },
   auth: {
+    AccountBanners: {
+      /** div */
+      accountRegisterBanner: 'account-register-banner',
+      /** button · Close */
+      accountRegisterClose: 'account-register-close',
+      /** div · Create your account */
+      accountRegisterDialog: 'account-register-dialog',
+      /** button · Hide until next time */
+      accountRegisterDismiss: 'account-register-dismiss',
+      /** button · Create account */
+      accountRegisterOpen: 'account-register-open',
+      /** form */
+      accountVerifyBanner: 'account-verify-banner',
+      /** input · Verification code */
+      accountVerifyCode: 'account-verify-code',
+      /** button · Hide until next time */
+      accountVerifyDismiss: 'account-verify-dismiss',
+      /** button */
+      accountVerifyResend: 'account-verify-resend',
+      /** span */
+      accountVerifyStatus: 'account-verify-status',
+      /** button · Verify */
+      accountVerifySubmit: 'account-verify-submit',
+    },
     AuthPage: {
       /** button · Forgot password? */
       authForgotLink: 'auth-forgot-link',
@@ -3413,6 +3441,17 @@ export type TestId =
   | 'access-report'
   | `access-tab-${string}`
   | 'access-view'
+  | 'account-register-banner'
+  | 'account-register-close'
+  | 'account-register-dialog'
+  | 'account-register-dismiss'
+  | 'account-register-open'
+  | 'account-verify-banner'
+  | 'account-verify-code'
+  | 'account-verify-dismiss'
+  | 'account-verify-resend'
+  | 'account-verify-status'
+  | 'account-verify-submit'
   | 'ack-destructive-drops'
   | 'ack-mysql-binlog-risk'
   | 'ack-narrowing-types'
@@ -4268,6 +4307,8 @@ export type TestId =
   | `pipe-credential-option-${string}`
   | 'pipe-credential-trigger'
   | 'profile-access-control'
+  | 'profile-create-account'
+  | 'profile-email'
   | 'profile-menu-dropdown'
   | 'profile-menu-trigger'
   | 'profile-preferences'

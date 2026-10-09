@@ -91,6 +91,24 @@ for an email and password**, and only an administrator can create accounts.
   now only marks a personal install (machine-level actions such as driver
   install and updates).
 
+## Start using Fox before creating an account
+
+`foxschema open` now opens straight into the workspace on a personal install,
+signed in as its owner through a one-time launch link: no account first. A
+banner asks you to **Create your account** (also in the profile menu, where *App
+users & roles* waits for the account); after 7 days
+(`FOX_REGISTRATION_GRACE_DAYS`) Fox asks for it before anything else, and adding
+users or changing sign-in settings needs it from the start. The *Get product
+updates* screen is skipped: the account form offers Fox news instead.
+
+- The link works once, for two minutes, only from the machine Fox runs on, and
+  only while Fox listens on that machine alone. Docker images, shared servers
+  and installs opened to the network keep first-run setup as before.
+- **Verify your email.** The account created at setup is sent a code, entered in
+  a banner. It goes through the install's SMTP relay when one is set up,
+  otherwise through the Fox mail service on foxschema.com (`FOX_VERIFY_MAIL_URL`;
+  `off` to send nowhere). Accounts an admin adds are not asked.
+
 ## Sign-in: invites, forgot password, Google / Microsoft / GitHub
 
 - **New sign-in pages.** First launch is a *Create your account* page; the

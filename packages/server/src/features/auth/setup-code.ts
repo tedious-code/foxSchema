@@ -12,6 +12,7 @@
  */
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import type { AppRequest } from '../../platform/http/types';
+import { defaultListenHost, isLocalSingleUser, isLoopbackHost } from '../../api/deployment';
 
 let code: string | undefined;
 
@@ -63,4 +64,16 @@ export function setupCodeMatches(supplied: unknown): boolean {
   const want = Buffer.from(setupCode());
   const got = Buffer.from(supplied.trim().toUpperCase());
   return got.length === want.length && timingSafeEqual(got, want);
+}
+
+/**
+ * Whether this install takes launch links at all: a personal install
+ * (`foxschema open`, the desktop app) that listens on this machine only.
+ *
+ * A shared server never does, and neither does a personal install someone
+ * opened to the network: from the moment others can reach it, the owner needs
+ * an account, so that is when the link stops standing in for one.
+ */
+export function launchLinksAllowed(): boolean {
+  return isLocalSingleUser() && isLoopbackHost(process.env.LISTEN_HOST ?? defaultListenHost());
 }

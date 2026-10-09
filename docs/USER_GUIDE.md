@@ -78,6 +78,18 @@ proxy — setup also asks for a one-time code printed in the server log
 (`docker logs <container>` on Docker). After that, only an administrator can
 add people; there is no self-registration.
 
+**Opened with `foxschema open`** on your own machine, Fox skips that page the
+first time: it opens straight into the workspace, signed in as the install's
+owner through a one-time launch link. A banner asks you to **Create your
+account**; it is in the profile menu too, after you hide the banner. You have 7 days; after that Fox asks for the account before anything
+else. Adding people or changing sign-in settings needs it from the start. Your
+connections and history stay where they are when you create it.
+
+Once the account exists, Fox emails a code to confirm the address: enter it in
+the **Verify your email** banner, or choose **Send a new code** if it did not
+arrive. Without a mail server set up on the install, the code goes out through
+the Fox mail service on foxschema.com.
+
 After you sign in, Fox Schema may show a short **welcome wizard** asking for
 your email so you can get product updates (new dialects, releases). It is
 optional — use **Skip for now** if you prefer. It only appears once per install.

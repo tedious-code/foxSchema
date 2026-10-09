@@ -12,7 +12,7 @@ import { Router } from '../../platform/http/router';
 import { RbacModule } from '../authorization/rbac.service';
 import { AuthModule } from '../auth/auth.service';
 import { AuthMailer, type Delivery } from '../auth/auth-mail';
-import type { AuthCodePurpose } from '../auth/auth-codes';
+import type { PasswordCodePurpose } from '../auth/auth-codes';
 import type { IssuedCode } from '../auth/auth.service';
 import { APP_ROLES, PERMISSION_META, isAppRole } from '@foxschema/shared';
 import type { AuthedRequest } from '../auth/auth.routes';
@@ -32,7 +32,7 @@ export function createAdminRoutes(
    * The admin always gets the code and link back, so they can pass it on
    * themselves when email is not set up or did not arrive.
    */
-  async function deliverCode(purpose: AuthCodePurpose, issued: IssuedCode, invitedBy: string | undefined) {
+  async function deliverCode(purpose: PasswordCodePurpose, issued: IssuedCode, invitedBy: string | undefined) {
     let delivery: Delivery | 'failed';
     let deliveryError: string | undefined;
     try {
@@ -207,7 +207,7 @@ export function createAdminRoutes(
         sendError(res, 'invalid_input', 'Activate the account first.');
         return;
       }
-      const purpose: AuthCodePurpose = user.passwordSet ? 'reset' : 'invite';
+      const purpose: PasswordCodePurpose = user.passwordSet ? 'reset' : 'invite';
       const issued = await auth.issueCode(userId, purpose);
       res.send({ purpose, ...(await deliverCode(purpose, issued, await adminEmail(req))) });
     }

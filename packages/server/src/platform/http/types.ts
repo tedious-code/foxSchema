@@ -55,6 +55,8 @@ export interface AuthedRequest extends AppRequest {
   userId?: string;
   appRole?: AppRole;
   permissions?: Set<Permission>;
+  /** The owner of a personal install, in by launch link before creating an account. */
+  launchSession?: boolean;
 }
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';

@@ -31,6 +31,10 @@ const AuthPage = lazy(() =>
 const OnboardingWizard = lazy(() =>
   import('@/features/auth/components/OnboardingWizard').then((m) => ({ default: m.OnboardingWizard }))
 );
+// Only an owner without an account yet, or an email still to verify, sees these.
+const AccountBanners = lazy(() =>
+  import('@/features/auth/components/AccountBanners').then((m) => ({ default: m.AccountBanners }))
+);
 
 // Every view loads when first shown (or when its rail button is hovered); the
 // first screen is Home. viewLoaders.ts says where each one comes from.
@@ -67,6 +71,9 @@ const Workspace: React.FC = () => {
   const dismissWarnings = useSyncStore((s) => s.dismissWarnings);
   const activeView = useUiStore((s) => s.activeView);
   const setActiveView = useUiStore((s) => s.setActiveView);
+  const accountReminder = useAuthStore(
+    (s) => (s.launch && !!s.registration) || (!!s.emailVerification && !s.emailVerification.verified)
+  );
   const canEditorAccess = useAuthStore((s) => s.can('editor.access'));
   const canSchemaBrowse = useAuthStore((s) => s.can('schema.browse'));
   const canSchemaCompare = useAuthStore((s) => s.can('schema.compare'));
@@ -108,6 +115,12 @@ const Workspace: React.FC = () => {
       {/* Above every other banner: when the backend is gone, nothing else on
           screen is trustworthy and no other message explains why. */}
       <BackendOfflineBanner />
+
+      {accountReminder && (
+        <Suspense fallback={null}>
+          <AccountBanners />
+        </Suspense>
+      )}
 
       {errorMsg && (
         <div data-testid="error-banner" className="bg-rose-950/60 border-y border-rose-500/20 px-6 py-2.5 flex items-center gap-2.5 text-xs text-rose-300 font-semibold animate-slide-down">

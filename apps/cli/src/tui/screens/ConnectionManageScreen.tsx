@@ -21,7 +21,7 @@ export function ConnectionManageScreen(): React.JSX.Element {
     setError(undefined);
     try {
       const ctx = await getContext();
-      await ctx.connections.remove(ctx.userId, selected.id);
+      await ctx.connections.remove(ctx.scope, selected.id);
       setSelected(null);
       state.reload();
     } catch (e) {

@@ -2,9 +2,12 @@ import { requireReady } from './bootstrap';
 import { AuthModule } from '@foxschema/server';
 import { ConnectionStore } from '@foxschema/server';
 import { MigrationHistoryStore } from '@foxschema/server';
+import type { WorkspaceScope } from '@foxschema/server';
 
 export interface CliContext {
   userId: string;
+  /** The owner's own workspace: the CLI reads and writes its connections and history. */
+  scope: WorkspaceScope;
   connections: ConnectionStore;
   history: MigrationHistoryStore;
 }
@@ -21,7 +24,11 @@ export async function getContext(): Promise<CliContext> {
   requireReady();
   // The CLI acts as the install owner — the same account the app's first-run
   // setup claims, so both see the same connections and history.
-  const user = await new AuthModule().ownerAccount();
-  ctx = { userId: user.id, connections: new ConnectionStore(), history: new MigrationHistoryStore() };
+  const auth = new AuthModule();
+  const user = await auth.ownerAccount();
+  // Its own workspace, by id: the browser's last-used workspace must not
+  // decide what the CLI lists and writes.
+  const { workspace } = await auth.inWorkspace(user, await auth.personalWorkspaceId(user));
+  ctx = { userId: user.id, scope: { userId: user.id, workspaceId: workspace.id }, connections: new ConnectionStore(), history: new MigrationHistoryStore() };
   return ctx;
 }

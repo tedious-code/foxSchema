@@ -9,6 +9,8 @@
  * this move cannot alter behaviour. Splitting them into handler/controller
  * layers is a separate step, deliberately not mixed with the extraction.
  */
+import { scopeOf } from '../../platform/http/scope';
+import type { WorkspaceScope } from '../../platform/http/scope';
 import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
@@ -30,7 +32,7 @@ import { sendError, sendThrown } from '../../platform/http/respond';
 
 export interface AccessRouteDeps {
   resolveRef: (
-    userId: string | undefined,
+    scope: WorkspaceScope | undefined,
     ref: ConnectionRef
   ) => Promise<{ dialect: string; option: Record<string, unknown>; schema: string }>;
   connectionModule: ConnectionModule;
@@ -62,7 +64,7 @@ export function createAccessRoutes(deps: AccessRouteDeps): Router {
     const customSql = typeof body.customSql === 'string' ? body.customSql.trim() : '';
     const preferCustom = body.preferCustom === true;
     try {
-      const resolved = await deps.resolveRef((req as AuthedRequest).userId, body);
+      const resolved = await deps.resolveRef(scopeOf(req as AuthedRequest), body);
       const schema =
         (typeof body.schema === 'string' && body.schema.trim()) || resolved.schema || '';
       const probed = await probeTableFragmentation({
@@ -110,7 +112,7 @@ export function createAccessRoutes(deps: AccessRouteDeps): Router {
         return;
       }
       try {
-        const resolved = await deps.resolveRef((req as AuthedRequest).userId, body);
+        const resolved = await deps.resolveRef(scopeOf(req as AuthedRequest), body);
         const schema =
           (typeof body.schema === 'string' && body.schema.trim()) || resolved.schema || '';
         const support = dialectSupportsIndexFragmentation(resolved.dialect);
@@ -176,7 +178,7 @@ export function createAccessRoutes(deps: AccessRouteDeps): Router {
     }
     const kind = kindRaw as DbaUtilityKind;
     try {
-      const resolved = await deps.resolveRef((req as AuthedRequest).userId, body);
+      const resolved = await deps.resolveRef(scopeOf(req as AuthedRequest), body);
       const schema =
         (typeof body.schema === 'string' && body.schema.trim()) || resolved.schema || '';
       const probed = await probeDbaUtility({
@@ -211,7 +213,7 @@ export function createAccessRoutes(deps: AccessRouteDeps): Router {
         return;
       }
       try {
-        const resolved = await deps.resolveRef((req as AuthedRequest).userId, body);
+        const resolved = await deps.resolveRef(scopeOf(req as AuthedRequest), body);
         const schema =
           (typeof body.schema === 'string' && body.schema.trim()) || resolved.schema || '';
         const probed = await probeTableInsight({
@@ -249,7 +251,7 @@ export function createAccessRoutes(deps: AccessRouteDeps): Router {
     async (req: AppRequest, res: FastifyReply) => {
       const body = req.body as ConnectionRef & { schema?: unknown };
       try {
-        const resolved = await deps.resolveRef((req as AuthedRequest).userId, body);
+        const resolved = await deps.resolveRef(scopeOf(req as AuthedRequest), body);
         const schema =
           (typeof body.schema === 'string' && body.schema.trim()) || resolved.schema || '';
         const probed = await probeDbAccess({

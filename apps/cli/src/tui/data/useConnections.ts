@@ -8,7 +8,7 @@ import type { AsyncState } from '../types';
 /** Plain, hook-independent data function — unit-testable with the same vi.spyOn(store, 'getContext') pattern as the line commands. */
 export async function loadConnections(): Promise<SavedConnectionSummary[]> {
   const ctx = await getContext();
-  return ctx.connections.list(ctx.userId);
+  return ctx.connections.list(ctx.scope);
 }
 
 /** Decrypt a saved connection by id — same call connectionRef.ts's resolveRef makes internally. */
@@ -16,7 +16,7 @@ export async function resolveConnection(
   id: string
 ): Promise<{ dialect: string; schema?: string; option: ConnectionOptions } | null> {
   const ctx = await getContext();
-  return ctx.connections.resolve(ctx.userId, id);
+  return ctx.connections.resolve(ctx.scope, id);
 }
 
 /** ctx.connections.list() as an AsyncState, with a `reload` escape hatch after add/remove. */

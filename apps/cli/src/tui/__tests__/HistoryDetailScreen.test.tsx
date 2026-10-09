@@ -5,7 +5,7 @@ import * as store from '../../runtime/store';
 import { HistoryDetailScreen } from '../screens/HistoryDetailScreen';
 
 function fakeCtx(run: any) {
-  return { userId: 'u1', connections: {}, history: { get: vi.fn().mockResolvedValue(run) } };
+  return { userId: 'u1', scope: { userId: 'u1', workspaceId: 'w1' }, connections: {}, history: { get: vi.fn().mockResolvedValue(run) } };
 }
 
 describe('HistoryDetailScreen', () => {

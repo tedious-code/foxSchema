@@ -13,7 +13,7 @@ const statusColor = (s: string) =>
 /** `history list` — recent migration runs. */
 export async function listHistory(): Promise<void> {
   const ctx = await getContext();
-  const runs = await ctx.history.list(ctx.userId);
+  const runs = await ctx.history.list(ctx.scope);
   if (runs.length === 0) {
     console.log(chalk.dim('No migration runs recorded.'));
     return;
@@ -29,7 +29,7 @@ export async function listHistory(): Promise<void> {
 /** `history show <id>` — full record (results + script). */
 export async function showHistory(id: string): Promise<void> {
   const ctx = await getContext();
-  const run = await ctx.history.get(ctx.userId, id);
+  const run = await ctx.history.get(ctx.scope, id);
   if (!run) {
     console.error(chalk.red(`No migration run "${id}".`));
     process.exitCode = 1;

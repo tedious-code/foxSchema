@@ -297,6 +297,27 @@ describe('HTTP contract', () => {
       expect(res.headers.get('x-powered-by')).toBeNull();
     });
 
+    it('answers 404, not 403, for a workspace the caller is not in — on every protected route', async () => {
+      // A missing id and someone else's private workspace must look the same.
+      const res = await fetch(`http://127.0.0.1:${port}/api/connections`, {
+        headers: { cookie: sessionCookie, 'x-fox-workspace': '00000000-0000-4000-8000-000000000000' },
+      });
+      expect(res.status).toBe(404);
+      expect(isApiErrorBody(await res.json())).toBe(true);
+    });
+
+    it('says which workspace the session acts in, with the permissions it has there', async () => {
+      const res = await fetch(`http://127.0.0.1:${port}/api/auth/me`, { headers: { cookie: sessionCookie } });
+      const body = (await res.json()) as { user: { permissions: string[] }; workspace: { personal: boolean; role: string } };
+      expect(body.workspace).toMatchObject({ personal: true, role: 'owner' });
+      expect(body.user.permissions.length).toBeGreaterThan(0);
+      // A workspace the browser remembers but cannot open falls back instead of failing the boot.
+      const stale = await fetch(`http://127.0.0.1:${port}/api/auth/me`, {
+        headers: { cookie: sessionCookie, 'x-fox-workspace': '00000000-0000-4000-8000-000000000000' },
+      });
+      expect(((await stale.json()) as { workspace: { personal: boolean } }).workspace.personal).toBe(true);
+    });
+
     it.each(ROUTES.map((r) => [`${r.method} ${r.path}`, r] as const))(
       '%s answers as specified',
       async (key, route) => {

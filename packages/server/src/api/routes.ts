@@ -1,4 +1,6 @@
 import type { FastifyReply } from 'fastify';
+import type { WorkspaceScope } from '../platform/http/scope';
+import { scopeOf } from '../platform/http/scope';
 import type { AppRequest } from '../platform/http/types';
 import { Router } from '../platform/http/router';
 import {
@@ -106,7 +108,7 @@ export function createApiRoutes(connectionModule: ConnectionModule, connectionSt
   );
 
   async function captureLiveSchema(
-    userId: string,
+    scope: WorkspaceScope,
     resolved: { dialect: string; option: ConnectionOptions; schema: string },
     source: 'manual' | 'migrate' | 'revert' | 'force-migrate',
     extra?: {
@@ -121,7 +123,7 @@ export function createApiRoutes(connectionModule: ConnectionModule, connectionSt
       resolved.schema ?? '',
       LOKEE_FULL_SCOPE
     );
-    return lokeeWeave.capture(userId, {
+    return lokeeWeave.capture(scope, {
       dialect: resolved.dialect,
       host: resolved.option.host ?? null,
       port: resolved.option.port ?? null,
@@ -314,7 +316,7 @@ export function createApiRoutes(connectionModule: ConnectionModule, connectionSt
 
   router.post('/connection/test', async (req: AppRequest, res: FastifyReply) => {
     try {
-      const { dialect, option } = await resolveRef((req as AuthedRequest).userId, req.body as ConnectionRef);
+      const { dialect, option } = await resolveRef(scopeOf(req as AuthedRequest), req.body as ConnectionRef);
       const { success, version } = await connectionModule.testConnection(dialect, option);
       res.send({ success, version, error: success ? undefined : 'Connection test returned false' });
     } catch (error: unknown) {

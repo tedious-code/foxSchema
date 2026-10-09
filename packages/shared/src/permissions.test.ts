@@ -7,6 +7,8 @@ import {
   CATEGORY_PERMISSION,
   DATAGRID_ACTION_PERMISSION,
   permissionSatisfied,
+  effectivePermissions,
+  INSTALL_PERMISSIONS,
   type Permission,
 } from './permissions';
 
@@ -133,5 +135,43 @@ describe('access and workflow permissions', () => {
   it('grants workflow.admin to owner by default', () => {
     expect(DEFAULT_ROLE_PERMISSIONS.owner).toContain('workflow.admin');
     expect(DEFAULT_ROLE_PERMISSIONS.editor).not.toContain('workflow.admin');
+  });
+});
+
+describe('effectivePermissions — install keys from the account, workspace keys from the workspace', () => {
+  it('never lends an install key through a workspace role', () => {
+    // Owning a workspace must not grant code cells (server-side code), Git or user management.
+    const got = effectivePermissions(DEFAULT_ROLE_PERMISSIONS.viewer, DEFAULT_ROLE_PERMISSIONS.owner);
+    expect(got).not.toContain('editor.advanced');
+    expect(got).not.toContain('workflow.admin');
+    expect(got).not.toContain('admin.users');
+    expect(got).toContain('editor.ddl');
+    expect(got).toContain('workspace.members');
+  });
+
+  it('never lends a workspace key through the account role', () => {
+    const got = effectivePermissions(DEFAULT_ROLE_PERMISSIONS.owner, DEFAULT_ROLE_PERMISSIONS.viewer);
+    expect(got).not.toContain('editor.ddl');
+    expect(got).not.toContain('workspace.members');
+    expect(got).toContain('editor.advanced');
+  });
+
+  it('gives each role its own permissions back when both sides are that role', () => {
+    for (const role of ['viewer', 'editor', 'owner'] as const) {
+      expect(new Set(effectivePermissions(DEFAULT_ROLE_PERMISSIONS[role], DEFAULT_ROLE_PERMISSIONS[role]))).toEqual(
+        new Set(DEFAULT_ROLE_PERMISSIONS[role])
+      );
+    }
+  });
+
+  it('keeps workspace.create admin-only by default', () => {
+    for (const role of ['viewer', 'editor', 'owner'] as const) {
+      expect(DEFAULT_ROLE_PERMISSIONS[role]).not.toContain('workspace.create');
+    }
+    expect(INSTALL_PERMISSIONS.has('workspace.create')).toBe(true);
+  });
+
+  it('describes every install permission in the catalog', () => {
+    for (const p of INSTALL_PERMISSIONS) expect(PERMISSION_META.some((m) => m.id === p)).toBe(true);
   });
 });

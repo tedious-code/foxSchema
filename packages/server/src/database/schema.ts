@@ -625,6 +625,91 @@ const MIGRATIONS: Migration[] = [
       ];
     },
   },
+  {
+    id: 28,
+    name: 'workspaces',
+    statements: (d) => {
+      const t = types(d);
+      return [
+        // A workspace owns connections and what is made from them. Every
+        // account has a personal one (personal_owner_id set), created with it.
+        `CREATE TABLE IF NOT EXISTS workspaces (
+           id ${t.id} PRIMARY KEY,
+           name ${t.str} NOT NULL,
+           visibility ${t.str} NOT NULL DEFAULT 'private',
+           join_role ${t.str} NOT NULL DEFAULT 'viewer',
+           personal_owner_id ${t.id},
+           created_by ${t.id},
+           created_at ${t.ts} NOT NULL,
+           archived_at ${t.ts}
+         )`,
+        `CREATE TABLE IF NOT EXISTS workspace_members (
+           workspace_id ${t.id} NOT NULL,
+           user_id ${t.id} NOT NULL,
+           role ${t.str} NOT NULL,
+           added_by ${t.id},
+           created_at ${t.ts} NOT NULL,
+           PRIMARY KEY (workspace_id, user_id)
+         )`,
+        `CREATE TABLE IF NOT EXISTS workspace_invites (
+           id ${t.id} PRIMARY KEY,
+           workspace_id ${t.id} NOT NULL,
+           user_id ${t.id},
+           email ${t.str} NOT NULL,
+           role ${t.str} NOT NULL,
+           invited_by ${t.id} NOT NULL,
+           created_at ${t.ts} NOT NULL,
+           expires_at ${t.ts} NOT NULL,
+           accepted_at ${t.ts},
+           declined_at ${t.ts}
+         )`,
+      ];
+    },
+  },
+  {
+    id: 29,
+    name: 'workspace_ownership',
+    statements: (d) => {
+      const t = types(d);
+      return [
+        // Which workspace a row belongs to; user_id stays and means who made
+        // it. connections.workspace_id exists since migration 17 ('local').
+        `ALTER TABLE app_secrets ADD COLUMN workspace_id ${t.str}`,
+        `ALTER TABLE cloud_provider_credentials ADD COLUMN workspace_id ${t.str}`,
+        `ALTER TABLE lokee_databases ADD COLUMN workspace_id ${t.str}`,
+        `ALTER TABLE migration_runs ADD COLUMN workspace_id ${t.str}`,
+        `ALTER TABLE data_migrate_runs ADD COLUMN workspace_id ${t.str}`,
+        `ALTER TABLE user_preferences ADD COLUMN last_workspace_id ${t.str}`,
+        `CREATE INDEX idx_connections_workspace ON connections(workspace_id)`,
+        `CREATE INDEX idx_app_secrets_workspace ON app_secrets(workspace_id)`,
+        `CREATE INDEX idx_migration_runs_workspace ON migration_runs(workspace_id, started_at DESC)`,
+        `CREATE INDEX idx_data_migrate_runs_workspace ON data_migrate_runs(workspace_id, started_at DESC)`,
+        `CREATE INDEX idx_lokee_databases_workspace ON lokee_databases(workspace_id)`,
+        `CREATE INDEX idx_workspace_members_user ON workspace_members(user_id)`,
+      ];
+    },
+  },
+  {
+    id: 30,
+    name: 'workspace_unique_keys',
+    statements: (d) => {
+      const drop = (index: string, table: string) =>
+        d === 'mysql' ? `DROP INDEX ${index} ON ${table}` : `DROP INDEX IF EXISTS ${index}`;
+      return [
+        // Names and database identities are unique where they are looked up —
+        // in a workspace — not per author: one account can hold API_KEY in two
+        // workspaces, and two members cannot both hold one in the same.
+        drop('idx_app_secrets_user_name', 'app_secrets'),
+        `CREATE UNIQUE INDEX idx_app_secrets_ws_name ON app_secrets(workspace_id, name)`,
+        drop('idx_cloud_provider_creds_user_name', 'cloud_provider_credentials'),
+        `CREATE UNIQUE INDEX idx_cloud_creds_ws_name ON cloud_provider_credentials(workspace_id, name)`,
+        drop('idx_lokee_databases_user_fp', 'lokee_databases'),
+        `CREATE UNIQUE INDEX idx_lokee_databases_ws_fp ON lokee_databases(workspace_id, fingerprint)`,
+        // At most one personal workspace per account (NULL for shared ones).
+        `CREATE UNIQUE INDEX idx_workspaces_personal ON workspaces(personal_owner_id)`,
+      ];
+    },
+  },
 ];
 
 const SIGNUP_WIZARD_SHOWN_KEY = 'signup.wizard_shown';

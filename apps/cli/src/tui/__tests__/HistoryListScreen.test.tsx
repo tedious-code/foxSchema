@@ -7,7 +7,7 @@ import { HistoryListScreen } from '../screens/HistoryListScreen';
 const wait = (ms = 40) => new Promise((r) => setTimeout(r, ms));
 
 function fakeCtx(runs: any[] = []) {
-  return { userId: 'u1', connections: {}, history: { list: vi.fn().mockResolvedValue(runs) } };
+  return { userId: 'u1', scope: { userId: 'u1', workspaceId: 'w1' }, connections: {}, history: { list: vi.fn().mockResolvedValue(runs) } };
 }
 
 describe('HistoryListScreen', () => {

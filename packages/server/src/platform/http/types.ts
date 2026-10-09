@@ -15,7 +15,7 @@
  * header, security headers included.
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { AppRole, Permission } from '@foxschema/shared';
+import type { AppRole, Permission, WorkspaceRole } from '@foxschema/shared';
 
 /**
  * Fastify's request, told how loosely these handlers read the inputs.
@@ -57,6 +57,10 @@ export interface AuthedRequest extends AppRequest {
   permissions?: Set<Permission>;
   /** The owner of a personal install, in by launch link before creating an account. */
   launchSession?: boolean;
+  /** The workspace this request acts in (`X-Fox-Workspace`, else the last used or personal one). */
+  workspaceId?: string;
+  /** The member's role in that workspace. */
+  workspaceRole?: WorkspaceRole;
 }
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';

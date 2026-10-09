@@ -16,7 +16,7 @@ import { runMigrations } from '../../database/schema';
 import type { MetadataStore } from '../../database/stores/types';
 import { LokeeWeaveStore, chunkForBind, reconstructStates } from './lokee-weave.service';
 
-const USER = 'u1';
+const USER = { userId: 'u1', workspaceId: 'w1' };
 const IDENTITY = {
   dialect: 'postgres',
   host: 'db.internal',
@@ -39,7 +39,7 @@ async function freshStore(): Promise<{ meta: MetadataStore; weave: LokeeWeaveSto
   await meta.init();
   await runMigrations(meta);
   await meta.run('INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)', [
-    USER,
+    USER.userId,
     'owner@example.com',
     'x',
     new Date().toISOString(),
@@ -217,7 +217,7 @@ describe('capture', () => {
     );
     expect(row).toMatchObject({
       migration_run_id: 'run-7',
-      author_user_id: USER,
+      author_user_id: USER.userId,
       source: 'migrate',
     });
   });
@@ -351,7 +351,7 @@ describe('graph', () => {
       'x',
       new Date().toISOString(),
     ]);
-    const dto = await weave.graph('u2', databaseId);
+    const dto = await weave.graph({ userId: 'u2', workspaceId: 'w2' }, databaseId);
     expect(dto.versions).toEqual([]);
     expect(dto.objects).toEqual([]);
   });

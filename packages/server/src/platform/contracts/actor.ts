@@ -17,10 +17,13 @@ import {
   type FieldError,
   type Permission,
 } from '@foxschema/shared';
+import type { WorkspaceScope } from '../http/scope';
 
 export interface ActorContext {
   /** Undefined for an unauthenticated caller. */
   readonly userId: string | undefined;
+  /** Who and where, for workspace-owned rows. Undefined before sign-in. */
+  readonly scope?: WorkspaceScope;
   /** True when the actor holds (or subsumes) the permission. */
   can(permission: Permission): boolean;
 }

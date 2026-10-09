@@ -26,7 +26,7 @@ function stubCommon() {
   vi.spyOn(engine.sqlGenerator, 'generateMigrationSql').mockReturnValue('CREATE TABLE WAREHOUSES (id INT);');
   vi.spyOn(engine.connectionModule, 'getProvider').mockReturnValue({ getTables: vi.fn().mockResolvedValue([]) } as any);
   vi.spyOn(store, 'getContext').mockResolvedValue({
-    userId: 'u1',
+    userId: 'u1', scope: { userId: 'u1', workspaceId: 'w1' },
     history: { start: vi.fn().mockResolvedValue('run1'), finish: vi.fn().mockResolvedValue(undefined) },
   } as any);
 }
@@ -69,7 +69,7 @@ describe('MigrateProgressScreen', () => {
   it('shows a failed outcome without a "view history" option when history.start never returned a run id', async () => {
     stubCommon();
     vi.spyOn(store, 'getContext').mockResolvedValue({
-      userId: 'u1',
+      userId: 'u1', scope: { userId: 'u1', workspaceId: 'w1' },
       history: { start: vi.fn().mockRejectedValue(new Error('history unavailable')), finish: vi.fn() },
     } as any);
     vi.spyOn(engine.migrationModule, 'execute').mockRejectedValue(new Error('connection lost'));

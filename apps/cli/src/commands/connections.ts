@@ -15,7 +15,7 @@ import { getContext } from '../runtime/store';
 /** `connections list` — saved connections (never shows passwords). */
 export async function listConnections(): Promise<void> {
   const ctx = await getContext();
-  const rows = await ctx.connections.list(ctx.userId);
+  const rows = await ctx.connections.list(ctx.scope);
   if (rows.length === 0) {
     console.log(chalk.dim('No saved connections. Add one with `fox connections add`.'));
     return;
@@ -97,7 +97,7 @@ export async function addConnection(opts: {
   };
   option.connectionString = buildConnectionString(dialect, option);
 
-  const saved = await ctx.connections.create(ctx.userId, { name, dialect, schema: schema || undefined, option });
+  const saved = await ctx.connections.create(ctx.scope, { name, dialect, schema: schema || undefined, option });
   console.log(chalk.green(`✔ Saved connection "${saved.name}" (${saved.dialect}) · id ${saved.id}`));
   console.log(chalk.dim('The password is encrypted at rest with your keychain key.'));
 }
@@ -105,13 +105,13 @@ export async function addConnection(opts: {
 /** `connections remove <name|id>`. */
 export async function removeConnection(nameOrId: string): Promise<void> {
   const ctx = await getContext();
-  const list = await ctx.connections.list(ctx.userId);
+  const list = await ctx.connections.list(ctx.scope);
   const match = list.find((c) => c.id === nameOrId || c.name === nameOrId);
   if (!match) {
     console.error(chalk.red(`No saved connection "${nameOrId}".`));
     process.exitCode = 1;
     return;
   }
-  await ctx.connections.remove(ctx.userId, match.id);
+  await ctx.connections.remove(ctx.scope, match.id);
   console.log(chalk.green(`✔ Removed "${match.name || match.id}".`));
 }

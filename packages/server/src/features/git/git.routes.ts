@@ -10,6 +10,8 @@
  *   git.manage      add / edit / remove repositories
  *   schema.migrate  create branches, pull, push (they change what is shared)
  */
+import { scopeOf } from '../../platform/http/scope';
+import type { WorkspaceScope } from '../../platform/http/scope';
 import type { FastifyReply } from 'fastify';
 import { Router } from '../../platform/http/router';
 import type { AuthedRequest } from '../auth/auth.routes';
@@ -27,7 +29,7 @@ import type { ConnectionOptions } from '@foxschema/sql';
 
 /** Resolves a saved or inline connection for the current user (the app's resolver). */
 export type ResolveRef = (
-  userId: string | undefined,
+  scope: WorkspaceScope | undefined,
   ref: ConnectionRef
 ) => Promise<{ dialect: string; option: ConnectionOptions; schema: string }>;
 
@@ -212,7 +214,7 @@ export function createGitRoutes(resolveRef?: ResolveRef, services = gitServices(
       const hasRef = Object.keys(ref).length > 0;
       if (hasRef) {
         if (!resolveRef) throw new GitOperationError('Choosing a database is not available here.');
-        const r = await resolveRef(req.userId, ref);
+        const r = await resolveRef(scopeOf(req), ref);
         target = { key: targetKey({ dialect: r.dialect, host: r.option.host, database: r.option.database, schema: r.schema }), dialect: r.dialect };
       }
       res.send(await migrations.list(String(req.params.id), branch ?? '', target));

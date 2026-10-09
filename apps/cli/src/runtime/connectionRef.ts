@@ -30,10 +30,10 @@ export interface RefFlags {
 export async function resolveRef(flags: RefFlags): Promise<ResolvedRef> {
   if (flags.connection) {
     const ctx = await getContext();
-    const list = await ctx.connections.list(ctx.userId);
+    const list = await ctx.connections.list(ctx.scope);
     const match = list.find((c) => c.id === flags.connection || c.name === flags.connection);
     if (!match) throw new Error(`Saved connection "${flags.connection}" not found (see \`fox connections list\`).`);
-    const resolved = await ctx.connections.resolve(ctx.userId, match.id);
+    const resolved = await ctx.connections.resolve(ctx.scope, match.id);
     if (!resolved) throw new Error('Could not decrypt the saved connection.');
     return { dialect: resolved.dialect, option: resolved.option, schema: flags.schema ?? resolved.schema ?? '' };
   }
@@ -65,7 +65,7 @@ export async function resolveRef(flags: RefFlags): Promise<ResolvedRef> {
 
 async function promptForSavedConnection(role: 'source' | 'target'): Promise<string> {
   const ctx = await getContext();
-  const list = await ctx.connections.list(ctx.userId);
+  const list = await ctx.connections.list(ctx.scope);
   if (list.length === 0) {
     throw new Error(`No saved connections yet — add one with \`fox connections add\`, then re-run this.`);
   }

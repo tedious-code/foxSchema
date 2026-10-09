@@ -25,6 +25,7 @@
  * would otherwise mint six-figure row counts a year for recording that nothing
  * happened.
  */
+import type { WorkspaceScope } from '../../platform/http/scope';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   CompareModule,
@@ -346,15 +347,15 @@ export class LokeeWeaveStore {
   /** Find or create the row for a database identity. Returns its row id. */
   private async upsertDatabase(
     store: MetadataStore,
-    userId: string,
+    scope: WorkspaceScope,
     input: DatabaseIdentityInput
   ): Promise<string> {
     const fingerprint = databaseIdentity(input, sha256);
     const now = new Date().toISOString();
     const find = async (): Promise<string | undefined> => {
       const row = await store.get<{ id: string }>(
-        'SELECT id FROM lokee_databases WHERE user_id = ? AND fingerprint = ?',
-        [userId, fingerprint]
+        'SELECT id FROM lokee_databases WHERE workspace_id = ? AND fingerprint = ?',
+        [scope.workspaceId, fingerprint]
       );
       return row?.id;
     };
@@ -369,11 +370,12 @@ export class LokeeWeaveStore {
     try {
       await store.run(
         `INSERT INTO lokee_databases
-           (id, user_id, fingerprint, dialect, host, port, database_name, "schema", created_at, last_seen_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, user_id, workspace_id, fingerprint, dialect, host, port, database_name, "schema", created_at, last_seen_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id,
-          userId,
+          scope.userId,
+          scope.workspaceId,
           fingerprint,
           input.dialect,
           input.host ?? null,
@@ -574,14 +576,14 @@ export class LokeeWeaveStore {
    * Creates a version only when the root hash moved. An unchanged schema is
    * recorded as another observation of the version already at the head.
    */
-  async capture(userId: string, input: CaptureInput): Promise<CaptureResult> {
+  async capture(scope: WorkspaceScope, input: CaptureInput): Promise<CaptureResult> {
     const store = await this.store();
     // Lock on the identity, not the row id: the row may not exist yet, and two
     // concurrent first-captures would otherwise both try to create it.
-    const lockKey = `${userId}:${databaseIdentity(input, sha256)}`;
+    const lockKey = `${scope.workspaceId}:${databaseIdentity(input, sha256)}`;
 
     return withLock(lockKey, async () => {
-      const databaseId = await this.upsertDatabase(store, userId, input);
+      const databaseId = await this.upsertDatabase(store, scope, input);
       const latest = await this.loadLatestIndex(store, databaseId);
       const objects = canonicalizeSchema(input.tables);
       const capture = weave(objects, latest, sha256, hashOptionsFor(input.schema));
@@ -632,7 +634,7 @@ export class LokeeWeaveStore {
           capture.rootHash,
           head?.id ?? null,
           input.migrationRunId ?? null,
-          userId,
+          scope.userId,
           input.source,
           capture.objects.length,
           capture.changes.length,
@@ -660,7 +662,7 @@ export class LokeeWeaveStore {
   }
 
   /** Databases this user has history for. */
-  async listDatabases(userId: string): Promise<
+  async listDatabases(scope: WorkspaceScope): Promise<
     Array<{
       id: string;
       dialect: string;
@@ -684,9 +686,9 @@ export class LokeeWeaveStore {
       `SELECT d.id, d.dialect, d.host, d.database_name, d."schema", d.last_seen_at,
               (SELECT COUNT(*) FROM lokee_versions v WHERE v.database_id = d.id) AS version_count
          FROM lokee_databases d
-        WHERE d.user_id = ?
+        WHERE d.workspace_id = ?
         ORDER BY d.last_seen_at DESC`,
-      [userId]
+      [scope.workspaceId]
     );
     return rows.map((r) => ({
       id: r.id,
@@ -702,12 +704,12 @@ export class LokeeWeaveStore {
   /** Confirms the database belongs to this user before any read. */
   private async assertOwned(
     store: MetadataStore,
-    userId: string,
+    scope: WorkspaceScope,
     databaseId: string
   ): Promise<boolean> {
     const row = await store.get<{ id: string }>(
-      'SELECT id FROM lokee_databases WHERE id = ? AND user_id = ?',
-      [databaseId, userId]
+      'SELECT id FROM lokee_databases WHERE id = ? AND workspace_id = ?',
+      [databaseId, scope.workspaceId]
     );
     return Boolean(row?.id);
   }
@@ -718,14 +720,14 @@ export class LokeeWeaveStore {
    * otherwise DDL from one history can run against another database.
    */
   async matchDatabaseIdentity(
-    userId: string,
+    scope: WorkspaceScope,
     databaseId: string,
     input: DatabaseIdentityInput
   ): Promise<'ok' | 'not_found' | 'mismatch'> {
     const store = await this.store();
     const row = await store.get<{ fingerprint: string }>(
-      'SELECT fingerprint FROM lokee_databases WHERE id = ? AND user_id = ?',
-      [databaseId, userId]
+      'SELECT fingerprint FROM lokee_databases WHERE id = ? AND workspace_id = ?',
+      [databaseId, scope.workspaceId]
     );
     if (!row) return 'not_found';
     return row.fingerprint === databaseIdentity(input, sha256) ? 'ok' : 'mismatch';
@@ -805,9 +807,9 @@ export class LokeeWeaveStore {
     return emails;
   }
 
-  async listVersions(userId: string, databaseId: string, limit = 100): Promise<VersionSummary[]> {
+  async listVersions(scope: WorkspaceScope, databaseId: string, limit = 100): Promise<VersionSummary[]> {
     const store = await this.store();
-    if (!(await this.assertOwned(store, userId, databaseId))) return [];
+    if (!(await this.assertOwned(store, scope, databaseId))) return [];
     const rows = await store.all<VersionRow>(
       `SELECT * FROM lokee_versions WHERE database_id = ?
         ORDER BY version_number DESC LIMIT ?`,
@@ -834,13 +836,13 @@ export class LokeeWeaveStore {
    * Empty string clears the field (UI falls back to "Version N").
    */
   async updateVersionMeta(
-    userId: string,
+    scope: WorkspaceScope,
     databaseId: string,
     versionId: string,
     patch: { name?: string | null; description?: string | null }
   ): Promise<VersionSummary | null> {
     const store = await this.store();
-    if (!(await this.assertOwned(store, userId, databaseId))) return null;
+    if (!(await this.assertOwned(store, scope, databaseId))) return null;
     const owned = await store.get<{ id: string }>(
       `SELECT id FROM lokee_versions WHERE id = ? AND database_id = ?`,
       [versionId, databaseId]
@@ -896,7 +898,7 @@ export class LokeeWeaveStore {
    * the head — which `reconstructStates` requires.
    */
   async graph(
-    userId: string,
+    scope: WorkspaceScope,
     databaseId: string,
     limit = 20
   ): Promise<VersionGraphDTO> {
@@ -909,9 +911,9 @@ export class LokeeWeaveStore {
       totalObjects: 0,
       truncatedObjects: false,
     };
-    if (!(await this.assertOwned(store, userId, databaseId))) return empty;
+    if (!(await this.assertOwned(store, scope, databaseId))) return empty;
 
-    const versions = await this.listVersions(userId, databaseId, limit);
+    const versions = await this.listVersions(scope, databaseId, limit);
     if (versions.length === 0) return empty;
 
     const totalRow = await store.get<{ n: number }>(
@@ -1058,9 +1060,9 @@ export class LokeeWeaveStore {
      * so it takes a lookup. One batched query rather than one per node; in
      * practice a page holds zero or one of these.
      *
-     * Joined through `lokee_databases` and filtered on `user_id`: the stored id
+     * Joined through `lokee_databases` and filtered on `workspace_id`: the stored id
      * is whatever was written at capture time, and it must never be able to
-     * surface a version number or database name from another user's history.
+     * surface a version number or database name from another workspace's history.
      */
     const appliedFromIds = [
       ...new Set(
@@ -1079,8 +1081,8 @@ export class LokeeWeaveStore {
         `SELECT lv.id, lv.version_number, ld.database_name, ld.host
            FROM lokee_versions lv
            JOIN lokee_databases ld ON ld.id = lv.database_id
-          WHERE lv.id IN (${placeholders}) AND ld.user_id = ?`,
-        [...appliedFromIds, userId]
+          WHERE lv.id IN (${placeholders}) AND ld.workspace_id = ?`,
+        [...appliedFromIds, scope.workspaceId]
       );
       for (const row of rows) {
         appliedFrom.set(row.id, {
@@ -1123,13 +1125,13 @@ export class LokeeWeaveStore {
    * the object inspector; reconstructed by walking back from the latest index.
    */
   async objectsAtVersion(
-    userId: string,
+    scope: WorkspaceScope,
     databaseId: string,
     versionId: string
   ): Promise<Map<string, StoredWeaveObject>> {
     const store = await this.store();
     const out = new Map<string, StoredWeaveObject>();
-    if (!(await this.assertOwned(store, userId, databaseId))) return out;
+    if (!(await this.assertOwned(store, scope, databaseId))) return out;
 
     const target = await store.get<VersionRow>(
       'SELECT * FROM lokee_versions WHERE id = ? AND database_id = ?',
@@ -1194,19 +1196,19 @@ export class LokeeWeaveStore {
    * and per-version child counts so a table's growth is visible.
    */
   async inspectObject(
-    userId: string,
+    scope: WorkspaceScope,
     databaseId: string,
     versionId: string,
     objectKey: string
   ): Promise<ObjectInspectResult | null> {
     const store = await this.store();
-    if (!(await this.assertOwned(store, userId, databaseId))) return null;
+    if (!(await this.assertOwned(store, scope, databaseId))) return null;
 
     // Carries `key`, so it is already the shape the blueprint wants. Rebuilding
     // the map to add a field the map key already holds cost one object spread
     // per live object — 20,000 of them on a schema this module budgets for,
     // every time the inspector opened.
-    const stored = await this.objectsAtVersion(userId, databaseId, versionId);
+    const stored = await this.objectsAtVersion(scope, databaseId, versionId);
     const owner = objectKeyOwner(objectKey);
     const kind = objectKeyKind(objectKey);
     const blueprint = assembleBlueprint(objectKey, stored);
@@ -1215,13 +1217,13 @@ export class LokeeWeaveStore {
     const script = renderLokeeObjectScript(blueprint);
     let previousScript = '';
     let previousState = new Map<string, StoredWeaveObject>();
-    const versions = await this.listVersions(userId, databaseId, 500);
+    const versions = await this.listVersions(scope, databaseId, 500);
     const here = versions.findIndex((v) => v.id === versionId);
     const older = here >= 0 ? versions[here + 1] : undefined;
     if (older) {
       // Already the blueprint's shape — see the note on the current-version
       // read above; re-pairing it here would spread `key` over itself.
-      previousState = await this.objectsAtVersion(userId, databaseId, older.id);
+      previousState = await this.objectsAtVersion(scope, databaseId, older.id);
       previousScript = renderLokeeObjectScript(assembleBlueprint(objectKey, previousState));
     }
 
@@ -1242,11 +1244,11 @@ export class LokeeWeaveStore {
     return {
       blueprint,
       diff: compare.tables.find((t) => t.tableName === owner) ?? null,
-      history: await this.objectHistory(userId, databaseId, objectKey),
+      history: await this.objectHistory(scope, databaseId, objectKey),
       growth: tableLike
-        ? await this.containerGrowth(userId, databaseId, owner, versions)
+        ? await this.containerGrowth(scope, databaseId, owner, versions)
         : [],
-      columnMutations: tableLike ? await this.columnMutations(userId, databaseId, owner) : [],
+      columnMutations: tableLike ? await this.columnMutations(scope, databaseId, owner) : [],
       script,
       previousScript,
     };
@@ -1259,7 +1261,7 @@ export class LokeeWeaveStore {
    * against (preferred) or the stored database identity.
    */
   async planRevert(
-    userId: string,
+    scope: WorkspaceScope,
     databaseId: string,
     toVersionId: string,
     dialect?: string,
@@ -1276,8 +1278,8 @@ export class LokeeWeaveStore {
     // An explicit empty selection is a no-op plan, not a whole-schema revert.
     if (objectKeys !== undefined && objectKeys.length === 0) {
       const store0 = await this.store();
-      if (!(await this.assertOwned(store0, userId, databaseId))) return null;
-      const all = await this.listVersions(userId, databaseId, 500);
+      if (!(await this.assertOwned(store0, scope, databaseId))) return null;
+      const all = await this.listVersions(scope, databaseId, 500);
       const head = all[0];
       const target = all.find((v) => v.id === toVersionId);
       if (!head || !target) return null;
@@ -1291,9 +1293,9 @@ export class LokeeWeaveStore {
       };
     }
     const store = await this.store();
-    if (!(await this.assertOwned(store, userId, databaseId))) return null;
+    if (!(await this.assertOwned(store, scope, databaseId))) return null;
 
-    const versions = await this.listVersions(userId, databaseId, 500);
+    const versions = await this.listVersions(scope, databaseId, 500);
     const fromVersion = versions[0];
     const toVersion = versions.find((v) => v.id === toVersionId);
     if (!fromVersion || !toVersion) return null;
@@ -1308,8 +1310,8 @@ export class LokeeWeaveStore {
     };
     if (none.alreadyAtTarget) return none;
 
-    const current = await this.objectsAtVersion(userId, databaseId, fromVersion.id);
-    const desired = await this.objectsAtVersion(userId, databaseId, toVersion.id);
+    const current = await this.objectsAtVersion(scope, databaseId, fromVersion.id);
+    const desired = await this.objectsAtVersion(scope, databaseId, toVersion.id);
     // `undefined` means "no filter given" — revert the whole schema.
     // `[]` means "nothing selected", which must revert *nothing*: a UI with no
     // boxes ticked sending an empty list must not wipe the database.
@@ -1363,8 +1365,8 @@ export class LokeeWeaveStore {
     let schemaName = schema;
     if (!dialectName) {
       const db = await store.get<{ dialect: string; schema: string | null }>(
-        'SELECT dialect, "schema" FROM lokee_databases WHERE id = ? AND user_id = ?',
-        [databaseId, userId]
+        'SELECT dialect, "schema" FROM lokee_databases WHERE id = ? AND workspace_id = ?',
+        [databaseId, scope.workspaceId]
       );
       dialectName = db?.dialect;
       schemaName ??= db?.schema ?? undefined;
@@ -1440,7 +1442,7 @@ export class LokeeWeaveStore {
    * gone — the route turns that into a 404 rather than guessing.
    */
   async planForceMigrate(
-    userId: string,
+    scope: WorkspaceScope,
     sourceDatabaseId: string,
     versionId: string,
     target: {
@@ -1452,7 +1454,7 @@ export class LokeeWeaveStore {
     }
   ): Promise<ForceMigratePlanResult | null> {
     const store = await this.store();
-    if (!(await this.assertOwned(store, userId, sourceDatabaseId))) return null;
+    if (!(await this.assertOwned(store, scope, sourceDatabaseId))) return null;
 
     // One row, not a 500-version walk. `listVersions` would fetch 500 rows, an
     // IN-query for their authors, and a GROUP BY over every delta row they own
@@ -1470,13 +1472,13 @@ export class LokeeWeaveStore {
     );
 
     const sourceDb = await store.get<{ dialect: string; schema: string | null }>(
-      'SELECT dialect, "schema" FROM lokee_databases WHERE id = ? AND user_id = ?',
-      [sourceDatabaseId, userId]
+      'SELECT dialect, "schema" FROM lokee_databases WHERE id = ? AND workspace_id = ?',
+      [sourceDatabaseId, scope.workspaceId]
     );
     const sourceDialect = sourceDb?.dialect ?? target.dialect;
     const sourceSchema = sourceDb?.schema ?? undefined;
 
-    const desired = canonicalList(await this.objectsAtVersion(userId, sourceDatabaseId, versionId));
+    const desired = canonicalList(await this.objectsAtVersion(scope, sourceDatabaseId, versionId));
     const current = canonicalizeSchema(target.tables);
 
     // The stored version is the reference side and the live database is what
@@ -1533,12 +1535,12 @@ export class LokeeWeaveStore {
   }
 
   async objectHistory(
-    userId: string,
+    scope: WorkspaceScope,
     databaseId: string,
     objectKey: string
   ): Promise<ObjectHistoryEntry[]> {
     const store = await this.store();
-    if (!(await this.assertOwned(store, userId, databaseId))) return [];
+    if (!(await this.assertOwned(store, scope, databaseId))) return [];
 
     const rows = await store.all<HistoryDeltaRow>(
       `SELECT vo.operation, vo.object_hash, vo.previous_hash,
@@ -1556,12 +1558,12 @@ export class LokeeWeaveStore {
   }
 
   private async columnMutations(
-    userId: string,
+    scope: WorkspaceScope,
     databaseId: string,
     owner: string
   ): Promise<ColumnMutation[]> {
     const store = await this.store();
-    if (!(await this.assertOwned(store, userId, databaseId))) return [];
+    if (!(await this.assertOwned(store, scope, databaseId))) return [];
 
     const rows = await store.all<HistoryDeltaRow & { object_key: string }>(
       `SELECT vo.object_key, vo.operation, vo.object_hash, vo.previous_hash,
@@ -1634,7 +1636,7 @@ export class LokeeWeaveStore {
   }
 
   private async containerGrowth(
-    _userId: string,
+    _scope: WorkspaceScope,
     databaseId: string,
     owner: string,
     loadedVersions: readonly VersionSummary[]
@@ -1725,15 +1727,15 @@ export class LokeeWeaveStore {
    * to the version's own parent, which is the "what did this migrate do?" case.
    */
   async diffVersions(
-    userId: string,
+    scope: WorkspaceScope,
     databaseId: string,
     versionId: string,
     againstVersionId?: string
   ): Promise<VersionCompare | null> {
     const store = await this.store();
-    if (!(await this.assertOwned(store, userId, databaseId))) return null;
+    if (!(await this.assertOwned(store, scope, databaseId))) return null;
 
-    const versions = await this.listVersions(userId, databaseId, 500);
+    const versions = await this.listVersions(scope, databaseId, 500);
     const to = versions.find((v) => v.id === versionId);
     if (!to) return null;
     // Default to the adjacent older version — the change this version made.
@@ -1742,9 +1744,9 @@ export class LokeeWeaveStore {
         ? versions.find((v) => v.id === againstVersionId)
         : versions.find((v) => v.number === to.number - 1);
 
-    const toState = await this.objectsAtVersion(userId, databaseId, to.id);
+    const toState = await this.objectsAtVersion(scope, databaseId, to.id);
     const fromState = from
-      ? await this.objectsAtVersion(userId, databaseId, from.id)
+      ? await this.objectsAtVersion(scope, databaseId, from.id)
       : new Map<string, StoredWeaveObject>();
 
     // Rebuild the nested shape Compare already speaks and run the *same* engine

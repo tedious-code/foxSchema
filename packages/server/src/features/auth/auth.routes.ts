@@ -6,12 +6,14 @@
 import { setCookie, clearCookie } from '../../platform/http/reply';
 import type { FastifyReply } from 'fastify';
 import type { AppRequest, AuthedRequest, NextFunction } from '../../platform/http/types';
+import type { Permission, WorkspaceRole } from '@foxschema/shared';
 import { Router } from '../../platform/http/router';
 import { AuthModule, SESSION_COOKIE, SESSION_MAX_AGE_MS, SignInLockedError, type AuthUser } from '../auth/auth.service';
 import { AuthMailer } from './auth-mail';
 import { SignupModule } from '../users/signup-wizard.service';
 import { AppSettingsStore } from '../admin/app-settings.service';
 import { sendError } from '../../platform/http/respond';
+import { ServiceError } from '../../platform/contracts/actor';
 import { rateLimit } from '../../platform/guards/rate-limit';
 import { getLogger } from '../../platform/logger/logger';
 import { isDirectLocalRequest, launchLinksAllowed, resetSetupCode, setupCode, setupCodeMatches } from './setup-code';
@@ -19,11 +21,25 @@ import { isDirectLocalRequest, launchLinksAllowed, resetSetupCode, setupCode, se
 export type { AuthedRequest };
 
 /** Put the resolved session user's identity + grants on the request. */
-export function attachAuthUser(user: AuthUser, req: AuthedRequest, launchSession = false): void {
+export function attachAuthUser(
+  user: AuthUser,
+  req: AuthedRequest,
+  launchSession = false,
+  workspace?: { id: string; role: WorkspaceRole; permissions: Permission[] }
+): void {
   req.userId = user.id;
   req.appRole = user.role;
-  req.permissions = new Set(user.permissions);
+  req.permissions = new Set(workspace?.permissions ?? user.permissions);
   req.launchSession = launchSession;
+  req.workspaceId = workspace?.id;
+  req.workspaceRole = workspace?.role;
+}
+
+/** The workspace a request asks for, by id; empty means "the default one". */
+export function requestedWorkspace(req: AppRequest): string | undefined {
+  const raw = req.headers['x-fox-workspace'];
+  const value = (Array.isArray(raw) ? raw[0] : raw)?.trim();
+  return value || undefined;
 }
 
 const REGISTER_TO_CONTINUE = 'Create your account to keep using Fox. Your connections and history stay as they are.';
@@ -296,8 +312,17 @@ export function createAuthRoutes(
     if (session) {
       const { user, launch } = session;
       const verification = launch ? null : await auth.emailVerification(user.id);
+      // A workspace the browser remembers but the account left: answer with
+      // the default one, so the app can boot and switch.
+      const { workspace, permissions } = await auth
+        .inWorkspace(user, requestedWorkspace(req))
+        .catch((err: unknown) => {
+          if (err instanceof ServiceError && err.code === 'not_found') return auth.inWorkspace(user, undefined);
+          throw err;
+        });
       res.send({
-        user,
+        user: { ...user, permissions },
+        workspace,
         launch,
         registration: launch ? await auth.registrationState() : null,
         emailVerification: verification?.required ? { verified: verification.verified } : null,
@@ -330,7 +355,18 @@ export function authGuard(auth: AuthModule) {
         sendError(res, 'forbidden', REGISTER_TO_CONTINUE);
         return;
       }
-      attachAuthUser(session.user, req, session.launch);
+      let inWorkspace: Awaited<ReturnType<AuthModule['inWorkspace']>>;
+      try {
+        inWorkspace = await auth.inWorkspace(session.user, requestedWorkspace(req));
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          sendError(res, err.code, err.message);
+          return;
+        }
+        throw err;
+      }
+      const { workspace, permissions } = inWorkspace;
+      attachAuthUser(session.user, req, session.launch, { id: workspace.id, role: workspace.role, permissions });
       next();
     } catch (err) {
       next(err);

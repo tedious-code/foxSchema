@@ -35,8 +35,8 @@ export function makeCompareService(deps: {
     async compare(input, actor) {
       requirePermission(actor, 'schema.compare');
 
-      const src = await deps.resolver.resolveRef(actor.userId, input.source);
-      const tgt = await deps.resolver.resolveRef(actor.userId, input.target);
+      const src = await deps.resolver.resolveRef(actor.scope, input.source);
+      const tgt = await deps.resolver.resolveRef(actor.scope, input.target);
 
       // Enforcement, not an affordance. The browser disables the Compare
       // button and the store refuses the action, but this header's own promise

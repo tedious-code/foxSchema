@@ -55,7 +55,7 @@ async function serve(permissions: Permission[], engineStatus = 201) {
   }) as typeof fetch;
   const grants = {
     list: async () => [{ ...CONNECTION, granted: granted.has(CONNECTION.id) }],
-    grant: async (_user: string, id: string) => {
+    grant: async (_scope: unknown, id: string) => {
       if (id !== CONNECTION.id) return undefined;
       granted.add(id);
       return CONNECTION.name;

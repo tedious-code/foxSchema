@@ -16,20 +16,21 @@ import type {
 } from '@foxschema/workflow-contract';
 import { getStore } from '../../database/store';
 import { ConnectionStore } from '../connections/connection-store.service';
+import type { WorkspaceScope } from '../../platform/http/scope';
 
 export class WorkflowConnectionGrants {
   constructor(
     private readonly connections: Pick<ConnectionStore, 'list' | 'resolve'> = new ConnectionStore(),
   ) {}
 
-  /** The caller's saved connections, each marked with whether workflows may use it. */
-  async list(userId: string): Promise<WorkflowConnectionSummary[]> {
+  /** The workspace's saved connections, each marked with whether the caller lets workflows use it. */
+  async list(scope: WorkspaceScope): Promise<WorkflowConnectionSummary[]> {
     const store = await getStore();
     const [saved, rows] = await Promise.all([
-      this.connections.list(userId),
+      this.connections.list(scope),
       store.all<{ connection_id: string }>(
         'SELECT connection_id FROM workflow_connection_grants WHERE user_id = ?',
-        [userId],
+        [scope.userId],
       ),
     ]);
     const granted = new Set(rows.map((row) => row.connection_id));
@@ -49,8 +50,9 @@ export class WorkflowConnectionGrants {
    * Grant the connection and resolve with its name — undefined when it is not
    * the caller's, so there is nothing of theirs to grant.
    */
-  async grant(userId: string, connectionId: string): Promise<string | undefined> {
-    const connection = await this.connections.resolve(userId, connectionId);
+  async grant(scope: WorkspaceScope, connectionId: string): Promise<string | undefined> {
+    const userId = scope.userId;
+    const connection = await this.connections.resolve(scope, connectionId);
     if (!connection) return undefined;
     const store = await getStore();
     await store.upsert(
@@ -77,12 +79,18 @@ export class WorkflowConnectionGrants {
    */
   async resolveForEngine(connectionId: string): Promise<ResolvedWorkflowConnection | undefined> {
     const store = await getStore();
-    const grant = await store.get<{ user_id: string }>(
-      'SELECT user_id FROM workflow_connection_grants WHERE connection_id = ?',
+    // The granter must still be a member of the connection's workspace: one
+    // who left (or was removed) no longer lends it to workflows.
+    const grant = await store.get<{ user_id: string; workspace_id: string }>(
+      `SELECT g.user_id, c.workspace_id
+       FROM workflow_connection_grants g
+       JOIN connections c ON c.id = g.connection_id
+       JOIN workspace_members m ON m.workspace_id = c.workspace_id AND m.user_id = g.user_id
+       WHERE g.connection_id = ?`,
       [connectionId],
     );
     if (!grant) return undefined;
-    const resolved = await this.connections.resolve(grant.user_id, connectionId);
+    const resolved = await this.connections.resolve({ userId: grant.user_id, workspaceId: grant.workspace_id }, connectionId);
     if (!resolved) return undefined;
     return {
       dialect: resolved.dialect,

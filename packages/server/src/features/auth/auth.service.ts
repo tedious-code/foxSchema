@@ -8,7 +8,13 @@ import { getStore } from '../../database/store';
 import { hashPassword, verifyPassword, newToken } from '../../platform/crypto/crypto';
 import { RbacModule, toAppRole } from '../authorization/rbac.service';
 import { assertAdminSlotFree } from '../authorization/admin-policy.service';
-import { assertPasswordAcceptable, type AppRole, type Permission } from '@foxschema/shared';
+import {
+  ensurePersonalWorkspace,
+  personalWorkspaceName,
+  resolveWorkspace,
+  type ResolvedWorkspace,
+} from '../workspaces/workspace.service';
+import { assertPasswordAcceptable, effectivePermissions, type AppRole, type Permission } from '@foxschema/shared';
 import {
   CODE_TTL_MS,
   PASSWORD_CODE_PURPOSES,
@@ -171,6 +177,29 @@ export class AuthModule {
     };
   }
 
+  /** The account's own workspace, created if it is missing. */
+  async personalWorkspaceId(user: AuthUser): Promise<string> {
+    return ensurePersonalWorkspace(await getStore(), user.id, user.email, user.role);
+  }
+
+  /**
+   * The workspace `requestedId` names (or the default one) and what `user`
+   * may do in it: install permissions from the account role, workspace
+   * permissions from the role there. An admin keeps every permission.
+   */
+  async inWorkspace(
+    user: AuthUser,
+    requestedId: string | undefined
+  ): Promise<{ workspace: ResolvedWorkspace; permissions: Permission[] }> {
+    const store = await getStore();
+    const workspace = await resolveWorkspace(store, user, requestedId);
+    const permissions =
+      user.role === 'admin'
+        ? user.permissions
+        : effectivePermissions(user.permissions, await this.rbac.permissionsForRole(workspace.role));
+    return { workspace, permissions };
+  }
+
   /**
    * An admin adds an account. There is no self-registration: once the first
    * admin exists, people get in only when an admin adds them.
@@ -203,6 +232,7 @@ export class AuthModule {
       'INSERT INTO users (id, email, password_hash, created_at, app_role, password_set) VALUES (?, ?, ?, ?, ?, ?)',
       [id, email, passwordHash, new Date().toISOString(), role, passwordSet ? 1 : 0]
     );
+    await ensurePersonalWorkspace(store, id, email, role);
     return this.toAuthUser({ id, email, onboarding_completed: 0, app_role: role });
   }
 
@@ -374,6 +404,16 @@ export class AuthModule {
         [id, normalized, await hashPassword(password), new Date().toISOString()]
       );
     }
+    // A claimed local account keeps its workspace; it takes the new name.
+    const localName = local ? personalWorkspaceName(local.email) : '';
+    await ensurePersonalWorkspace(store, id, normalized, 'admin');
+    if (localName) {
+      await store.run('UPDATE workspaces SET name = ? WHERE personal_owner_id = ? AND name = ?', [
+        personalWorkspaceName(normalized),
+        id,
+        localName,
+      ]);
+    }
     // The launch link got the owner this far; from now on it is the password.
     await store.run("DELETE FROM sessions WHERE user_id = ? AND via = 'launch'", [id]);
     await store.run("DELETE FROM auth_codes WHERE user_id = ? AND purpose = 'launch'", [id]);
@@ -473,6 +513,7 @@ export class AuthModule {
       "INSERT INTO users (id, email, password_hash, created_at, app_role) VALUES (?, ?, ?, ?, 'admin')",
       [id, email, await hashPassword(randomUUID()), new Date().toISOString()]
     );
+    await ensurePersonalWorkspace(store, id, email, 'admin');
     return this.toAuthUser({ id, email, onboarding_completed: 0, app_role: 'admin' });
   }
 

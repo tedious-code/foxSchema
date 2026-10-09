@@ -57,7 +57,7 @@ function deps(risk: 'safe' | 'lossy' | 'blocked', commitRequired = false) {
       matchDatabaseIdentity: vi.fn().mockResolvedValue('match'),
       planRevert: vi.fn().mockResolvedValue({ ...plan, alreadyAtTarget: false }),
       planForceMigrate: vi.fn().mockResolvedValue({ ...plan, alreadyMatches: false }),
-    },
+    } as unknown as HistoryRouteDeps['lokee'],
     captureLiveSchema: vi.fn().mockResolvedValue({ changed: false }),
     // A distinct database per call so the target lock never carries over.
     resolveRef: vi.fn().mockImplementation(async () => ({
@@ -76,7 +76,7 @@ async function call(path: string, risk: 'safe' | 'lossy' | 'blocked', body: Reco
   const { d, execute } = deps(risk, commitRequired);
   const { reply, sent } = fakeReply();
   await handlerFor(d, path)(
-    { body: { connectionId: 'c', ...body }, params: { id: 'db1' }, userId: 'u1' } as never,
+    { body: { connectionId: 'c', ...body }, params: { id: 'db1' }, userId: 'u1', workspaceId: 'w1' } as never,
     reply as never
   );
   return { sent, execute };

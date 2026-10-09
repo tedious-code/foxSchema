@@ -5,6 +5,7 @@
  * Produces a .db file under the OS temp dir so the existing sqlite dialect /
  * SQL Editor can query it without a new provider registry entry.
  */
+import type { WorkspaceScope } from '../../platform/http/scope';
 import { createRequire } from 'node:module';
 import { existsSync, mkdirSync, readdirSync, unlinkSync, statSync } from 'node:fs';
 import { join, resolve, relative, isAbsolute } from 'node:path';
@@ -110,12 +111,12 @@ export function cleanupStaleFileQueryDbs(now = Date.now()): number {
  * Kept duck-typed so connection-store routes can call without a circular import.
  */
 export type FileQueryConnectionStore = {
-  list: (userId: string) => Promise<Array<{ id: string; dialect: string; name: string; database?: string }>>;
+  list: (scope: WorkspaceScope) => Promise<Array<{ id: string; dialect: string; name: string; database?: string }>>;
   resolve: (
-    userId: string,
+    scope: WorkspaceScope,
     id: string
   ) => Promise<{ option: { connectionString?: string; database?: string } } | null | undefined>;
-  remove: (userId: string, id: string) => Promise<boolean>;
+  remove: (scope: WorkspaceScope, id: string) => Promise<boolean>;
 };
 
 /**
@@ -125,20 +126,20 @@ export type FileQueryConnectionStore = {
  */
 export async function pruneOrphanFileQueryConnections(
   store: FileQueryConnectionStore,
-  userId: string
+  scope: WorkspaceScope
 ): Promise<string[]> {
   cleanupStaleFileQueryDbs();
-  const list = await store.list(userId);
+  const list = await store.list(scope);
   const removed: string[] = [];
   for (const c of list) {
     if (c.dialect !== 'sqlite') continue;
     if (!isFileQueryConnectionName(c.name) && !isFileQueryDbPath(c.database)) continue;
-    const resolved = await store.resolve(userId, c.id);
+    const resolved = await store.resolve(scope, c.id);
     const dbPath = resolved?.option.connectionString || resolved?.option.database || c.database;
     if (!dbPath || !isFileQueryDbPath(dbPath)) continue;
     // eslint-disable-next-line security/detect-non-literal-fs-filename -- confined to fileQueryTempDir(); any caller-supplied path has passed isFileQueryDbPath, which resolves and rejects anything outside it
     if (existsSync(dbPath)) continue;
-    if (await store.remove(userId, c.id)) removed.push(c.id);
+    if (await store.remove(scope, c.id)) removed.push(c.id);
   }
   return removed;
 }

@@ -59,11 +59,11 @@ describe('file-query parsers', () => {
     ];
     const store = {
       list: async () => [...rows],
-      resolve: async (_u: string, id: string) => {
+      resolve: async (_u: unknown, id: string) => {
         const row = rows.find((r) => r.id === id);
         return row ? { option: { database: row.database } } : null;
       },
-      remove: async (_u: string, id: string) => {
+      remove: async (_u: unknown, id: string) => {
         const i = rows.findIndex((r) => r.id === id);
         if (i < 0) return false;
         rows.splice(i, 1);
@@ -71,7 +71,7 @@ describe('file-query parsers', () => {
       },
     };
 
-    const removed = await pruneOrphanFileQueryConnections(store, 'user-1');
+    const removed = await pruneOrphanFileQueryConnections(store, { userId: 'user-1', workspaceId: 'w1' });
     expect(removed).toEqual(['gone']);
     expect(rows.map((r) => r.id)).toEqual(['kept', 'pg']);
   });

@@ -18,8 +18,8 @@ import { runMigrations } from '../../database/schema';
 import type { MetadataStore } from '../../database/stores/types';
 import { LokeeWeaveStore } from './lokee-weave.service';
 
-const USER = 'u1';
-const OTHER_USER = 'u2';
+const USER = { userId: 'u1', workspaceId: 'w1' };
+const OTHER_USER = { userId: 'u2', workspaceId: 'w2' };
 
 /** The database the history belongs to. */
 const SOURCE = {
@@ -52,7 +52,7 @@ async function freshStore(): Promise<{ meta: MetadataStore; weave: LokeeWeaveSto
   const meta = createMetadataStore({ engine: 'sqlite', path: ':memory:' });
   await meta.init();
   await runMigrations(meta);
-  for (const id of [USER, OTHER_USER]) {
+  for (const id of [USER.userId, OTHER_USER.userId]) {
     await meta.run('INSERT INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, ?)', [
       id,
       `${id}@example.com`,

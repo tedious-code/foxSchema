@@ -91,7 +91,7 @@ export async function runMigrate(opts: MigrateOptions): Promise<void> {
   const ctx = await getContext();
   let runId: string | null = null;
   try {
-    runId = await ctx.history.start(ctx.userId, {
+    runId = await ctx.history.start(ctx.scope, {
       dialect: tgt.dialect,
       host: tgt.option.host,
       database: tgt.option.database,

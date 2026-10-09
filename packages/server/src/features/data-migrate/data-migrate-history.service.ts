@@ -6,6 +6,7 @@
  * Per-user log of SQL Editor data-migrate runs (row ops from side-by-side compare).
  * Separate from Schema Sync `migration_runs`.
  */
+import type { WorkspaceScope } from '../../platform/http/scope';
 import { randomUUID } from 'node:crypto';
 import { getStore } from '../../database/store';
 import { HISTORY_MAX_TEXT_LEN, truncateForDisplay } from '../../database/stored-text';
@@ -106,7 +107,7 @@ function parseOps(raw: string | null): { insert: boolean; update: boolean; delet
 
 export class DataMigrateHistoryStore {
   async start(
-    userId: string,
+    scope: WorkspaceScope,
     input: {
       dialect: string;
       sourceHost?: string;
@@ -127,12 +128,13 @@ export class DataMigrateHistoryStore {
     const store = await getStore();
     await store.run(
       `INSERT INTO data_migrate_runs
-         (id, user_id, status, dialect, source_host, target_host, database_name, "schema",
+         (id, user_id, workspace_id, status, dialect, source_host, target_host, database_name, "schema",
           table_name, row_count, ops_json, include_identity, key_columns_json, script, snapshot_json, started_at)
-       VALUES (?, ?, 'RUNNING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, 'RUNNING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
-        userId,
+        scope.userId,
+        scope.workspaceId,
         input.dialect,
         input.sourceHost ?? null,
         input.targetHost ?? null,
@@ -148,21 +150,21 @@ export class DataMigrateHistoryStore {
         new Date().toISOString(),
       ]
     );
-    await this.prune(userId);
+    await this.prune(scope);
     return { id, snapshotStored: snapshot.stored };
   }
 
-  private async prune(userId: string): Promise<void> {
+  private async prune(scope: WorkspaceScope): Promise<void> {
     const store = await getStore();
     await store.run(
       `DELETE FROM data_migrate_runs
-        WHERE user_id = ?
+        WHERE workspace_id = ?
           AND id NOT IN (
             SELECT id FROM (
-              SELECT id FROM data_migrate_runs WHERE user_id = ? ORDER BY started_at DESC LIMIT ?
+              SELECT id FROM data_migrate_runs WHERE workspace_id = ? ORDER BY started_at DESC LIMIT ?
             ) AS keep
           )`,
-      [userId, userId, MAX_RUNS_PER_USER]
+      [scope.workspaceId, scope.workspaceId, MAX_RUNS_PER_USER]
     );
   }
 
@@ -208,22 +210,22 @@ export class DataMigrateHistoryStore {
     };
   }
 
-  async list(userId: string, limit = 100): Promise<DataMigrateRunSummary[]> {
+  async list(scope: WorkspaceScope, limit = 100): Promise<DataMigrateRunSummary[]> {
     const store = await getStore();
     const rows = await store.all<Row>(
       `SELECT id, status, dialect, source_host, target_host, database_name, "schema", table_name,
               row_count, ops_json, include_identity, error, started_at, finished_at
-         FROM data_migrate_runs WHERE user_id = ? ORDER BY started_at DESC LIMIT ?`,
-      [userId, limit]
+         FROM data_migrate_runs WHERE workspace_id = ? ORDER BY started_at DESC LIMIT ?`,
+      [scope.workspaceId, limit]
     );
     return rows.map((r) => this.summary(r));
   }
 
-  async get(userId: string, id: string): Promise<DataMigrateRunDetail | null> {
+  async get(scope: WorkspaceScope, id: string): Promise<DataMigrateRunDetail | null> {
     const store = await getStore();
     const r = await store.get<Row>(
-      'SELECT * FROM data_migrate_runs WHERE id = ? AND user_id = ?',
-      [id, userId]
+      'SELECT * FROM data_migrate_runs WHERE id = ? AND workspace_id = ?',
+      [id, scope.workspaceId]
     );
     if (!r) return null;
     let results: DataMigrateOpResult[] = [];
@@ -249,19 +251,19 @@ export class DataMigrateHistoryStore {
     };
   }
 
-  async remove(userId: string, id: string): Promise<boolean> {
+  async remove(scope: WorkspaceScope, id: string): Promise<boolean> {
     const store = await getStore();
     const result = await store.run(
-      'DELETE FROM data_migrate_runs WHERE id = ? AND user_id = ?',
-      [id, userId]
+      'DELETE FROM data_migrate_runs WHERE id = ? AND workspace_id = ?',
+      [id, scope.workspaceId]
     );
     return result.changes > 0;
   }
 
-  async clear(userId: string): Promise<number> {
+  async clear(scope: WorkspaceScope): Promise<number> {
     const store = await getStore();
-    const result = await store.run('DELETE FROM data_migrate_runs WHERE user_id = ?', [
-      userId,
+    const result = await store.run('DELETE FROM data_migrate_runs WHERE workspace_id = ?', [
+      scope.workspaceId,
     ]);
     return result.changes;
   }

@@ -17,6 +17,7 @@ import {
 } from '@foxschema/db';
 import type { ConnectionStore } from '../../features/connections/connection-store.service';
 import { ServiceError } from '../contracts/actor';
+import type { WorkspaceScope } from '../http/scope';
 
 /**
  * A connection reference: either a saved connection (resolved server-side so the
@@ -47,7 +48,7 @@ export interface ScopedTables {
 }
 
 export interface ConnectionResolver {
-  resolveRef(userId: string | undefined, ref: ConnectionRef): Promise<ResolvedConnection>;
+  resolveRef(scope: WorkspaceScope | undefined, ref: ConnectionRef): Promise<ResolvedConnection>;
   loadScopedTables(
     dialect: string,
     option: ConnectionOptions,
@@ -62,14 +63,14 @@ export function makeConnectionResolver(
 ): ConnectionResolver {
   /** Resolve a ConnectionRef to concrete credentials (decrypting a saved one). */
   async function resolveRef(
-    userId: string | undefined,
+    scope: WorkspaceScope | undefined,
     ref: ConnectionRef
   ): Promise<ResolvedConnection> {
     if (ref.connectionId) {
-      if (!userId) {
+      if (!scope) {
         throw new ServiceError('unauthenticated', 'Sign in to use a saved connection');
       }
-      const resolved = await connectionStore.resolve(userId, ref.connectionId);
+      const resolved = await connectionStore.resolve(scope, ref.connectionId);
       if (!resolved) throw new ServiceError('not_found', 'Saved connection not found');
       // Merge a per-session password for connections saved without one, and rebuild the
       // connection string so the driver picks it up. connectionString must be cleared

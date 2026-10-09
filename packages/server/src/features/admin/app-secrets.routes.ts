@@ -1,4 +1,5 @@
 import type { FastifyReply } from 'fastify';
+import { scopeOf } from '../../platform/http/scope';
 import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
 import { AppSecretsStore, type AppSecretInput } from './app-secrets.service';
@@ -45,11 +46,11 @@ export function createAppSecretsRoutes(
   const router = Router();
 
   router.get('/', requirePermissions('secrets.view'), async (req: AuthedRequest, res: FastifyReply) => {
-    res.send({ secrets: await store.list(req.userId!) });
+    res.send({ secrets: await store.list(scopeOf(req)!) });
   });
 
   router.get('/providers', requirePermissions('secrets.view'), async (req: AuthedRequest, res: FastifyReply) => {
-    res.send({ providers: await providers.list(req.userId!) });
+    res.send({ providers: await providers.list(scopeOf(req)!) });
   });
 
   router.post('/providers', requirePermissions('secrets.create'), async (req: AuthedRequest, res: FastifyReply) => {
@@ -70,7 +71,7 @@ export function createAppSecretsRoutes(
     }
     try {
       res.send({
-        provider: await providers.create(req.userId!, name, providerRaw, body.credentials),
+        provider: await providers.create(scopeOf(req)!, name, providerRaw, body.credentials),
       });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Failed to save provider credentials';
@@ -85,7 +86,7 @@ export function createAppSecretsRoutes(
       credentials?: CloudProviderCredentials;
     };
     try {
-      const updated = await providers.update(req.userId!, String(req.params.id), {
+      const updated = await providers.update(scopeOf(req)!, String(req.params.id), {
         name: typeof body.name === 'string' ? body.name : undefined,
         credentials:
           body.credentials && typeof body.credentials === 'object' ? body.credentials : undefined,
@@ -103,7 +104,7 @@ export function createAppSecretsRoutes(
   });
 
   router.delete('/providers/:id', requirePermissions('secrets.delete'), async (req: AuthedRequest, res: FastifyReply) => {
-    const removed = await providers.remove(req.userId!, String(req.params.id));
+    const removed = await providers.remove(scopeOf(req)!, String(req.params.id));
     if (!removed) {
       sendError(res, 'not_found', 'Secret not found');
       return;
@@ -119,7 +120,7 @@ export function createAppSecretsRoutes(
     }
     try {
       res.send({
-        secret: await store.create(req.userId!, {
+        secret: await store.create(scopeOf(req)!, {
           name: input.name,
           source: input.source,
           value: input.value,
@@ -138,7 +139,7 @@ export function createAppSecretsRoutes(
       ? ((req.body as { names: unknown[] }).names.filter((n) => typeof n === 'string') as string[])
       : undefined;
     try {
-      const out = await store.resolve(req.userId!, names);
+      const out = await store.resolve(scopeOf(req)!, names);
       res.send(out);
     } catch (error: unknown) {
       sendThrown(res, error, 'Failed to resolve secrets');
@@ -148,7 +149,7 @@ export function createAppSecretsRoutes(
   router.put('/:id', requirePermissions('secrets.edit'), async (req: AuthedRequest, res: FastifyReply) => {
     const input = parseSecretBody(req.body);
     try {
-      const updated = await store.update(req.userId!, String(req.params.id), input);
+      const updated = await store.update(scopeOf(req)!, String(req.params.id), input);
       if (!updated) {
         sendError(res, 'not_found', 'Secret not found');
         return;
@@ -162,7 +163,7 @@ export function createAppSecretsRoutes(
   });
 
   router.delete('/:id', requirePermissions('secrets.delete'), async (req: AuthedRequest, res: FastifyReply) => {
-    const removed = await store.remove(req.userId!, String(req.params.id));
+    const removed = await store.remove(scopeOf(req)!, String(req.params.id));
     if (!removed) {
       sendError(res, 'not_found', 'Secret not found');
       return;

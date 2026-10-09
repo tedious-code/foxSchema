@@ -8,7 +8,7 @@
  */
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 const apiLaunch = vi.fn();
 const apiSession = vi.fn();
@@ -50,6 +50,7 @@ beforeEach(() => {
     launch: false,
     registration: null,
     emailVerification: null,
+    registerDialogOpen: false,
   });
   window.history.replaceState(null, '', '/');
 });
@@ -117,10 +118,14 @@ describe('create your account', () => {
     expect(screen.queryByTestId('account-register-dialog')).toBeNull();
   });
 
-  it('can be put away until next time', () => {
+  it('can be put away until next time, and still opens from the profile menu', () => {
     render(<AccountBanners />);
     fireEvent.click(screen.getByTestId('account-register-dismiss'));
     expect(screen.queryByTestId('account-register-banner')).toBeNull();
+    act(() => useAuthStore.getState().setRegisterDialogOpen(true));
+    expect(screen.getByTestId('auth-setup-form')).toBeTruthy();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByTestId('account-register-dialog')).toBeNull();
   });
 
   it('takes over the screen if the deadline passes while Fox is open', async () => {

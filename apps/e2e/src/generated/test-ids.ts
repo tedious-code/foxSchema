@@ -821,6 +821,8 @@ export const TestIds = {
     ProfileMenu: {
       /** button · App users & roles */
       profileAccessControl: 'profile-access-control',
+      /** button · Create your account */
+      profileCreateAccount: 'profile-create-account',
       /** p */
       profileEmail: 'profile-email',
       /** div */
@@ -4305,6 +4307,7 @@ export type TestId =
   | `pipe-credential-option-${string}`
   | 'pipe-credential-trigger'
   | 'profile-access-control'
+  | 'profile-create-account'
   | 'profile-email'
   | 'profile-menu-dropdown'
   | 'profile-menu-trigger'

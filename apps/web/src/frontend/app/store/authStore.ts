@@ -40,6 +40,9 @@ interface AuthState {
   registration: RegistrationDue | null;
   /** Set for an account asked to verify its email. */
   emailVerification: { verified: boolean } | null;
+  /** The "Create your account" dialog a launch session opens from the banner or the profile menu. */
+  registerDialogOpen: boolean;
+  setRegisterDialogOpen: (open: boolean) => void;
 
   init: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
@@ -109,6 +112,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   busy: false,
   setupState: null,
   ...SIGNED_OUT,
+  registerDialogOpen: false,
+  setRegisterDialogOpen: (open) => set({ registerDialogOpen: open }),
 
   can: (permission) => userCan(get().user, permission),
 

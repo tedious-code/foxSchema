@@ -1,6 +1,6 @@
 import React, { lazy, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { LogOut, Palette, ArrowUpCircle, Globe, Shield, MonitorX, MessageSquarePlus } from 'lucide-react';
+import { LogOut, Palette, ArrowUpCircle, Globe, Shield, MonitorX, MessageSquarePlus, UserPlus } from 'lucide-react';
 import { apiSignOutOthers } from '@/shared/api/authApi';
 import { toast } from '@/app/store/toastStore';
 import { useAuthStore } from '@/app/store/authStore';
@@ -24,6 +24,7 @@ export function ProfileMenu(): React.ReactElement | null {
   const { user, logout, launch } = useAuthStore();
   const setActiveView = useUiStore((s) => s.setActiveView);
   const canAdminAccess = useAuthStore((s) => s.can('admin.users') || s.can('admin.roles'));
+  const setRegisterDialogOpen = useAuthStore((s) => s.setRegisterDialogOpen);
   const [open, setOpen] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -106,7 +107,22 @@ export function ProfileMenu(): React.ReactElement | null {
             <Palette className="w-4 h-4" /> Preferences
           </button>
 
-          {canAdminAccess && (
+          {/* Who else gets in is decided with an account: a launch session gets the
+              way to create one instead of a panel that would only refuse it. */}
+          {launch ? (
+          <button
+            type="button"
+            data-testid="profile-create-account"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(false);
+              setRegisterDialogOpen(true);
+            }}
+            className="w-full flex items-center gap-2 px-4 py-3 text-sm font-semibold text-amber-200 hover:text-amber-100 hover:bg-slate-800/60 transition cursor-pointer"
+          >
+            <UserPlus className="w-4 h-4" /> Create your account
+          </button>
+          ) : canAdminAccess && (
           <button
             type="button"
             data-testid="profile-access-control"

@@ -48,6 +48,8 @@ beforeEach(() => {
     status: 'ready',
     error: null,
     busy: false,
+    launch: false,
+    registerDialogOpen: false,
   });
 });
 
@@ -91,6 +93,18 @@ describe('ProfileMenu', () => {
     render(<ProfileMenu />);
     fireEvent.click(screen.getByTestId('profile-menu-trigger'));
     expect(screen.queryByTestId('profile-access-control')).toBeNull();
+  });
+
+  it('offers to create the account, not app users, before the owner has one', () => {
+    // A launch session may not manage app users, so that panel would only refuse.
+    useAuthStore.setState({ launch: true });
+    render(<ProfileMenu />);
+    fireEvent.click(screen.getByTestId('profile-menu-trigger'));
+    expect(screen.getByTestId('profile-email').textContent).toMatch(/no account yet/);
+    expect(screen.queryByTestId('profile-access-control')).toBeNull();
+    fireEvent.click(screen.getByTestId('profile-create-account'));
+    expect(useAuthStore.getState().registerDialogOpen).toBe(true);
+    expect(screen.queryByTestId('profile-menu-dropdown')).toBeNull();
   });
 
   it('opens on screen from the avatar at the foot of the left rail', () => {

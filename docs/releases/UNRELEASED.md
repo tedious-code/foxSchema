@@ -95,9 +95,11 @@ for an email and password**, and only an administrator can create accounts.
 
 `foxschema open` now opens straight into the workspace on a personal install,
 signed in as its owner through a one-time launch link: no account first. A
-banner asks you to **Create your account**; after 7 days
+banner asks you to **Create your account** (also in the profile menu, where *App
+users & roles* waits for the account); after 7 days
 (`FOX_REGISTRATION_GRACE_DAYS`) Fox asks for it before anything else, and adding
-users or changing sign-in settings needs it from the start.
+users or changing sign-in settings needs it from the start. The *Get product
+updates* screen is skipped: the account form offers Fox news instead.
 
 - The link works once, for two minutes, only from the machine Fox runs on, and
   only while Fox listens on that machine alone. Docker images, shared servers

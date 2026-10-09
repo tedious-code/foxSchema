@@ -7,8 +7,9 @@
  *
  * - Create your account: the owner came in through a `foxschema open` launch
  *   link and has no account yet. Says how long until one is required; the
- *   button opens the form first-run setup uses. Dismissing hides it until the
- *   page is reloaded. When the time is up the form takes the whole screen.
+ *   button (and the profile menu) opens the form first-run setup uses.
+ *   Dismissing hides it until the page is reloaded. When the time is up the
+ *   form takes the whole screen.
  * - Verify your email: the account was asked to prove its address. The code
  *   was emailed when the account was created; entering it ends the reminder.
  */
@@ -50,7 +51,10 @@ const dismissCls = 'ml-auto p-1 rounded accent-focus focus:outline-none opacity-
 
 const RegisterBanner: React.FC<{ dueAt: string }> = ({ dueAt }) => {
   const [hidden, setHidden] = useState(false);
-  const [open, setOpen] = useState(false);
+  // In the store, so the profile menu's "Create your account" opens it too,
+  // even with the banner put away.
+  const open = useAuthStore((s) => s.registerDialogOpen);
+  const setOpen = useAuthStore((s) => s.setRegisterDialogOpen);
 
   // Still open when the time runs out: the account form takes over, as it
   // would on the next load (the server stops taking this session then too).

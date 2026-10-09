@@ -81,7 +81,7 @@ add people; there is no self-registration.
 **Opened with `foxschema open`** on your own machine, Fox skips that page the
 first time: it opens straight into the workspace, signed in as the install's
 owner through a one-time launch link. A banner asks you to **Create your
-account**. You have 7 days; after that Fox asks for the account before anything
+account**; it is in the profile menu too, after you hide the banner. You have 7 days; after that Fox asks for the account before anything
 else. Adding people or changing sign-in settings needs it from the start. Your
 connections and history stay where they are when you create it.
 

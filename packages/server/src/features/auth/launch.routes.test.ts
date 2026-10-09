@@ -13,7 +13,7 @@
  * good once the owner has an account. The verification code that follows
  * proves the address and does nothing else.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import http from 'node:http';
 import type { FastifyInstance } from 'fastify';
 
@@ -177,6 +177,8 @@ describe('creating the account, and verifying the email', () => {
   });
 
   it('needs no setup code from the launch session, and ends it', async () => {
+    // Never shown to a launch session; the account form offers Fox news instead.
+    expect((await call('GET', '/signup/state')).json).toEqual({ shown: false });
     // Proxied, so neither "this machine" nor a setup code is what lets it through.
     const created = await call(
       'POST',
@@ -189,6 +191,8 @@ describe('creating the account, and verifying the email', () => {
 
     expect((await call('GET', '/auth/me', undefined, withCookie(launchCookie))).json).toEqual({ user: null });
     expect(await auth.issueLaunchToken()).toBeNull();
+    // ...so the next load does not ask about Fox news a second time.
+    await vi.waitFor(async () => expect((await call('GET', '/signup/state')).json).toEqual({ shown: true }));
   });
 
   it('emails a verification code through the Fox mail service when the install has no mail server', async () => {

@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **954** buttons, text boxes, selects and textareas.
+Every control has a test ID: **955** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -435,6 +435,7 @@ Every control has a test ID: **954** buttons, text boxes, selects and textareas.
   - `home-view` · div · Home
 - **ProfileMenu** · `app/shell/ProfileMenu.tsx`
   - `profile-access-control` · button · App users & roles
+  - `profile-create-account` · button · Create your account
   - `profile-email` · p
   - `profile-menu-dropdown` · div
   - `profile-menu-trigger` · button

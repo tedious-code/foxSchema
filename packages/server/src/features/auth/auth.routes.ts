@@ -126,6 +126,15 @@ export function createAuthRoutes(
       setSessionCookie(res, token);
       res.send({ user });
       subscribeIfAsked(subscribe, user.email);
+      // The account form already offered Fox news, and a launch session never
+      // saw the separate signup wizard: don't ask again on the next load.
+      if (launched) {
+        signup.skip().catch((error: unknown) => {
+          getLogger().warn(
+            `Could not record the signup offer as answered: ${error instanceof Error ? error.message : String(error)}`
+          );
+        });
+      }
       // After the reply: the account exists whether or not the mail goes out,
       // and the app offers to send the code again.
       sendVerificationCode(user).catch((error: unknown) => {

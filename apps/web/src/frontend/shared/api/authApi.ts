@@ -217,6 +217,8 @@ export interface AdminPolicySettings {
   /** `env` when FOX_ADMIN_POLICY sets it (read-only here); null before it is recorded. */
   source: SettingSource | null;
   activeAdmins: string[];
+  /** Whether accounts other than admins may create workspaces. */
+  membersCanCreateWorkspaces: boolean;
 }
 
 export async function apiAdminGetPolicy(): Promise<AdminPolicySettings> {
@@ -225,6 +227,10 @@ export async function apiAdminGetPolicy(): Promise<AdminPolicySettings> {
 
 export async function apiAdminSetPolicy(adminPolicy: AdminPolicyValue): Promise<void> {
   await api.put('/admin/policy', { adminPolicy }, EMPTY_OK);
+}
+
+export async function apiAdminSetMembersCanCreateWorkspaces(on: boolean): Promise<void> {
+  await api.put('/admin/policy', { membersCanCreateWorkspaces: on }, EMPTY_OK);
 }
 
 /** Make `userId` the admin; the caller takes `demoteTo` in the same step. */

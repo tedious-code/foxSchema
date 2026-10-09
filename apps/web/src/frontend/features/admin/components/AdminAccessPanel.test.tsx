@@ -20,6 +20,7 @@ const apiAdminIssueCode = vi.fn();
 const apiAdminGetPolicy = vi.fn();
 const apiAdminSetPolicy = vi.fn();
 const apiAdminTransferAdmin = vi.fn();
+const apiAdminSetMembersCanCreateWorkspaces = vi.fn();
 
 vi.mock('@/shared/api/authApi', () => ({
   apiAdminCreateUser: (...args: unknown[]) => apiAdminCreateUser(...args),
@@ -33,6 +34,7 @@ vi.mock('@/shared/api/authApi', () => ({
   apiAdminGetPolicy: (...args: unknown[]) => apiAdminGetPolicy(...args),
   apiAdminSetPolicy: (...args: unknown[]) => apiAdminSetPolicy(...args),
   apiAdminTransferAdmin: (...args: unknown[]) => apiAdminTransferAdmin(...args),
+  apiAdminSetMembersCanCreateWorkspaces: (...args: unknown[]) => apiAdminSetMembersCanCreateWorkspaces(...args),
 }));
 
 import { AdminAccessPanel } from './AdminAccessPanel';
@@ -60,7 +62,7 @@ beforeEach(() => {
   apiAdminTransferAdmin.mockReset();
 
   apiAdminListUsers.mockResolvedValue({ users: [localUser] });
-  apiAdminGetPolicy.mockResolvedValue({ adminPolicy: 'several', source: 'app', activeAdmins: [localUser.email] });
+  apiAdminGetPolicy.mockResolvedValue({ adminPolicy: 'several', source: 'app', activeAdmins: [localUser.email], membersCanCreateWorkspaces: false });
   apiAdminRolePermissions.mockResolvedValue({
     matrix: {
       viewer: [...DEFAULT_ROLE_PERMISSIONS.viewer],
@@ -422,5 +424,17 @@ describe('AdminAccessPanel — one admin or several', () => {
     render(<AdminAccessPanel open onClose={() => undefined} />);
     expect(((await screen.findByTestId('admin-policy-several')) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByTestId('admin-policy-hint').textContent).toMatch(/FOX_ADMIN_POLICY/);
+  });
+});
+
+describe('AdminAccessPanel — who creates workspaces', () => {
+  it('lets the admin open workspace creation to everyone', async () => {
+    apiAdminSetMembersCanCreateWorkspaces.mockResolvedValue(undefined);
+    render(<AdminAccessPanel open onClose={() => undefined} />);
+    const box = (await screen.findByTestId('admin-policy-members-create')) as HTMLInputElement;
+    expect(box.checked).toBe(false);
+    fireEvent.click(box);
+    await waitFor(() => expect(apiAdminSetMembersCanCreateWorkspaces).toHaveBeenCalledWith(true));
+    expect(await screen.findByText(/everyone can now create workspaces/i)).toBeTruthy();
   });
 });

@@ -573,6 +573,8 @@ export const TestIds = {
       adminPolicyForValue: (value: string | number) => `admin-policy-${value}`,
       /** span */
       adminPolicyHint: 'admin-policy-hint',
+      /** input */
+      adminPolicyMembersCreate: 'admin-policy-members-create',
       /** p */
       adminRolesHint: 'admin-roles-hint',
       /** button · Save password */
@@ -3397,6 +3399,54 @@ export const TestIds = {
       workflowView: 'workflow-view',
     },
   },
+  workspaces: {
+    WorkspaceMenu: {
+      /** div */
+      workspaceMenu: 'workspace-menu',
+      /** button · New workspace */
+      workspaceMenuCreate: 'workspace-menu-create',
+      /** form */
+      workspaceMenuCreateForm: 'workspace-menu-create-form',
+      /** input · New workspace name */
+      workspaceMenuCreateName: 'workspace-menu-create-name',
+      /** button · Create */
+      workspaceMenuCreateSubmit: 'workspace-menu-create-submit',
+      /** p */
+      workspaceMenuError: 'workspace-menu-error',
+      /** button */
+      workspaceMenuItem: (id: string | number) => `workspace-menu-item-${id}`,
+      /** button · Workspace settings */
+      workspaceMenuSettings: 'workspace-menu-settings',
+    },
+    WorkspaceSettingsDialog: {
+      /** li */
+      workspaceMember: (userId: string | number) => `workspace-member-${userId}`,
+      /** button · Remove */
+      workspaceMemberRemove: (userId: string | number) => `workspace-member-remove-${userId}`,
+      /** select */
+      workspaceMemberRole: (userId: string | number) => `workspace-member-role-${userId}`,
+      /** div · Members · */
+      workspaceSettings: 'workspace-settings',
+      /** button · Archive */
+      workspaceSettingsArchive: 'workspace-settings-archive',
+      /** button */
+      workspaceSettingsClose: 'workspace-settings-close',
+      /** p */
+      workspaceSettingsError: 'workspace-settings-error',
+      /** button · Leave workspace */
+      workspaceSettingsLeave: 'workspace-settings-leave',
+      /** ul */
+      workspaceSettingsMembers: 'workspace-settings-members',
+      /** input */
+      workspaceSettingsName: 'workspace-settings-name',
+      /** form */
+      workspaceSettingsRename: 'workspace-settings-rename',
+      /** button · Rename */
+      workspaceSettingsRenameSubmit: 'workspace-settings-rename-submit',
+      /** p */
+      workspaceSettingsSaved: 'workspace-settings-saved',
+    },
+  },
 } as const;
 
 /** Any test ID in the web app; `${string}` is a part filled in at run time. */
@@ -3517,6 +3567,7 @@ export type TestId =
   | 'admin-policy'
   | `admin-policy-${string}`
   | 'admin-policy-hint'
+  | 'admin-policy-members-create'
   | 'admin-roles-hint'
   | 'admin-save-password'
   | 'admin-save-role-perms'
@@ -4968,4 +5019,25 @@ export type TestId =
   | `workflow-trigger-settings-workflow-${string}`
   | `workflow-variables-environment-${string}`
   | 'workflow-view'
+  | `workspace-member-${string}`
+  | `workspace-member-remove-${string}`
+  | `workspace-member-role-${string}`
+  | 'workspace-menu'
+  | 'workspace-menu-create'
+  | 'workspace-menu-create-form'
+  | 'workspace-menu-create-name'
+  | 'workspace-menu-create-submit'
+  | 'workspace-menu-error'
+  | `workspace-menu-item-${string}`
+  | 'workspace-menu-settings'
+  | 'workspace-settings'
+  | 'workspace-settings-archive'
+  | 'workspace-settings-close'
+  | 'workspace-settings-error'
+  | 'workspace-settings-leave'
+  | 'workspace-settings-members'
+  | 'workspace-settings-name'
+  | 'workspace-settings-rename'
+  | 'workspace-settings-rename-submit'
+  | 'workspace-settings-saved'
   | 'workspace-switcher';

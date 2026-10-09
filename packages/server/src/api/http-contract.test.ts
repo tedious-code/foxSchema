@@ -172,6 +172,14 @@ const ROUTES: RouteExpectation[] = [
   { method: 'PUT', path: '/api/backup-settings/:dialect', status: 400 },
   { method: 'GET', path: '/api/user/preferences', status: 200 },
   { method: 'PUT', path: '/api/user/preferences', status: 200 },
+  { method: 'GET', path: '/api/workspaces', status: 200 },
+  { method: 'POST', path: '/api/workspaces', status: 400 },
+  { method: 'PATCH', path: '/api/workspaces/:id', status: 404 },
+  { method: 'POST', path: '/api/workspaces/:id/archive', status: 404 },
+  { method: 'GET', path: '/api/workspaces/:id/members', status: 404 },
+  { method: 'PUT', path: '/api/workspaces/:id/members/:userId', status: 400 },
+  { method: 'DELETE', path: '/api/workspaces/:id/members/:userId', status: 404 },
+  { method: 'POST', path: '/api/workspaces/:id/select', status: 404 },
 ];
 
 const KEY = '0'.repeat(64);
@@ -282,7 +290,9 @@ describe('HTTP contract', () => {
       //
       // 116 -> 119: one admin or several (/api/admin/policy) and handing the
       // admin role over (/api/admin/users/:id/transfer-admin).
-      expect(ROUTES.length).toBe(119);
+      //
+      // 119 -> 127: shared workspaces (/api/workspaces).
+      expect(ROUTES.length).toBe(127);
       expect(new Set(ROUTES.map((r) => `${r.method} ${r.path}`)).size).toBe(ROUTES.length);
     });
 

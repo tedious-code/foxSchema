@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **957** buttons, text boxes, selects and textareas.
+Every control has a test ID: **970** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -308,6 +308,7 @@ Every control has a test ID: **957** buttons, text boxes, selects and textareas.
   - `admin-policy` · div
   - `admin-policy-{value}` · button
   - `admin-policy-hint` · span
+  - `admin-policy-members-create` · input
   - `admin-roles-hint` · p
   - `admin-save-password` · button · Save password
   - `admin-save-role-perms` · button · Save permissions
@@ -1796,6 +1797,32 @@ Every control has a test ID: **957** buttons, text boxes, selects and textareas.
   - `workflow-no-panes` · p
   - `workflow-tab-{id}` · button
   - `workflow-view` · div
+
+## workspaces
+
+- **WorkspaceMenu** · `features/workspaces/components/WorkspaceMenu.tsx`
+  - `workspace-menu` · div
+  - `workspace-menu-create` · button · New workspace
+  - `workspace-menu-create-form` · form
+  - `workspace-menu-create-name` · input · New workspace name
+  - `workspace-menu-create-submit` · button · Create
+  - `workspace-menu-error` · p
+  - `workspace-menu-item-{id}` · button
+  - `workspace-menu-settings` · button · Workspace settings
+- **WorkspaceSettingsDialog** · `features/workspaces/components/WorkspaceSettingsDialog.tsx`
+  - `workspace-member-{userId}` · li
+  - `workspace-member-remove-{userId}` · button · Remove
+  - `workspace-member-role-{userId}` · select
+  - `workspace-settings` · div · Members ·
+  - `workspace-settings-archive` · button · Archive
+  - `workspace-settings-close` · button
+  - `workspace-settings-error` · p
+  - `workspace-settings-leave` · button · Leave workspace
+  - `workspace-settings-members` · ul
+  - `workspace-settings-name` · input
+  - `workspace-settings-rename` · form
+  - `workspace-settings-rename-submit` · button · Rename
+  - `workspace-settings-saved` · p
 
 ## Shared on purpose
 

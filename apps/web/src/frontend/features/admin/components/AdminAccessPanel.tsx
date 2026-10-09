@@ -18,6 +18,7 @@ import {
   apiAdminSetRolePermissions,
   apiAdminSetUserActive,
   apiAdminSetUserPassword,
+  apiAdminSetMembersCanCreateWorkspaces,
   apiAdminSetPolicy,
   apiAdminSetUserRole,
   apiAdminTransferAdmin,
@@ -252,6 +253,21 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
       await load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Could not change the admin policy');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const changeMembersCreate = async (on: boolean) => {
+    setBusy(true);
+    setError(null);
+    setSavedMsg(null);
+    try {
+      await apiAdminSetMembersCanCreateWorkspaces(on);
+      setSavedMsg(on ? 'Everyone can now create workspaces.' : 'Only admins can create workspaces now.');
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not change who creates workspaces');
     } finally {
       setBusy(false);
     }
@@ -531,6 +547,18 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
                         ? 'Only one account can be admin. The admin hands the role over with Make admin.'
                         : 'Any admin can make other accounts admins.'}
                   </span>
+                  <label className="inline-flex items-center gap-1.5 text-[11px] text-slate-300 basis-full">
+                    <input
+                      type="checkbox"
+                      data-testid="admin-policy-members-create"
+                      checked={policy.membersCanCreateWorkspaces}
+                      disabled={busy}
+                      onChange={(e) => void changeMembersCreate(e.target.checked)}
+                      className="rounded border-slate-600 bg-slate-900"
+                    />
+                    Members can create workspaces
+                    <span className="text-slate-500">· otherwise only admins can; everyone always has their own</span>
+                  </label>
                 </div>
               )}
               <form

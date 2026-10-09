@@ -22,6 +22,7 @@ import type { AppRequest } from '../platform/http/types';
 import { ConnectionModule, ConnectionFactory } from '@foxschema/db';
 import { AuthModule } from '../features/auth/auth.service';
 import { ConnectionStore } from '../features/connections/connection-store.service';
+import { createWorkspaceRoutes } from '../features/workspaces/workspaces.routes';
 import { sweepOrphanedUploadFiles } from '../features/files/file-session.service';
 import { UserModule } from '../features/users/user.service';
 import { createApiRoutes } from './routes';
@@ -94,6 +95,7 @@ export function buildApiRoutes(): RouteDefinition[] {
   root.use('/api/connections', userGuard, createConnectionStoreRoutes(connectionStore));
   root.use('/api/app-secrets', userGuard, createAppSecretsRoutes(new AppSecretsStore()));
   root.use('/api/user', userGuard, createUserRoutes(new UserModule()));
+  root.use('/api/workspaces', userGuard, createWorkspaceRoutes());
   root.use('/api/backup-settings', userGuard, createBackupSettingsRoutes());
   root.use('/api/admin/sign-in', userGuard, registeredOnly, createSignInSettingsRoutes());
   root.use('/api/admin', userGuard, registeredOnly, createAdminRoutes());

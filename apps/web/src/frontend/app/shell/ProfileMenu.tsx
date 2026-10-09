@@ -15,6 +15,12 @@ const AdminAccessPanel = lazy(() =>
   import('@/features/admin/components/AdminAccessPanel').then((m) => ({ default: m.AdminAccessPanel }))
 );
 
+// The workspace section loads with the menu, not with the app.
+const WorkspaceMenu = lazy(() => import('@/features/workspaces').then((m) => ({ default: m.WorkspaceMenu })));
+const WorkspaceSettingsDialog = lazy(() =>
+  import('@/features/workspaces').then((m) => ({ default: m.WorkspaceSettingsDialog }))
+);
+
 // Only on a click, like the admin panel: nobody pays for it on first load.
 const FeedbackDialog = lazy(() =>
   import('@/features/feedback').then((m) => ({ default: m.FeedbackDialog }))
@@ -28,6 +34,8 @@ export function ProfileMenu(): React.ReactElement | null {
   const [open, setOpen] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  /** The workspace whose settings are open, if any. */
+  const [workspaceSettingsId, setWorkspaceSettingsId] = useState<string | null>(null);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   // Beside the avatar, not below it: the avatar sits at the foot of the left
@@ -81,6 +89,17 @@ export function ProfileMenu(): React.ReactElement | null {
               Role: {user.role}
             </p>
           </div>
+
+          {!launch && (
+            <MountWhenOpened open={open}>
+              <WorkspaceMenu
+                onOpenSettings={(id) => {
+                  setWorkspaceSettingsId(id);
+                  setOpen(false);
+                }}
+              />
+            </MountWhenOpened>
+          )}
 
           {updateAvailable && (
             <a
@@ -211,6 +230,12 @@ export function ProfileMenu(): React.ReactElement | null {
 
       <MountWhenOpened open={showFeedback}>
         <FeedbackDialog open={showFeedback} onClose={() => setShowFeedback(false)} version={update?.current ?? null} />
+      </MountWhenOpened>
+
+      <MountWhenOpened open={workspaceSettingsId !== null}>
+        {workspaceSettingsId && (
+          <WorkspaceSettingsDialog workspaceId={workspaceSettingsId} onClose={() => setWorkspaceSettingsId(null)} />
+        )}
       </MountWhenOpened>
 
       <MountWhenOpened open={showAdmin}>

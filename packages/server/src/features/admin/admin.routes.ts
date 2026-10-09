@@ -26,6 +26,7 @@ import {
   readAdminPolicy,
   writeAdminPolicy,
 } from '../authorization/admin-policy.service';
+import { MEMBERS_CREATE_KEY, membersCanCreate } from '../workspaces/workspace-directory.service';
 
 export function createAdminRoutes(
   rbac = new RbacModule(),
@@ -76,7 +77,12 @@ export function createAdminRoutes(
     async (_req: AuthedRequest, res: FastifyReply) => {
       const store = await getStore();
       const { value, source } = await readAdminPolicy(store);
-      res.send({ adminPolicy: value, source, activeAdmins: await activeAdminEmails(store) });
+      res.send({
+        adminPolicy: value,
+        source,
+        activeAdmins: await activeAdminEmails(store),
+        membersCanCreateWorkspaces: await membersCanCreate(store),
+      });
     }
   );
 
@@ -84,14 +90,29 @@ export function createAdminRoutes(
     '/policy',
     requirePermissions('admin.users'),
     async (req: AuthedRequest, res: FastifyReply) => {
-      const value = (req.body as { adminPolicy?: unknown } | undefined)?.adminPolicy;
-      if (!isAdminPolicyValue(value)) {
+      const body = (req.body ?? {}) as { adminPolicy?: unknown; membersCanCreateWorkspaces?: unknown };
+      const value = body.adminPolicy;
+      const create = body.membersCanCreateWorkspaces;
+      if ((value === undefined && create === undefined) || (value !== undefined && !isAdminPolicyValue(value))) {
         sendError(res, 'invalid_input', "adminPolicy must be 'one' or 'several'.");
         return;
       }
+      if (create !== undefined && typeof create !== 'boolean') {
+        sendError(res, 'invalid_input', 'membersCanCreateWorkspaces must be true or false.');
+        return;
+      }
       try {
-        await writeAdminPolicy(await getStore(), value);
-        res.send({ ok: true, adminPolicy: value });
+        const store = await getStore();
+        if (value !== undefined) await writeAdminPolicy(store, value);
+        if (create !== undefined) {
+          await store.upsert(
+            'app_settings',
+            ['key'],
+            { key: MEMBERS_CREATE_KEY, value: create ? 'on' : 'off', updated_at: new Date().toISOString() },
+            ['value', 'updated_at']
+          );
+        }
+        res.send({ ok: true });
       } catch (error: unknown) {
         refuse(res, error);
       }

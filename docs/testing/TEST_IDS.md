@@ -385,13 +385,7 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
   - `credentials-btn` · button · Credentials
   - `history-btn` · button · Applies
   - `home-open-btn` · button · Home
-  - `sync-pane-history-btn` · data · Snapshots
-  - `view-access-btn` · data
   - `view-settings-btn` · button · Preferences
-  - `view-sql-editor-btn` · data
-  - `view-sync-btn` · data
-  - `view-utilities-btn` · data · Utils
-  - `view-workflow-btn` · data
   - `workspace-switcher` · nav · Workspace
 - **BackendOfflineBanner** · `app/shell/BackendOfflineBanner.tsx`
   - `backend-offline-banner` · div
@@ -436,6 +430,13 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
   - `target-saved-select-trigger` · button in FilterPicker · Saved connections — search by name, host, database, user, or port
 - **ErrorBoundary** · `app/shell/ErrorBoundary.tsx`
   - `app-error-boundary-dismiss` · button · Dismiss
+- **featureRegistry** · `app/features/featureRegistry.ts`
+  - `sync-pane-history-btn` · data · Snapshots
+  - `view-access-btn` · data
+  - `view-sql-editor-btn` · data
+  - `view-sync-btn` · data
+  - `view-utilities-btn` · data · Utils
+  - `view-workflow-btn` · data
 - **HomeView** · `app/shell/HomeView.tsx`
   - `home-command-palette` · button · Search workspaces and recents ⌘K
   - `home-connection-{id}` · button

@@ -10,18 +10,9 @@ import { apiGetPreferences } from '@/shared/api/authApi';
 import { ToastHost } from '@/app/shell/ToastHost';
 import { AlertCircle, AlertTriangle, Loader2, X } from 'lucide-react';
 import { BackendOfflineBanner } from '@/app/shell/BackendOfflineBanner';
-import { HomeView } from '@/app/shell/HomeView';
 import { CommandPalette } from '@/app/shell/CommandPalette';
-import {
-  loadAccessView,
-  loadObjectDetailPanel,
-  loadSchemaTreePanel,
-  loadSettingsPanel,
-  loadSnapshotsView,
-  loadSqlEditorView,
-  loadUtilitiesView,
-  loadWorkflowView,
-} from '@/app/shell/viewLoaders';
+import { WORKSPACE_VIEWS, redirectFor } from '@/app/features/featureRegistry';
+import type { ActiveView } from '@/app/features/viewIds';
 
 // Only someone signed out or not yet onboarded sees these, so a signed-in
 // first page does not carry them.
@@ -36,32 +27,15 @@ const AccountBanners = lazy(() =>
   import('@/features/auth/components/AccountBanners').then((m) => ({ default: m.AccountBanners }))
 );
 
-// Every view loads when first shown (or when its rail button is hovered); the
-// first screen is Home. viewLoaders.ts says where each one comes from.
-const SchemaTreePanel = lazy(() => loadSchemaTreePanel().then((m) => ({ default: m.SchemaTreePanel })));
-const ObjectDetailPanel = lazy(() =>
-  loadObjectDetailPanel().then((m) => ({ default: m.ObjectDetailPanel }))
-);
-const AccessView = lazy(() =>
-  loadAccessView().then((m) => ({ default: m.AccessView }))
-);
-const SqlEditorView = lazy(() =>
-  loadSqlEditorView().then((m) => ({
-    default: m.SqlEditorView,
-  }))
-);
-const UtilitiesView = lazy(() =>
-  loadUtilitiesView().then((m) => ({ default: m.UtilitiesView }))
-);
-const LokeeWeaveView = lazy(() =>
-  loadSnapshotsView().then((m) => ({ default: m.LokeeWeaveView }))
-);
-const SettingsPanel = lazy(() =>
-  loadSettingsPanel().then((m) => ({ default: m.SettingsPanel }))
-);
-const WorkflowView = lazy(() =>
-  loadWorkflowView().then((m) => ({ default: m.WorkflowView }))
-);
+// Every view comes from the registry: shown directly (Home), or loaded when
+// first shown or when its rail button is reached. One lazy component per view,
+// made once, so switching back does not refetch.
+const VIEWS = Object.fromEntries(
+  (Object.entries(WORKSPACE_VIEWS) as [ActiveView, (typeof WORKSPACE_VIEWS)[ActiveView]][]).map(([id, def]) => [
+    id,
+    def.component ?? lazy(def.load!),
+  ])
+) as Record<ActiveView, React.ComponentType>;
 
 const Workspace: React.FC = () => {
   // Per-field selectors: Workspace parents the whole shell, so a whole-store
@@ -74,37 +48,16 @@ const Workspace: React.FC = () => {
   const accountReminder = useAuthStore(
     (s) => (s.launch && !!s.registration) || (!!s.emailVerification && !s.emailVerification.verified)
   );
-  const canEditorAccess = useAuthStore((s) => s.can('editor.access'));
-  const canSchemaBrowse = useAuthStore((s) => s.can('schema.browse'));
-  const canSchemaCompare = useAuthStore((s) => s.can('schema.compare'));
-  const canUtilityAccess = useAuthStore((s) => s.can('utility.access'));
+  const can = useAuthStore((s) => s.can);
+  // Subscribed so a change of permissions re-runs the redirect.
+  const permissions = useAuthStore((s) => s.user?.permissions);
+  const redirect = redirectFor(activeView, can);
 
   useEffect(() => {
-    if (activeView === 'sqlEditor' && !canEditorAccess) {
-      setActiveView(canSchemaBrowse || canSchemaCompare ? 'sync' : 'home');
-    }
-    if (activeView === 'utilities' && !canUtilityAccess) {
-      setActiveView('home');
-    }
-    if (activeView === 'snapshots' && !canSchemaBrowse) {
-      setActiveView('home');
-    }
-    if (
-      activeView === 'sync' &&
-      !canSchemaBrowse &&
-      !canSchemaCompare &&
-      canEditorAccess
-    ) {
-      setActiveView('sqlEditor');
-    }
-  }, [
-    activeView,
-    canEditorAccess,
-    canSchemaBrowse,
-    canSchemaCompare,
-    canUtilityAccess,
-    setActiveView,
-  ]);
+    if (redirect) setActiveView(redirect);
+  }, [redirect, permissions, setActiveView]);
+
+  const View = VIEWS[activeView];
 
   return (
     <div className="h-screen flex bg-slate-950 text-slate-100 antialiased overflow-hidden">
@@ -149,55 +102,14 @@ const Workspace: React.FC = () => {
       )}
 
       <main className="flex-1 flex min-h-0 overflow-hidden">
-        {activeView === 'home' ? (
-          <HomeView />
-        ) : activeView === 'settings' ? (
-          <ErrorBoundary>
-            <Suspense fallback={<LoadingScreen />}>
-              <SettingsPanel embedded />
-            </Suspense>
-          </ErrorBoundary>
-        ) : activeView === 'access' ? (
-          <ErrorBoundary>
-            <Suspense fallback={<LoadingScreen />}>
-              <AccessView />
-            </Suspense>
-          </ErrorBoundary>
-        ) : activeView === 'workflow' ? (
-          <ErrorBoundary>
-            <Suspense fallback={<LoadingScreen />}>
-              <WorkflowView />
-            </Suspense>
-          </ErrorBoundary>
-        ) : activeView === 'sqlEditor' ? (
-          <ErrorBoundary>
-            <Suspense fallback={<LoadingScreen />}>
-              <SqlEditorView />
-            </Suspense>
-          </ErrorBoundary>
-        ) : activeView === 'utilities' && canUtilityAccess ? (
-          <ErrorBoundary>
-            <Suspense fallback={<LoadingScreen />}>
-              <UtilitiesView />
-            </Suspense>
-          </ErrorBoundary>
-        ) : activeView === 'snapshots' && canSchemaBrowse ? (
-          <ErrorBoundary>
-            <Suspense fallback={<LoadingScreen />}>
-              <div className="flex flex-1 min-h-0 overflow-hidden">
-                <LokeeWeaveView embedded />
-              </div>
-            </Suspense>
-          </ErrorBoundary>
+        {redirect ? null : WORKSPACE_VIEWS[activeView].component ? (
+          <View />
         ) : (
-          <Suspense fallback={<LoadingScreen />}>
-            <ErrorBoundary>
-              <SchemaTreePanel />
-            </ErrorBoundary>
-            <ErrorBoundary>
-              <ObjectDetailPanel />
-            </ErrorBoundary>
-          </Suspense>
+          <ErrorBoundary key={activeView}>
+            <Suspense fallback={<LoadingScreen />}>
+              <View />
+            </Suspense>
+          </ErrorBoundary>
         )}
       </main>
       <ToastHost />

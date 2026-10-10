@@ -33,14 +33,19 @@ export const TYPESCRIPT_PATH = 'apps/e2e/src/generated/test-ids.ts';
 /** Controls a person clicks or types into: each should carry a test ID. */
 const CONTROLS = new Set(['button', 'input', 'textarea', 'select']);
 
-/** Every component file under the web app, tests left out, in a stable order. */
+/**
+ * Every component file under the web app, tests left out, in a stable order —
+ * plus the view registry (`app/features/*.ts`), which holds the rail's test IDs
+ * as data.
+ */
 function componentFiles(root) {
   const out = [];
   const walk = (dir) => {
     for (const entry of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) {
       const rel = path.posix.join(dir, entry.name);
       if (entry.isDirectory()) walk(rel);
-      else if (entry.name.endsWith('.tsx') && !entry.name.includes('.test.')) out.push(rel);
+      else if (entry.name.includes('.test.')) continue;
+      else if (entry.name.endsWith('.tsx') || (dir.endsWith('/app/features') && entry.name.endsWith('.ts'))) out.push(rel);
     }
   };
   walk(WEB_ROOT);
@@ -307,10 +312,11 @@ export function collectTestIds(root = REPO_ROOT) {
   const passes = [];
   const aliases = new Map();
   for (const file of componentFiles(root)) {
-    const source = ts.createSourceFile(file, fs.readFileSync(path.join(root, file), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const kind = file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+    const source = ts.createSourceFile(file, fs.readFileSync(path.join(root, file), 'utf8'), ts.ScriptTarget.Latest, true, kind);
     const labels = labelsOf(source);
     const decls = declarationsOf(source);
-    const component = path.basename(file, '.tsx');
+    const component = path.basename(file).replace(/\.tsx?$/, '');
     const rel = file.slice(WEB_ROOT.length + 1);
     const at = (node) => ({ area: areaOf(file), component, file: rel, line: source.getLineAndCharacterOfPosition(node.getStart()).line + 1 });
     const visit = (node) => {

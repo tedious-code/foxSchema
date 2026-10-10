@@ -3,30 +3,20 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * Left activity rail: one workspace at a time. Top-level labels and RBAC come
- * from COMMUNITY_NAV in `@foxschema/shared` so the shell and permission catalog
- * stay aligned. Credentials, Applies, and the account menu live here so the
- * Compare toolbar keeps horizontal room.
+ * Left activity rail: one workspace at a time. Its main buttons come from the
+ * view registry (`app/features/featureRegistry.ts`), whose labels and RBAC
+ * come from COMMUNITY_NAV in `@foxschema/shared`, so the shell and the
+ * permission catalog stay aligned. Credentials, Applies, and the account menu
+ * live here so the Compare toolbar keeps horizontal room.
  */
-import React, { lazy, useMemo, useState } from 'react';
-import {
-  Camera,
-  GitCompareArrows,
-  History,
-  KeyRound,
-  Settings,
-  ShieldCheck,
-  Terminal,
-  Workflow,
-  Wrench,
-} from 'lucide-react';
-import { COMMUNITY_NAV, filterNav, type Permission } from '@foxschema/shared';
+import React, { lazy, useState } from 'react';
+import { History, KeyRound, Settings } from 'lucide-react';
 import { useAuthStore } from '@/app/store/authStore';
-import { useUiStore, type ActiveView } from '@/app/store/uiStore';
+import { useUiStore } from '@/app/store/uiStore';
+import { prefetchView, railItems } from '@/app/features/featureRegistry';
 import { MountWhenOpened } from '@/shared/components/MountWhenOpened';
 import { FoxLogo } from './FoxLogo';
 import { ProfileMenu } from './ProfileMenu';
-import { prefetchView } from './viewLoaders';
 
 // Opened from the rail on a click: loaded on the first open.
 const CredentialManager = lazy(() =>
@@ -36,31 +26,6 @@ const MigrationHistory = lazy(() =>
   import('@/features/migrations/components/MigrationHistory').then((m) => ({ default: m.MigrationHistory }))
 );
 
-/** Maps COMMUNITY_NAV top-level ids onto shell ActiveView values. */
-const NAV_TO_VIEW: Record<string, ActiveView> = {
-  compare: 'sync',
-  editor: 'sqlEditor',
-  access: 'access',
-  workflow: 'workflow',
-};
-
-const NAV_ICONS: Record<string, React.ElementType> = {
-  compare: GitCompareArrows,
-  editor: Terminal,
-  access: ShieldCheck,
-  workflow: Workflow,
-};
-
-const NAV_TEST_IDS: Record<string, string> = {
-  compare: 'view-sync-btn',
-  editor: 'view-sql-editor-btn',
-  access: 'view-access-btn',
-  workflow: 'view-workflow-btn',
-};
-
-/** Rail order: Compare · Editor · Utils · Access · Workflow · Snapshots. */
-const RAIL_ORDER = ['compare', 'editor', 'utilities', 'access', 'workflow', 'snapshots'] as const;
-
 export function ActivityRail(): React.ReactElement | null {
   const activeView = useUiStore((s) => s.activeView);
   const setActiveView = useUiStore((s) => s.setActiveView);
@@ -68,49 +33,10 @@ export function ActivityRail(): React.ReactElement | null {
   const [showCredentials, setShowCredentials] = useState(false);
   const [showApplies, setShowApplies] = useState(false);
 
-  const visible = useMemo(() => {
-    const allowed = (permission: Permission) => can(permission);
-    const nav = filterNav(COMMUNITY_NAV, allowed, { workflow: true });
-    const byId = new Map(nav.map((item) => [item.id, item]));
-
-    const items: {
-      view: ActiveView;
-      testId: string;
-      label: string;
-      icon: React.ElementType;
-    }[] = [];
-
-    for (const id of RAIL_ORDER) {
-      if (id === 'utilities') {
-        if (!can('utility.access')) continue;
-        items.push({
-          view: 'utilities',
-          testId: 'view-utilities-btn',
-          label: 'Utils',
-          icon: Wrench,
-        });
-        continue;
-      }
-      if (id === 'snapshots') {
-        if (!can('compare.history') && !can('schema.browse')) continue;
-        items.push({
-          view: 'snapshots',
-          testId: 'sync-pane-history-btn',
-          label: 'Snapshots',
-          icon: Camera,
-        });
-        continue;
-      }
-      const navItem = byId.get(id);
-      if (!navItem) continue;
-      const view = NAV_TO_VIEW[id];
-      const icon = NAV_ICONS[id];
-      const testId = NAV_TEST_IDS[id];
-      if (!view || !icon || !testId) continue;
-      items.push({ view, testId, label: navItem.label, icon });
-    }
-    return items;
-  }, [can]);
+  // Subscribed so the rail re-renders when permissions change: `can` itself is
+  // a stable function. railItems is a few lookups; no memo needed.
+  useAuthStore((s) => s.user?.permissions);
+  const visible = railItems(can);
 
   return (
     <>

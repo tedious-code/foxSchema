@@ -48,6 +48,8 @@ const TRACKED_DOCS = [
   'docs/BACKEND_ARCHITECTURE.md',
   'docs/DEPLOYMENT.md',
   'docs/DEPENDENCY_POLICY.md',
+  'docs/architecture/FEATURE-MODULE-GUIDE.md',
+  'docs/architecture/FEATURE-DEPENDENCY-RULES.md',
 ];
 
 /**

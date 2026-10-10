@@ -1,6 +1,6 @@
 {
   "name": "@foxschema/cli",
-  "version": "0.2.307",
+  "version": "0.2.308",
   "private": true,
   "type": "module",
   "description": "Fox Schema CLI — schema diff, migrations, and a rich SQL Editor (TypeScript / Node ESM)",

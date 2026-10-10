@@ -41,6 +41,8 @@ export interface WorkspaceListItem {
   id: string;
   name: string;
   visibility: 'private' | 'public';
+  /** The role someone gets by joining a public workspace. */
+  joinRole: WorkspaceRole;
   personal: boolean;
   role: WorkspaceRole;
   memberCount: number;
@@ -136,11 +138,12 @@ export class WorkspaceDirectory {
       id: string;
       name: string;
       visibility: string;
+      join_role: string;
       personal_owner_id: string | null;
       role: string;
       member_count: number;
     }>(
-      `SELECT w.id, w.name, w.visibility, w.personal_owner_id, m.role,
+      `SELECT w.id, w.name, w.visibility, w.join_role, w.personal_owner_id, m.role,
               (SELECT COUNT(*) FROM workspace_members x WHERE x.workspace_id = w.id) AS member_count
          FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id
         WHERE m.user_id = ? AND w.archived_at IS NULL
@@ -153,6 +156,7 @@ export class WorkspaceDirectory {
         id: r.id,
         name: r.name,
         visibility: r.visibility === 'public' ? 'public' : 'private',
+        joinRole: isWorkspaceRole(r.join_role) ? r.join_role : 'viewer',
         personal: r.personal_owner_id === userId,
         role: r.role as WorkspaceRole,
         memberCount: Number(r.member_count),
@@ -175,7 +179,7 @@ export class WorkspaceDirectory {
       'INSERT INTO workspace_members (workspace_id, user_id, role, added_by, created_at) VALUES (?, ?, ?, ?, ?)',
       [id, actor.userId, 'owner', actor.userId, now]
     );
-    return { id, name, visibility: 'private', personal: false, role: 'owner', memberCount: 1 };
+    return { id, name, visibility: 'private', joinRole: 'viewer', personal: false, role: 'owner', memberCount: 1 };
   }
 
   /** Make `workspaceId` the one this account's requests act in. */
@@ -192,9 +196,88 @@ export class WorkspaceDirectory {
   }
 
   async rename(actor: WorkspaceActor, workspaceId: string, rawName: unknown): Promise<void> {
+    await this.updateSettings(actor, workspaceId, { name: rawName });
+  }
+
+  /**
+   * Name, visibility and join role, each optional. A personal workspace stays
+   * private: making it public would list one account's own connections to all.
+   * Public → private keeps its members and hides it from everyone else.
+   */
+  async updateSettings(
+    actor: WorkspaceActor,
+    workspaceId: string,
+    input: { name?: unknown; visibility?: unknown; joinRole?: unknown }
+  ): Promise<void> {
     const store = await getStore();
-    await this.require(store, actor, workspaceId, 'workspace.settings');
-    await store.run('UPDATE workspaces SET name = ? WHERE id = ?', [cleanName(rawName), workspaceId]);
+    const ws = await this.require(store, actor, workspaceId, 'workspace.settings');
+    const sets: string[] = [];
+    const params: string[] = [];
+    if (input.name !== undefined) {
+      sets.push('name = ?');
+      params.push(cleanName(input.name));
+    }
+    if (input.visibility !== undefined) {
+      if (input.visibility !== 'private' && input.visibility !== 'public') {
+        throw new ServiceError('invalid_input', "visibility must be 'private' or 'public'.");
+      }
+      if (input.visibility === 'public' && ws.personal_owner_id) {
+        throw new ServiceError('conflict', 'A personal workspace stays private.');
+      }
+      sets.push('visibility = ?');
+      params.push(input.visibility);
+    }
+    if (input.joinRole !== undefined) {
+      // Never owner: anyone signed in can join a public workspace, and an
+      // owner could remove the real owners and archive it.
+      if (input.joinRole !== 'viewer' && input.joinRole !== 'editor') {
+        throw new ServiceError('invalid_input', 'joinRole must be viewer or editor.');
+      }
+      sets.push('join_role = ?');
+      params.push(input.joinRole);
+    }
+    if (sets.length === 0) throw new ServiceError('invalid_input', 'Nothing to change.');
+    await store.run(`UPDATE workspaces SET ${sets.join(', ')} WHERE id = ?`, [...params, workspaceId]);
+  }
+
+  /** Public workspaces the account is not in yet: what anyone signed in may join. */
+  async discover(userId: string): Promise<Array<{ id: string; name: string; joinRole: WorkspaceRole; memberCount: number }>> {
+    const store = await getStore();
+    const rows = await store.all<{ id: string; name: string; join_role: string; member_count: number }>(
+      `SELECT w.id, w.name, w.join_role,
+              (SELECT COUNT(*) FROM workspace_members x WHERE x.workspace_id = w.id) AS member_count
+         FROM workspaces w
+        WHERE w.visibility = 'public' AND w.archived_at IS NULL AND w.personal_owner_id IS NULL
+          AND NOT EXISTS (SELECT 1 FROM workspace_members m WHERE m.workspace_id = w.id AND m.user_id = ?)
+        ORDER BY w.name`,
+      [userId]
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      joinRole: isWorkspaceRole(r.join_role) ? r.join_role : 'viewer',
+      memberCount: Number(r.member_count),
+    }));
+  }
+
+  /** Join a public workspace with its join role. A private one answers not found. */
+  async join(userId: string, workspaceId: string): Promise<WorkspaceRole> {
+    const store = await getStore();
+    const ws = await store.get<{ visibility: string; join_role: string; personal_owner_id: string | null; archived_at: string | null }>(
+      'SELECT visibility, join_role, personal_owner_id, archived_at FROM workspaces WHERE id = ?',
+      [workspaceId]
+    );
+    if (!ws || ws.archived_at || ws.visibility !== 'public' || ws.personal_owner_id) {
+      throw new ServiceError('not_found', 'Workspace not found');
+    }
+    const existing = await this.roleIn(store, workspaceId, userId);
+    if (existing) return existing;
+    const role: WorkspaceRole = isWorkspaceRole(ws.join_role) ? ws.join_role : 'viewer';
+    await store.run(
+      'INSERT INTO workspace_members (workspace_id, user_id, role, added_by, created_at) VALUES (?, ?, ?, ?, ?)',
+      [workspaceId, userId, role, userId, new Date().toISOString()]
+    );
+    return role;
   }
 
   /** Archive: hidden from everyone, its rows kept. A personal workspace cannot be. */

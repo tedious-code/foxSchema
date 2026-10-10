@@ -210,3 +210,59 @@ describe('admins and private workspaces (D6)', () => {
     expect((await dir.listAll(actor(admin), true)).find((w) => w.id === other)?.archived).toBe(true);
   });
 });
+
+describe('public and private workspaces (D2)', () => {
+  let pubId: string;
+  let walker: AuthUser;
+
+  beforeAll(async () => {
+    pubId = (await dir.create(actor(admin), 'Open data')).id;
+    walker = await auth.createUser('d2-walker@example.com', 'correct-horse-9', 'editor');
+  });
+
+  it('a private workspace is not listed to outsiders and cannot be joined', async () => {
+    expect((await dir.discover(walker.id)).some((w) => w.id === pubId)).toBe(false);
+    await expect(dir.join(walker.id, pubId)).rejects.toMatchObject({ code: 'not_found' });
+  });
+
+  it('a public one is listed to everyone signed in, and joining gives its join role', async () => {
+    await dir.updateSettings(actor(admin), pubId, { visibility: 'public', joinRole: 'editor' });
+    const listed = (await dir.discover(walker.id)).find((w) => w.id === pubId);
+    expect(listed).toMatchObject({ name: 'Open data', joinRole: 'editor', memberCount: 1 });
+    expect(await dir.join(walker.id, pubId)).toBe('editor');
+    expect((await dir.listMine(walker.id)).find((w) => w.id === pubId)?.role).toBe('editor');
+    // Joined: no longer offered, and joining again changes nothing.
+    expect((await dir.discover(walker.id)).some((w) => w.id === pubId)).toBe(false);
+    expect(await dir.join(walker.id, pubId)).toBe('editor');
+  });
+
+  it('going private again keeps members and hides it from everyone else', async () => {
+    await dir.updateSettings(actor(admin), pubId, { visibility: 'private' });
+    expect((await dir.listMine(walker.id)).some((w) => w.id === pubId)).toBe(true);
+    const outsider = await auth.createUser('d2-outsider@example.com', 'correct-horse-9', 'viewer');
+    expect((await dir.discover(outsider.id)).some((w) => w.id === pubId)).toBe(false);
+    await expect(dir.join(outsider.id, pubId)).rejects.toMatchObject({ code: 'not_found' });
+  });
+
+  it('a personal workspace stays private', async () => {
+    const own = (await dir.listMine(admin.id)).find((w) => w.personal)!.id;
+    await expect(dir.updateSettings(actor(admin), own, { visibility: 'public' })).rejects.toMatchObject({ code: 'conflict' });
+  });
+
+  it('only those with workspace settings change it, and values are checked', async () => {
+    await expect(dir.updateSettings(actor(walker), pubId, { visibility: 'public' })).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(dir.updateSettings(actor(admin), pubId, { visibility: 'open' })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(dir.updateSettings(actor(admin), pubId, { joinRole: 'admin' })).rejects.toMatchObject({ code: 'invalid_input' });
+    // Never owner: a stranger joining could otherwise remove the owners and archive it.
+    await expect(dir.updateSettings(actor(admin), pubId, { joinRole: 'owner' })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(dir.updateSettings(actor(admin), pubId, {})).rejects.toMatchObject({ code: 'invalid_input' });
+  });
+
+  it('an archived public workspace is neither listed nor joinable', async () => {
+    const gone = (await dir.create(actor(admin), 'Gone public')).id;
+    await dir.updateSettings(actor(admin), gone, { visibility: 'public' });
+    await dir.archive(actor(admin), gone);
+    expect((await dir.discover(walker.id)).some((w) => w.id === gone)).toBe(false);
+    await expect(dir.join(walker.id, gone)).rejects.toMatchObject({ code: 'not_found' });
+  });
+});

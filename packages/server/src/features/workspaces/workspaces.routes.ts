@@ -55,6 +55,19 @@ export function createWorkspaceRoutes(
     }
   });
 
+  /** Public workspaces the caller can join. */
+  router.get('/discover', async (req: AuthedRequest, res: FastifyReply) => {
+    res.send({ workspaces: await directory.discover(req.userId!) });
+  });
+
+  router.post('/:id/join', async (req: AuthedRequest, res: FastifyReply) => {
+    try {
+      res.send({ role: await directory.join(req.userId!, id(req)) });
+    } catch (error) {
+      fail(res, error);
+    }
+  });
+
   /** Every workspace, for an admin (`?archived=1` includes archived ones). */
   router.get('/all', async (req: AuthedRequest, res: FastifyReply) => {
     try {
@@ -95,7 +108,8 @@ export function createWorkspaceRoutes(
 
   router.patch('/:id', async (req: AuthedRequest, res: FastifyReply) => {
     try {
-      await directory.rename(actorOf(req), id(req), (req.body as { name?: unknown } | undefined)?.name);
+      const body = (req.body ?? {}) as { name?: unknown; visibility?: unknown; joinRole?: unknown };
+      await directory.updateSettings(actorOf(req), id(req), body);
       res.send({ ok: true });
     } catch (error) {
       fail(res, error);

@@ -15,6 +15,8 @@ export interface WorkspaceItem {
   id: string;
   name: string;
   visibility: 'private' | 'public';
+  /** The role someone gets by joining it while it is public. */
+  joinRole: WorkspaceRole;
   personal: boolean;
   role: WorkspaceRole;
   memberCount: number;
@@ -49,6 +51,29 @@ export async function apiSelectWorkspace(id: string): Promise<void> {
 
 export async function apiRenameWorkspace(id: string, name: string): Promise<void> {
   await api.patch(`/workspaces/${enc(id)}`, { name });
+}
+
+export async function apiUpdateWorkspace(
+  id: string,
+  settings: { visibility?: 'private' | 'public'; joinRole?: WorkspaceRole }
+): Promise<void> {
+  await api.patch(`/workspaces/${enc(id)}`, settings);
+}
+
+export interface PublicWorkspace {
+  id: string;
+  name: string;
+  joinRole: WorkspaceRole;
+  memberCount: number;
+}
+
+/** Public workspaces this account is not in yet. */
+export async function apiDiscoverWorkspaces(): Promise<PublicWorkspace[]> {
+  return (await api.get<{ workspaces: PublicWorkspace[] }>('/workspaces/discover')).workspaces;
+}
+
+export async function apiJoinWorkspace(id: string): Promise<WorkspaceRole> {
+  return (await api.post<{ role: WorkspaceRole }>(`/workspaces/${enc(id)}/join`, {})).role;
 }
 
 export async function apiArchiveWorkspace(id: string): Promise<void> {

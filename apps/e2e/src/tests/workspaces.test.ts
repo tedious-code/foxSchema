@@ -27,6 +27,8 @@ const GUEST_PASSWORD = `guest-${randomBytes(8).toString('hex')}`;
 let guestId = '';
 let sharedConnectionId = '';
 let guestCookie = '';
+const WALKER_EMAIL = `e2e-wswalker-${RUN}@foxschema.test`;
+let walkerId = '';
 
 async function api(method: string, path: string, body?: unknown, cookie = admin) {
   const res = await fetch(`${API_URL}/api${path}`, {
@@ -57,6 +59,7 @@ afterAll(async () => {
   if (driver) await quitDriver(driver);
   for (const page of pages) await quitDriver(page);
   if (guestId) await api('PUT', `/admin/users/${guestId}/active`, { active: false });
+  if (walkerId) await api('PUT', `/admin/users/${walkerId}/active`, { active: false });
   await api('POST', `/workspaces/${personalId}/select`, {});
   for (const id of created) await api('POST', `/workspaces/${id}/archive`, {});
 });
@@ -192,6 +195,57 @@ describe('workspaces', () => {
     // Leave again; the guest's workspace is the guest's.
     const adminId = members.find((m: { email: string }) => m.email === 'e2e-admin@foxschema.test').userId;
     expect((await api('DELETE', `/workspaces/${guestWs.id}/members/${adminId}`, {})).status).toBe(200);
+  });
+
+  it('a public workspace is found and joined by anyone signed in, with its join role', async () => {
+    const teamId = created[0]!;
+    // The owner makes it public in its settings.
+    await api('POST', `/workspaces/${teamId}/select`, {});
+    await openMenu();
+    await clickWhen(driver, byTestId('workspace-menu-settings'));
+    driver.once('dialog', (d) => void d.accept());
+    await driver.selectOption(byTestId('workspace-settings-visibility-select'), 'public');
+    await waitFor(driver, byTestId('workspace-settings-join-role'), 10_000);
+    expect(await driver.locator(byTestId('workspace-settings-join-role')).inputValue()).toBe('viewer');
+    await saveScreenshot(driver, 'workspaces-public-settings');
+    await api('POST', `/workspaces/${personalId}/select`, {});
+
+    const password = `walk-${randomBytes(8).toString('hex')}`;
+    const added = await api('POST', '/admin/users', { email: WALKER_EMAIL, password, role: 'editor' });
+    expect(added.status, JSON.stringify(added.json)).toBe(200);
+    walkerId = added.json.user.id;
+    const login = await fetch(`${API_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: WALKER_EMAIL, password }),
+    });
+    const walkerCookie = (login.headers.get('set-cookie') ?? '').split(';')[0]!;
+
+    const walker = await buildDriver({ signedIn: false });
+    pages.push(walker);
+    const [name, ...rest] = walkerCookie.split('=');
+    await walker.context().addCookies([{ name: name!, value: rest.join('='), url: BASE_URL }]);
+    await walker.goto(BASE_URL);
+    await walker.waitForSelector(`${byTestId('onboarding-skip')}, ${byTestId('profile-menu-trigger')}`, { timeout: 30_000 });
+    const skip = walker.locator(byTestId('onboarding-skip'));
+    if (await skip.count()) await skip.click();
+    await clickWhen(walker, byTestId('profile-menu-trigger'));
+    await clickWhen(walker, byTestId('workspace-menu-browse'));
+    await waitFor(walker, byTestId(`workspace-menu-public-${teamId}`), 10_000);
+    await saveScreenshot(walker, 'workspaces-public-browse');
+    await Promise.all([walker.waitForEvent('load'), clickWhen(walker, byTestId(`workspace-menu-public-join-${teamId}`))]);
+
+    const me = await api('GET', '/auth/me', undefined, walkerCookie);
+    expect(me.json.workspace).toMatchObject({ id: teamId, role: 'viewer' });
+    // An editor account, but a viewer here: it reads the shared connection and cannot change schema.
+    expect(me.json.user.permissions).not.toContain('editor.ddl');
+    const conns = (await api('GET', '/connections', undefined, walkerCookie)).json.connections.map((c: { id: string }) => c.id);
+    expect(conns).toContain(sharedConnectionId);
+
+    // Back to private: the walker stays, nobody else finds it.
+    expect((await api('PATCH', `/workspaces/${teamId}`, { visibility: 'private' })).status).toBe(200);
+    expect((await api('GET', '/workspaces', undefined, walkerCookie)).json.workspaces.some((w: { id: string }) => w.id === teamId)).toBe(true);
+    expect((await api('GET', '/workspaces/discover', undefined, guestCookie)).json.workspaces.some((w: { id: string }) => w.id === teamId)).toBe(false);
   });
 });
 

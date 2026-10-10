@@ -37,6 +37,38 @@ export function activeAdminCount(users: readonly AdminUserLike[]): number {
 
 export type ControlLock = { disabled: boolean; reason?: string };
 
+export type AdminPolicyValue = 'one' | 'several';
+
+/**
+ * Whether the one-admin policy keeps `user` from becoming an admin: another
+ * account already is. `null` (a new account) counts every active admin.
+ */
+export function adminSlotTaken(
+  user: AdminUserLike | null,
+  opts: { policy: AdminPolicyValue | null; users: readonly AdminUserLike[] }
+): boolean {
+  if (opts.policy !== 'one') return false;
+  return opts.users.some((u) => isActiveAdmin(u) && u.id !== user?.id);
+}
+
+/**
+ * Who the signed-in admin may hand the admin role to: an active account
+ * that is not an admin. Offered only under the one-admin policy, where it is
+ * the only way the role changes hands.
+ */
+export function canTransferAdminTo(
+  user: AdminUserLike,
+  opts: { policy: AdminPolicyValue | null; meId?: string; meRole?: AppRole }
+): boolean {
+  return (
+    opts.policy === 'one' &&
+    opts.meRole === 'admin' &&
+    user.id !== opts.meId &&
+    user.role !== 'admin' &&
+    user.active !== false
+  );
+}
+
 export function userRoleSelectLock(
   user: AdminUserLike,
   opts: { busy?: boolean; users: readonly AdminUserLike[] }
@@ -54,9 +86,13 @@ export function userActiveCheckboxLock(
     busy?: boolean;
     meId?: string;
     users: readonly AdminUserLike[];
+    policy?: AdminPolicyValue | null;
   }
 ): ControlLock {
   if (opts.busy) return { disabled: true };
+  if (user.role === 'admin' && user.active === false && adminSlotTaken(user, { policy: opts.policy ?? null, users: opts.users })) {
+    return { disabled: true, reason: 'This install allows one admin. Reactivating this admin would make a second one.' };
+  }
   if (user.id === opts.meId) {
     return { disabled: true, reason: 'You cannot deactivate your own account' };
   }

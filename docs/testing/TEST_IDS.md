@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **955** buttons, text boxes, selects and textareas.
+Every control has a test ID: **957** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -305,6 +305,9 @@ Every control has a test ID: **955** buttons, text boxes, selects and textareas.
   - `admin-perm-count-{group}` · span
   - `admin-perm-expand-all` · button · Expand all
   - `admin-perm-group-{group}` · button · /
+  - `admin-policy` · div
+  - `admin-policy-{value}` · button
+  - `admin-policy-hint` · span
   - `admin-roles-hint` · p
   - `admin-save-password` · button · Save password
   - `admin-save-role-perms` · button · Save permissions
@@ -314,6 +317,7 @@ Every control has a test ID: **955** buttons, text boxes, selects and textareas.
   - `admin-tab-sign-in` · button · Sign-in
   - `admin-tab-users` · button · App users
   - `admin-tab-users-roles` · button · Users and Roles
+  - `admin-transfer-admin-{id}` · button · Hand the admin role to this account. You become an owner.
   - `admin-unsaved` · span
   - `admin-user-expand-{id}` · button
   - `admin-user-group-{role}` · section
@@ -326,6 +330,7 @@ Every control has a test ID: **955** buttons, text boxes, selects and textareas.
   - `admin-user-role-{id}` · select
   - `admin-user-row-{id}` · li
   - `admin-users-roles-panel` · div
+  - `admin-users-status` · p
 - **IssuedCodeNotice** · `features/admin/components/IssuedCodeNotice.tsx`
   - `admin-issued-code` · div
   - `admin-issued-code-copy` · button

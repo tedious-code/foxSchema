@@ -101,6 +101,11 @@ const ALWAYS = [
     label: 'Sign-in: invite, forgot password, reset',
   },
   {
+    key: 'admin-policy',
+    file: 'src/tests/admin-policy.test.ts',
+    label: 'One admin or several',
+  },
+  {
     key: 'sql-editor',
     file: [
       'src/tests/sql-editor-smoke.test.ts',

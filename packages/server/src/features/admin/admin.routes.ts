@@ -18,6 +18,14 @@ import { APP_ROLES, PERMISSION_META, isAppRole } from '@foxschema/shared';
 import type { AuthedRequest } from '../auth/auth.routes';
 import { requirePermissions } from '../authorization/rbac.guard';
 import { sendError } from '../../platform/http/respond';
+import { getStore } from '../../database/store';
+import {
+  AdminPolicyError,
+  activeAdminEmails,
+  isAdminPolicyValue,
+  readAdminPolicy,
+  writeAdminPolicy,
+} from '../authorization/admin-policy.service';
 
 export function createAdminRoutes(
   rbac = new RbacModule(),
@@ -52,6 +60,43 @@ export function createAdminRoutes(
 
   const adminEmail = async (req: AuthedRequest) =>
     (await rbac.listUsers()).find((u) => u.id === req.userId)?.email;
+
+  /** A refused change: 409 when the admin policy said no, else `fallback`. */
+  const refuse = (res: FastifyReply, error: unknown, fallback: 'invalid_input' | 'not_found' = 'invalid_input') => {
+    const msg = error instanceof Error ? error.message : 'Update failed';
+    if (error instanceof AdminPolicyError) sendError(res, 'conflict', msg);
+    else if (msg.includes('not found')) sendError(res, 'not_found', msg);
+    else sendError(res, fallback, msg);
+  };
+
+  /** One admin or several: what the install allows, and who the admins are. */
+  router.get(
+    '/policy',
+    requirePermissions('admin.users'),
+    async (_req: AuthedRequest, res: FastifyReply) => {
+      const store = await getStore();
+      const { value, source } = await readAdminPolicy(store);
+      res.send({ adminPolicy: value, source, activeAdmins: await activeAdminEmails(store) });
+    }
+  );
+
+  router.put(
+    '/policy',
+    requirePermissions('admin.users'),
+    async (req: AuthedRequest, res: FastifyReply) => {
+      const value = (req.body as { adminPolicy?: unknown } | undefined)?.adminPolicy;
+      if (!isAdminPolicyValue(value)) {
+        sendError(res, 'invalid_input', "adminPolicy must be 'one' or 'several'.");
+        return;
+      }
+      try {
+        await writeAdminPolicy(await getStore(), value);
+        res.send({ ok: true, adminPolicy: value });
+      } catch (error: unknown) {
+        refuse(res, error);
+      }
+    }
+  );
 
   router.get(
     '/users',
@@ -95,7 +140,7 @@ export function createAdminRoutes(
         res.send({ user, invite: await deliverCode('invite', invite, await adminEmail(req)) });
       } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : 'Could not add the account';
-        sendError(res, msg.includes('already exists') ? 'conflict' : 'invalid_input', msg);
+        sendError(res, msg.includes('already exists') || error instanceof AdminPolicyError ? 'conflict' : 'invalid_input', msg);
       }
     }
   );
@@ -130,8 +175,7 @@ export function createAdminRoutes(
         await rbac.setUserRole(userId, role);
         res.send({ ok: true, userId, role });
       } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : 'User not found';
-        sendError(res, msg.includes('not found') ? 'not_found' : 'invalid_input', msg);
+        refuse(res, error);
       }
     }
   );
@@ -158,8 +202,34 @@ export function createAdminRoutes(
         await rbac.setUserActive(userId, active);
         res.send({ ok: true, userId, active });
       } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : 'Update failed';
-        sendError(res, msg.includes('not found') ? 'not_found' : 'invalid_input', msg);
+        refuse(res, error);
+      }
+    }
+  );
+
+  /**
+   * Hand the admin role to another account. The caller must be the admin
+   * handing it over, and takes `demoteTo` (default owner) in the same step.
+   */
+  router.post(
+    '/users/:id/transfer-admin',
+    requirePermissions('admin.users'),
+    async (req: AuthedRequest, res: FastifyReply) => {
+      if (req.appRole !== 'admin') {
+        sendError(res, 'forbidden', 'Only an admin can hand the admin role over.');
+        return;
+      }
+      const toUserId = String(req.params.id ?? '');
+      const demoteTo = (req.body as { demoteTo?: unknown } | undefined)?.demoteTo ?? 'owner';
+      if (!isAppRole(demoteTo) || demoteTo === 'admin') {
+        sendError(res, 'invalid_input', 'demoteTo must be viewer, editor or owner.');
+        return;
+      }
+      try {
+        await rbac.transferAdmin(req.userId ?? '', toUserId, demoteTo);
+        res.send({ ok: true, adminUserId: toUserId, previousAdminRole: demoteTo });
+      } catch (error: unknown) {
+        refuse(res, error);
       }
     }
   );

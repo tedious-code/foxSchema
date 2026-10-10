@@ -11,13 +11,18 @@ import { ChevronDown, ChevronRight, GitBranch, KeyRound, Loader2, LogIn, Mail, S
 import { passwordProblem } from '@foxschema/shared';
 import {
   apiAdminCreateUser,
+  apiAdminGetPolicy,
   apiAdminIssueCode,
   apiAdminListUsers,
   apiAdminRolePermissions,
   apiAdminSetRolePermissions,
   apiAdminSetUserActive,
   apiAdminSetUserPassword,
+  apiAdminSetPolicy,
   apiAdminSetUserRole,
+  apiAdminTransferAdmin,
+  type AdminPolicySettings,
+  type AdminPolicyValue,
   type CodePurpose,
   type IssuedCode,
 } from '@/shared/api/authApi';
@@ -25,6 +30,8 @@ import { IssuedCodeNotice } from './IssuedCodeNotice';
 import { SignInSettingsPanel } from './SignInSettingsPanel';
 import { GitReposAdmin } from '@/features/git';
 import {
+  adminSlotTaken,
+  canTransferAdminTo,
   groupPermissionsForDisplay,
   groupUsersByRole,
   permissionSetEqual,
@@ -71,6 +78,8 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
   const [error, setError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const [users, setUsers] = useState<AdminUserRow[]>([]);
+  /** One admin or several; null until loaded (or without Manage users). */
+  const [policy, setPolicy] = useState<AdminPolicySettings | null>(null);
   const [matrix, setMatrix] = useState<Record<AppRole, Permission[]> | null>(null);
   const [catalog, setCatalog] = useState<PermissionMeta[]>([]);
   const [editRole, setEditRole] = useState<AppRole>('editor');
@@ -91,7 +100,8 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
     setError(null);
     try {
       if (canUsers) {
-        const u = await apiAdminListUsers();
+        const [u, p] = await Promise.all([apiAdminListUsers(), apiAdminGetPolicy()]);
+        setPolicy(p);
         setUsers(
           u.users.map((row) => ({
             ...row,
@@ -226,6 +236,44 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
       await load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to update user');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const changeAdminPolicy = async (value: AdminPolicyValue) => {
+    if (policy?.adminPolicy === value) return;
+    setBusy(true);
+    setError(null);
+    setSavedMsg(null);
+    try {
+      await apiAdminSetPolicy(value);
+      setSavedMsg(value === 'one' ? 'This install now allows one admin.' : 'Admins can now make other admins.');
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not change the admin policy');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Hand the admin role over; the signed-in admin becomes an owner. */
+  const transferAdmin = async (user: AdminUserRow) => {
+    if (!window.confirm(`Make ${user.email} the admin? You become an owner and lose admin access.`)) return;
+    setBusy(true);
+    setError(null);
+    setSavedMsg(null);
+    try {
+      await apiAdminTransferAdmin(user.id);
+      setSavedMsg(`${user.email} is now the admin.`);
+      // No reload: this account just lost Manage users, so listing users
+      // again would answer 403. Show the swap, then pick up the new grants.
+      setUsers((prev) =>
+        prev.map((u) => (u.id === user.id ? { ...u, role: 'admin' } : u.id === me?.id ? { ...u, role: 'owner' } : u))
+      );
+      await refreshMe();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not hand the admin role over');
     } finally {
       setBusy(false);
     }
@@ -452,6 +500,39 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
                 they are not per-user overrides. Who can access what on the database is on Users
                 and Roles; GRANT / REVOKE is under Access → Permission.
               </p>
+              {policy && (
+                <div
+                  data-testid="admin-policy"
+                  className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5"
+                >
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Admins</span>
+                  <div role="radiogroup" aria-label="How many admins" className="inline-flex rounded-md border border-slate-700 overflow-hidden">
+                    {(['one', 'several'] as const).map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={policy.adminPolicy === value}
+                        data-testid={`admin-policy-${value}`}
+                        disabled={busy || policy.source === 'env'}
+                        onClick={() => void changeAdminPolicy(value)}
+                        className={`px-2.5 py-1 text-xs font-semibold disabled:opacity-60 ${
+                          policy.adminPolicy === value ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        {value === 'one' ? 'One' : 'Several'}
+                      </button>
+                    ))}
+                  </div>
+                  <span data-testid="admin-policy-hint" className="text-[11px] text-slate-500 flex-1 min-w-[12rem]">
+                    {policy.source === 'env'
+                      ? 'Set by FOX_ADMIN_POLICY on the server.'
+                      : policy.adminPolicy === 'one'
+                        ? 'Only one account can be admin. The admin hands the role over with Make admin.'
+                        : 'Any admin can make other accounts admins.'}
+                  </span>
+                </div>
+              )}
               <form
                 onSubmit={addUser}
                 data-testid="admin-add-user"
@@ -495,7 +576,13 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
                     className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs outline-none accent-focus"
                   >
                     {APP_ROLES.map((r) => (
-                      <option key={r} value={r}>{r}</option>
+                      <option
+                        key={r}
+                        value={r}
+                        disabled={r === 'admin' && adminSlotTaken(null, { policy: policy?.adminPolicy ?? null, users })}
+                      >
+                        {r}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -512,6 +599,11 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
                 ever knows it.
               </p>
               {issued && <IssuedCodeNotice {...issued} onDismiss={() => setIssued(null)} />}
+              {savedMsg && (
+                <p data-testid="admin-users-status" className="text-[11px] text-emerald-300">
+                  {savedMsg}
+                </p>
+              )}
             <div data-testid="admin-user-groups" className="space-y-3">
               {userGroups.map((group) => (
                 <section
@@ -540,7 +632,9 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
                           busy,
                           meId: me?.id,
                           users,
+                          policy: policy?.adminPolicy ?? null,
                         });
+                        const adminTaken = adminSlotTaken(u, { policy: policy?.adminPolicy ?? null, users });
                         const expanded = expandedUserIds.has(u.id);
                         const permGroups = groupPermissionsForDisplay(
                           u.permissions,
@@ -591,11 +685,24 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
                                 className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-slate-100 disabled:opacity-40"
                               >
                                 {APP_ROLES.map((r) => (
-                                  <option key={r} value={r}>
+                                  <option key={r} value={r} disabled={r === 'admin' && adminTaken}>
                                     {roleGroupLabel(r)}
                                   </option>
                                 ))}
                               </select>
+                              {canTransferAdminTo(u, { policy: policy?.adminPolicy ?? null, meId: me?.id, meRole: me?.role }) && (
+                                <button
+                                  type="button"
+                                  data-testid={`admin-transfer-admin-${u.id}`}
+                                  disabled={busy}
+                                  onClick={() => void transferAdmin(u)}
+                                  title="Hand the admin role to this account. You become an owner."
+                                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-amber-500/40 bg-slate-950 text-amber-200 hover:border-amber-400 disabled:opacity-40"
+                                >
+                                  <Shield className="w-3 h-3" />
+                                  Make admin
+                                </button>
+                              )}
                               <label className="inline-flex items-center gap-1 text-[11px] text-slate-400">
                                 <input
                                   type="checkbox"

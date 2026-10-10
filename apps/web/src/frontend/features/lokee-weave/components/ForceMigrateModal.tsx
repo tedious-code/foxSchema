@@ -26,7 +26,7 @@ import {
   type LokeeForceMigratePlan,
   type LokeeVersion,
 } from '../api/lokeeApi';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSyncStore } from '@/features/compare';
 import { getSessionPassword } from '@/shared/lib/sessionPasswords';
 import { toast } from '@/app/store/toastStore';
 import { riskStyle } from '@/features/lokee-weave/lib/lokeeColors';

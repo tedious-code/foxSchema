@@ -14,7 +14,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ExternalLink, MessageSquarePlus, X } from 'lucide-react';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSyncStore } from '@/features/compare';
 import { useUiStore } from '@/app/store/uiStore';
 import { sectionLabelCls } from '@/shared/components/surfaces';
 import {

@@ -15,11 +15,10 @@
  *   - deleting a migration run, or clearing the history, hid the rows until the
  *     panel reopened
  * Both now go through the shared client, which sets the header only when there
- * is a body.
+ * is a body. The migration cases are in `features/migrations/api/migrationApi.test.ts`.
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { apiDeleteConnection, apiLogout } from './authApi';
-import { apiClearMigrations, apiDeleteMigration } from '../../features/migrations/api/migrationApi';
 
 const realFetch = globalThis.fetch;
 afterEach(() => {
@@ -44,8 +43,6 @@ describe('bodyless requests send no JSON content type', () => {
   it.each([
     ['sign out', () => apiLogout(), 'POST'],
     ['delete a saved connection', () => apiDeleteConnection('c1'), 'DELETE'],
-    ['delete a migration run', () => apiDeleteMigration('r1'), 'DELETE'],
-    ['clear migration history', () => apiClearMigrations(), 'DELETE'],
   ])('%s', async (_label, send, method) => {
     const calls = captureRequests();
     await send();

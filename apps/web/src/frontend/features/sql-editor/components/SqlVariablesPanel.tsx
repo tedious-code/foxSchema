@@ -5,8 +5,8 @@ import {
   isSecretUnset,
   type SqlVariable,
 } from '@/shared/lib/sql-variables';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
+import { useSyncStore } from '@/features/compare';
 import { useAuthStore } from '@/app/store/authStore';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 

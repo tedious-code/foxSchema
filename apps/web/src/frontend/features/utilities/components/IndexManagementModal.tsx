@@ -45,8 +45,8 @@ import {
   type IndexFragmentationApiRow,
 } from '@/shared/api/schemaApi';
 import { executeSql } from '@/shared/api/sqlApi';
-import { useSyncStore } from '@/app/store/useSyncStore';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSyncStore } from '@/features/compare';
+import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { useAuthStore } from '@/app/store/authStore';
 import type { IndexInfo, TableSchema } from '@/shared/lib/types';
 import { PROVIDER_SETTINGS, connectionNeedsSecret } from '@/shared/lib/provider-settings';

@@ -14,12 +14,12 @@ import {
   type PermissionRequest,
 } from '../lib/access';
 import { dialectFeatureReason } from '@/shared/lib/dialect-features';
-import { EmptyState, Field, Segmented, inputCls } from './controls';
+import { EmptyState, Field, Segmented, inputCls } from '@/shared/components/controls';
 import { Autocomplete } from '@/shared/components/Autocomplete';
 import { ObjectPicker } from './ObjectPicker';
 import { useAccessCatalog } from '../lib/useAccessCatalog';
-import { useSyncStore } from '@/app/store/useSyncStore';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSyncStore } from '@/features/compare';
+import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { fetchDbAccess } from '@/shared/api/schemaApi';
 import { writeClipboard } from '@/shared/utils/clipboard';
 import { connectionOptionLabel } from '@/shared/lib/dialectLabel';

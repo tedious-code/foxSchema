@@ -9,7 +9,7 @@
 import React, { useMemo } from 'react';
 import { ArrowRight, Layers } from 'lucide-react';
 import type { TableDiff } from '@/shared/lib/types';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSyncStore } from '@/features/compare';
 import { diffBriefing } from '../lib/diffBriefing';
 import { TYPE_META } from './SchemaDiffTree';
 

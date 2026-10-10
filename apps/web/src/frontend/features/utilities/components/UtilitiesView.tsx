@@ -21,9 +21,9 @@ import {
   Users,
   Wrench,
 } from 'lucide-react';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSyncStore } from '@/features/compare';
 import { useUiStore } from '@/app/store/uiStore';
-import { FileImportsPanel } from '@/features/sql-editor/components/FileImportsPanel';
+import { FileImportsPanel } from '@/features/sql-editor/ui';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import { BackupRestorePanel } from './BackupRestorePanel';
 import { CloneTableModal } from './CloneTableModal';

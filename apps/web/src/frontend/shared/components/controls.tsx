@@ -7,7 +7,6 @@
  * User Management read as one screen rather than two.
  */
 import React from 'react';
-import type { PermissionRisk } from '../lib/access';
 import { sectionLabelCls } from '@/shared/components/surfaces';
 
 export const inputCls =
@@ -20,13 +19,6 @@ export const inputCls =
  * each feature kept its own copy.
  */
 export const labelCls = sectionLabelCls;
-
-export const RISK_STYLE: Record<PermissionRisk, string> = {
-  low: 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10',
-  elevated: 'text-amber-300 border-amber-500/40 bg-amber-500/10',
-  administrative: 'text-orange-300 border-orange-500/40 bg-orange-500/10',
-  critical: 'text-rose-300 border-rose-500/40 bg-rose-500/10',
-};
 
 export const Field: React.FC<{ label: string; hint?: string; children: React.ReactNode }> = ({
   label,

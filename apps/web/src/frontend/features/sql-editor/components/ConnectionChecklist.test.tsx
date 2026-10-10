@@ -23,12 +23,12 @@ const connections = [
   { id: 'c3', name: 'analytics', dialect: 'oracle', host: '10.0.0.3', database: 'warehouse' },
 ];
 
-vi.mock('@/app/store/useSyncStore', () => ({
+vi.mock('@/features/compare/state/useSyncStore', () => ({
   useSyncStore: (sel: (s: Record<string, unknown>) => unknown) =>
     sel({ connections, connectionsLoaded: true }),
 }));
 
-vi.mock('@/app/store/useSqlEditorStore', () => ({
+vi.mock('@/features/sql-editor/state/useSqlEditorStore', () => ({
   useSqlEditorStore: (sel: (s: Record<string, unknown>) => unknown) =>
     sel({
       tabs: [{ id: 't1', selectedConnectionIds: ['c1'] }],

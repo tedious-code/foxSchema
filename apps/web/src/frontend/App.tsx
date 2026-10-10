@@ -3,7 +3,7 @@ import { TopToolbar } from '@/app/shell/TopToolbar';
 import { ActivityRail } from '@/app/shell/ActivityRail';
 import { ErrorBoundary } from '@/app/shell/ErrorBoundary';
 import { LoadingScreen } from '@/app/shell/LoadingScreen';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSyncStore } from '@/features/compare';
 import { useAuthStore } from '@/app/store/authStore';
 import { useUiStore } from '@/app/store/uiStore';
 import { apiGetPreferences } from '@/shared/api/authApi';
@@ -13,19 +13,14 @@ import { BackendOfflineBanner } from '@/app/shell/BackendOfflineBanner';
 import { CommandPalette } from '@/app/shell/CommandPalette';
 import { WORKSPACE_VIEWS, redirectFor } from '@/app/features/featureRegistry';
 import type { ActiveView } from '@/app/features/viewIds';
+import { loadAccountBanners, loadAuthPage, loadOnboardingWizard } from '@/features/auth';
 
 // Only someone signed out or not yet onboarded sees these, so a signed-in
 // first page does not carry them.
-const AuthPage = lazy(() =>
-  import('@/features/auth/components/AuthPage').then((m) => ({ default: m.AuthPage }))
-);
-const OnboardingWizard = lazy(() =>
-  import('@/features/auth/components/OnboardingWizard').then((m) => ({ default: m.OnboardingWizard }))
-);
+const AuthPage = lazy(loadAuthPage);
+const OnboardingWizard = lazy(loadOnboardingWizard);
 // Only an owner without an account yet, or an email still to verify, sees these.
-const AccountBanners = lazy(() =>
-  import('@/features/auth/components/AccountBanners').then((m) => ({ default: m.AccountBanners }))
-);
+const AccountBanners = lazy(loadAccountBanners);
 
 // Every view comes from the registry: shown directly (Home), or loaded when
 // first shown or when its rail button is reached. One lazy component per view,

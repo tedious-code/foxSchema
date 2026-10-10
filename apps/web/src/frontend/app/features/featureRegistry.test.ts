@@ -51,6 +51,25 @@ describe('view registry', () => {
   });
 });
 
+describe('toolbars', () => {
+  it('lets Compare and Snapshots add to the top toolbar, and no other view', () => {
+    const parts = Object.entries(WORKSPACE_VIEWS)
+      .filter(([, def]) => def.toolbar)
+      .map(([id, def]) => [id, Object.keys(def.toolbar!).sort()]);
+    expect(parts).toEqual([
+      ['sync', ['below', 'end', 'start']],
+      ['snapshots', ['start']],
+    ]);
+  });
+
+  it('takes each toolbar from the feature’s root `toolbar` entry', () => {
+    const src = fs.readFileSync(path.join(FE, 'app/features/featureRegistry.ts'), 'utf8');
+    const specs = [...src.matchAll(/^import [^;]*? from '(@\/features\/[^']+)';/gm)].map((m) => m[1]!);
+    expect(specs.length).toBeGreaterThanOrEqual(2);
+    for (const spec of specs) expect(spec, spec).toMatch(/^@\/features\/[^/]+\/toolbar$/);
+  });
+});
+
 describe('the rail', () => {
   it('shows an owner every workspace, in the order the rail always had', () => {
     expect(railItems(canWith(DEFAULT_ROLE_PERMISSIONS.owner)).map((i) => [i.view, i.label, i.testId])).toEqual([

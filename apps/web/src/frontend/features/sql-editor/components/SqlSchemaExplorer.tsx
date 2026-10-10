@@ -9,8 +9,8 @@ import {
   Plus,
   RefreshCw,
 } from 'lucide-react';
-import { useSyncStore } from '@/app/store/useSyncStore';
-import { SCHEMA_ROUTINE_SCOPE, useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSyncStore } from '@/features/compare';
+import { SCHEMA_ROUTINE_SCOPE, useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { quoteIdentifierIfNeeded } from '@foxschema/ui-shared';
 import { getProviderSettings } from '@/shared/lib/provider-settings';
 import { TYPE_META } from '@/features/schema-diff';

@@ -3,7 +3,7 @@ import { loadOnce } from '@/shared/lib/loadOnce';
 import { withConnectionString } from '@/shared/lib/provider-settings';
 import type { SchemaCompareResult, TableDiff } from '@/shared/lib/types';
 import type { ConnectionRef } from '@/shared/api/schemaApi';
-import type { ConnectionConfig } from './sync-types';
+import type { ConnectionConfig } from './syncTypes';
 import { applySelectionToDiff } from '@/shared/lib/column-selection';
 
 /**

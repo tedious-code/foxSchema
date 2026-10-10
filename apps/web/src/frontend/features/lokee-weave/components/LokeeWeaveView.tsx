@@ -28,7 +28,7 @@ import {
 } from '../api/lokeeApi';
 import { getSessionPassword } from '@/shared/lib/sessionPasswords';
 import { toast } from '@/app/store/toastStore';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSyncStore } from '@/features/compare';
 import { useAuthStore } from '@/app/store/authStore';
 import { useUiStore } from '@/app/store/uiStore';
 import { useLokeeHistoryStore } from '@/features/lokee-weave/store/lokeeHistoryStore';

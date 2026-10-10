@@ -3,11 +3,8 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * The admin feature's public surface.
- *
- * Everything else under this folder is internal, so the layout can change
- * without touching a consumer. These are the symbols other parts of the app
- * actually import today — derived from usage, not guessed, so the surface
- * starts as small as it truly is.
+ * The admin feature's public API: a loader for the admin panel, which only
+ * admins open, on a click.
  */
-export { AdminAccessPanel } from './components/AdminAccessPanel';
+export const loadAdminAccessPanel = () =>
+  import('./components/AdminAccessPanel').then((m) => ({ default: m.AdminAccessPanel }));

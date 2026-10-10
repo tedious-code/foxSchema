@@ -1,5 +1,5 @@
 import type { SqlVariable } from '@/shared/lib/sql-variables';
-import { newTabId } from '@/app/store/sqlEditorTabLogic';
+import { newTabId } from '@/features/sql-editor/state/sqlEditorTabLogic';
 
 /**
  * Merge vault plaintext into the Variables list for a Run.

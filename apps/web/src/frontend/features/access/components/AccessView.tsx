@@ -11,7 +11,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { UserCog, GitCompare, ShieldCheck } from 'lucide-react';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSyncStore } from '@/features/compare';
 import { useAuthStore } from '@/app/store/authStore';
 import type { Permission } from '@foxschema/shared';
 import { PermissionDiff } from './PermissionDiff';

@@ -9,8 +9,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuthStore } from '@/app/store/authStore';
-import { openRecentQuery, selectEditorConnection, useRecentQueries } from '@/app/store/recentQueries';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { openRecentQuery, selectEditorConnection, useRecentQueries } from '@/features/sql-editor';
+import { useSyncStore } from '@/features/compare';
 import { useUiStore, type ActiveView } from '@/app/store/uiStore';
 import { COMMAND_PALETTE_EVENT } from './commandPaletteEvent';
 

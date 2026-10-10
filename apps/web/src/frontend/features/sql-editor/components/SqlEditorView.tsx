@@ -19,8 +19,8 @@ import {
   Plus,
   History,
 } from 'lucide-react';
-import { useSyncStore } from '@/app/store/useSyncStore';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSyncStore } from '@/features/compare';
+import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { useAuthStore } from '@/app/store/authStore';
 import { splitSqlStatements, type SplitStatement } from '@/shared/lib/sql-splitter';
 import { formatEditorSql } from '@/shared/utils/formatSql';
@@ -29,7 +29,7 @@ import {
   canExecuteWithoutDestination,
   indicesToRun,
   resolveRunStatements,
-} from '@/app/store/sqlEditorTabLogic';
+} from '@/features/sql-editor/state/sqlEditorTabLogic';
 import { getSelectedSql, setCompletionContextGetter, setSqlMutator } from '../lib/sqlEditorBridge';
 import { ConnectionChecklist } from './ConnectionChecklist';
 import { EditorTabBar } from './EditorTabBar';

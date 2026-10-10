@@ -18,20 +18,20 @@ vi.mock('@/app/store/uiStore', () => ({
   useUiStore: (sel: (s: Record<string, unknown>) => unknown) => sel({ setActiveView }),
 }));
 
-vi.mock('@/app/store/useSyncStore', () => ({
+vi.mock('@/features/compare/state/useSyncStore', () => ({
   useSyncStore: (sel: (s: Record<string, unknown>) => unknown) =>
     sel({ connections: [{ id: 'c1', name: 'Demo PG', dialect: 'postgres' }] }),
 }));
 
 // The shell reads recent queries from the small mirror, and opens them through it.
-vi.mock('@/app/store/recentQueries', () => ({
+vi.mock('@/features/sql-editor/state/recentQueries', () => ({
   useRecentQueries: (sel: (s: Record<string, unknown>) => unknown) =>
     sel({ recentQueries: [{ id: 'r1', sql: 'SELECT 1', title: 'Ping', ranAt: 1 }] }),
   openRecentQuery: (id: string) => openRecentQuery(id),
   selectEditorConnection: (id: string) => ensureConnectionSelected(id),
 }));
 // Opening Home or the palette must not touch the SQL editor store.
-vi.mock('@/app/store/useSqlEditorStore', () => {
+vi.mock('@/features/sql-editor/state/useSqlEditorStore', () => {
   throw new Error('the shell imported the SQL editor store');
 });
 

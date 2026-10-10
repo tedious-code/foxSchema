@@ -117,11 +117,8 @@ packages/sql/src/providers/mariaDb/mariaDb.settings.ts
 packages/sql/src/providers/sqlLite/sqlLite.settings.ts
 packages/db/src/providers/sqlLite/sqlLite.adapter.ts
 packages/db/src/providers/sqlLite/sqlLite.provider.ts
-apps/web/src/frontend/app/store/sync-types.ts
-apps/web/src/frontend/app/store/sync-helpers.ts
 apps/web/src/frontend/shared/lib/cloud-provider-settings.ts
 apps/web/src/frontend/shared/lib/sql-variables.ts
-apps/web/src/frontend/monaco-setup.ts
 apps/web/src/frontend/features/access/lib/password-suggest.ts
 apps/web/src/frontend/features/access/lib/access-draft.ts
 ```

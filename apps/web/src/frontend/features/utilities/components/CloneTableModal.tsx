@@ -11,13 +11,13 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Copy, Loader2, Play, X } from 'lucide-react';
 import { executeSql } from '@/shared/api/sqlApi';
-import { useSyncStore } from '@/app/store/useSyncStore';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSyncStore } from '@/features/compare';
+import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { useUiStore } from '@/app/store/uiStore';
 import type { TableSchema } from '@/shared/lib/types';
 import { PROVIDER_SETTINGS, connectionNeedsSecret } from '@/shared/lib/provider-settings';
 import { insertAtCursor } from '@/features/sql-editor';
-import { WriteConfirmDialog } from '@/features/sql-editor';
+import { WriteConfirmDialog } from '@/features/sql-editor/ui';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import { Autocomplete, type AutocompleteOption } from '@/shared/components/Autocomplete';
 import {
@@ -26,7 +26,7 @@ import {
   executableSqlStatements,
   findInboundForeignKeyTables,
   generateCloneTableSql,
-} from '@/features/sql-editor';
+} from '@/features/sql-editor/ui';
 
 interface Props {
   open: boolean;

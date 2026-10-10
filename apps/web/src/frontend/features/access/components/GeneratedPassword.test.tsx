@@ -17,7 +17,7 @@ import { DEFAULT_ROLE_PERMISSIONS } from '@foxschema/shared';
 import { useAuthStore } from '@/app/store/authStore';
 import { AccessView } from './AccessView';
 
-vi.mock('@/app/store/useSyncStore', () => {
+vi.mock('@/features/compare/state/useSyncStore', () => {
   const state = {
     connections: [
       // host/port are what let CommandModeToggle build a runnable command; it
@@ -39,7 +39,7 @@ vi.mock('@/app/store/useSyncStore', () => {
   return { useSyncStore: (sel: (s: typeof state) => unknown) => sel(state) };
 });
 
-vi.mock('@/app/store/useSqlEditorStore', () => {
+vi.mock('@/features/sql-editor/state/useSqlEditorStore', () => {
   const state = {
     sessionPasswords: {} as Record<string, string>,
     ensureSchema: vi.fn().mockResolvedValue(undefined),

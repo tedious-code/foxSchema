@@ -56,7 +56,7 @@ import {
   type AccessScope,
   type PermissionRequest,
 } from '../lib/access';
-import { EmptyState, Field, RISK_STYLE, Segmented, inputCls } from './controls';
+import { EmptyState, Field, Segmented, inputCls } from '@/shared/components/controls';
 import { Autocomplete } from '@/shared/components/Autocomplete';
 import { ObjectPicker } from './ObjectPicker';
 import { useAccessCatalog } from '../lib/useAccessCatalog';
@@ -65,17 +65,24 @@ import {
   sqlNeedsPassword,
   sqlWithPasswordSubstitute,
 } from '../lib/password-suggest';
-import { useSyncStore } from '@/app/store/useSyncStore';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSyncStore } from '@/features/compare';
+import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { fetchDbAccess } from '@/shared/api/schemaApi';
 import {
   ALTERATION_LABEL,
   availableAlterations,
   dropSafetyNotes,
 } from '../lib/accountAlterations';
-import type { AccessPrincipalDraft } from '../lib/access';
+import type { AccessPrincipalDraft, PermissionRisk } from '../lib/access';
 import { writeClipboard } from '@/shared/utils/clipboard';
 import { describeAllowAll, dialectFamily, findAllowAllByName, type AllowAll } from '@foxschema/ui-shared';
+
+const RISK_STYLE: Record<PermissionRisk, string> = {
+  low: 'text-emerald-300 border-emerald-500/40 bg-emerald-500/10',
+  elevated: 'text-amber-300 border-amber-500/40 bg-amber-500/10',
+  administrative: 'text-orange-300 border-orange-500/40 bg-orange-500/10',
+  critical: 'text-rose-300 border-rose-500/40 bg-rose-500/10',
+};
 
 type Mode = 'idle' | 'add' | 'edit' | 'drop' | 'list';
 

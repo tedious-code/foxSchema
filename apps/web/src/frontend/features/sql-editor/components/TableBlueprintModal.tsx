@@ -25,7 +25,7 @@ import {
   type IndexFragmentationApiRow,
   type IndexFragmentationResponse,
 } from '@/shared/api/schemaApi';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { insertAtCursor } from '../lib/sqlEditorBridge';
 import { WriteConfirmDialog } from './WriteConfirmDialog';
 import { Autocomplete } from '@/shared/components/Autocomplete';
@@ -70,7 +70,7 @@ import {
 import type { ForeignKeyInfo, IndexInfo, TriggerInfo } from '@/shared/lib/types';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import { TYPE_META } from '@/features/schema-diff';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSyncStore } from '@/features/compare';
 import {
   buildIndexDefragSql,
   buildIndexFragmentationCustomTemplate,

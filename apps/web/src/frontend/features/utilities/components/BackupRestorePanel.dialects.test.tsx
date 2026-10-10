@@ -31,11 +31,11 @@ const connectionFor = (dialect: string, over: Record<string, unknown> = {}) => (
   ...over,
 });
 let connections: Array<ReturnType<typeof connectionFor>> = [];
-vi.mock('@/app/store/useSyncStore', () => ({
+vi.mock('@/features/compare/state/useSyncStore', () => ({
   useSyncStore: (sel: (s: { connections: unknown[] }) => unknown) => sel({ connections }),
 }));
 let sessionPasswords: Record<string, string> = {};
-vi.mock('@/app/store/useSqlEditorStore', () => ({
+vi.mock('@/features/sql-editor/state/useSqlEditorStore', () => ({
   useSqlEditorStore: (sel: (s: Record<string, unknown>) => unknown) =>
     sel({ setSql: vi.fn(), ensureConnectionSelected: vi.fn(), sessionPasswords }),
 }));

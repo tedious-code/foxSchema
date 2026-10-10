@@ -17,11 +17,11 @@ import {
   apiUpdateConnection,
   apiDeleteConnection,
 } from '@/shared/api/authApi';
-import type { CommittedMigrationRef, ConnectionConfig, SyncState } from './sync-types';
+import type { CommittedMigrationRef, ConnectionConfig, SyncState } from './syncTypes';
 import type { MigrationStep } from '@foxschema/ui-shared';
-import { buildRef, buildMapping, regenerateSql, buildIncludedDiffs, loadSqlGenerator, sqlGenerator } from './sync-helpers';
-import { toast } from './toastStore';
-import { useUiStore } from './uiStore';
+import { buildRef, buildMapping, regenerateSql, buildIncludedDiffs, loadSqlGenerator, sqlGenerator } from './syncHelpers';
+import { toast } from '@/app/store/toastStore';
+import { useUiStore } from '@/app/store/uiStore';
 import {
   clearSessionPassword,
   getSessionPassword,
@@ -31,12 +31,12 @@ import {
 
 /** Keep SQL Editor's Zustand mirror in sync with the shared session map. */
 function mirrorSessionPasswordsToSqlEditor(): void {
-  void import('./useSqlEditorStore').then(({ useSqlEditorStore }) => {
+  void import('@/features/sql-editor/state').then(({ useSqlEditorStore }) => {
     useSqlEditorStore.setState({ sessionPasswords: sessionPasswordMap() });
   });
 }
 
-export type { MigrationProgressItem } from './sync-types';
+export type { MigrationProgressItem } from './syncTypes';
 
 /**
  * The migration plan for the current comparison and selections, built once per
@@ -333,7 +333,7 @@ export const useSyncStore = create<SyncState>()(
       selectedTargetConnectionId: state.selectedTargetConnectionId === id ? null : state.selectedTargetConnectionId,
     }));
     // Drop SQL Editor schema cache + session password mirror for the removed credential.
-    const { useSqlEditorStore } = await import('./useSqlEditorStore');
+    const { useSqlEditorStore } = await import('@/features/sql-editor/state');
     const cache = useSqlEditorStore.getState().schemaCache;
     const nextCache = cache[id]
       ? (() => {

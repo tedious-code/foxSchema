@@ -23,9 +23,9 @@ import {
   Download,
   BarChart2,
 } from 'lucide-react';
-import { useSqlEditorStore, type CredentialRun } from '@/app/store/useSqlEditorStore';
-import { useSyncStore } from '@/app/store/useSyncStore';
-import type { ResultsLayout } from '@/app/store/sqlEditorTabLogic';
+import { useSqlEditorStore, type CredentialRun } from '@/features/sql-editor/state/useSqlEditorStore';
+import { useSyncStore } from '@/features/compare';
+import type { ResultsLayout } from '@/features/sql-editor/state/sqlEditorTabLogic';
 import { DataGrid, PANE_DEFAULT_H_PX, PANE_DEFAULT_PX, PANE_MIN_H_PX, PANE_MIN_PX } from './DataGrid';
 import { ResultChart } from './ResultChart';
 import { chartableSeries } from '../lib/resultChart';

@@ -8,12 +8,12 @@
  */
 import React from 'react';
 import { Camera, Database, GitCompareArrows, Search, Terminal, Wrench } from 'lucide-react';
-import { openRecentQuery, selectEditorConnection, useRecentQueries } from '@/app/store/recentQueries';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { openRecentQuery, selectEditorConnection, useRecentQueries } from '@/features/sql-editor';
+import { useSyncStore } from '@/features/compare';
 import { useUiStore } from '@/app/store/uiStore';
-import { formatRelativeDay } from '@/features/sql-editor/lib/relativeTime';
+import { formatRelativeDay } from '@/shared/lib/relativeTime';
 import { openCommandPalette } from './commandPaletteEvent';
-import { diffBriefing } from '@/features/schema-diff/lib/diffBriefing';
+import { diffBriefing } from '@/features/schema-diff';
 import { dialectLabel } from '@/shared/lib/dialectLabel';
 
 function previewSql(sql: string): string {

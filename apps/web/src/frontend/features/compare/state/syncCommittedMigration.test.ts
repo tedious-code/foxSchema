@@ -19,7 +19,7 @@ vi.mock('@/app/store/useUiStore', () => ({
 }));
 
 import { useSyncStore } from './useSyncStore';
-import { loadSqlGenerator } from './sync-helpers';
+import { loadSqlGenerator } from './syncHelpers';
 import type { TableDiff } from '@/shared/lib/types';
 
 const col = (name: string) =>

@@ -46,18 +46,25 @@ Enforced by `packages/server/src/architecture.test.ts` (step 2).
 ## Web app (`apps/web/src/frontend`)
 
 ```text
-App.tsx, app/     shell, settings, the feature registry
+App.tsx, app/     shell, settings, the view registry, global stores
   ↓
-features/         product features; index.ts and view.ts are public
+features/         product features; the files at a feature's root are public
   ↓
 shared/           api client, ui components, lib — product-neutral
 ```
 
 1. `shared/` never imports a feature.
-2. A feature imports another feature only through its `index.ts`.
-3. The app shell imports a feature only through `index.ts` or its lazy
-   `view.ts` (step 4 tightens this; today the shell still reaches into a few
-   feature internals).
+2. Outside a feature, code imports it only through the files at its root
+   (`index.ts`, `view.ts`, `toolbar.ts`, `ui.ts`, ...), never a path inside its
+   folders. This holds for the app shell and for other features alike, and for
+   relative paths as well as `@/` ones. `vi.mock` in a test is exempt: a mock
+   has to name the module that defines the export.
+3. No static import cycle crosses a feature boundary. Root entries re-export,
+   so two features importing each other's entries form a cycle in which one
+   module runs before the other has finished. A dynamic `import()` breaks it.
+   This is why `features/compare/index.ts` holds only the store: nearly every
+   feature imports it, and the toolbar and workspace, which import other
+   features, are separate entries.
 4. Nothing imports `@foxschema/db` or `@foxschema/server`; dialect code comes
    from `@foxschema/ui-shared`.
 

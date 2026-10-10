@@ -6,11 +6,11 @@ import {
   listFileImports,
   type FileImportListItem,
 } from '@/shared/api/fileQueryApi';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSyncStore } from '@/features/compare';
 import { toast } from '@/app/store/toastStore';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import { scrubRemovedFileConnections, selectFileImportInEditor } from '../lib/fileQueryEditorHelpers';
-import { formatFileImportWhen, importCreatedAtMs } from '../lib/relativeTime';
+import { formatFileImportWhen, importCreatedAtMs } from '@/shared/lib/relativeTime';
 
 type Props = {
   refreshKey?: number;

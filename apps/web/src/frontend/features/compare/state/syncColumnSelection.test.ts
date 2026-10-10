@@ -11,7 +11,7 @@
  * no control, because the reader believes they excluded something.
  */
 import { describe, expect, it } from 'vitest';
-import { applySelectionsForScan, buildIncludedDiffs, type DeploySelections } from './sync-helpers';
+import { applySelectionsForScan, buildIncludedDiffs, type DeploySelections } from './syncHelpers';
 import type { TableDiff } from '@/shared/lib/types';
 
 const col = (

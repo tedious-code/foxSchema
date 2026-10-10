@@ -15,7 +15,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { GripVertical, Loader2, X } from 'lucide-react';
-import { useSqlEditorStore, type DataPeekEntry } from '@/app/store/useSqlEditorStore';
+import { useSqlEditorStore, type DataPeekEntry } from '@/features/sql-editor/state/useSqlEditorStore';
 import {
   foreignKeyLinksFor,
   fkDrillTableName,
@@ -29,7 +29,7 @@ import { usePeekGridCrud } from './usePeekGridCrud';
 import { PeekInsight } from './PeekInsight';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import type { TableSchema } from '@/shared/lib/types';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSyncStore } from '@/features/compare';
 
 const DEFAULT_HEIGHT_ROOT = 360;
 /** FK drill panels stack full-width; main body scrolls when many are open. */

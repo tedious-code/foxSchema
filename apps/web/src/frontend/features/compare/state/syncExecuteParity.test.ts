@@ -27,7 +27,7 @@ vi.mock('@/app/store/useUiStore', () => ({
 vi.mock('@/shared/components/toast', () => ({ toast: vi.fn() }));
 
 import { useSyncStore } from './useSyncStore';
-import { loadSqlGenerator } from './sync-helpers';
+import { loadSqlGenerator } from './syncHelpers';
 import type { TableDiff } from '@/shared/lib/types';
 
 const col = (name: string, status: 'ADDED' | 'UNCHANGED', extra: Record<string, unknown> = {}) =>

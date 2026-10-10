@@ -201,11 +201,14 @@ uses PL/SQL exception blocks; DB2 (all versions) uses SQL PL `CONTINUE HANDLER F
 
 ## Frontend store structure
 
-`useSyncStore.ts` (Zustand) is split across three files:
-- `sync-types.ts` — `SyncState` interface, `MigrationProgressItem`, `ConnectionConfig`
-- `sync-helpers.ts` — `buildRef`, `buildMapping`, `buildIncludedDiffs`, `regenerateSql`,
+The Compare store (Zustand) lives in `features/compare/state/`, split across three files:
+- `syncTypes.ts` — `SyncState` interface, `MigrationProgressItem`, `ConnectionConfig`
+- `syncHelpers.ts` — `buildRef`, `buildMapping`, `buildIncludedDiffs`, `regenerateSql`,
   shared `sqlGeneratorModule` instance
 - `useSyncStore.ts` — the store implementation
+
+Other features read it through `@/features/compare`. The SQL editor store is
+`features/sql-editor/state/useSqlEditorStore.ts`, read through `@/features/sql-editor/state`.
 
 `regenerateSql` is called on every selection toggle; it runs `SqlGeneratorModule`
 synchronously in the browser. `applyMigration` sends the full `MigrationStep[]` plan to the
@@ -213,14 +216,15 @@ backend and streams results back via SSE.
 
 ## Frontend loading and delivery
 
-A first visit downloads index.html and what it names: about 140 KB gzip (116 KB Brotli)
-since 2026-10-06, down from 398 KB. CI keeps it under 170 KB gzip
+A first visit downloads index.html and what it names: about 144 KB gzip (120 KB Brotli)
+since 2026-10-10, down from 398 KB before 2026-10-06. CI keeps it under 170 KB gzip
 (`npm run bundle:first-load` after `npm run build -w @foxschema/web`); the report lists the
 largest files when it fails. Everything else loads when it is used:
 
-- **Views** load from `app/shell/viewLoaders.ts`. App.tsx renders them with `lazy()`, and
-  the activity rail calls `prefetchView` on hover or focus, so a view's code is usually
-  already loaded by the time the click lands.
+- **Views** load from the view registry (`app/features/featureRegistry.ts`), each from its
+  feature's `view.ts`. App.tsx renders them with `lazy()`, and the activity rail calls
+  `prefetchView` on hover or focus, so a view's code is usually already loaded by the time
+  the click lands.
 - **Panels that open on a click** (admin console, credentials, applies history, new
   connection) are `lazy()` inside `MountWhenOpened`. That mounts a panel on its first open
   and keeps it mounted afterwards, so its state survives closing exactly as before.
@@ -229,18 +233,21 @@ largest files when it fails. Everything else loads when it is used:
   component that needs one while rendering uses `useLoaded(loader)`, which re-renders
   once when the library arrives. `useSqlFormat` is the example: DDL shows unformatted
   for that first moment, then formatted.
-- **The shell imports a feature by deep path**, not through its barrel, whenever the
-  barrel also re-exports a whole workspace (`object-detail`, `schema-diff`,
-  `sql-editor`). A barrel import from `TopToolbar` kept the Compare workspace in the
-  first download.
+- **A feature's `index.ts` stays light**, because the first screen imports it: a module
+  re-exported there is downloaded by everyone who imports any of it (Rolldown does not drop
+  unused re-exports of modules with top-level calls; one `index.ts` import from the
+  toolbar once cost 54 KB gzip). Heavier pieces get their own root entry: `ui.ts` for
+  components other features compose, `state.ts` for the SQL editor store, `view.ts` for
+  the workspace, `toolbar.ts` for what a view adds to the top toolbar. Lazy components are
+  `load…` functions in `index.ts`, never re-exports.
 - **The code-cell worker is an ES module worker** (`worker.format: 'es'`). The default
   IIFE format inlined faker, lodash and date-fns into the worker.
 - **TypeScript code cells compile on the server** (`POST /api/sql/code-cell/transpile`,
   the same `transpileTs` Node cells use) and run in the browser. The browser no longer
   downloads the TypeScript compiler (3.4 MB).
 - **Stores stay out of the first page.** The shell reads recent queries from
-  `app/store/recentQueries.ts`, a small copy that follows the SQL editor store once it
-  loads; Home and the command palette load that store on a click. The sync store loads
+  `features/sql-editor/state/recentQueries.ts` (through `@/features/sql-editor`), a small
+  copy that follows the SQL editor store once it loads; Home and the command palette load that store on a click. The sync store loads
   the migration generator with the first browse or compare (`loadSqlGenerator`), and
   `sqlGenerator()` throws if a path uses it earlier, rather than returning an empty
   script. The Compare button asks `schemaCompareBlocker` from

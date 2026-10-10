@@ -37,7 +37,7 @@ vi.mock('@/features/lokee-weave/api/lokeeApi', () => ({
     }),
 }));
 
-vi.mock('@/app/store/useSyncStore', () => ({
+vi.mock('@/features/compare/state/useSyncStore', () => ({
   useSyncStore: (sel: (s: Record<string, unknown>) => unknown) =>
     sel({
       connections: [

@@ -22,7 +22,7 @@ vi.mock('@/shared/api/schemaApi', () => ({
   fetchSchemaList: vi.fn().mockResolvedValue(['public']),
   loadSchema: (...a: unknown[]) => loadSchema(...a),
 }));
-vi.mock('@/app/store/useSqlEditorStore', () => ({
+vi.mock('@/features/sql-editor/state/useSqlEditorStore', () => ({
   useSqlEditorStore: (sel: (s: Record<string, unknown>) => unknown) => sel({ sessionPasswords: {} }),
 }));
 

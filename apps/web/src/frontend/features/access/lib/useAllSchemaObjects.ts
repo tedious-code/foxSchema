@@ -19,7 +19,7 @@
  * forty schemas paints as it goes rather than after the slowest one.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { fetchSchemaList, loadSchema } from '@/shared/api/schemaApi';
 import type { DbObjectType, GridObjectKind } from './access';
 

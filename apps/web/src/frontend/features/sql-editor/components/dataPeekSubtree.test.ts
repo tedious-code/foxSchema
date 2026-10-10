@@ -3,7 +3,7 @@ import {
   moveDataPeekEntry,
   removeDataPeekSubtree,
   type DataPeekEntry,
-} from '@/app/store/useSqlEditorStore';
+} from '@/features/sql-editor/state/useSqlEditorStore';
 
 function entry(
   id: string,

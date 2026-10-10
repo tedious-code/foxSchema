@@ -16,7 +16,7 @@ vi.mock('@/shared/api/schemaApi', async (importOriginal) => {
 });
 
 import { useSqlEditorStore } from './useSqlEditorStore';
-import { useSyncStore } from './useSyncStore';
+import { useSyncStore } from '@/features/compare';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

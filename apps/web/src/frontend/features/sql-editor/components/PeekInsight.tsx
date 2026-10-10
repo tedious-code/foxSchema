@@ -18,8 +18,8 @@ import {
   tableNameParts,
 } from '@/shared/lib/tablePreview';
 import { formatBytes, formatRowCount } from '@foxschema/ui-shared';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
+import { useSyncStore } from '@/features/compare';
 import { Panel, StatCard } from '@/shared/components/surfaces';
 import { executeSql } from '@/shared/api/sqlApi';
 

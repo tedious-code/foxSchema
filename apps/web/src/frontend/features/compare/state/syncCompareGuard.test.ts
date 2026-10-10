@@ -28,7 +28,7 @@ vi.mock('@/app/store/useUiStore', () => ({
 vi.mock('@/shared/components/toast', () => ({ toast: vi.fn() }));
 
 import { useSyncStore } from './useSyncStore';
-import { loadSqlGenerator } from './sync-helpers';
+import { loadSqlGenerator } from './syncHelpers';
 
 const config = (dialect: string) =>
   ({ dialect, schema: 'public', option: {}, connectionId: '' }) as never;

@@ -83,7 +83,7 @@ import {
   type VariableOverride,
 } from '@/shared/lib/sql-variables';
 import { connectionNeedsSecret } from '@/shared/lib/provider-settings';
-import { useSyncStore } from './useSyncStore';
+import { useSyncStore } from '@/features/compare';
 import { SQL_EDITOR_PERSIST_KEY, SQL_EDITOR_PERSIST_VERSION, useRecentQueries } from './recentQueries';
 import { deferredLocalStorage } from '@/shared/lib/deferredLocalStorage';
 import type { SchemaCacheEntry } from '@/features/sql-editor/lib/sqlEditorBridge';

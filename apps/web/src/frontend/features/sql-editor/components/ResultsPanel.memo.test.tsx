@@ -2,7 +2,7 @@ import { render } from '@testing-library/react';
 import React, { useState } from 'react';
 import { act } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import type { CredentialRun } from '@/app/store/useSqlEditorStore';
+import type { CredentialRun } from '@/features/sql-editor/state/useSqlEditorStore';
 import { DataGrid } from './DataGrid';
 import { ResultsPanel } from './ResultsPanel';
 

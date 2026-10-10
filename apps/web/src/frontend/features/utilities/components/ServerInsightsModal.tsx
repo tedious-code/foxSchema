@@ -24,8 +24,8 @@ import {
 } from 'lucide-react';
 import { dialectSupportsDbaUtility, formatBytes, formatPct, type DbaUtilityKind } from '@foxschema/ui-shared';
 import { fetchDbaUtility, type DbaUtilityResponse } from '@/shared/api/schemaApi';
-import { useSyncStore } from '@/app/store/useSyncStore';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSyncStore } from '@/features/compare';
+import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { PROVIDER_SETTINGS, connectionNeedsSecret } from '@/shared/lib/provider-settings';
 import { IndexManagementModal } from './IndexManagementModal';
 import { sectionLabelCls } from '@/shared/components/surfaces';

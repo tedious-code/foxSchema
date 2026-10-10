@@ -18,6 +18,10 @@
  * `shared` must not depend on a feature, or it can no longer be reused without
  * pulling a business domain along with it.
  *
+ * A feature's public API is the files at its root: `index.ts`, and named
+ * entries beside it (`view.ts`, `toolbar.ts`, `ui.ts`, ...). Its folders are
+ * internal. See docs/architecture/FEATURE-DEPENDENCY-RULES.md.
+ *
  * From other packages, the frontend imports only browser-safe ones: dialect
  * code through `@foxschema/ui-shared` (never `@foxschema/sql` directly), wire
  * contracts from `@foxschema/shared`, and the workflow contract. Never the
@@ -41,78 +45,129 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
+type ImportKind = 'static' | 'type' | 'dynamic' | 'mock';
+
 /** Every module specifier in a file, from imports, dynamic imports and mocks. */
-function specifiers(src: string): string[] {
-  const patterns = [
-    /from\s+['"]([^'"]+)['"]/g,
-    /import\(\s*['"]([^'"]+)['"]/g,
-    /vi\.(?:mock|doMock|importActual)\(\s*['"]([^'"]+)['"]/g,
-  ];
-  return patterns.flatMap((re) => [...src.matchAll(re)].map((m) => m[1]!));
+function specifiers(src: string): { spec: string; kind: ImportKind }[] {
+  const out: { spec: string; kind: ImportKind }[] = [];
+  // `import … from 'x'`, `export … from 'x'` and `import 'x'`. What precedes the
+  // quote is nothing or ends in `from`; otherwise `export const a = 'x'` counted.
+  for (const m of src.matchAll(/^(import|export)\b([^'";]*)['"]([^'"]+)['"]/gm)) {
+    const head = m[2]!;
+    if (head.trim() !== '' && !/\sfrom\s*$/.test(head)) continue;
+    out.push({ spec: m[3]!, kind: /^\s+type\s/.test(head) ? 'type' : 'static' });
+  }
+  for (const m of src.matchAll(/import\(\s*['"]([^'"]+)['"]/g)) {
+    // `typeof import('x')` types a mock factory's `importOriginal`.
+    const typed = /typeof\s*$/.test(src.slice(Math.max(0, m.index! - 10), m.index));
+    out.push({ spec: m[1]!, kind: typed ? 'mock' : 'dynamic' });
+  }
+  for (const m of src.matchAll(/vi\.(?:mock|doMock|importActual)\(\s*['"]([^'"]+)['"]/g)) {
+    out.push({ spec: m[1]!, kind: 'mock' });
+  }
+  return out;
+}
+
+const files = sourceFiles(FE).map((file) => path.relative(FE, file));
+const fileSet = new Set(files);
+
+/** The frontend file a specifier names, or null for a package. */
+function resolve(from: string, spec: string): string | null {
+  let base: string;
+  if (spec.startsWith('@/')) base = spec.slice(2);
+  else if (spec.startsWith('.')) base = path.normalize(path.join(path.dirname(from), spec));
+  else return null;
+  for (const ext of ['', '.ts', '.tsx', '/index.ts', '/index.tsx']) {
+    if (fileSet.has(base + ext)) return base + ext;
+  }
+  return null;
 }
 
 interface Import {
   from: string;
   spec: string;
+  kind: ImportKind;
+  /** The frontend file it names, when it names one. */
+  target: string | null;
 }
 
-const imports: Import[] = sourceFiles(FE).flatMap((file) =>
-  specifiers(fs.readFileSync(file, 'utf8')).map((spec) => ({
-    from: path.relative(FE, file),
+const imports: Import[] = files.flatMap((from) =>
+  specifiers(fs.readFileSync(path.join(FE, from), 'utf8')).map(({ spec, kind }) => ({
+    from,
     spec,
+    kind,
+    target: resolve(from, spec),
   }))
 );
 
 /** Which top-level layer a file belongs to. */
 const layerOf = (rel: string): string => rel.split(path.sep)[0]!;
 
-/** The feature a specifier points into, if any. */
-const featureTarget = (spec: string): string | null =>
-  /^@\/features\/([^/]+)/.exec(spec)?.[1] ?? null;
+/** The feature a file belongs to, if any. */
+const featureOf = (rel: string | null): string | null => (rel && /^features\/([^/]+)\//.exec(rel)?.[1]) || null;
+
+/** The feature an import points into, if any. */
+const featureTarget = (i: Import): string | null => featureOf(i.target);
 
 describe('frontend layering', () => {
   it('covers the whole frontend', () => {
     // If the file walker matched nothing, every other test here would pass
     // without checking anything.
-    expect(sourceFiles(FE).length).toBeGreaterThan(150);
+    expect(files.length).toBeGreaterThan(150);
     expect(imports.length).toBeGreaterThan(300);
+    expect(imports.filter((i) => i.target).length).toBeGreaterThan(300);
   });
 
   it('shared/ never depends on a feature', () => {
     const offenders = imports
-      .filter((i) => layerOf(i.from) === 'shared' && featureTarget(i.spec))
+      .filter((i) => layerOf(i.from) === 'shared' && featureTarget(i))
       .map((i) => `${i.from} → ${i.spec}`);
     expect(offenders).toEqual([]);
   });
 
-  it('one feature never reaches another feature\'s internals', () => {
-    // Features may compose each other's components: the schema-diff renderers
-    // are used by both Lokee history and object detail, and migrations embeds
-    // the SQL editor.
+  it('outside a feature, code imports it only through its root entries', () => {
+    // The files at a feature's root are its public API: `index.ts`, light
+    // enough for the first screen, and named entries beside it for what is
+    // loaded on demand or kept off that screen (`view.ts`, `ui.ts`, ...).
+    // Everything in its folders can be reorganised without touching another
+    // feature or the shell.
     //
-    // What they may not import is another feature's lib, api, store or utils.
-    // Those are implementation details, and depending on one prevents the
-    // owning feature from being reorganised.
-    //
-    // Importing a named component directly is allowed and usually preferable to
-    // the feature's index barrel, which pulls in every module the feature
-    // exports.
-    const INTERNAL = ['lib', 'api', 'store', 'utils'];
+    // A mock is exempt: `vi.mock` has to name the module that defines the
+    // export it replaces.
     const offenders = imports
-      .filter((i) => layerOf(i.from) === 'features')
+      .filter((i) => i.kind !== 'mock')
       .filter((i) => {
-        const target = featureTarget(i.spec);
-        if (target === null || target === i.from.split(path.sep)[1]) return false;
-        const rest = i.spec.slice(`@/features/${target}/`.length).split('/')[0];
-        return INTERNAL.includes(rest);
+        const target = featureTarget(i);
+        if (target === null || target === featureOf(i.from)) return false;
+        return i.target!.split('/').length > 3;
       })
       .map((i) => `${i.from} → ${i.spec}`);
     expect(offenders).toEqual([]);
   });
 
+  it('no static import cycle crosses a feature boundary', () => {
+    // Root entries re-export, so two features that import each other's
+    // entries form a cycle, and ES modules then run one of them before the
+    // other has finished: an export read at load time is undefined. A
+    // dynamic import() breaks the cycle; a type-only import never runs.
+    const graph = new Map<string, string[]>();
+    for (const i of imports) {
+      if (i.kind !== 'static' || !i.target || /\.test\.tsx?$/.test(i.from)) continue;
+      graph.set(i.from, [...(graph.get(i.from) ?? []), i.target]);
+    }
+    const area = (f: string) => featureOf(f) ?? layerOf(f);
+    const crossing = stronglyConnected(graph)
+      .filter((group) => new Set(group.map(area)).size > 1)
+      .map((group) => group.sort().join(' ⇄ '));
+    expect(crossing).toEqual([]);
+  });
+
   it('every feature that others consume has a public API', () => {
     const consumed = new Set(
-      imports.map((i) => featureTarget(i.spec)).filter((f): f is string => f !== null)
+      imports
+        .filter((i) => featureTarget(i) !== featureOf(i.from))
+        .map(featureTarget)
+        .filter((f): f is string => f !== null)
     );
     const missing = [...consumed]
       .filter((f) => !fs.existsSync(path.join(FE, 'features', f, 'index.ts')))
@@ -160,3 +215,40 @@ describe('frontend layering', () => {
     expect(escapes).toEqual([]);
   });
 });
+
+/** Groups of files that import each other, directly or around a loop (Tarjan). */
+function stronglyConnected(graph: Map<string, string[]>): string[][] {
+  let next = 0;
+  const index = new Map<string, number>();
+  const low = new Map<string, number>();
+  const stack: string[] = [];
+  const onStack = new Set<string>();
+  const groups: string[][] = [];
+  const visit = (v: string) => {
+    index.set(v, next);
+    low.set(v, next);
+    next++;
+    stack.push(v);
+    onStack.add(v);
+    for (const w of graph.get(v) ?? []) {
+      if (!index.has(w)) {
+        visit(w);
+        low.set(v, Math.min(low.get(v)!, low.get(w)!));
+      } else if (onStack.has(w)) {
+        low.set(v, Math.min(low.get(v)!, index.get(w)!));
+      }
+    }
+    if (low.get(v) === index.get(v)) {
+      const group: string[] = [];
+      let w: string;
+      do {
+        w = stack.pop()!;
+        onStack.delete(w);
+        group.push(w);
+      } while (w !== v);
+      if (group.length > 1) groups.push(group);
+    }
+  };
+  for (const v of graph.keys()) if (!index.has(v)) visit(v);
+  return groups;
+}

@@ -8,7 +8,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { UtilitiesView } from './UtilitiesView';
 
-vi.mock('@/app/store/useSyncStore', () => ({
+vi.mock('@/features/compare/state/useSyncStore', () => ({
   useSyncStore: (sel: (s: { connections: { id: string; name: string; dialect: string }[] }) => unknown) =>
     sel({
       connections: [{ id: 'c1', name: 'Demo SQLite A', dialect: 'sqlite' }],

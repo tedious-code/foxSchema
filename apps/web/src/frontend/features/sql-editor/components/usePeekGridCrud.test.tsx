@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { TableSchema } from '@/shared/lib/types';
 import { usePeekGridCrud } from './usePeekGridCrud';
 
-vi.mock('@/app/store/useSqlEditorStore', () => ({
+vi.mock('@/features/sql-editor/state/useSqlEditorStore', () => ({
   useSqlEditorStore: Object.assign(
     (selector: (state: Record<string, unknown>) => unknown) =>
       selector({ safeMode: false, sessionPasswords: {} }),
@@ -11,7 +11,7 @@ vi.mock('@/app/store/useSqlEditorStore', () => ({
   ),
 }));
 
-vi.mock('@/app/store/useSyncStore', () => ({
+vi.mock('@/features/compare/state/useSyncStore', () => ({
   useSyncStore: (selector: (state: Record<string, unknown>) => unknown) =>
     selector({
       connections: [{ id: 'c1', name: 'test', dialect: 'postgres', schema: 'public' }],

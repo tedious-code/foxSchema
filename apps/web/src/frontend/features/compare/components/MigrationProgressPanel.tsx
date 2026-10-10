@@ -1,5 +1,5 @@
 import React from 'react';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSyncStore } from '@/features/compare/state/useSyncStore';
 import { useShallow } from 'zustand/react/shallow';
 import { RefreshCw, CheckCircle2, XCircle, Circle, AlertCircle, Download, X, Undo2, SkipForward, MinusCircle } from 'lucide-react';
 

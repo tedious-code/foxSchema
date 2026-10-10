@@ -75,9 +75,6 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
   - `access-menu` · nav · Access
   - `access-tab-{id}` · button
   - `access-view` · div
-- **controls** · `features/access/components/controls.tsx`
-  - `{testId}` · div · passed in by the parent
-  - `{testId}-{value}` · button · passed in by the parent
 - **DbAccessPermissionSections** · `features/access/components/DbAccessPermissionSections.tsx`
   - `{prefix}-action-grant` · button · Grant · passed in by the parent
   - `{prefix}-action-revoke` · button · Revoke · passed in by the parent
@@ -408,26 +405,6 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
   - `command-palette` · div
   - `command-palette-input` · input · Go to a workspace, connection, or recent query…
   - `command-palette-item-{id}` · button
-- **ConnectionChips** · `app/shell/ConnectionChips.tsx`
-  - `connection-chip-{side}` · div
-  - `source-config-btn` · button · Add or edit this connection's credentials
-  - `source-connect-btn` · button · Connect and load the schema list
-  - `source-connected-btn` · button · Reconnect and refresh schema list
-  - `source-saved-select-backdrop` · div in FilterPicker · Saved connections — search by name, host, database, user, or port
-  - `source-saved-select-clear` · button in FilterPicker · Saved connections — search by name, host, database, user, or port
-  - `source-saved-select-filter` · input in FilterPicker · Saved connections — search by name, host, database, user, or port
-  - `source-saved-select-group-{group}` · div in FilterPicker · Saved connections — search by name, host, database, user, or port
-  - `source-saved-select-option-{id}` · data
-  - `source-saved-select-trigger` · button in FilterPicker · Saved connections — search by name, host, database, user, or port
-  - `target-config-btn` · button · Add or edit this connection's credentials
-  - `target-connect-btn` · button · Connect and load the schema list
-  - `target-connected-btn` · button · Reconnect and refresh schema list
-  - `target-saved-select-backdrop` · div in FilterPicker · Saved connections — search by name, host, database, user, or port
-  - `target-saved-select-clear` · button in FilterPicker · Saved connections — search by name, host, database, user, or port
-  - `target-saved-select-filter` · input in FilterPicker · Saved connections — search by name, host, database, user, or port
-  - `target-saved-select-group-{group}` · div in FilterPicker · Saved connections — search by name, host, database, user, or port
-  - `target-saved-select-option-{id}` · data
-  - `target-saved-select-trigger` · button in FilterPicker · Saved connections — search by name, host, database, user, or port
 - **ErrorBoundary** · `app/shell/ErrorBoundary.tsx`
   - `app-error-boundary-dismiss` · button · Dismiss
 - **featureRegistry** · `app/features/featureRegistry.ts`
@@ -482,20 +459,7 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
   - `toast-host` · div
 - **TopToolbar** · `app/shell/TopToolbar.tsx`
   - `command-palette-btn` · button · Command palette (⌘K)
-  - `compare-btn` · button
-  - `lokee-snapshot-target-btn` · button · Take an initial snapshot of the Target schema. Later migrates snapshot automatically.
-  - `sync-pane-browse-btn` · button · Read one database's schema on its own — no comparison.
-  - `sync-pane-compare-btn` · button · Compare
-  - `sync-pane-switcher` · div
   - `toolbar` · header
-  - `toolbar-clear` · button · Clear
-  - `toolbar-object-types-all` · button · All
-  - `toolbar-password-cancel` · button · Cancel
-  - `toolbar-password-connect` · button · Connect
-  - `toolbar-password-show` · button
-  - `toolbar-swap-direction` · button · Swap Original Server and Target (reverse migration direction)
-  - `toolbar-toggle-object-type-{type}` · button
-  - `toolbar-toggle-type-filter-{type}` · button
 - **UpdatesSettings** · `app/settings/UpdatesSettings.tsx`
   - `updates-apply-btn` · button · Update now
   - `updates-check-btn` · button · Check
@@ -567,6 +531,93 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
   - `signup-wizard-submit` · button · Subscribe & continue
 - **SsoButtons** · `features/auth/components/SsoButtons.tsx`
   - `auth-sso-buttons-continue-{id}` · button · Continue with
+
+## compare
+
+- **BrowseBar** · `features/compare/components/BrowseBar.tsx`
+  - `browse-bar` · div
+  - `browse-connection-option-{id}` · data
+  - `browse-connection-select-backdrop` · div in FilterPicker · Read this database's objects — search by name, host, database, user, or port
+  - `browse-connection-select-clear` · button in FilterPicker · Read this database's objects — search by name, host, database, user, or port
+  - `browse-connection-select-filter` · input in FilterPicker · Read this database's objects — search by name, host, database, user, or port
+  - `browse-connection-select-group-{group}` · div in FilterPicker · Read this database's objects — search by name, host, database, user, or port
+  - `browse-connection-select-option-{id}` · input in FilterPicker · Read this database's objects — search by name, host, database, user, or port
+  - `browse-connection-select-trigger` · button in FilterPicker · Read this database's objects — search by name, host, database, user, or port
+  - `browse-reload-btn` · button · Re-read this database
+- **CompareToolbar** · `features/compare/components/CompareToolbar.tsx`
+  - `compare-btn` · button
+  - `lokee-snapshot-target-btn` · button · Take an initial snapshot of the Target schema. Later migrates snapshot automatically.
+  - `sync-pane-browse-btn` · button · Read one database's schema on its own — no comparison.
+  - `sync-pane-compare-btn` · button · Compare
+  - `sync-pane-switcher` · div
+  - `toolbar-clear` · button · Clear
+  - `toolbar-object-types-all` · button · All
+  - `toolbar-password-cancel` · button · Cancel
+  - `toolbar-password-connect` · button · Connect
+  - `toolbar-password-show` · button
+  - `toolbar-swap-direction` · button · Swap Original Server and Target (reverse migration direction)
+  - `toolbar-toggle-object-type-{type}` · button
+  - `toolbar-toggle-type-filter-{type}` · button
+- **ConnectionChips** · `features/compare/components/ConnectionChips.tsx`
+  - `connection-chip-{side}` · div
+  - `source-config-btn` · button · Add or edit this connection's credentials
+  - `source-connect-btn` · button · Connect and load the schema list
+  - `source-connected-btn` · button · Reconnect and refresh schema list
+  - `source-saved-select-backdrop` · div in FilterPicker · Saved connections — search by name, host, database, user, or port
+  - `source-saved-select-clear` · button in FilterPicker · Saved connections — search by name, host, database, user, or port
+  - `source-saved-select-filter` · input in FilterPicker · Saved connections — search by name, host, database, user, or port
+  - `source-saved-select-group-{group}` · div in FilterPicker · Saved connections — search by name, host, database, user, or port
+  - `source-saved-select-option-{id}` · data
+  - `source-saved-select-trigger` · button in FilterPicker · Saved connections — search by name, host, database, user, or port
+  - `target-config-btn` · button · Add or edit this connection's credentials
+  - `target-connect-btn` · button · Connect and load the schema list
+  - `target-connected-btn` · button · Reconnect and refresh schema list
+  - `target-saved-select-backdrop` · div in FilterPicker · Saved connections — search by name, host, database, user, or port
+  - `target-saved-select-clear` · button in FilterPicker · Saved connections — search by name, host, database, user, or port
+  - `target-saved-select-filter` · input in FilterPicker · Saved connections — search by name, host, database, user, or port
+  - `target-saved-select-group-{group}` · div in FilterPicker · Saved connections — search by name, host, database, user, or port
+  - `target-saved-select-option-{id}` · data
+  - `target-saved-select-trigger` · button in FilterPicker · Saved connections — search by name, host, database, user, or port
+- **CrossDialectReadinessDialog** · `features/compare/components/CrossDialectReadinessDialog.tsx`
+  - `migrate-cross-dialect-readiness-close` · button · Close
+- **DependencyWarningDialog** · `features/compare/components/DependencyWarningDialog.tsx`
+  - `migrate-dependency-{dependentType}-{dependentName}` · button
+  - `migrate-dependency-warning-close` · button · Close
+- **DeployConfirmDialog** · `features/compare/components/DeployConfirmDialog.tsx`
+  - `deploy-cancel-btn` · button · Cancel
+  - `deploy-confirm-btn` · button · Execute
+  - `deploy-confirm-dialog` · div · Execute sync script?
+  - `deploy-dont-ask-again` · input
+- **MigrationProgressPanel** · `features/compare/components/MigrationProgressPanel.tsx`
+  - `migration-clear-migration-progress` · button
+  - `migration-complete` · h4
+  - `migration-download-pre-migration` · button · Download pre-migration schema snapshot
+  - `migration-failed` · h4
+  - `migration-partial` · h4
+  - `migration-progress-item` · div
+  - `migration-progress-panel` · div
+  - `migration-running` · h4
+  - `migration-skip-retry-{objectName}` · button · Skip & retry
+  - `migration-switch-non-destructive` · button · Switch to non-destructive
+- **ObjectDetailPanel** · `features/compare/components/ObjectDetailPanel.tsx`
+  - `ack-destructive-drops` · input
+  - `ack-mysql-binlog-risk` · input
+  - `ack-narrowing-types` · input
+  - `browse-connection-card` · dl
+  - `execute-btn` · button
+  - `git-commit-btn` · button
+  - `migrate-copy-sql` · button
+  - `migrate-cross-dialect-migration` · button · Cross-dialect migration — click for a per-object-type breakdown of what's translated vs. flagged for manual review
+  - `migrate-ignore-case` · input
+  - `migrate-inline-diff` · button
+  - `migrate-review-conflicts` · button · Review conflicts
+  - `migrate-review-dependencies` · button · Review conflicts
+  - `migrate-show-unchanged-detail` · input
+  - `migrate-toggle-sync-selection` · input
+  - `migrate-view-details` · button · view details
+  - `migrate-view-notes` · button · View notes
+- **ValidationWarningsDialog** · `features/compare/components/ValidationWarningsDialog.tsx`
+  - `migrate-validation-warnings-close` · button · Close
 
 ## connections
 
@@ -814,59 +865,6 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
   - `history-select-{id}` · input · Select this record
   - `history-select-all` · button
 
-## object-detail
-
-- **BrowseBar** · `features/object-detail/components/BrowseBar.tsx`
-  - `browse-bar` · div
-  - `browse-connection-option-{id}` · data
-  - `browse-connection-select-backdrop` · div in FilterPicker · Read this database's objects — search by name, host, database, user, or port
-  - `browse-connection-select-clear` · button in FilterPicker · Read this database's objects — search by name, host, database, user, or port
-  - `browse-connection-select-filter` · input in FilterPicker · Read this database's objects — search by name, host, database, user, or port
-  - `browse-connection-select-group-{group}` · div in FilterPicker · Read this database's objects — search by name, host, database, user, or port
-  - `browse-connection-select-option-{id}` · input in FilterPicker · Read this database's objects — search by name, host, database, user, or port
-  - `browse-connection-select-trigger` · button in FilterPicker · Read this database's objects — search by name, host, database, user, or port
-  - `browse-reload-btn` · button · Re-read this database
-- **CrossDialectReadinessDialog** · `features/object-detail/components/CrossDialectReadinessDialog.tsx`
-  - `migrate-cross-dialect-readiness-close` · button · Close
-- **DependencyWarningDialog** · `features/object-detail/components/DependencyWarningDialog.tsx`
-  - `migrate-dependency-{dependentType}-{dependentName}` · button
-  - `migrate-dependency-warning-close` · button · Close
-- **DeployConfirmDialog** · `features/object-detail/components/DeployConfirmDialog.tsx`
-  - `deploy-cancel-btn` · button · Cancel
-  - `deploy-confirm-btn` · button · Execute
-  - `deploy-confirm-dialog` · div · Execute sync script?
-  - `deploy-dont-ask-again` · input
-- **MigrationProgressPanel** · `features/object-detail/components/MigrationProgressPanel.tsx`
-  - `migration-clear-migration-progress` · button
-  - `migration-complete` · h4
-  - `migration-download-pre-migration` · button · Download pre-migration schema snapshot
-  - `migration-failed` · h4
-  - `migration-partial` · h4
-  - `migration-progress-item` · div
-  - `migration-progress-panel` · div
-  - `migration-running` · h4
-  - `migration-skip-retry-{objectName}` · button · Skip & retry
-  - `migration-switch-non-destructive` · button · Switch to non-destructive
-- **ObjectDetailPanel** · `features/object-detail/components/ObjectDetailPanel.tsx`
-  - `ack-destructive-drops` · input
-  - `ack-mysql-binlog-risk` · input
-  - `ack-narrowing-types` · input
-  - `browse-connection-card` · dl
-  - `execute-btn` · button
-  - `git-commit-btn` · button
-  - `migrate-copy-sql` · button
-  - `migrate-cross-dialect-migration` · button · Cross-dialect migration — click for a per-object-type breakdown of what's translated vs. flagged for manual review
-  - `migrate-ignore-case` · input
-  - `migrate-inline-diff` · button
-  - `migrate-review-conflicts` · button · Review conflicts
-  - `migrate-review-dependencies` · button · Review conflicts
-  - `migrate-show-unchanged-detail` · input
-  - `migrate-toggle-sync-selection` · input
-  - `migrate-view-details` · button · view details
-  - `migrate-view-notes` · button · View notes
-- **ValidationWarningsDialog** · `features/object-detail/components/ValidationWarningsDialog.tsx`
-  - `migrate-validation-warnings-close` · button · Close
-
 ## schema-diff
 
 - **DetailTabs** · `features/schema-diff/components/DetailTabs.tsx`
@@ -925,6 +923,9 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
   - `{testId}-format` · select · Command format · passed in by the parent
   - `{testId}-format-error` · p · passed in by the parent
   - `{testId}-save` · button · Save .sh · passed in by the parent
+- **controls** · `shared/components/controls.tsx`
+  - `{testId}` · div · passed in by the parent
+  - `{testId}-{value}` · button · passed in by the parent
 - **FilterPicker** · `shared/components/FilterPicker.tsx`
   - `{option.testId}` · label · passed in by the parent
   - `{testId}-backdrop` · div · passed in by the parent

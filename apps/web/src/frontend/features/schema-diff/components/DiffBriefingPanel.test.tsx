@@ -6,7 +6,7 @@
 import React from 'react';
 import { describe, expect, it, beforeEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSyncStore } from '@/features/compare';
 import { DiffBriefingPanel } from './DiffBriefingPanel';
 import type { TableDiff } from '@/shared/lib/types';
 

@@ -3,7 +3,7 @@ import {
   formatRelativeDay,
   formatFileImportWhen,
   importCreatedAtMs,
-} from '@/features/sql-editor/lib/relativeTime';
+} from '@/shared/lib/relativeTime';
 
 describe('formatRelativeDay', () => {
   const noon = (iso: string) => new Date(iso).getTime();

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pencil, Plus, X } from 'lucide-react';
-import type { SqlTab } from '@/app/store/sqlEditorTabLogic';
+import type { SqlTab } from '@/features/sql-editor/state/sqlEditorTabLogic';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 
 interface Props {

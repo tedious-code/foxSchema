@@ -11,7 +11,7 @@ import {
   type CloudProviderCredentialSummary,
 } from '@/shared/api/appSecretsApi';
 import { getCloudSecretProvider } from '@/shared/lib/cloud-provider-settings';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 
 export interface SqlSecretsPanelHandle {

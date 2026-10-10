@@ -3,11 +3,8 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * The migrations feature's public surface.
- *
- * Everything else under this folder is internal, so the layout can change
- * without touching a consumer. These are the symbols other parts of the app
- * actually import today — derived from usage, not guessed, so the surface
- * starts as small as it truly is.
+ * The migrations feature's public API: a loader for the history panel, which
+ * opens from the rail on a click.
  */
-export { MigrationHistory } from './components/MigrationHistory';
+export const loadMigrationHistory = () =>
+  import('./components/MigrationHistory').then((m) => ({ default: m.MigrationHistory }));

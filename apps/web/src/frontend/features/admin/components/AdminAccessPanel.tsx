@@ -50,7 +50,7 @@ import {
 } from '@/shared/lib/permissions';
 import { useAuthStore } from '@/app/store/authStore';
 import { PasswordInput } from '@/shared/components/PasswordInput';
-import { AccessReport } from '@/features/access/components/AccessReport';
+import { AccessReport } from '@/features/access';
 import { sectionLabelCls } from '@/shared/components/surfaces';
 
 type Tab = 'users' | 'roles' | 'users-roles' | 'sign-in' | 'git' | 'workspaces';

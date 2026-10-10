@@ -22,8 +22,8 @@ import {
   type BackupHistoryEntry,
 } from '@foxschema/ui-shared';
 import { useAuthStore } from '@/app/store/authStore';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
-import type { useSyncStore } from '@/app/store/useSyncStore';
+import { useSqlEditorStore } from '@/features/sql-editor/state';
+import type { useSyncStore } from '@/features/compare';
 import { executeSql } from '@/shared/api/sqlApi';
 import { connectionNeedsSecret } from '@/shared/lib/provider-settings';
 import { dialectLabel } from '@/shared/lib/dialectLabel';

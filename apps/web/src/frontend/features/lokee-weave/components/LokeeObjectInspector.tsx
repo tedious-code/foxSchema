@@ -18,7 +18,7 @@ import {
   type LokeeInspectResult,
 } from '../api/lokeeApi';
 import { objectStyle } from '@/features/lokee-weave/lib/lokeeColors';
-import { SchemaBlueprint } from '@/features/schema-diff';
+import { SchemaBlueprint } from '@/features/schema-diff/ui';
 import { shortHash, type SchemaObjectNodeData } from './graphTypes';
 import { GithubScriptDiff } from './GithubScriptDiff';
 import { buildRoadmapRows, hiddenVersionCount } from './roadmap';

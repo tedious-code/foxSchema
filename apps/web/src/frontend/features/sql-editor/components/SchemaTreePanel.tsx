@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSyncStore } from '@/features/compare';
 import { useShallow } from 'zustand/react/shallow';
 import { useUiStore } from '@/app/store/uiStore';
 import { Search, Layers } from 'lucide-react';
 import type { TableDiff } from '@/shared/lib/types';
-import { SchemaDiffTree, TYPE_META, TYPE_ORDER } from '@/features/schema-diff';
+import { SchemaDiffTree } from '@/features/schema-diff/ui';
+import { TYPE_META, TYPE_ORDER } from '@/features/schema-diff';
 
 const MIN_WIDTH = 280;
 const MAX_WIDTH = 640;

@@ -9,7 +9,7 @@
 import React, { useMemo } from 'react';
 import { ArrowLeftRight, ArrowRight, Camera, GitCompareArrows, Loader2, RefreshCw } from 'lucide-react';
 import { useLokeeHistoryStore } from '@/features/lokee-weave/store/lokeeHistoryStore';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSyncStore } from '@/features/compare';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import {
   historyVersionLabel,
@@ -219,6 +219,15 @@ export function HistoryCompareBar(): React.ReactElement {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** What the Snapshots view adds to the top toolbar. */
+export function HistoryToolbar(): React.ReactElement {
+  return (
+    <div className="min-w-0 flex-1">
+      <HistoryCompareBar />
     </div>
   );
 }

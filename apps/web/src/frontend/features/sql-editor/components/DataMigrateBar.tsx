@@ -35,8 +35,8 @@ import { singleTableForResultEdit } from '@/shared/lib/tablePreview';
 import type { TableSchema } from '@/shared/lib/types';
 import { toast } from '@/app/store/toastStore';
 import { useAuthStore } from '@/app/store/authStore';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
+import { useSyncStore } from '@/features/compare';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import { dialectLabel } from '@/shared/lib/dialectLabel';
 

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, Suspense, lazy } from 'react';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSyncStore } from '@/features/compare/state/useSyncStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/app/store/authStore';
 import { Play, RefreshCw, FileText, CheckCircle2, Copy, AlertTriangle, GitCommitHorizontal } from 'lucide-react';
@@ -8,28 +8,21 @@ import { executeGate } from '../lib/executeGate';
 import { SqlGeneratorModule } from '@/shared/lib/sql-generator';
 import { findDropDependencies } from '@foxschema/ui-shared';
 import { findMissingFkTargets, findNarrowingTypeChanges, extractReviewNotices, resolveDialect } from '@/shared/lib/migration-validation';
-import { buildIncludedDiffs, applySelectionsForScan } from '@/app/store/sync-helpers';
+import { buildIncludedDiffs, applySelectionsForScan } from '@/features/compare/state/syncHelpers';
 import { useSqlFormat, type SqlFormat } from '@/shared/utils/useSqlFormat';
-import { SchemaBlueprint, DiffBriefingPanel } from '@/features/schema-diff';
-import { DetailTabs, type DetailTab } from '@/features/schema-diff';
-import {
-  buildTableDdlDiffLines,
-  DdlDiffLines,
-  stripSchemaQualifiers,
-} from '@/features/schema-diff';
+import { SchemaBlueprint, DiffBriefingPanel } from '@/features/schema-diff/ui';
+import { DetailTabs, type DetailTab } from '@/features/schema-diff/ui';
+import { buildTableDdlDiffLines, DdlDiffLines, stripSchemaQualifiers } from '@/features/schema-diff/ui';
 import { writeClipboard } from '@/shared/utils/clipboard';
-import { MigrationProgressPanel } from '@/features/object-detail/components/MigrationProgressPanel';
-import { DeployConfirmDialog } from '@/features/object-detail/components/DeployConfirmDialog';
-import { DependencyWarningDialog } from '@/features/object-detail/components/DependencyWarningDialog';
-import { ValidationWarningsDialog } from '@/features/object-detail/components/ValidationWarningsDialog';
-import { CrossDialectReadinessDialog } from '@/features/object-detail/components/CrossDialectReadinessDialog';
+import { MigrationProgressPanel } from '@/features/compare/components/MigrationProgressPanel';
+import { DeployConfirmDialog } from '@/features/compare/components/DeployConfirmDialog';
+import { DependencyWarningDialog } from '@/features/compare/components/DependencyWarningDialog';
+import { ValidationWarningsDialog } from '@/features/compare/components/ValidationWarningsDialog';
+import { CrossDialectReadinessDialog } from '@/features/compare/components/CrossDialectReadinessDialog';
+import { loadSqlDiffEditor, loadSqlEditor } from '@/features/sql-editor';
 // Monaco is heavy — load it only when a SQL surface is actually shown
-const SqlEditor = lazy(() =>
-  import('@/features/sql-editor/components/SqlEditor').then((m) => ({ default: m.SqlEditor }))
-);
-const SqlDiffEditor = lazy(() =>
-  import('@/features/sql-editor/components/SqlEditor').then((m) => ({ default: m.SqlDiffEditor }))
-);
+const SqlEditor = lazy(loadSqlEditor);
+const SqlDiffEditor = lazy(loadSqlDiffEditor);
 
 const EditorFallback: React.FC = () => (
   <div className="flex-1 flex items-center justify-center text-slate-500 text-xs gap-2">

@@ -13,12 +13,12 @@ const connections = [
   { id: 'ms', name: 'Ledger', dialect: 'sqlserver', host: 'sql.local', port: 1433, database: 'ledger', username: 'sa_like', hasPassword: true },
   { id: 'odd', name: 'Odd', dialect: 'notadb', database: 'x' },
 ];
-vi.mock('@/app/store/useSyncStore', () => ({
+vi.mock('@/features/compare/state/useSyncStore', () => ({
   useSyncStore: (sel: (s: { connections: typeof connections }) => unknown) => sel({ connections }),
 }));
 const setSql = vi.fn();
 const ensureConnectionSelected = vi.fn();
-vi.mock('@/app/store/useSqlEditorStore', () => ({
+vi.mock('@/features/sql-editor/state/useSqlEditorStore', () => ({
   useSqlEditorStore: (sel: (s: { setSql: typeof setSql; ensureConnectionSelected: typeof ensureConnectionSelected; sessionPasswords: Record<string, string> }) => unknown) =>
     sel({ setSql, ensureConnectionSelected, sessionPasswords: {} }),
 }));

@@ -175,13 +175,23 @@ A feature uses the layers it needs; it does not create empty ones.
 ## Frontend — `apps/web/src/frontend`
 
 ```
-app/         The application shell, settings screens and global stores.
+app/         The application shell, settings screens and global stores
+             (auth, ui, toasts).
   features/    The view registry: `viewIds.ts` (every workspace view) and
                `featureRegistry.ts` (its rail button, who may see it, where
-               someone goes who may not, and its lazy entry). App.tsx, the
-               activity rail and prefetch all read it.
-features/    One folder per business domain. `index.ts` is the public API;
-             a workspace view's lazy entry is `view.ts` beside it.
+               someone goes who may not, what it adds to the top toolbar,
+               and its lazy entry). App.tsx, the toolbar, the activity rail
+               and prefetch all read it.
+features/    One folder per business domain. The files at its root are its
+             public API; its folders (components/, state/, lib/, api/) are
+             internal.
+  index.ts     light enough for the first screen: state, helpers, and
+               `load…` functions for lazy components
+  view.ts      the workspace, loaded on demand by the registry
+  toolbar.ts   what the view adds to the top toolbar
+  ui.ts        heavier components other features compose (schema-diff,
+               sql-editor); import it only from code loaded on demand
+  state.ts     the SQL editor store, kept off the first screen
 shared/      Reusable across features: api clients, ui components, lib, utils.
 ```
 
@@ -190,12 +200,14 @@ Adding a workspace view: its id in `app/features/viewIds.ts`, its entry in
 changes. `app/features/featureRegistry.test.ts` pins rail order, labels,
 test IDs and every redirect.
 
-Imports may run `app → features → shared`, never `shared → features`.
-`architecture.test.ts` enforces it.
+Imports may run `app → features → shared`, never `shared → features`. From
+outside a feature, only its root files may be imported (`vi.mock` in a test is
+exempt), and no static import cycle may cross a feature boundary.
+`architecture.test.ts` enforces all three.
 
 ### The SQL editor store, and how it is being reduced
 
-`app/store/useSqlEditorStore.ts` is the largest file in the repository and the
+`features/sql-editor/state/useSqlEditorStore.ts` is the largest file in the repository and the
 most-changed one. It is being shrunk a slice at a time rather than rewritten,
 because a file with that much churn is the worst possible candidate for a
 big-bang refactor.
@@ -210,8 +222,8 @@ Done so far:
 
 | Module | Covers |
 |---|---|
-| `store/sqlEditorTabLogic.ts` | Which statements a run executes, from the caret offset |
-| `store/sqlEditorDataPeek.ts` | Peek panel shape, the drill tree, limit clamping, run generations |
+| `state/sqlEditorTabLogic.ts` | Which statements a run executes, from the caret offset |
+| `state/sqlEditorDataPeek.ts` | Peek panel shape, the drill tree, limit clamping, run generations |
 
 Next candidates, roughly in order of how tangled they are: results paging and
 the page-epoch guard, bookmarks and recents, SQL variables.
@@ -223,12 +235,12 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | `access` | Permission builder, inspector and report |
 | `admin` | User and role administration |
 | `auth` | Sign-in, SSO buttons, onboarding |
+| `compare` | The Compare workspace: its store (connection pair, compare result, deploy selections), toolbar, object detail panel, browse bar, deploy dialogs and migration progress |
 | `connections` | Connection modal (login method: password / Windows / LDAP), credential manager, database settings |
 | `lokee-weave` | Schema history graph and version compare (Snapshots workspace) |
 | `migrations` | Migration run history (Applies on the rail) |
-| `object-detail` | Detail panel for a single schema object |
 | `schema-diff` | Diff rendering shared by compare and history |
-| `sql-editor` | SQL editor, results grid, data peek (Index/Clone/Query files live in `utilities`) |
+| `sql-editor` | SQL editor, its store, results grid, data peek, the shared Monaco setup (`monaco.ts`) (Index/Clone/Query files live in `utilities`) |
 | `utilities` | Own workspace: clone table, index management, backup & restore commands, server insights, query files, DB users & grants |
 | `workflow` | Workflow designer (canvas, inspector, triggers, SQL and script editors), runs, variables, credentials and engine settings — through the engine proxy, plus linking saved connections to workflows |
 

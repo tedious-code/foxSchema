@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { inputCls } from './controls';
+import { inputCls } from '@/shared/components/controls';
 
 /** Searchable checkbox list for tables or columns. */
 export const ObjectPicker: React.FC<{

@@ -10,9 +10,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowDownToLine, ArrowUpFromLine, GitBranch, Loader2, Play, RefreshCw, X } from 'lucide-react';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSyncStore } from '@/features/compare';
 import { useAuthStore } from '@/app/store/authStore';
-import { buildRef } from '@/app/store/sync-helpers';
+import { buildRef } from '@/features/compare';
 import { toast } from '@/app/store/toastStore';
 import { gitApi, type BranchState, type MigrationListing } from '../api/gitApi';
 import { useGitStore } from '../store/useGitStore';

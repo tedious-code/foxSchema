@@ -18,7 +18,7 @@ vi.mock('@monaco-editor/react', () => ({
     <textarea aria-label="SQL text" value={value} onChange={(event) => onChange(event.target.value)} />
   ),
 }));
-vi.mock('@/monaco-setup', () => ({ monacoLanguage: (dialect: string) => dialect }));
+vi.mock('@/features/sql-editor/lib/monacoSetup', () => ({ monacoLanguage: (dialect: string) => dialect }));
 vi.mock('../lib/jsonEditorOptions', () => ({ JSON_EDITOR_OPTIONS: {}, useJsonEditorTheme: () => 'vs' }));
 vi.mock('../api/engineQueries', () => ({ invalidateEngineQueries: vi.fn() }));
 vi.mock('@/shared/api/schemaApi', () => ({ loadSchema: vi.fn() }));

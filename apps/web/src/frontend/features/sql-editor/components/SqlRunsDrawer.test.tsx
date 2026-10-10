@@ -10,7 +10,7 @@ import { SqlRunsDrawer } from './SqlRunsDrawer';
 const openRecentQuery = vi.fn();
 const clearRecentQueries = vi.fn();
 
-vi.mock('@/app/store/useSqlEditorStore', () => ({
+vi.mock('@/features/sql-editor/state/useSqlEditorStore', () => ({
   useSqlEditorStore: (sel: (s: Record<string, unknown>) => unknown) =>
     sel({
       recentQueries: [{ id: 'r1', sql: 'SELECT 1', title: 'Ping', ranAt: Date.now() }],

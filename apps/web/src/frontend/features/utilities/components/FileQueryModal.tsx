@@ -13,10 +13,10 @@ import {
   type FileQueryFormat,
   type TextOffsetColumn,
 } from '@/shared/api/fileQueryApi';
-import { useSyncStore } from '@/app/store/useSyncStore';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSyncStore } from '@/features/compare';
+import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
-import { scrubRemovedFileConnections } from '@/features/sql-editor';
+import { scrubRemovedFileConnections } from '@/features/sql-editor/state';
 import { toast } from '@/app/store/toastStore';
 
 interface Props {

@@ -17,14 +17,12 @@ import { prefetchView, railItems } from '@/app/features/featureRegistry';
 import { MountWhenOpened } from '@/shared/components/MountWhenOpened';
 import { FoxLogo } from './FoxLogo';
 import { ProfileMenu } from './ProfileMenu';
+import { loadCredentialManager } from '@/features/connections';
+import { loadMigrationHistory } from '@/features/migrations';
 
 // Opened from the rail on a click: loaded on the first open.
-const CredentialManager = lazy(() =>
-  import('@/features/connections/components/CredentialManager').then((m) => ({ default: m.CredentialManager }))
-);
-const MigrationHistory = lazy(() =>
-  import('@/features/migrations/components/MigrationHistory').then((m) => ({ default: m.MigrationHistory }))
-);
+const CredentialManager = lazy(loadCredentialManager);
+const MigrationHistory = lazy(loadMigrationHistory);
 
 export function ActivityRail(): React.ReactElement | null {
   const activeView = useUiStore((s) => s.activeView);

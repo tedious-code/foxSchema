@@ -9,11 +9,10 @@ import { checkForUpdates, type UpdateInfo } from '@/shared/api/updatesApi';
 import { useAnchoredPopover } from '@/shared/lib/useAnchoredPopover';
 import { maybeToastUpdateAvailable } from '@/app/shell/updateToast';
 import { MountWhenOpened } from '@/shared/components/MountWhenOpened';
+import { loadAdminAccessPanel } from '@/features/admin';
 
 // Admins only, and only on a click: loaded on the first open.
-const AdminAccessPanel = lazy(() =>
-  import('@/features/admin/components/AdminAccessPanel').then((m) => ({ default: m.AdminAccessPanel }))
-);
+const AdminAccessPanel = lazy(loadAdminAccessPanel);
 
 // The workspace section loads with the menu, not with the app.
 const WorkspaceMenu = lazy(() => import('@/features/workspaces').then((m) => ({ default: m.WorkspaceMenu })));

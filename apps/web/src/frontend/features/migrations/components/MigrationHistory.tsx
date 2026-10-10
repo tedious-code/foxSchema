@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, History, RefreshCw, Trash2, Download, Database, CheckSquare, Square, GitBranch } from 'lucide-react';
 import { useAuthStore } from '@/app/store/authStore';
 import { GitBranchView } from '@/features/git';
+import { loadSqlEditor } from '@/features/sql-editor';
 import {
   apiListMigrations,
   apiGetMigration,
@@ -14,9 +15,7 @@ import {
   type MigrationRunStatus,
 } from '../api/migrationApi';
 
-const SqlEditor = lazy(() =>
-  import('@/features/sql-editor/components/SqlEditor').then((m) => ({ default: m.SqlEditor }))
-);
+const SqlEditor = lazy(loadSqlEditor);
 
 interface Props {
   open: boolean;

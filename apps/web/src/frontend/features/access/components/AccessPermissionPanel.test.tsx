@@ -16,7 +16,7 @@ const setSql = vi.fn();
 const ensureConnectionSelected = vi.fn();
 const setActiveView = vi.fn();
 
-vi.mock('@/app/store/useSyncStore', () => {
+vi.mock('@/features/compare/state/useSyncStore', () => {
   const state = {
     connections: [
       { id: 'c1', name: 'Demo PG', dialect: 'postgres', database: 'app', schema: 'public' },
@@ -27,7 +27,7 @@ vi.mock('@/app/store/useSyncStore', () => {
   };
 });
 
-vi.mock('@/app/store/useSqlEditorStore', () => {
+vi.mock('@/features/sql-editor/state/useSqlEditorStore', () => {
   const state = {
     sessionPasswords: {} as Record<string, string>,
     setSql: (...args: unknown[]) => setSql(...args),

@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pencil, Trash2, Sparkles, Eye, EyeOff } from 'lucide-react';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { SQL_EDITOR_SAMPLE_BOOKMARKS } from '@/features/sql-editor/lib/sqlEditorSamples';
-import { formatRelativeDay } from '@/features/sql-editor/lib/relativeTime';
+import { formatRelativeDay } from '@/shared/lib/relativeTime';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 
 /**

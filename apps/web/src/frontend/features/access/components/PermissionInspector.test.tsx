@@ -13,12 +13,12 @@ vi.mock('@/shared/api/schemaApi', () => ({
   fetchDbAccess: (...args: unknown[]) => fetchDbAccess(...args),
 }));
 
-vi.mock('@/app/store/useSyncStore', () => {
+vi.mock('@/features/compare/state/useSyncStore', () => {
   const state = { connections: [{ id: 'c1', name: 'Demo', dialect: 'postgres', schema: 'public' }] };
   return { useSyncStore: (sel: (s: typeof state) => unknown) => sel(state) };
 });
 
-vi.mock('@/app/store/useSqlEditorStore', () => {
+vi.mock('@/features/sql-editor/state/useSqlEditorStore', () => {
   const state = { sessionPasswords: {} as Record<string, string> };
   return { useSqlEditorStore: (sel: (s: typeof state) => unknown) => sel(state) };
 });

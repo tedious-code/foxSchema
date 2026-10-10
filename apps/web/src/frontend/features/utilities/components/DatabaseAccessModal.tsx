@@ -37,11 +37,11 @@ import { PERMISSION_META } from '@foxschema/shared';
 import { PasswordInput } from '@/shared/components/PasswordInput';
 import { fetchDbAccess, invalidateDbAccessCache } from '@/shared/api/schemaApi';
 import { runAccessSql } from '@/shared/api/accessSql';
-import { useSyncStore } from '@/app/store/useSyncStore';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSyncStore } from '@/features/compare';
+import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { useAuthStore } from '@/app/store/authStore';
 import { PROVIDER_SETTINGS, connectionNeedsSecret } from '@/shared/lib/provider-settings';
-import { DbAccessPermissionSections } from '@/features/access/components/DbAccessPermissionSections';
+import { DbAccessPermissionSections } from '@/features/access';
 import { sectionLabelCls } from '@/shared/components/surfaces';
 import { connectionOptionLabel } from '@/shared/lib/dialectLabel';
 

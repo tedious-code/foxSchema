@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { fetchDbAccess, fetchSchemaList } from '@/shared/api/schemaApi';
 import { findCachedTable, tableNameParts } from '@/shared/lib/tablePreview';
 import { connectionDatabaseNames, type DbPrincipal } from './access';

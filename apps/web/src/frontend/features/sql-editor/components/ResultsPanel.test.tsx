@@ -14,7 +14,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ResultsPanel } from './ResultsPanel';
-import type { CredentialRun } from '@/app/store/useSqlEditorStore';
+import type { CredentialRun } from '@/features/sql-editor/state/useSqlEditorStore';
 
 const running: CredentialRun = {
   connectionId: 'c1',

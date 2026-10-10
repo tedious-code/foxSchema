@@ -5,7 +5,7 @@
  */
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { DataPeekPanel } from './DataPeekPanel';
 
 const fetchTableInsight = vi.fn();
@@ -76,7 +76,7 @@ describe('DataPeekPanel Insight tab', () => {
   });
 });
 
-vi.mock('@/app/store/useSyncStore', () => ({
+vi.mock('@/features/compare/state/useSyncStore', () => ({
   useSyncStore: (sel: (s: Record<string, unknown>) => unknown) =>
     sel({ connections: [{ id: 'c1', name: 'pg', dialect: 'postgres', schema: 'public' }] }),
 }));

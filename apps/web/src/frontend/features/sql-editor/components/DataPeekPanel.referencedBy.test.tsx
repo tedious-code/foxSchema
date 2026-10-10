@@ -11,7 +11,7 @@
  */
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { DataPeekPanel } from './DataPeekPanel';
 
 vi.mock('@/shared/api/schemaApi', async (importOriginal) => {
@@ -19,7 +19,7 @@ vi.mock('@/shared/api/schemaApi', async (importOriginal) => {
   return { ...actual, fetchTableInsight: vi.fn().mockResolvedValue({}) };
 });
 
-vi.mock('@/app/store/useSyncStore', () => ({
+vi.mock('@/features/compare/state/useSyncStore', () => ({
   useSyncStore: (sel: (s: Record<string, unknown>) => unknown) =>
     sel({ connections: [{ id: 'c1', name: 'pg', dialect: 'postgres', schema: 'public' }] }),
 }));

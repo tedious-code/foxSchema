@@ -64,28 +64,48 @@ the only composition point; nothing registers itself on import.
 
 ```text
 features/<id>/
-  index.ts        public surface for other features and the app shell
-  view.ts         the lazy entry: the screen the app loads on demand (step 3)
+  index.ts        public API, light enough for the first screen
+  view.ts         the workspace the registry loads on demand
+  toolbar.ts      what the view adds to the top toolbar (optional)
+  ui.ts           heavier components other features compose (optional)
   components/     feature-private components
   api/            calls the server through `api` from @/shared/api/client; no business rules
-  state/          only when the feature needs shared or persistent state (step 4)
+  state/          only when the feature needs shared or persistent state
   lib/            feature-private helpers
 ```
 
-**A workspace view is registered** in `app/features/registry.ts` (step 3):
+The files at the root are the feature's public API; everything in its folders
+is internal. Root files hold re-exports, so a reader sees the whole surface in
+a few lines.
+
+**Keep `index.ts` light.** The first screen imports it, and the bundler does not
+drop unused re-exports: a heavy module re-exported there is downloaded by
+everyone who imports any of it. So:
+
+- a component other features show on demand is a loader in `index.ts`:
+  `export const loadAuthPage = () => import('./components/AuthPage').then((m) => ({ default: m.AuthPage }));`
+  and the caller writes `const AuthPage = lazy(loadAuthPage);`
+- heavier code others compose goes in its own root entry, named for what it
+  holds (`ui.ts`; the SQL editor's store is `state.ts`), imported only from
+  code that is itself loaded on demand.
+
+`npm run bundle:first-load` measures the first visit; compare it before and
+after a change to an `index.ts`.
+
+**A workspace view is registered** in `app/features/featureRegistry.ts`, after
+adding its id to `app/features/viewIds.ts`:
 
 ```ts
-{
-  id: 'utilities',            // the ActiveView value
-  label: 'Utils',
-  icon: Wrench,
-  permission: 'utility.access',
+utilities: {
+  rail: { label: 'Utils', icon: Wrench, testId: 'view-utilities-btn', visible: (can) => can('utility.access') },
+  allowed: (can) => can('utility.access'),
   load: () => import('@/features/utilities/view'),
-}
+},
 ```
 
-The rail, the lazy view, prefetch-on-hover and the "you lost access, go home"
-redirect all read this entry. Adding a view touches no shell file.
+The rail, the lazy view, prefetch-on-hover, the "you lost access, go home"
+redirect and the view's part of the top toolbar (`toolbar: { start, end, below }`)
+all read this entry. Adding a view touches no shell file.
 
 Keep components local until a second feature needs them; then move the
 product-neutral part to `shared/`, not to another feature.

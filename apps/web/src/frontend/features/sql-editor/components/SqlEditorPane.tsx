@@ -6,7 +6,7 @@ import {
   monacoLanguage,
   FOXSCRIPT_LANG,
   MONACO_EDITOR_BASE_OPTIONS,
-} from '@/monaco-setup';
+} from '@/features/sql-editor/lib/monacoSetup';
 import { ensureFoxschemaSqlLanguage } from '@/features/sql-editor/lib/foxschemaSqlLanguage';
 import {
   disposeFoxscriptVirtualDocs,
@@ -18,7 +18,7 @@ import {
   refreshFoxscriptSemanticTokens,
 } from '@/features/sql-editor/lib/foxscriptSemanticTokens';
 import { MONACO_FONT_PX, useUiStore } from '@/app/store/uiStore';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import {
   parseFoxScript,
   type SplitStatement,

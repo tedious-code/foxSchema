@@ -12,7 +12,7 @@ vi.mock('@/shared/api/schemaApi', () => ({
   fetchTableInsight: (...args: unknown[]) => fetchTableInsight(...args),
 }));
 
-vi.mock('@/app/store/useSqlEditorStore', () => ({
+vi.mock('@/features/sql-editor/state/useSqlEditorStore', () => ({
   // Mirrors the real store's shape, including the empty schemaCache it always
   // starts with — the component reads foreign keys from there.
   useSqlEditorStore: (

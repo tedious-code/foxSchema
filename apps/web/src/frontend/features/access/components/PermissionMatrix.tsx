@@ -35,7 +35,7 @@ import {
   type PermissionRequest,
 } from '../lib/access';
 import { Autocomplete } from '@/shared/components/Autocomplete';
-import { inputCls } from './controls';
+import { inputCls } from '@/shared/components/controls';
 
 /** A row plus the identity the list needs to keep inputs stable while editing. */
 interface MatrixRow extends GridRow {

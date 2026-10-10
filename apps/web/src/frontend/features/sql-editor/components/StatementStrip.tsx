@@ -12,7 +12,7 @@ import {
   type SplitStatement,
 } from '@/shared/lib/sql-splitter';
 import { findVariableRefs, substituteVariables } from '@/shared/lib/sql-variables';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 
 interface Props {

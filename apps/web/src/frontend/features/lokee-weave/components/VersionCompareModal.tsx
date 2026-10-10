@@ -27,13 +27,13 @@ import {
 import { getSessionPassword } from '@/shared/lib/sessionPasswords';
 import { toast } from '@/app/store/toastStore';
 import { riskStyle } from '@/features/lokee-weave/lib/lokeeColors';
-import { SchemaBlueprint } from '@/features/schema-diff';
+import { SchemaBlueprint } from '@/features/schema-diff/ui';
 import { buildMigrationReport, migrationReportFilename } from '@/features/lokee-weave/lib/migrationReport';
-import { SchemaDiffTree, orderTablesForDisplay } from '@/features/schema-diff';
-import { DetailTabs, type DetailTab } from '@/features/schema-diff';
+import { SchemaDiffTree, orderTablesForDisplay } from '@/features/schema-diff/ui';
+import { DetailTabs, type DetailTab } from '@/features/schema-diff/ui';
 import { DiffBriefingChips } from '@/features/schema-diff';
 import { diffBriefing } from '@/features/schema-diff';
-import { buildTableDdlDiffLines, DdlDiffLines } from '@/features/schema-diff';
+import { buildTableDdlDiffLines, DdlDiffLines } from '@/features/schema-diff/ui';
 import { GithubScriptDiff } from './GithubScriptDiff';
 import { versionDisplayName } from './graphTypes';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';

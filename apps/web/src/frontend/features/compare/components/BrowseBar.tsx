@@ -17,7 +17,7 @@ import React from 'react';
 import { Loader2, Search } from 'lucide-react';
 import { dialectLabel } from '@/shared/lib/dialectLabel';
 import { FilterPicker, connectionPickerOption } from '@/shared/components/FilterPicker';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSyncStore } from '@/features/compare/state/useSyncStore';
 import { getSessionPassword } from '@/shared/lib/sessionPasswords';
 
 export function BrowseBar(): React.ReactElement {

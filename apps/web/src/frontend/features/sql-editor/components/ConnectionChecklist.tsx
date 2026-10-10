@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { KeyRound } from 'lucide-react';
-import { useSyncStore } from '@/app/store/useSyncStore';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
-import { effectiveConnectionIds } from '@/app/store/sqlEditorTabLogic';
+import { useSyncStore } from '@/features/compare';
+import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
+import { effectiveConnectionIds } from '@/features/sql-editor/state/sqlEditorTabLogic';
 import { FilterPicker, connectionPickerOption } from '@/shared/components/FilterPicker';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import { dialectLabel } from '@/shared/lib/dialectLabel';

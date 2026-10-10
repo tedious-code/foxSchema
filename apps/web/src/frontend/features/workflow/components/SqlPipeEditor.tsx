@@ -13,7 +13,7 @@ import Editor from '@monaco-editor/react';
 import { useEffect, useState } from 'react';
 import { linkedConnectionId, type WorkflowConnectionSummary } from '@foxschema/workflow-contract';
 import { useAuthStore } from '@/app/store/authStore';
-import { monacoLanguage } from '@/monaco-setup';
+import { monacoLanguage } from '@/features/sql-editor/monaco';
 import { loadSchema } from '@/shared/api/schemaApi';
 import { FilterPicker, connectionPickerOption } from '@/shared/components/FilterPicker';
 import { dialectLabel } from '@/shared/lib/dialectLabel';

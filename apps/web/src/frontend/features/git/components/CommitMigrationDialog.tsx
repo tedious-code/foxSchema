@@ -10,7 +10,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { GitBranch, GitCommitHorizontal, Loader2, X } from 'lucide-react';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSyncStore } from '@/features/compare';
 import { toast } from '@/app/store/toastStore';
 import { gitApi, type BranchState } from '../api/gitApi';
 import { useGitStore } from '../store/useGitStore';

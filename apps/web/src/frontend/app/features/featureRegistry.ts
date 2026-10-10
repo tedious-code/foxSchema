@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Every workspace view, in one typed list: where it sits on the activity
- * rail, who may see it, where someone goes who may not, and where its code
- * comes from. App.tsx, the rail and prefetch all read this; adding a view
+ * rail, who may see it, where someone goes who may not, what it adds to the
+ * top toolbar, and where its code comes from. App.tsx, the rail and prefetch all read this; adding a view
  * touches no shell file.
  *
  * Code loads on demand. A feature's view is its `view.ts` entry, never its
@@ -20,6 +20,8 @@ import type { ComponentType, ElementType } from 'react';
 import { Camera, GitCompareArrows, ShieldCheck, Terminal, Workflow, Wrench } from 'lucide-react';
 import { COMMUNITY_NAV, filterNav, type Permission } from '@foxschema/shared';
 import { HomeView } from '@/app/shell/HomeView';
+import { CompareToolbarBelow, CompareToolbarEnd, CompareToolbarStart } from '@/features/compare/toolbar';
+import { HistoryToolbar } from '@/features/lokee-weave/toolbar';
 import type { ActiveView } from './viewIds';
 
 export type Can = (permission: Permission) => boolean;
@@ -32,6 +34,20 @@ export interface RailButton {
   /** Without `navId`: the label, and who sees the button. */
   label?: string;
   visible?: (can: Can) => boolean;
+}
+
+/**
+ * What a view adds to the top toolbar while it is shown. The shell keeps its
+ * own controls (activity, command palette) at the first row's end. These load
+ * with the first page, like the toolbar.
+ */
+export interface ViewToolbar {
+  /** Leads the first row. */
+  start?: ComponentType;
+  /** At the first row's end, after the shell's controls. */
+  end?: ComponentType;
+  /** A second row. */
+  below?: ComponentType;
 }
 
 export interface WorkspaceViewDefinition {
@@ -47,6 +63,7 @@ export interface WorkspaceViewDefinition {
   component?: ComponentType;
   /** What the view loads lazily inside itself, worth starting along with it on a likely click. */
   inside?: () => Promise<unknown>;
+  toolbar?: ViewToolbar;
 }
 
 export const WORKSPACE_VIEWS: Record<ActiveView, WorkspaceViewDefinition> = {
@@ -56,7 +73,8 @@ export const WORKSPACE_VIEWS: Record<ActiveView, WorkspaceViewDefinition> = {
     // Someone who may only use the editor lands there rather than on an empty Compare.
     allowed: (can) => can('schema.browse') || can('schema.compare') || !can('editor.access'),
     fallback: () => 'sqlEditor',
-    load: () => import('@/app/shell/SyncWorkspace'),
+    load: () => import('@/features/compare/view'),
+    toolbar: { start: CompareToolbarStart, end: CompareToolbarEnd, below: CompareToolbarBelow },
   },
   sqlEditor: {
     rail: { navId: 'editor', icon: Terminal, testId: 'view-sql-editor-btn' },
@@ -88,6 +106,7 @@ export const WORKSPACE_VIEWS: Record<ActiveView, WorkspaceViewDefinition> = {
     },
     allowed: (can) => can('schema.browse'),
     load: () => import('@/features/lokee-weave/view'),
+    toolbar: { start: HistoryToolbar },
   },
   settings: { load: () => import('@/app/settings/SettingsView') },
 };

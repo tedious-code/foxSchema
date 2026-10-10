@@ -1,4 +1,4 @@
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 
 /** Drop removed Files: credentials from schema cache + destination checklists. */
 export function scrubRemovedFileConnections(removedIds: string[]): void {

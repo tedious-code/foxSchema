@@ -1,11 +1,11 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { RefreshCw, AlertTriangle, Users, KeyRound, Search, UserCog } from 'lucide-react';
 import { fetchDbAccess } from '@/shared/api/schemaApi';
-import { useSyncStore } from '@/app/store/useSyncStore';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSyncStore } from '@/features/compare';
+import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { buildAccessReport, principalsWithAccessTo, type AccessReport as Report } from '../lib/access';
 import type { DbPrincipal, DbPrivilege } from '@foxschema/ui-shared';
-import { inputCls, labelCls } from './controls';
+import { inputCls, labelCls } from '@/shared/components/controls';
 import { connectionOptionLabel } from '@/shared/lib/dialectLabel';
 
 const RISK_STYLE: Record<string, string> = {

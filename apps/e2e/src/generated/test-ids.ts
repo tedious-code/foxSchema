@@ -768,46 +768,6 @@ export const TestIds = {
       /** button */
       commandPaletteItem: (id: string | number) => `command-palette-item-${id}`,
     },
-    ConnectionChips: {
-      /** div */
-      connectionChip: (side: string | number) => `connection-chip-${side}`,
-      /** button · Add or edit this connection's credentials */
-      sourceConfigBtn: 'source-config-btn',
-      /** button · Connect and load the schema list */
-      sourceConnectBtn: 'source-connect-btn',
-      /** button · Reconnect and refresh schema list */
-      sourceConnectedBtn: 'source-connected-btn',
-      /** div · Saved connections — search by name, host, database, user, or port */
-      sourceSavedSelectBackdrop: 'source-saved-select-backdrop',
-      /** button · Saved connections — search by name, host, database, user, or port */
-      sourceSavedSelectClear: 'source-saved-select-clear',
-      /** input · Saved connections — search by name, host, database, user, or port */
-      sourceSavedSelectFilter: 'source-saved-select-filter',
-      /** div · Saved connections — search by name, host, database, user, or port */
-      sourceSavedSelectGroup: (group: string | number) => `source-saved-select-group-${group}`,
-      /** data */
-      sourceSavedSelectOption: (id: string | number) => `source-saved-select-option-${id}`,
-      /** button · Saved connections — search by name, host, database, user, or port */
-      sourceSavedSelectTrigger: 'source-saved-select-trigger',
-      /** button · Add or edit this connection's credentials */
-      targetConfigBtn: 'target-config-btn',
-      /** button · Connect and load the schema list */
-      targetConnectBtn: 'target-connect-btn',
-      /** button · Reconnect and refresh schema list */
-      targetConnectedBtn: 'target-connected-btn',
-      /** div · Saved connections — search by name, host, database, user, or port */
-      targetSavedSelectBackdrop: 'target-saved-select-backdrop',
-      /** button · Saved connections — search by name, host, database, user, or port */
-      targetSavedSelectClear: 'target-saved-select-clear',
-      /** input · Saved connections — search by name, host, database, user, or port */
-      targetSavedSelectFilter: 'target-saved-select-filter',
-      /** div · Saved connections — search by name, host, database, user, or port */
-      targetSavedSelectGroup: (group: string | number) => `target-saved-select-group-${group}`,
-      /** data */
-      targetSavedSelectOption: (id: string | number) => `target-saved-select-option-${id}`,
-      /** button · Saved connections — search by name, host, database, user, or port */
-      targetSavedSelectTrigger: 'target-saved-select-trigger',
-    },
     ErrorBoundary: {
       /** button · Dismiss */
       appErrorBoundaryDismiss: 'app-error-boundary-dismiss',
@@ -915,34 +875,8 @@ export const TestIds = {
     TopToolbar: {
       /** button · Command palette (⌘K) */
       commandPaletteBtn: 'command-palette-btn',
-      /** button */
-      compareBtn: 'compare-btn',
-      /** button · Take an initial snapshot of the Target schema. Later migrates snapshot automatically. */
-      lokeeSnapshotTargetBtn: 'lokee-snapshot-target-btn',
-      /** button · Read one database's schema on its own — no comparison. */
-      syncPaneBrowseBtn: 'sync-pane-browse-btn',
-      /** button · Compare */
-      syncPaneCompareBtn: 'sync-pane-compare-btn',
-      /** div */
-      syncPaneSwitcher: 'sync-pane-switcher',
       /** header */
       toolbar: 'toolbar',
-      /** button · Clear */
-      toolbarClear: 'toolbar-clear',
-      /** button · All */
-      toolbarObjectTypesAll: 'toolbar-object-types-all',
-      /** button · Cancel */
-      toolbarPasswordCancel: 'toolbar-password-cancel',
-      /** button · Connect */
-      toolbarPasswordConnect: 'toolbar-password-connect',
-      /** button */
-      toolbarPasswordShow: 'toolbar-password-show',
-      /** button · Swap Original Server and Target (reverse migration direction) */
-      toolbarSwapDirection: 'toolbar-swap-direction',
-      /** button */
-      toolbarToggleObjectType: (type: string | number) => `toolbar-toggle-object-type-${type}`,
-      /** button */
-      toolbarToggleTypeFilter: (type: string | number) => `toolbar-toggle-type-filter-${type}`,
     },
     UpdatesSettings: {
       /** button · Update now */
@@ -1077,6 +1011,176 @@ export const TestIds = {
     SsoButtons: {
       /** button · Continue with */
       authSsoButtonsContinue: (id: string | number) => `auth-sso-buttons-continue-${id}`,
+    },
+  },
+  compare: {
+    BrowseBar: {
+      /** div */
+      browseBar: 'browse-bar',
+      /** data */
+      browseConnectionOption: (id: string | number) => `browse-connection-option-${id}`,
+      /** div · Read this database's objects — search by name, host, database, user, or port */
+      browseConnectionSelectBackdrop: 'browse-connection-select-backdrop',
+      /** button · Read this database's objects — search by name, host, database, user, or port */
+      browseConnectionSelectClear: 'browse-connection-select-clear',
+      /** input · Read this database's objects — search by name, host, database, user, or port */
+      browseConnectionSelectFilter: 'browse-connection-select-filter',
+      /** div · Read this database's objects — search by name, host, database, user, or port */
+      browseConnectionSelectGroup: (group: string | number) => `browse-connection-select-group-${group}`,
+      /** input · Read this database's objects — search by name, host, database, user, or port */
+      browseConnectionSelectOption: (id: string | number) => `browse-connection-select-option-${id}`,
+      /** button · Read this database's objects — search by name, host, database, user, or port */
+      browseConnectionSelectTrigger: 'browse-connection-select-trigger',
+      /** button · Re-read this database */
+      browseReloadBtn: 'browse-reload-btn',
+    },
+    CompareToolbar: {
+      /** button */
+      compareBtn: 'compare-btn',
+      /** button · Take an initial snapshot of the Target schema. Later migrates snapshot automatically. */
+      lokeeSnapshotTargetBtn: 'lokee-snapshot-target-btn',
+      /** button · Read one database's schema on its own — no comparison. */
+      syncPaneBrowseBtn: 'sync-pane-browse-btn',
+      /** button · Compare */
+      syncPaneCompareBtn: 'sync-pane-compare-btn',
+      /** div */
+      syncPaneSwitcher: 'sync-pane-switcher',
+      /** button · Clear */
+      toolbarClear: 'toolbar-clear',
+      /** button · All */
+      toolbarObjectTypesAll: 'toolbar-object-types-all',
+      /** button · Cancel */
+      toolbarPasswordCancel: 'toolbar-password-cancel',
+      /** button · Connect */
+      toolbarPasswordConnect: 'toolbar-password-connect',
+      /** button */
+      toolbarPasswordShow: 'toolbar-password-show',
+      /** button · Swap Original Server and Target (reverse migration direction) */
+      toolbarSwapDirection: 'toolbar-swap-direction',
+      /** button */
+      toolbarToggleObjectType: (type: string | number) => `toolbar-toggle-object-type-${type}`,
+      /** button */
+      toolbarToggleTypeFilter: (type: string | number) => `toolbar-toggle-type-filter-${type}`,
+    },
+    ConnectionChips: {
+      /** div */
+      connectionChip: (side: string | number) => `connection-chip-${side}`,
+      /** button · Add or edit this connection's credentials */
+      sourceConfigBtn: 'source-config-btn',
+      /** button · Connect and load the schema list */
+      sourceConnectBtn: 'source-connect-btn',
+      /** button · Reconnect and refresh schema list */
+      sourceConnectedBtn: 'source-connected-btn',
+      /** div · Saved connections — search by name, host, database, user, or port */
+      sourceSavedSelectBackdrop: 'source-saved-select-backdrop',
+      /** button · Saved connections — search by name, host, database, user, or port */
+      sourceSavedSelectClear: 'source-saved-select-clear',
+      /** input · Saved connections — search by name, host, database, user, or port */
+      sourceSavedSelectFilter: 'source-saved-select-filter',
+      /** div · Saved connections — search by name, host, database, user, or port */
+      sourceSavedSelectGroup: (group: string | number) => `source-saved-select-group-${group}`,
+      /** data */
+      sourceSavedSelectOption: (id: string | number) => `source-saved-select-option-${id}`,
+      /** button · Saved connections — search by name, host, database, user, or port */
+      sourceSavedSelectTrigger: 'source-saved-select-trigger',
+      /** button · Add or edit this connection's credentials */
+      targetConfigBtn: 'target-config-btn',
+      /** button · Connect and load the schema list */
+      targetConnectBtn: 'target-connect-btn',
+      /** button · Reconnect and refresh schema list */
+      targetConnectedBtn: 'target-connected-btn',
+      /** div · Saved connections — search by name, host, database, user, or port */
+      targetSavedSelectBackdrop: 'target-saved-select-backdrop',
+      /** button · Saved connections — search by name, host, database, user, or port */
+      targetSavedSelectClear: 'target-saved-select-clear',
+      /** input · Saved connections — search by name, host, database, user, or port */
+      targetSavedSelectFilter: 'target-saved-select-filter',
+      /** div · Saved connections — search by name, host, database, user, or port */
+      targetSavedSelectGroup: (group: string | number) => `target-saved-select-group-${group}`,
+      /** data */
+      targetSavedSelectOption: (id: string | number) => `target-saved-select-option-${id}`,
+      /** button · Saved connections — search by name, host, database, user, or port */
+      targetSavedSelectTrigger: 'target-saved-select-trigger',
+    },
+    CrossDialectReadinessDialog: {
+      /** button · Close */
+      migrateCrossDialectReadinessClose: 'migrate-cross-dialect-readiness-close',
+    },
+    DependencyWarningDialog: {
+      /** button */
+      migrateDependency: (dependentType: string | number, dependentName: string | number) => `migrate-dependency-${dependentType}-${dependentName}`,
+      /** button · Close */
+      migrateDependencyWarningClose: 'migrate-dependency-warning-close',
+    },
+    DeployConfirmDialog: {
+      /** button · Cancel */
+      deployCancelBtn: 'deploy-cancel-btn',
+      /** button · Execute */
+      deployConfirmBtn: 'deploy-confirm-btn',
+      /** div · Execute sync script? */
+      deployConfirmDialog: 'deploy-confirm-dialog',
+      /** input */
+      deployDontAskAgain: 'deploy-dont-ask-again',
+    },
+    MigrationProgressPanel: {
+      /** button */
+      migrationClearMigrationProgress: 'migration-clear-migration-progress',
+      /** h4 */
+      migrationComplete: 'migration-complete',
+      /** button · Download pre-migration schema snapshot */
+      migrationDownloadPreMigration: 'migration-download-pre-migration',
+      /** h4 */
+      migrationFailed: 'migration-failed',
+      /** h4 */
+      migrationPartial: 'migration-partial',
+      /** div */
+      migrationProgressItem: 'migration-progress-item',
+      /** div */
+      migrationProgressPanel: 'migration-progress-panel',
+      /** h4 */
+      migrationRunning: 'migration-running',
+      /** button · Skip & retry */
+      migrationSkipRetry: (objectName: string | number) => `migration-skip-retry-${objectName}`,
+      /** button · Switch to non-destructive */
+      migrationSwitchNonDestructive: 'migration-switch-non-destructive',
+    },
+    ObjectDetailPanel: {
+      /** input */
+      ackDestructiveDrops: 'ack-destructive-drops',
+      /** input */
+      ackMysqlBinlogRisk: 'ack-mysql-binlog-risk',
+      /** input */
+      ackNarrowingTypes: 'ack-narrowing-types',
+      /** dl */
+      browseConnectionCard: 'browse-connection-card',
+      /** button */
+      executeBtn: 'execute-btn',
+      /** button */
+      gitCommitBtn: 'git-commit-btn',
+      /** button */
+      migrateCopySql: 'migrate-copy-sql',
+      /** button · Cross-dialect migration — click for a per-object-type breakdown of what's translated vs. flagged for manual review */
+      migrateCrossDialectMigration: 'migrate-cross-dialect-migration',
+      /** input */
+      migrateIgnoreCase: 'migrate-ignore-case',
+      /** button */
+      migrateInlineDiff: 'migrate-inline-diff',
+      /** button · Review conflicts */
+      migrateReviewConflicts: 'migrate-review-conflicts',
+      /** button · Review conflicts */
+      migrateReviewDependencies: 'migrate-review-dependencies',
+      /** input */
+      migrateShowUnchangedDetail: 'migrate-show-unchanged-detail',
+      /** input */
+      migrateToggleSyncSelection: 'migrate-toggle-sync-selection',
+      /** button · view details */
+      migrateViewDetails: 'migrate-view-details',
+      /** button · View notes */
+      migrateViewNotes: 'migrate-view-notes',
+    },
+    ValidationWarningsDialog: {
+      /** button · Close */
+      migrateValidationWarningsClose: 'migrate-validation-warnings-close',
     },
   },
   connections: {
@@ -1549,108 +1653,6 @@ export const TestIds = {
       historySelect: (id: string | number) => `history-select-${id}`,
       /** button */
       historySelectAll: 'history-select-all',
-    },
-  },
-  objectDetail: {
-    BrowseBar: {
-      /** div */
-      browseBar: 'browse-bar',
-      /** data */
-      browseConnectionOption: (id: string | number) => `browse-connection-option-${id}`,
-      /** div · Read this database's objects — search by name, host, database, user, or port */
-      browseConnectionSelectBackdrop: 'browse-connection-select-backdrop',
-      /** button · Read this database's objects — search by name, host, database, user, or port */
-      browseConnectionSelectClear: 'browse-connection-select-clear',
-      /** input · Read this database's objects — search by name, host, database, user, or port */
-      browseConnectionSelectFilter: 'browse-connection-select-filter',
-      /** div · Read this database's objects — search by name, host, database, user, or port */
-      browseConnectionSelectGroup: (group: string | number) => `browse-connection-select-group-${group}`,
-      /** input · Read this database's objects — search by name, host, database, user, or port */
-      browseConnectionSelectOption: (id: string | number) => `browse-connection-select-option-${id}`,
-      /** button · Read this database's objects — search by name, host, database, user, or port */
-      browseConnectionSelectTrigger: 'browse-connection-select-trigger',
-      /** button · Re-read this database */
-      browseReloadBtn: 'browse-reload-btn',
-    },
-    CrossDialectReadinessDialog: {
-      /** button · Close */
-      migrateCrossDialectReadinessClose: 'migrate-cross-dialect-readiness-close',
-    },
-    DependencyWarningDialog: {
-      /** button */
-      migrateDependency: (dependentType: string | number, dependentName: string | number) => `migrate-dependency-${dependentType}-${dependentName}`,
-      /** button · Close */
-      migrateDependencyWarningClose: 'migrate-dependency-warning-close',
-    },
-    DeployConfirmDialog: {
-      /** button · Cancel */
-      deployCancelBtn: 'deploy-cancel-btn',
-      /** button · Execute */
-      deployConfirmBtn: 'deploy-confirm-btn',
-      /** div · Execute sync script? */
-      deployConfirmDialog: 'deploy-confirm-dialog',
-      /** input */
-      deployDontAskAgain: 'deploy-dont-ask-again',
-    },
-    MigrationProgressPanel: {
-      /** button */
-      migrationClearMigrationProgress: 'migration-clear-migration-progress',
-      /** h4 */
-      migrationComplete: 'migration-complete',
-      /** button · Download pre-migration schema snapshot */
-      migrationDownloadPreMigration: 'migration-download-pre-migration',
-      /** h4 */
-      migrationFailed: 'migration-failed',
-      /** h4 */
-      migrationPartial: 'migration-partial',
-      /** div */
-      migrationProgressItem: 'migration-progress-item',
-      /** div */
-      migrationProgressPanel: 'migration-progress-panel',
-      /** h4 */
-      migrationRunning: 'migration-running',
-      /** button · Skip & retry */
-      migrationSkipRetry: (objectName: string | number) => `migration-skip-retry-${objectName}`,
-      /** button · Switch to non-destructive */
-      migrationSwitchNonDestructive: 'migration-switch-non-destructive',
-    },
-    ObjectDetailPanel: {
-      /** input */
-      ackDestructiveDrops: 'ack-destructive-drops',
-      /** input */
-      ackMysqlBinlogRisk: 'ack-mysql-binlog-risk',
-      /** input */
-      ackNarrowingTypes: 'ack-narrowing-types',
-      /** dl */
-      browseConnectionCard: 'browse-connection-card',
-      /** button */
-      executeBtn: 'execute-btn',
-      /** button */
-      gitCommitBtn: 'git-commit-btn',
-      /** button */
-      migrateCopySql: 'migrate-copy-sql',
-      /** button · Cross-dialect migration — click for a per-object-type breakdown of what's translated vs. flagged for manual review */
-      migrateCrossDialectMigration: 'migrate-cross-dialect-migration',
-      /** input */
-      migrateIgnoreCase: 'migrate-ignore-case',
-      /** button */
-      migrateInlineDiff: 'migrate-inline-diff',
-      /** button · Review conflicts */
-      migrateReviewConflicts: 'migrate-review-conflicts',
-      /** button · Review conflicts */
-      migrateReviewDependencies: 'migrate-review-dependencies',
-      /** input */
-      migrateShowUnchangedDetail: 'migrate-show-unchanged-detail',
-      /** input */
-      migrateToggleSyncSelection: 'migrate-toggle-sync-selection',
-      /** button · view details */
-      migrateViewDetails: 'migrate-view-details',
-      /** button · View notes */
-      migrateViewNotes: 'migrate-view-notes',
-    },
-    ValidationWarningsDialog: {
-      /** button · Close */
-      migrateValidationWarningsClose: 'migrate-validation-warnings-close',
     },
   },
   schemaDiff: {

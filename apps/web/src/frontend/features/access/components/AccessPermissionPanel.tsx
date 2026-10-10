@@ -30,12 +30,12 @@ import {
   type DbPrivilege,
 } from '@foxschema/ui-shared';
 import { fetchDbAccess } from '@/shared/api/schemaApi';
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSyncStore } from '@/features/compare';
 import { AccessGrantsStage } from './AccessGrantsStage';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { useUiStore } from '@/app/store/uiStore';
 import { useAuthStore } from '@/app/store/authStore';
-import { EmptyState, Segmented, inputCls, labelCls } from './controls';
+import { EmptyState, Segmented, inputCls, labelCls } from '@/shared/components/controls';
 import { type DbAccessConfirmRequest } from './DbAccessPermissionSections';
 import { PermissionInspector } from './PermissionInspector';
 import { SectionLabel } from '@/shared/components/surfaces';

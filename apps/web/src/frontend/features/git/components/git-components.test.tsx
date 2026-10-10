@@ -32,7 +32,7 @@ vi.mock('../api/gitApi', () => ({ gitApi }));
 vi.mock('@/app/store/toastStore', () => ({ toast: vi.fn() }));
 vi.mock('@/app/store/useUiStore', () => ({ useUiStore: { getState: () => ({ bumpLokeeEpoch: vi.fn() }) } }));
 
-import { useSyncStore } from '@/app/store/useSyncStore';
+import { useSyncStore } from '@/features/compare';
 import { useAuthStore } from '@/app/store/authStore';
 import { commitRequirement, useGitStore } from '../store/useGitStore';
 import { CommitMigrationDialog } from './CommitMigrationDialog';

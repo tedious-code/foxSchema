@@ -3,12 +3,10 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * The connections feature's public surface.
- *
- * Everything else under this folder is internal, so the layout can change
- * without touching a consumer. These are the symbols other parts of the app
- * actually import today — derived from usage, not guessed, so the surface
- * starts as small as it truly is.
+ * The connections feature's public API: loaders for its dialogs, which open
+ * on a click and so load on the first open.
  */
-export { ConnectionModal } from './components/ConnectionModal';
-export { CredentialManager } from './components/CredentialManager';
+export const loadConnectionModal = () =>
+  import('./components/ConnectionModal').then((m) => ({ default: m.ConnectionModal }));
+export const loadCredentialManager = () =>
+  import('./components/CredentialManager').then((m) => ({ default: m.CredentialManager }));

@@ -23,7 +23,7 @@ let objects: SchemaObject[] = [];
 vi.mock('@/features/access/lib/useAllSchemaObjects', () => ({
   useAllSchemaObjects: () => ({ groups: [], objects, loading: false, error: null, reload: () => undefined }),
 }));
-vi.mock('@/app/store/useSqlEditorStore', () => ({
+vi.mock('@/features/sql-editor/state/useSqlEditorStore', () => ({
   useSqlEditorStore: (sel: (s: { sessionPasswords: Record<string, string> }) => unknown) => sel({ sessionPasswords: {} }),
 }));
 

@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, Play, Info, ShieldAlert } from 'lucide-react';
-import type { ReadonlyWriteTarget } from '@/app/store/useSqlEditorStore';
+import type { ReadonlyWriteTarget } from '@/features/sql-editor/state/useSqlEditorStore';
 import {
   dmlLacksWhere,
   isMutatingDmlStatement,

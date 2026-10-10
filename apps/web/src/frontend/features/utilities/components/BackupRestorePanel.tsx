@@ -28,14 +28,14 @@ import {
   type BackupSettings,
   type BackupHistoryEntry,
 } from '@foxschema/ui-shared';
-import { useSyncStore } from '@/app/store/useSyncStore';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSyncStore } from '@/features/compare';
+import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { useUiStore } from '@/app/store/uiStore';
 import { apiGetBackupSettings, apiSaveBackupSettings } from '@/shared/api/backupApi';
 import { writeClipboard } from '@/shared/utils/clipboard';
 import { dialectLabel } from '@/shared/lib/dialectLabel';
 import { BackupServerActions } from './BackupServerActions';
-import { EmptyState, Field, Segmented, inputCls } from '@/features/access/components/controls';
+import { EmptyState, Field, Segmented, inputCls } from '@/shared/components/controls';
 
 const RUNS_ON: Record<BackupRunsOn, { label: string; body: string; Icon: React.ComponentType<{ className?: string }> }> = {
   client: {

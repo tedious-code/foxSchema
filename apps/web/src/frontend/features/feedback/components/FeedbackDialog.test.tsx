@@ -12,7 +12,7 @@ const connections = [
   { id: 'b', name: 'Warehouse', dialect: 'snowflake-like', host: 'wh.internal', database: 'dw' },
   { id: 'c', name: 'Other PG', dialect: 'postgres', host: 'pg2.internal', database: 'crm' },
 ];
-vi.mock('@/app/store/useSyncStore', () => ({
+vi.mock('@/features/compare/state/useSyncStore', () => ({
   useSyncStore: (sel: (s: { connections: typeof connections }) => unknown) => sel({ connections }),
 }));
 vi.mock('@/app/store/uiStore', () => ({

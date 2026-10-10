@@ -14,8 +14,8 @@ import {
   ArrowDownUp,
   Cloud,
 } from 'lucide-react';
-import { useSyncStore } from '@/app/store/useSyncStore';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
+import { useSyncStore } from '@/features/compare';
+import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { ConnectionModal } from './ConnectionModal';
 import { CloudProviderCredentialsSection } from '@/app/settings/CloudProviderCredentialsSection';
 import { PROVIDER_SETTINGS, type ConnectionOptions, type Dialect } from '@/shared/lib/provider-settings';

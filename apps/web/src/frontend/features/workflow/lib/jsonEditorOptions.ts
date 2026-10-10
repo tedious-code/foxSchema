@@ -9,7 +9,7 @@ import type { EditorProps } from '@monaco-editor/react';
 import { useUiStore } from '@/app/store/uiStore';
 // Also what makes Monaco load from the bundle rather than its default CDN, when
 // the Workflow screen is the first to open an editor.
-import { MONACO_THEME, MONACO_THEME_LIGHT } from '@/monaco-setup';
+import { MONACO_THEME, MONACO_THEME_LIGHT } from '@/features/sql-editor/monaco';
 
 /** FoxSchema's editor theme for the app's current light or dark mode. */
 export function useJsonEditorTheme(): string {

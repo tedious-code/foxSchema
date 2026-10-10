@@ -7,8 +7,8 @@
  */
 import React from 'react';
 import { History, X } from 'lucide-react';
-import { useSqlEditorStore } from '@/app/store/useSqlEditorStore';
-import { formatRelativeDay } from '@/features/sql-editor/lib/relativeTime';
+import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
+import { formatRelativeDay } from '@/shared/lib/relativeTime';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 
 function previewSql(sql: string): string {

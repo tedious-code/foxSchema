@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **977** buttons, text boxes, selects and textareas.
+Every control has a test ID: **983** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -319,6 +319,7 @@ Every control has a test ID: **977** buttons, text boxes, selects and textareas.
   - `admin-tab-sign-in` · button · Sign-in
   - `admin-tab-users` · button · App users
   - `admin-tab-users-roles` · button · Users and Roles
+  - `admin-tab-workspaces` · button · Workspaces
   - `admin-transfer-admin-{id}` · button · Hand the admin role to this account. You become an owner.
   - `admin-unsaved` · span
   - `admin-user-expand-{id}` · button
@@ -333,6 +334,16 @@ Every control has a test ID: **977** buttons, text boxes, selects and textareas.
   - `admin-user-row-{id}` · li
   - `admin-users-roles-panel` · div
   - `admin-users-status` · p
+- **AdminWorkspacesPanel** · `features/admin/components/AdminWorkspacesPanel.tsx`
+  - `admin-workspace-{id}` · li
+  - `admin-workspace-archive-{id}` · button · Archive
+  - `admin-workspace-join-{id}` · button · Join
+  - `admin-workspace-members-{id}` · button · Members
+  - `admin-workspace-open-{id}` · button · Open
+  - `admin-workspaces` · div
+  - `admin-workspaces-error` · p
+  - `admin-workspaces-list` · ul
+  - `admin-workspaces-show-archived` · input
 - **IssuedCodeNotice** · `features/admin/components/IssuedCodeNotice.tsx`
   - `admin-issued-code` · div
   - `admin-issued-code-copy` · button

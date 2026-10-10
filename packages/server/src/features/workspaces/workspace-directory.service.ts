@@ -72,6 +72,21 @@ export async function membersCanCreate(store: MetadataStore): Promise<boolean> {
   return row?.value === 'on';
 }
 
+/** One row of the admin's list: every workspace, private ones included. Names and people only — never its data. */
+export interface AdminWorkspaceRow {
+  id: string;
+  name: string;
+  visibility: 'private' | 'public';
+  /** Email of the account a personal workspace belongs to; null for shared ones. */
+  personalOwner: string | null;
+  owners: string[];
+  memberCount: number;
+  archived: boolean;
+  /** Whether the admin asking is a member (and so can open it). */
+  adminIsMember: boolean;
+  createdAt: string;
+}
+
 export class WorkspaceDirectory {
   constructor(private rbac = new RbacModule()) {}
 
@@ -225,6 +240,50 @@ export class WorkspaceDirectory {
     if (Number(row?.n ?? 0) === 0) {
       throw new ServiceError('conflict', 'A workspace needs an owner. Make someone else an owner first.');
     }
+  }
+
+  /**
+   * Every workspace, for an admin: who owns it and how many are in it, but
+   * nothing of what it holds. Opening one means joining it, which its members see.
+   */
+  async listAll(actor: WorkspaceActor, includeArchived = false): Promise<AdminWorkspaceRow[]> {
+    if (actor.appRole !== 'admin') throw new ServiceError('forbidden', 'Only an admin sees every workspace.');
+    const store = await getStore();
+    const rows = await store.all<{
+      id: string;
+      name: string;
+      visibility: string;
+      personal_email: string | null;
+      archived_at: string | null;
+      created_at: string;
+      member_count: number;
+      admin_member: number;
+    }>(
+      `SELECT w.id, w.name, w.visibility, p.email AS personal_email, w.archived_at, w.created_at,
+              (SELECT COUNT(*) FROM workspace_members x WHERE x.workspace_id = w.id) AS member_count,
+              (SELECT COUNT(*) FROM workspace_members y WHERE y.workspace_id = w.id AND y.user_id = ?) AS admin_member
+         FROM workspaces w LEFT JOIN users p ON p.id = w.personal_owner_id
+        WHERE ? = 1 OR w.archived_at IS NULL
+        ORDER BY CASE WHEN w.personal_owner_id IS NULL THEN 0 ELSE 1 END, w.name`,
+      [actor.userId, includeArchived ? 1 : 0]
+    );
+    const owners = await store.all<{ workspace_id: string; email: string }>(
+      `SELECT m.workspace_id, u.email FROM workspace_members m JOIN users u ON u.id = m.user_id
+        WHERE m.role = 'owner' ORDER BY u.email`
+    );
+    const ownersOf = new Map<string, string[]>();
+    for (const o of owners) ownersOf.set(o.workspace_id, [...(ownersOf.get(o.workspace_id) ?? []), o.email]);
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      visibility: r.visibility === 'public' ? 'public' : 'private',
+      personalOwner: r.personal_email,
+      owners: ownersOf.get(r.id) ?? [],
+      memberCount: Number(r.member_count),
+      archived: !!r.archived_at,
+      adminIsMember: Number(r.admin_member) > 0,
+      createdAt: r.created_at,
+    }));
   }
 
   /** Add an existing account directly, with a role. Admins only; owners invite (they ask, this adds). */

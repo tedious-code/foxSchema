@@ -115,3 +115,25 @@ export async function apiAcceptInvite(inviteId: string): Promise<string> {
 export async function apiDeclineInvite(inviteId: string): Promise<void> {
   await api.post(`/workspaces/invites/${enc(inviteId)}/decline`, {});
 }
+
+// --- Admin: every workspace --------------------------------------------------
+
+export interface AdminWorkspaceRow {
+  id: string;
+  name: string;
+  visibility: 'private' | 'public';
+  personalOwner: string | null;
+  owners: string[];
+  memberCount: number;
+  archived: boolean;
+  adminIsMember: boolean;
+  createdAt: string;
+}
+
+export async function apiAdminListWorkspaces(includeArchived = false): Promise<AdminWorkspaceRow[]> {
+  return (
+    await api.get<{ workspaces: AdminWorkspaceRow[] }>('/workspaces/all', {
+      query: includeArchived ? { archived: '1' } : undefined,
+    })
+  ).workspaces;
+}

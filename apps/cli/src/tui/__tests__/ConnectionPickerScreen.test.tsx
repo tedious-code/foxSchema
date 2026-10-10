@@ -6,7 +6,7 @@ import { ConnectionPickerScreen } from '../screens/ConnectionPickerScreen';
 
 function fakeCtx(rows: any[] = []) {
   return {
-    userId: 'u1',
+    userId: 'u1', scope: { userId: 'u1', workspaceId: 'w1' },
     connections: {
       list: vi.fn().mockResolvedValue(rows),
       resolve: vi.fn(),
@@ -57,7 +57,7 @@ describe('ConnectionPickerScreen', () => {
     stdin.write('\r');
     await vi.waitFor(() => expect(onPicked).toHaveBeenCalled());
 
-    expect(ctx.connections.resolve).toHaveBeenCalledWith('u1', '1');
+    expect(ctx.connections.resolve).toHaveBeenCalledWith({ userId: 'u1', workspaceId: 'w1' }, '1');
     expect(onPicked).toHaveBeenCalledWith({
       dialect: 'postgres',
       schema: 'demo_c',

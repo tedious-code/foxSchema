@@ -5,6 +5,8 @@
  *
  * Schema browse routes. Extracted verbatim from api/routes.ts.
  */
+import { scopeOf } from '../../platform/http/scope';
+import type { ConnectionResolver } from '../../platform/db/resolve';
 import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
@@ -15,7 +17,7 @@ import { getProviderSettings, type DbObjectType } from '@foxschema/db';
 import { sendError, sendThrown } from '../../platform/http/respond';
 
 export interface SchemaRouteDeps {
-  resolveRef: (...args: any[]) => Promise<any>;
+  resolveRef: ConnectionResolver['resolveRef'];
   connectionModule: Record<string, any>;
   loadScopedTables: (...args: any[]) => Promise<any>;
 }
@@ -24,7 +26,7 @@ export function createSchemaRoutes(deps: SchemaRouteDeps): Router {
   const router = Router();
   router.post('/schema/list', requirePermissions('schema.browse'), async (req: AppRequest, res: FastifyReply) => {
     try {
-      const { dialect, option } = await deps.resolveRef((req as AuthedRequest).userId, req.body as ConnectionRef);
+      const { dialect, option } = await deps.resolveRef(scopeOf(req as AuthedRequest), req.body as ConnectionRef);
       const provider = deps.connectionModule.getProvider(dialect);
       if (!provider.listSchemas) {
         throw new Error(`Provider for dialect "${dialect}" does not support schema listing`);
@@ -39,7 +41,7 @@ export function createSchemaRoutes(deps: SchemaRouteDeps): Router {
   router.post('/schema/load', requirePermissions('schema.browse'), async (req: AppRequest, res: FastifyReply) => {
     const { scope, ...ref } = req.body as ConnectionRef & { scope: DbObjectType[] };
     try {
-      const { dialect, option, schema } = await deps.resolveRef((req as AuthedRequest).userId, ref);
+      const { dialect, option, schema } = await deps.resolveRef(scopeOf(req as AuthedRequest), ref);
       const settings = getProviderSettings(dialect);
       if (settings.schemaRequired && !schema?.trim()) {
         sendError(res, 'invalid_input', `${settings.label} requires a schema. Load schemas for the connection, then pick one before browsing or editing tables.`);

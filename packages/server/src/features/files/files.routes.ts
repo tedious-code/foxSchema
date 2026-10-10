@@ -1,6 +1,7 @@
 /**
  * Flat-file import → temp SQLite workspace and/or saved credential (any dialect).
  */
+import { scopeOf, type WorkspaceScope } from '../../platform/http/scope';
 import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
 import { createRequire } from 'node:module';
@@ -80,9 +81,9 @@ function listTablesInSqliteFile(dbPath: string): string[] {
   }
 }
 
-async function listFileImportConnections(connectionStore: ConnectionStore, userId: string) {
-  await pruneOrphanFileQueryConnections(connectionStore, userId).catch(() => undefined);
-  const list = await connectionStore.list(userId);
+async function listFileImportConnections(connectionStore: ConnectionStore, scope: WorkspaceScope) {
+  await pruneOrphanFileQueryConnections(connectionStore, scope).catch(() => undefined);
+  const list = await connectionStore.list(scope);
   const out: {
     id: string;
     name: string;
@@ -93,7 +94,7 @@ async function listFileImportConnections(connectionStore: ConnectionStore, userI
   for (const c of list) {
     if (c.dialect !== 'sqlite') continue;
     if (!isFileQueryConnectionName(c.name) && !isFileQueryDbPath(c.database)) continue;
-    const resolved = await connectionStore.resolve(userId, c.id);
+    const resolved = await connectionStore.resolve(scope, c.id);
     const dbPath = resolved?.option.connectionString || resolved?.option.database || c.database;
     out.push({
       id: c.id,
@@ -108,19 +109,19 @@ async function listFileImportConnections(connectionStore: ConnectionStore, userI
 
 async function clearPreviousFileImports(
   connectionStore: ConnectionStore,
-  userId: string,
+  scope: WorkspaceScope,
   keepId?: string
 ): Promise<{ removedConnectionIds: string[]; removedFiles: number }> {
-  const list = await connectionStore.list(userId);
+  const list = await connectionStore.list(scope);
   const removedConnectionIds: string[] = [];
   let removedFiles = 0;
   for (const c of list) {
     if (keepId && c.id === keepId) continue;
     if (c.dialect !== 'sqlite') continue;
     if (!isFileQueryConnectionName(c.name) && !isFileQueryDbPath(c.database)) continue;
-    const resolved = await connectionStore.resolve(userId, c.id);
+    const resolved = await connectionStore.resolve(scope, c.id);
     const dbPath = resolved?.option.connectionString || resolved?.option.database || c.database;
-    const ok = await connectionStore.remove(userId, c.id);
+    const ok = await connectionStore.remove(scope, c.id);
     if (ok) {
       removedConnectionIds.push(c.id);
       if (dbPath && removeFileQueryDb(dbPath)) removedFiles++;
@@ -175,10 +176,10 @@ function parseImportBody(body: Record<string, unknown>): {
 
 async function resolveWorkspaceDbPath(
   connectionStore: ConnectionStore,
-  userId: string,
+  scope: WorkspaceScope,
   workspaceConnectionId: string
 ): Promise<{ connectionId: string; dbPath: string; name: string }> {
-  const resolved = await connectionStore.resolve(userId, workspaceConnectionId);
+  const resolved = await connectionStore.resolve(scope, workspaceConnectionId);
   if (!resolved || resolved.dialect !== 'sqlite') {
     throw new Error('Workspace connection not found');
   }
@@ -186,7 +187,7 @@ async function resolveWorkspaceDbPath(
   if (!dbPath || !isFileQueryDbPath(dbPath)) {
     throw new Error('Not a Query-files workspace');
   }
-  const list = await connectionStore.list(userId);
+  const list = await connectionStore.list(scope);
   const meta = list.find((c) => c.id === workspaceConnectionId);
   return {
     connectionId: workspaceConnectionId,
@@ -204,7 +205,8 @@ export function createFileQueryRoutes(connectionStore: ConnectionStore): Router 
     async (req: AppRequest, res: FastifyReply) => {
       try {
         const userId = (req as AuthedRequest).userId!;
-        const imports = await listFileImportConnections(connectionStore, userId);
+        const scope = scopeOf(req as AuthedRequest)!;
+        const imports = await listFileImportConnections(connectionStore, scope);
         res.send({ imports });
       } catch (error: unknown) {
         sendThrown(res, error, 'List failed');
@@ -297,12 +299,13 @@ export function createFileQueryRoutes(connectionStore: ConnectionStore): Router 
     async (req: AppRequest, res: FastifyReply) => {
       try {
         const userId = (req as AuthedRequest).userId!;
+        const scope = scopeOf(req as AuthedRequest)!;
         const parsed = parseImportBody(req.body as Record<string, unknown>);
         // Credential bulk-load runs DROP/CREATE/INSERT — same bar as /sql/execute writes.
         if (parsed.targetConnectionId && denyUnless(req as AuthedRequest, res, 'editor.write')) {
           return;
         }
-        const result = await runImport(connectionStore, userId, parsed);
+        const result = await runImport(connectionStore, scope, parsed);
         res.send(result);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Import failed';
@@ -319,6 +322,7 @@ export function createFileQueryRoutes(connectionStore: ConnectionStore): Router 
     async (req: AppRequest, res: FastifyReply) => {
       try {
         const userId = (req as AuthedRequest).userId!;
+        const scope = scopeOf(req as AuthedRequest)!;
         const body = req.body as Record<string, unknown>;
         const format = asFormat(body.format);
         if (!format) {
@@ -367,6 +371,7 @@ export function createFileQueryRoutes(connectionStore: ConnectionStore): Router 
     async (req: AppRequest, res: FastifyReply) => {
       try {
         const userId = (req as AuthedRequest).userId!;
+        const scope = scopeOf(req as AuthedRequest)!;
         const id = String(req.params.id || '');
         const body = req.body as { data?: string; encoding?: 'utf8' | 'base64' };
         if (typeof body.data !== 'string' || !body.data) {
@@ -394,6 +399,7 @@ export function createFileQueryRoutes(connectionStore: ConnectionStore): Router 
     async (req: AppRequest, res: FastifyReply) => {
       try {
         const userId = (req as AuthedRequest).userId!;
+        const scope = scopeOf(req as AuthedRequest)!;
         const id = String(req.params.id || '');
         const session = getUploadSession(userId, id);
         if (!session) {
@@ -409,7 +415,7 @@ export function createFileQueryRoutes(connectionStore: ConnectionStore): Router 
         }
         const input = sessionToImportInput(userId, id);
         const body = (req.body || {}) as Record<string, unknown>;
-        const result = await runImport(connectionStore, userId, {
+        const result = await runImport(connectionStore, scope, {
           input,
           replacePrevious: body.replacePrevious === true,
           targetConnectionId: session.targetConnectionId,
@@ -433,6 +439,7 @@ export function createFileQueryRoutes(connectionStore: ConnectionStore): Router 
     requirePermissions('editor.access'),
     async (req: AppRequest, res: FastifyReply) => {
       const userId = (req as AuthedRequest).userId!;
+      const scope = scopeOf(req as AuthedRequest)!;
       const ok = abortUploadSession(userId, String(req.params.id || ''));
       res.send({ ok });
     }
@@ -445,20 +452,21 @@ export function createFileQueryRoutes(connectionStore: ConnectionStore): Router 
     async (req: AppRequest, res: FastifyReply) => {
       try {
         const userId = (req as AuthedRequest).userId!;
+        const scope = scopeOf(req as AuthedRequest)!;
         const id = String(req.params.id || '');
-        const resolved = await connectionStore.resolve(userId, id);
+        const resolved = await connectionStore.resolve(scope, id);
         if (!resolved || resolved.dialect !== 'sqlite') {
           sendError(res, 'not_found', 'File import not found');
           return;
         }
         const dbPath = resolved.option.connectionString || resolved.option.database;
-        const list = await connectionStore.list(userId);
+        const list = await connectionStore.list(scope);
         const meta = list.find((c) => c.id === id);
         if (!isFileQueryConnectionName(meta?.name) && !isFileQueryDbPath(dbPath)) {
           sendError(res, 'invalid_input', 'Not a Query-files import');
           return;
         }
-        const ok = await connectionStore.remove(userId, id);
+        const ok = await connectionStore.remove(scope, id);
         if (!ok) {
           sendError(res, 'not_found', 'File import not found');
           return;
@@ -478,7 +486,8 @@ export function createFileQueryRoutes(connectionStore: ConnectionStore): Router 
     async (req: AppRequest, res: FastifyReply) => {
       try {
         const userId = (req as AuthedRequest).userId!;
-        const cleared = await clearPreviousFileImports(connectionStore, userId);
+        const scope = scopeOf(req as AuthedRequest)!;
+        const cleared = await clearPreviousFileImports(connectionStore, scope);
         res.send({
           ok: true,
           removedConnectionIds: cleared.removedConnectionIds,
@@ -526,7 +535,7 @@ async function parseUpload(
 
 async function runImport(
   connectionStore: ConnectionStore,
-  userId: string,
+  scope: WorkspaceScope,
   parsed: {
     input: FileQueryImportInput;
     replacePrevious: boolean;
@@ -541,7 +550,7 @@ async function runImport(
 
   // --- Remote / saved credential target (dialect bulk) ---
   if (parsed.targetConnectionId) {
-    const resolved = await connectionStore.resolve(userId, parsed.targetConnectionId);
+    const resolved = await connectionStore.resolve(scope, parsed.targetConnectionId);
     if (!resolved) throw new Error('Target credential not found');
     const table = await parseUpload(parsed.input, maxChars);
     const load = await bulkLoadIntoConnection({
@@ -553,7 +562,7 @@ async function runImport(
       types: table.types,
       replaceTable: parsed.replaceTable,
     });
-    const list = await connectionStore.list(userId);
+    const list = await connectionStore.list(scope);
     const connection = list.find((c) => c.id === parsed.targetConnectionId);
     return {
       ok: true,
@@ -580,7 +589,7 @@ async function runImport(
   if (parsed.workspaceConnectionId) {
     const ws = await resolveWorkspaceDbPath(
       connectionStore,
-      userId,
+      scope,
       parsed.workspaceConnectionId
     );
     // Parsed off the event loop when it is big enough to matter; the SQLite
@@ -590,7 +599,7 @@ async function runImport(
       replaceTable: parsed.replaceTable,
       parsed: await parseUpload(parsed.input, maxChars),
     });
-    const list = await connectionStore.list(userId);
+    const list = await connectionStore.list(scope);
     const connection = list.find((c) => c.id === ws.connectionId);
     return {
       ok: true,
@@ -619,7 +628,7 @@ async function runImport(
     connectionName: `Files: ${workspaceLabel}`,
     parsed: await parseUpload(parsed.input, maxChars),
   });
-  const connection = await connectionStore.create(userId, {
+  const connection = await connectionStore.create(scope, {
     name: result.connectionName,
     dialect: 'sqlite',
     schema: '',
@@ -632,7 +641,7 @@ async function runImport(
   });
 
   const cleared = parsed.replacePrevious
-    ? await clearPreviousFileImports(connectionStore, userId, connection.id)
+    ? await clearPreviousFileImports(connectionStore, scope, connection.id)
     : { removedConnectionIds: [] as string[], removedFiles: 0 };
 
   return {

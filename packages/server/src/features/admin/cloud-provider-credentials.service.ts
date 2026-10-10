@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { WorkspaceScope } from '../../platform/http/scope';
 import { getStore } from '../../database/store';
 import { encryptSecret, decryptSecret } from '../../platform/crypto/crypto';
 import { rethrowUniqueViolation } from '../../platform/db/db-errors';
@@ -100,26 +101,26 @@ function toSummary(row: CredRow): CloudProviderCredentialSummary {
  * Multiple named slots per provider — Secrets picks one from a dropdown to fetch.
  */
 export class CloudProviderCredentialsStore {
-  async list(userId: string): Promise<CloudProviderCredentialSummary[]> {
+  async list(scope: WorkspaceScope): Promise<CloudProviderCredentialSummary[]> {
     const store = await getStore();
     const rows = await store.all<CredRow>(
       `SELECT id, name, provider, encrypted_config, updated_at
-       FROM cloud_provider_credentials WHERE user_id = ?
+       FROM cloud_provider_credentials WHERE workspace_id = ?
        ORDER BY name ASC`,
-      [userId]
+      [scope.workspaceId]
     );
     return rows.map(toSummary);
   }
 
   async getDecryptedById(
-    userId: string,
+    scope: WorkspaceScope,
     id: string
   ): Promise<{ provider: CloudSecretSource; credentials: CloudProviderCredentials } | null> {
     const store = await getStore();
     const row = await store.get<CredRow>(
       `SELECT id, name, provider, encrypted_config, updated_at
-       FROM cloud_provider_credentials WHERE user_id = ? AND id = ?`,
-      [userId, id]
+       FROM cloud_provider_credentials WHERE workspace_id = ? AND id = ?`,
+      [scope.workspaceId, id]
     );
     if (!row || !isCloudSecretSource(row.provider)) return null;
     try {
@@ -134,12 +135,12 @@ export class CloudProviderCredentialsStore {
 
   /** Prefer a named credential; else first saved cred for that provider (legacy refs). */
   async resolveCredentials(
-    userId: string,
+    scope: WorkspaceScope,
     provider: CloudSecretSource,
     credentialId?: string
   ): Promise<CloudProviderCredentials | undefined> {
     if (credentialId) {
-      const byId = await this.getDecryptedById(userId, credentialId);
+      const byId = await this.getDecryptedById(scope, credentialId);
       if (!byId) throw new Error('Cloud credential not found');
       if (byId.provider !== provider) {
         throw new Error(
@@ -152,10 +153,10 @@ export class CloudProviderCredentialsStore {
     const row = await store.get<CredRow>(
       `SELECT id, name, provider, encrypted_config, updated_at
        FROM cloud_provider_credentials
-       WHERE user_id = ? AND provider = ?
+       WHERE workspace_id = ? AND provider = ?
        ORDER BY name ASC
        LIMIT 1`,
-      [userId, provider]
+      [scope.workspaceId, provider]
     );
     if (!row) return undefined;
     try {
@@ -166,7 +167,7 @@ export class CloudProviderCredentialsStore {
   }
 
   async create(
-    userId: string,
+    scope: WorkspaceScope,
     name: string,
     provider: CloudSecretSource,
     credentials: CloudProviderCredentials
@@ -187,9 +188,9 @@ export class CloudProviderCredentialsStore {
     const store = await getStore();
     try {
       await store.run(
-        `INSERT INTO cloud_provider_credentials (id, user_id, name, provider, encrypted_config, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [id, userId, trimmed, provider, encrypted, updatedAt]
+        `INSERT INTO cloud_provider_credentials (id, user_id, workspace_id, name, provider, encrypted_config, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [id, scope.userId, scope.workspaceId, trimmed, provider, encrypted, updatedAt]
       );
     } catch (err: unknown) {
       rethrowUniqueViolation(err, `A cloud credential named "${trimmed}" already exists`);
@@ -198,7 +199,7 @@ export class CloudProviderCredentialsStore {
   }
 
   async update(
-    userId: string,
+    scope: WorkspaceScope,
     id: string,
     input: {
       name?: string;
@@ -208,8 +209,8 @@ export class CloudProviderCredentialsStore {
     const store = await getStore();
     const existing = await store.get<CredRow>(
       `SELECT id, name, provider, encrypted_config, updated_at
-       FROM cloud_provider_credentials WHERE user_id = ? AND id = ?`,
-      [userId, id]
+       FROM cloud_provider_credentials WHERE workspace_id = ? AND id = ?`,
+      [scope.workspaceId, id]
     );
     if (!existing || !isCloudSecretSource(existing.provider)) return null;
 
@@ -234,8 +235,8 @@ export class CloudProviderCredentialsStore {
       await store.run(
         `UPDATE cloud_provider_credentials
          SET name = ?, encrypted_config = ?, updated_at = ?
-         WHERE id = ? AND user_id = ?`,
-        [nextName, encrypted, updatedAt, id, userId]
+         WHERE id = ? AND workspace_id = ?`,
+        [nextName, encrypted, updatedAt, id, scope.workspaceId]
       );
     } catch (err: unknown) {
       rethrowUniqueViolation(err, `A cloud credential named "${nextName}" already exists`);
@@ -248,11 +249,11 @@ export class CloudProviderCredentialsStore {
     };
   }
 
-  async remove(userId: string, id: string): Promise<boolean> {
+  async remove(scope: WorkspaceScope, id: string): Promise<boolean> {
     const store = await getStore();
     const result = await store.run(
-      'DELETE FROM cloud_provider_credentials WHERE user_id = ? AND id = ?',
-      [userId, id]
+      'DELETE FROM cloud_provider_credentials WHERE workspace_id = ? AND id = ?',
+      [scope.workspaceId, id]
     );
     return (result.changes ?? 0) > 0;
   }

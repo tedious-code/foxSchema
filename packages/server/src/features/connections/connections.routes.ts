@@ -1,4 +1,5 @@
 import type { FastifyReply } from 'fastify';
+import { scopeOf } from '../../platform/http/scope';
 import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
 import { ConnectionStore } from './connection-store.service';
@@ -13,8 +14,8 @@ export function createConnectionStoreRoutes(store: ConnectionStore): Router {
   router.get('/', async (req: AuthedRequest, res: FastifyReply) => {
     // Drop stale Query-files workspaces whose temp DB expired — keeps upgrades
     // and long-running sessions free of dead `Files:` credentials.
-    await pruneOrphanFileQueryConnections(store, req.userId!).catch(() => undefined);
-    res.send({ connections: await store.list(req.userId!) });
+    await pruneOrphanFileQueryConnections(store, scopeOf(req)!).catch(() => undefined);
+    res.send({ connections: await store.list(scopeOf(req)!) });
   });
 
   router.post('/', async (req: AuthedRequest, res: FastifyReply) => {
@@ -30,7 +31,7 @@ export function createConnectionStoreRoutes(store: ConnectionStore): Router {
       return;
     }
     try {
-      res.send({ connection: await store.create(req.userId!, { name, dialect, schema, option, savePassword }) });
+      res.send({ connection: await store.create(scopeOf(req)!, { name, dialect, schema, option, savePassword }) });
     } catch (error: unknown) {
       sendThrown(res, error, 'Failed to save connection');
     }
@@ -49,7 +50,7 @@ export function createConnectionStoreRoutes(store: ConnectionStore): Router {
       return;
     }
     try {
-      const updated = await store.update(req.userId!, String(req.params.id), { name, dialect, schema, option, savePassword });
+      const updated = await store.update(scopeOf(req)!, String(req.params.id), { name, dialect, schema, option, savePassword });
       if (!updated) {
         sendError(res, 'not_found', 'Connection not found');
         return;
@@ -61,7 +62,7 @@ export function createConnectionStoreRoutes(store: ConnectionStore): Router {
   });
 
   router.delete('/:id', async (req: AuthedRequest, res: FastifyReply) => {
-    const removed = await store.remove(req.userId!, String(req.params.id));
+    const removed = await store.remove(scopeOf(req)!, String(req.params.id));
     if (!removed) {
       sendError(res, 'not_found', 'Saved connection not found');
       return;

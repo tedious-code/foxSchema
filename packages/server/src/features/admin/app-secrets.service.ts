@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { WorkspaceScope } from '../../platform/http/scope';
 import { getStore } from '../../database/store';
 import { encryptSecret, decryptSecret } from '../../platform/crypto/crypto';
 import {
@@ -68,17 +69,17 @@ function toSummary(row: AppSecretRow): AppSecretSummary {
  */
 export class AppSecretsStore {
   private readonly providers = new CloudProviderCredentialsStore();
-  async list(userId: string): Promise<AppSecretSummary[]> {
+  async list(scope: WorkspaceScope): Promise<AppSecretSummary[]> {
     const store = await getStore();
     const rows = await store.all<AppSecretRow>(
       `SELECT id, name, source, encrypted_value, cloud_ref, updated_at
-       FROM app_secrets WHERE user_id = ? ORDER BY name ASC`,
-      [userId]
+       FROM app_secrets WHERE workspace_id = ? ORDER BY name ASC`,
+      [scope.workspaceId]
     );
     return rows.map(toSummary);
   }
 
-  async create(userId: string, input: AppSecretInput): Promise<AppSecretSummary> {
+  async create(scope: WorkspaceScope, input: AppSecretInput): Promise<AppSecretSummary> {
     const name = input.name.trim();
     if (!isValidSecretName(name)) {
       throw new Error('Invalid secret name — use letters, digits, underscore (must start with a letter or _)');
@@ -118,9 +119,9 @@ export class AppSecretsStore {
     const store = await getStore();
     try {
       await store.run(
-        `INSERT INTO app_secrets (id, user_id, name, source, encrypted_value, cloud_ref, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [id, userId, name, input.source, encryptedValue, cloudRefJson, updatedAt]
+        `INSERT INTO app_secrets (id, user_id, workspace_id, name, source, encrypted_value, cloud_ref, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, scope.userId, scope.workspaceId, name, input.source, encryptedValue, cloudRefJson, updatedAt]
       );
     } catch (err: unknown) {
       rethrowUniqueViolation(err, `A secret named "${name}" already exists`);
@@ -135,12 +136,12 @@ export class AppSecretsStore {
     };
   }
 
-  async update(userId: string, id: string, input: Partial<AppSecretInput>): Promise<AppSecretSummary | null> {
+  async update(scope: WorkspaceScope, id: string, input: Partial<AppSecretInput>): Promise<AppSecretSummary | null> {
     const store = await getStore();
     const rows = await store.all<AppSecretRow>(
       `SELECT id, name, source, encrypted_value, cloud_ref, updated_at
-       FROM app_secrets WHERE id = ? AND user_id = ?`,
-      [id, userId]
+       FROM app_secrets WHERE id = ? AND workspace_id = ?`,
+      [id, scope.workspaceId]
     );
     const existing = rows[0];
     if (!existing) return null;
@@ -195,8 +196,8 @@ export class AppSecretsStore {
       await store.run(
         `UPDATE app_secrets
          SET name = ?, source = ?, encrypted_value = ?, cloud_ref = ?, updated_at = ?
-         WHERE id = ? AND user_id = ?`,
-        [nextName, nextSource, encryptedValue, cloudRefJson, updatedAt, id, userId]
+         WHERE id = ? AND workspace_id = ?`,
+        [nextName, nextSource, encryptedValue, cloudRefJson, updatedAt, id, scope.workspaceId]
       );
     } catch (err: unknown) {
       rethrowUniqueViolation(err, `A secret named "${nextName}" already exists`);
@@ -212,9 +213,9 @@ export class AppSecretsStore {
     };
   }
 
-  async remove(userId: string, id: string): Promise<boolean> {
+  async remove(scope: WorkspaceScope, id: string): Promise<boolean> {
     const store = await getStore();
-    const result = await store.run('DELETE FROM app_secrets WHERE id = ? AND user_id = ?', [id, userId]);
+    const result = await store.run('DELETE FROM app_secrets WHERE id = ? AND workspace_id = ?', [id, scope.workspaceId]);
     return (result.changes ?? 0) > 0;
   }
 
@@ -224,7 +225,7 @@ export class AppSecretsStore {
    * Session Variables with the same name should win at the call site.
    */
   async resolve(
-    userId: string,
+    scope: WorkspaceScope,
     names?: string[]
   ): Promise<{ secrets: Record<string, string>; errors: Record<string, string> }> {
     const store = await getStore();
@@ -233,14 +234,14 @@ export class AppSecretsStore {
       const placeholders = names.map(() => '?').join(',');
       rows = await store.all<AppSecretRow>(
         `SELECT id, name, source, encrypted_value, cloud_ref, updated_at
-         FROM app_secrets WHERE user_id = ? AND name IN (${placeholders})`,
-        [userId, ...names]
+         FROM app_secrets WHERE workspace_id = ? AND name IN (${placeholders})`,
+        [scope.workspaceId, ...names]
       );
     } else {
       rows = await store.all<AppSecretRow>(
         `SELECT id, name, source, encrypted_value, cloud_ref, updated_at
-         FROM app_secrets WHERE user_id = ?`,
-        [userId]
+         FROM app_secrets WHERE workspace_id = ?`,
+        [scope.workspaceId]
       );
     }
 
@@ -254,7 +255,7 @@ export class AppSecretsStore {
     ): Promise<CloudProviderCredentials | undefined> => {
       const key = `${source}:${credentialId ?? ''}`;
       if (credCache.has(key)) return credCache.get(key);
-      const creds = await this.providers.resolveCredentials(userId, source, credentialId);
+      const creds = await this.providers.resolveCredentials(scope, source, credentialId);
       credCache.set(key, creds);
       return creds;
     };

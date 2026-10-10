@@ -7,6 +7,10 @@
  *
  * Extracted verbatim from api/routes.ts; handler bodies are unchanged.
  */
+import type { LokeeWeaveStore } from './lokee-weave.service';
+import type { WorkspaceScope } from '../../platform/http/scope';
+import { scopeOf } from '../../platform/http/scope';
+import type { ConnectionResolver } from '../../platform/db/resolve';
 import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
@@ -21,9 +25,9 @@ import { sendError, sendThrown } from '../../platform/http/respond';
 import type { ForceMigrateErrorCode, LokeeRevertErrorCode } from '@foxschema/shared';
 
 export interface HistoryRouteDeps {
-  lokee: Record<string, any>;
-  captureLiveSchema: (...args: any[]) => Promise<any>;
-  resolveRef: (...args: any[]) => Promise<any>;
+  lokee: LokeeWeaveStore;
+  captureLiveSchema: (scope: WorkspaceScope, ...args: any[]) => Promise<any>;
+  resolveRef: ConnectionResolver['resolveRef'];
   migrationModule: MigrationModule;
   /**
    * Reads a live schema through the provider for a dialect. Force-migrate needs
@@ -72,7 +76,7 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
     }
     try {
       const { dialect, option, schema } = await deps.resolveRef(
-        (req as AuthedRequest).userId,
+        scopeOf(req as AuthedRequest),
         body
       );
       return { versionId, dialect, option, schema };
@@ -88,9 +92,9 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
     async (req: AppRequest, res: FastifyReply) => {
       const body = req.body as ConnectionRef & { source?: string; migrationRunId?: string };
       try {
-        const resolved = await deps.resolveRef((req as AuthedRequest).userId, body);
+        const resolved = await deps.resolveRef(scopeOf(req as AuthedRequest), body);
         const result = await deps.captureLiveSchema(
-          (req as AuthedRequest).userId!,
+          scopeOf(req as AuthedRequest)!,
           resolved,
           body.source === 'migrate' || body.source === 'revert' ? body.source : 'manual',
           { migrationRunId: body.migrationRunId }
@@ -106,7 +110,7 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
     '/lokee/databases',
     requirePermissions('schema.browse'),
     async (req: AppRequest, res: FastifyReply) => {
-      res.send({ databases: await deps.lokee.listDatabases((req as AuthedRequest).userId!) });
+      res.send({ databases: await deps.lokee.listDatabases(scopeOf(req as AuthedRequest)!) });
     }
   );
 
@@ -115,7 +119,7 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
     requirePermissions('schema.browse'),
     async (req: AppRequest, res: FastifyReply) => {
       const versions = await deps.lokee.listVersions(
-        (req as AuthedRequest).userId!,
+        scopeOf(req as AuthedRequest)!,
         String(req.params.id),
         Number(req.query.limit) || 100
       );
@@ -131,7 +135,7 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
       // returns an empty graph rather than another user's history.
       res.send(
         await deps.lokee.graph(
-          (req as AuthedRequest).userId!,
+          scopeOf(req as AuthedRequest)!,
           String(req.params.id),
           Number(req.query.limit) || 20
         )
@@ -160,7 +164,7 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
               .map((k) => String(k).trim())
               .filter(Boolean);
       const plan = await deps.lokee.planRevert(
-        (req as AuthedRequest).userId!,
+        scopeOf(req as AuthedRequest)!,
         String(req.params.id),
         toVersionId,
         undefined,
@@ -196,7 +200,7 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
       let option: ConnectionOptions;
       let schema: string;
       try {
-        ({ dialect, option, schema } = await deps.resolveRef((req as AuthedRequest).userId, body));
+        ({ dialect, option, schema } = await deps.resolveRef(scopeOf(req as AuthedRequest), body));
       } catch (error: unknown) {
         sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Invalid connection');
         return;
@@ -230,7 +234,7 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
       try {
       // History is keyed by database identity; the execute connection must be
       // that same database or we would apply reverse DDL to the wrong target.
-      const identityMatch = await deps.lokee.matchDatabaseIdentity(userId, databaseId, {
+      const identityMatch = await deps.lokee.matchDatabaseIdentity(scopeOf(req as AuthedRequest)!, databaseId, {
         dialect,
         host: option.host ?? null,
         port: option.port ?? null,
@@ -262,7 +266,7 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
        */
       let preSnapshot: Awaited<ReturnType<HistoryRouteDeps['captureLiveSchema']>>;
       try {
-        preSnapshot = await deps.captureLiveSchema(userId, { dialect, option, schema }, 'manual');
+        preSnapshot = await deps.captureLiveSchema(scopeOf(req as AuthedRequest)!, { dialect, option, schema }, 'manual');
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'snapshot failed';
         sendError(res, 'failed', `Could not snapshot the schema before reverting: ${message}`);
@@ -283,7 +287,7 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
         ? body.objectKeys.map((k) => String(k).trim()).filter(Boolean)
         : undefined;
       const plan = await deps.lokee.planRevert(
-        userId,
+        scopeOf(req as AuthedRequest)!,
         databaseId,
         toVersionId,
         dialect,
@@ -330,7 +334,7 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
         // Record where this undo came from and where it went, so reading the
         // history later answers "reverted to which version?" rather than just
         // "a revert happened".
-        const capture = await deps.captureLiveSchema(userId, { dialect, option, schema }, 'revert', {
+        const capture = await deps.captureLiveSchema(scopeOf(req as AuthedRequest)!, { dialect, option, schema }, 'revert', {
           revert: {
             fromVersionId: plan.fromVersion.id,
             toVersionId: plan.toVersion.id,
@@ -380,7 +384,7 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
           LOKEE_FULL_SCOPE
         );
         const plan = await deps.lokee.planForceMigrate(
-          (req as AuthedRequest).userId!,
+          scopeOf(req as AuthedRequest)!,
           String(req.params.id),
           versionId,
           { dialect, host: option.host, database: option.database, schema, tables }
@@ -445,7 +449,7 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
           schema ?? '',
           LOKEE_FULL_SCOPE
         );
-        const plan = await deps.lokee.planForceMigrate(userId, sourceDatabaseId, versionId, {
+        const plan = await deps.lokee.planForceMigrate(scopeOf(req as AuthedRequest)!, sourceDatabaseId, versionId, {
           dialect,
           host: option.host,
           database: option.database,
@@ -500,7 +504,7 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
           // version would record only that the schema changed, losing the one
           // fact worth keeping: which history, and which version, it came from.
           const capture = await deps.captureLiveSchema(
-            userId,
+            scopeOf(req as AuthedRequest)!,
             { dialect, option, schema },
             'force-migrate',
             { appliedFrom: { databaseId: sourceDatabaseId, versionId: plan.version.id } }
@@ -528,7 +532,7 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
     async (req: AppRequest, res: FastifyReply) => {
       const body = req.body as { name?: string | null; description?: string | null };
       const updated = await deps.lokee.updateVersionMeta(
-        (req as AuthedRequest).userId!,
+        scopeOf(req as AuthedRequest)!,
         String(req.params.id),
         String(req.params.versionId),
         {
@@ -555,7 +559,7 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
         return;
       }
       const result = await deps.lokee.inspectObject(
-        (req as AuthedRequest).userId!,
+        scopeOf(req as AuthedRequest)!,
         String(req.params.id),
         versionId,
         objectKey
@@ -579,7 +583,7 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
       }
       const against = String(req.query.againstVersionId ?? '').trim();
       const result = await deps.lokee.diffVersions(
-        (req as AuthedRequest).userId!,
+        scopeOf(req as AuthedRequest)!,
         String(req.params.id),
         versionId,
         against || undefined

@@ -24,7 +24,7 @@ describe('ConnectionFormScreen', () => {
   });
 
   it('walks all fields, then the password, then a save choice, and submits without saving', async () => {
-    const ctx = { userId: 'u1', connections: { create: vi.fn() }, history: {} };
+    const ctx = { userId: 'u1', scope: { userId: 'u1', workspaceId: 'w1' }, connections: { create: vi.fn() }, history: {} };
     vi.spyOn(store, 'getContext').mockResolvedValue(ctx as any);
     const onSubmit = vi.fn();
 
@@ -47,7 +47,7 @@ describe('ConnectionFormScreen', () => {
     await vi.waitFor(() => expect(onSubmit).toHaveBeenCalled(), { timeout: 10_000 });
 
     expect(ctx.connections.create).toHaveBeenCalledWith(
-      'u1',
+      { userId: 'u1', workspaceId: 'w1' },
       expect.objectContaining({ name: 'demo_c', dialect: 'postgres', schema: 'demo_c' })
     );
     expect(onSubmit).toHaveBeenCalledWith(
@@ -56,7 +56,7 @@ describe('ConnectionFormScreen', () => {
   }, 30_000);
 
   it('does not persist the connection when "No" is chosen', async () => {
-    const ctx = { userId: 'u1', connections: { create: vi.fn() }, history: {} };
+    const ctx = { userId: 'u1', scope: { userId: 'u1', workspaceId: 'w1' }, connections: { create: vi.fn() }, history: {} };
     vi.spyOn(store, 'getContext').mockResolvedValue(ctx as any);
     const onSubmit = vi.fn();
 

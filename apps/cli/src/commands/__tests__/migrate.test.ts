@@ -124,7 +124,7 @@ describe('CLI: migrate command', () => {
     vi.spyOn(engine.sqlGenerator, 'generateMigrationPlan').mockReturnValue([{ sql: 'CREATE TABLE users ...' }] as any);
     // execute-path collaborators: history store, provider snapshot, and the runner.
     vi.spyOn(store, 'getContext').mockResolvedValue({
-      userId: 'u1',
+      userId: 'u1', scope: { userId: 'u1', workspaceId: 'w1' },
       history: { start: vi.fn().mockResolvedValue('run1'), finish: vi.fn().mockResolvedValue(undefined) },
     } as any);
     vi.spyOn(engine.connectionModule, 'getProvider').mockReturnValue({ getTables: vi.fn().mockResolvedValue([]) } as any);
@@ -144,7 +144,7 @@ describe('CLI: migrate command', () => {
     vi.spyOn(engine.sqlGenerator, 'generateMigrationSql').mockReturnValue('CREATE TABLE users (id INT PRIMARY KEY);');
     vi.spyOn(engine.sqlGenerator, 'generateMigrationPlan').mockReturnValue([{ sql: 'CREATE TABLE users ...' }] as any);
     vi.spyOn(store, 'getContext').mockResolvedValue({
-      userId: 'u1',
+      userId: 'u1', scope: { userId: 'u1', workspaceId: 'w1' },
       history: { start: vi.fn().mockResolvedValue('run1'), finish: vi.fn().mockResolvedValue(undefined) },
     } as any);
     vi.spyOn(engine.connectionModule, 'getProvider').mockReturnValue({ getTables: vi.fn().mockResolvedValue([]) } as any);
@@ -171,7 +171,7 @@ describe('CLI: migrate command', () => {
     vi.spyOn(engine.sqlGenerator, 'generateMigrationPlan').mockReturnValue([{ sql: 'CREATE TABLE users ...' }] as any);
     const finishSpy = vi.fn().mockResolvedValue(undefined);
     vi.spyOn(store, 'getContext').mockResolvedValue({
-      userId: 'u1',
+      userId: 'u1', scope: { userId: 'u1', workspaceId: 'w1' },
       history: { start: vi.fn().mockResolvedValue('run1'), finish: finishSpy },
     } as any);
     vi.spyOn(engine.connectionModule, 'getProvider').mockReturnValue({ getTables: vi.fn().mockResolvedValue([]) } as any);

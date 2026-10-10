@@ -30,6 +30,7 @@ export { getStore } from './database/store';
 /** Feature services the CLI drives without going through HTTP. */
 export { AuthModule } from './features/auth/auth.service';
 export { ConnectionStore } from './features/connections/connection-store.service';
+export type { WorkspaceScope } from './platform/http/scope';
 export type { SavedConnectionSummary } from './features/connections/connection-store.service';
 export { MigrationHistoryStore } from './features/migration/migration-history.service';
 export type {

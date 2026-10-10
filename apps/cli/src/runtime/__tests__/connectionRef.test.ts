@@ -39,7 +39,7 @@ describe('ensureSourceTarget', () => {
   it('prompts for the missing side when running in a TTY', async () => {
     const { select } = await import('@inquirer/prompts');
     vi.spyOn(store, 'getContext').mockResolvedValue({
-      userId: 'u1',
+      userId: 'u1', scope: { userId: 'u1', workspaceId: 'w1' },
       connections: { list: vi.fn().mockResolvedValue([{ id: '1', name: 'demo_c', dialect: 'postgres' }]) },
       history: {},
     } as any);
@@ -55,7 +55,7 @@ describe('ensureSourceTarget', () => {
 
   it('errors when prompting and there are no saved connections', async () => {
     vi.spyOn(store, 'getContext').mockResolvedValue({
-      userId: 'u1',
+      userId: 'u1', scope: { userId: 'u1', workspaceId: 'w1' },
       connections: { list: vi.fn().mockResolvedValue([]) },
       history: {},
     } as any);

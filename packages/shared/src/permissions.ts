@@ -73,6 +73,10 @@ export const PERMISSIONS = [
   // Migrations in Git
   'git.view',
   'git.manage',
+  // Workspaces
+  'workspace.members',
+  'workspace.settings',
+  'workspace.create',
   // Administration
   'admin.users',
   'admin.roles',
@@ -134,6 +138,9 @@ export const PERMISSION_META: PermissionMeta[] = [
   { id: 'workflow.admin', group: 'Workflow', label: 'Workflow admin', description: 'Control panel: engine on/off, URL, and log sinks.' },
   { id: 'git.view', group: 'Git', label: 'View migration repositories', description: 'See the Git repositories migrations are committed to, their branches and history, and fetch from them. Committing, pulling and pushing also need Execute migrations.' },
   { id: 'git.manage', group: 'Git', label: 'Manage migration repositories', description: 'Add, edit and remove Git repositories, including their access tokens and whether a migration must be committed before it runs.' },
+  { id: 'workspace.members', group: 'Workspace', label: 'Manage members', description: 'Invite people to the current workspace, change their workspace role, and remove them.' },
+  { id: 'workspace.settings', group: 'Workspace', label: 'Workspace settings', description: 'Rename the current workspace, change whether it is public or private, and archive it.' },
+  { id: 'workspace.create', group: 'Workspace', label: 'Create workspaces', description: 'Create workspaces besides your own. Install-wide: comes from the account role, not a workspace role.' },
   { id: 'admin.users', group: 'Admin', label: 'Manage users', description: 'List FoxSchema logins, assign app roles, and activate or deactivate accounts. Not the same as database users on a connected server.' },
   { id: 'admin.roles', group: 'Admin', label: 'Configure roles', description: 'Edit which FoxSchema permissions each app role receives, including Grant privileges for database GRANT/REVOKE.' },
 ];
@@ -192,6 +199,8 @@ const OWNER: Permission[] = [
   'editor.grant',
   'secrets.delete',
   'workflow.admin',
+  'workspace.members',
+  'workspace.settings',
 ];
 
 const ADMIN: Permission[] = ALL;
@@ -253,4 +262,46 @@ export function permissionSatisfied(granted: Iterable<Permission>, needed: Permi
   // Legacy editor.grant covers Access builder/diff until roles are re-saved.
   if (needed === 'access.builder' || needed === 'access.diff') return set.has('editor.grant');
   return false;
+}
+
+/** Roles a member holds inside a workspace. `admin` is an account role only. */
+export const WORKSPACE_ROLES = ['viewer', 'editor', 'owner'] as const;
+export type WorkspaceRole = (typeof WORKSPACE_ROLES)[number];
+
+export function isWorkspaceRole(value: unknown): value is WorkspaceRole {
+  return typeof value === 'string' && (WORKSPACE_ROLES as readonly string[]).includes(value);
+}
+
+/**
+ * Permissions that belong to the install rather than to a workspace, so they
+ * come from the account role. `editor.advanced` runs code on the server:
+ * owning a workspace must never grant it. Workflows and Git repositories are
+ * install-wide, and so is managing accounts and creating workspaces.
+ */
+export const INSTALL_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>([
+  'editor.advanced',
+  'workflow.access',
+  'workflow.design',
+  'workflow.run',
+  'workflow.admin',
+  'git.view',
+  'git.manage',
+  'admin.users',
+  'admin.roles',
+  'workspace.create',
+]);
+
+/**
+ * What a request may do: the install permissions of the account role plus
+ * the workspace permissions of the member's role in the current workspace.
+ * Neither side can lend the other its keys.
+ */
+export function effectivePermissions(
+  accountRolePermissions: Iterable<Permission>,
+  workspaceRolePermissions: Iterable<Permission>
+): Permission[] {
+  const out = new Set<Permission>();
+  for (const p of accountRolePermissions) if (INSTALL_PERMISSIONS.has(p)) out.add(p);
+  for (const p of workspaceRolePermissions) if (!INSTALL_PERMISSIONS.has(p)) out.add(p);
+  return [...out];
 }

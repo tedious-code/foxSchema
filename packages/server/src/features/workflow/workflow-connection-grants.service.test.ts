@@ -12,16 +12,23 @@ import { beforeAll, describe, expect, it } from 'vitest';
 process.env.APP_DB_PATH = ':memory:';
 process.env.APP_ENCRYPTION_KEY = '0'.repeat(64);
 
-import { AuthModule } from '../auth/auth.service';
+import { AuthModule, type AuthUser } from '../auth/auth.service';
+import type { WorkspaceScope } from '../../platform/http/scope';
 import { ConnectionStore } from '../connections/connection-store.service';
 import { WorkflowConnectionGrants } from './workflow-connection-grants.service';
 
 const auth = new AuthModule();
+
+/** The account's own workspace, which its rows now belong to. */
+const scopeFor = async (user: AuthUser): Promise<WorkspaceScope> => ({
+  userId: user.id,
+  workspaceId: (await auth.inWorkspace(user, undefined)).workspace.id,
+});
 const connections = new ConnectionStore();
 const grants = new WorkflowConnectionGrants(connections);
 
-let alice: string;
-let bob: string;
+let alice: WorkspaceScope;
+let bob: WorkspaceScope;
 
 const saved = (password?: string) => ({
   name: 'warehouse',
@@ -31,8 +38,8 @@ const saved = (password?: string) => ({
 });
 
 beforeAll(async () => {
-  alice = (await auth.createUser('grant-alice@example.com', 'correct-horse-9', 'viewer')).id;
-  bob = (await auth.createUser('grant-bob@example.com', 'correct-horse-9', 'viewer')).id;
+  alice = await scopeFor(await auth.createUser('grant-alice@example.com', 'correct-horse-9', 'viewer'));
+  bob = await scopeFor(await auth.createUser('grant-bob@example.com', 'correct-horse-9', 'viewer'));
 });
 
 describe('WorkflowConnectionGrants', () => {
@@ -55,14 +62,14 @@ describe('WorkflowConnectionGrants', () => {
   it('stops resolving once the grant is revoked', async () => {
     const { id } = await connections.create(alice, saved('s3cret'));
     await grants.grant(alice, id);
-    expect(await grants.revoke(alice, id)).toBe(true);
+    expect(await grants.revoke(alice.userId, id)).toBe(true);
     expect(await grants.resolveForEngine(id)).toBeUndefined();
   });
 
   it('only lets the owner revoke', async () => {
     const { id } = await connections.create(alice, saved('s3cret'));
     await grants.grant(alice, id);
-    expect(await grants.revoke(bob, id)).toBe(false);
+    expect(await grants.revoke(bob.userId, id)).toBe(false);
     expect(await grants.resolveForEngine(id)).toBeDefined();
   });
 

@@ -47,7 +47,7 @@ export function useMigrate(
       const ctx = await getContext();
       let id: string | null = null;
       try {
-        id = await ctx.history.start(ctx.userId, {
+        id = await ctx.history.start(ctx.scope, {
           dialect: target.dialect,
           host: target.option.host,
           database: target.option.database,

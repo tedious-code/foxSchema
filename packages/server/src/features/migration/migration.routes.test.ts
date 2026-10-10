@@ -32,7 +32,7 @@ async function serve(permissions: Permission[]) {
   const router = createMigrationRoutes({
     resolveRef,
     migrationModule: { executeMigration },
-    migrationHistory: {},
+    migrationHistory: {} as never,
     connectionModule: {},
     sqlGenerator: {},
     captureLiveSchema: vi.fn(),

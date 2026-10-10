@@ -7,6 +7,8 @@
  *
  * Extracted verbatim from api/routes.ts; handler bodies are unchanged.
  */
+import { scopeOf } from '../../platform/http/scope';
+import type { ConnectionResolver } from '../../platform/db/resolve';
 import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
@@ -35,7 +37,7 @@ import { MAX_CODE_CELL_LENGTH, runCodeCellOnServer, transpileTs } from './code-c
 import { sendError, sendThrown } from '../../platform/http/respond';
 
 export interface EditorRouteDeps {
-  resolveRef: (...args: any[]) => Promise<any>;
+  resolveRef: ConnectionResolver['resolveRef'];
   MAX_STATEMENTS: number;
   MAX_STATEMENT_LENGTH: number;
   isRunnableStatement: (s: unknown) => boolean;
@@ -146,7 +148,7 @@ export function createEditorRoutes(deps: EditorRouteDeps): Router {
     }
     let resolved;
     try {
-      resolved = await deps.resolveRef((req as AuthedRequest).userId, ref);
+      resolved = await deps.resolveRef(scopeOf(req as AuthedRequest), ref);
     } catch (error: unknown) {
       sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Invalid connection');
       return;
@@ -237,7 +239,7 @@ export function createEditorRoutes(deps: EditorRouteDeps): Router {
         const byAlias = new Map<string, CellQueryRunner>();
         beamDialects = {};
         for (const ep of beamParsed.value) {
-          const resolved = await deps.resolveRef(userId, {
+          const resolved = await deps.resolveRef(scopeOf(req as AuthedRequest), {
             connectionId: ep.connectionId,
             password: ep.password,
           });
@@ -278,7 +280,7 @@ export function createEditorRoutes(deps: EditorRouteDeps): Router {
         runQuery = makeBeamCellQueryRunner(byAlias, defaultBeamAlias);
         enforceBeamSqlOnCap = true;
       } else if (body.connectionId || (body.dialect && body.option)) {
-        const resolved = await deps.resolveRef((req as AuthedRequest).userId, body);
+        const resolved = await deps.resolveRef(scopeOf(req as AuthedRequest), body);
         dialect = resolved.dialect;
         // Per-statement permission check: a cell's SQL is unknown until it
         // runs, so `allowWrites` alone must not be a blanket pass — GRANT still

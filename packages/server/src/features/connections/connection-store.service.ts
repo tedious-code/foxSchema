@@ -1,3 +1,4 @@
+import type { WorkspaceScope } from '../../platform/http/scope';
 import { randomUUID } from 'node:crypto';
 import { getStore } from '../../database/store';
 import { encryptSecret, decryptSecret } from '../../platform/crypto/crypto';
@@ -133,23 +134,23 @@ export class ConnectionStore {
     };
   }
 
-  async list(userId: string): Promise<SavedConnectionSummary[]> {
+  async list(scope: WorkspaceScope): Promise<SavedConnectionSummary[]> {
     const store = await getStore();
     const rows = await store.all<ConnectionRow>(
-      'SELECT id, name, dialect, "schema", encrypted_config, created_at FROM connections WHERE user_id = ? ORDER BY created_at DESC',
-      [userId]
+      'SELECT id, name, dialect, "schema", encrypted_config, created_at FROM connections WHERE workspace_id = ? ORDER BY created_at DESC',
+      [scope.workspaceId]
     );
     return rows.map((r) => this.toSummary(r));
   }
 
-  async create(userId: string, input: SavedConnectionInput): Promise<SavedConnectionSummary> {
+  async create(scope: WorkspaceScope, input: SavedConnectionInput): Promise<SavedConnectionSummary> {
     const store = await getStore();
     const id = randomUUID();
     const createdAt = new Date().toISOString();
     const option = this.resolvePasswordOnSave(input.dialect, input.option, input.savePassword);
     await store.run(
-      'INSERT INTO connections (id, user_id, name, dialect, "schema", encrypted_config, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, userId, input.name ?? null, input.dialect, input.schema ?? null, encryptSecret(JSON.stringify(option)), createdAt]
+      'INSERT INTO connections (id, user_id, workspace_id, name, dialect, "schema", encrypted_config, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, scope.userId, scope.workspaceId, input.name ?? null, input.dialect, input.schema ?? null, encryptSecret(JSON.stringify(option)), createdAt]
     );
     return {
       id,
@@ -163,13 +164,13 @@ export class ConnectionStore {
 
   /** Decrypted config for server-side use (connect/compare). Never sent to the client. */
   async resolve(
-    userId: string,
+    scope: WorkspaceScope,
     id: string
   ): Promise<{ name: string; dialect: string; schema?: string; option: ConnectionOptions } | null> {
     const store = await getStore();
     const row = await store.get<{ name: string | null; dialect: string; schema: string | null; encrypted_config: string }>(
-      'SELECT name, dialect, "schema", encrypted_config FROM connections WHERE id = ? AND user_id = ?',
-      [id, userId]
+      'SELECT name, dialect, "schema", encrypted_config FROM connections WHERE id = ? AND workspace_id = ?',
+      [id, scope.workspaceId]
     );
     if (!row) return null;
     return {
@@ -186,28 +187,28 @@ export class ConnectionStore {
    * "save password" (`savePassword === false`), in which case it's explicitly cleared.
    * The connection string is rebuilt so it stays valid either way.
    */
-  async update(userId: string, id: string, input: SavedConnectionInput): Promise<SavedConnectionSummary | null> {
+  async update(scope: WorkspaceScope, id: string, input: SavedConnectionInput): Promise<SavedConnectionSummary | null> {
     const store = await getStore();
-    const existing = await this.resolve(userId, id);
+    const existing = await this.resolve(scope, id);
     if (!existing) return null;
 
     const merged = this.resolvePasswordOnSave(input.dialect, input.option, input.savePassword, existing.option.password);
 
     await store.run(
-      'UPDATE connections SET name = ?, dialect = ?, "schema" = ?, encrypted_config = ? WHERE id = ? AND user_id = ?',
-      [input.name ?? null, input.dialect, input.schema ?? null, encryptSecret(JSON.stringify(merged)), id, userId]
+      'UPDATE connections SET name = ?, dialect = ?, "schema" = ?, encrypted_config = ? WHERE id = ? AND workspace_id = ?',
+      [input.name ?? null, input.dialect, input.schema ?? null, encryptSecret(JSON.stringify(merged)), id, scope.workspaceId]
     );
 
     const row = await store.get<ConnectionRow>(
-      'SELECT id, name, dialect, "schema", encrypted_config, created_at FROM connections WHERE id = ? AND user_id = ?',
-      [id, userId]
+      'SELECT id, name, dialect, "schema", encrypted_config, created_at FROM connections WHERE id = ? AND workspace_id = ?',
+      [id, scope.workspaceId]
     );
     return row ? this.toSummary(row) : null;
   }
 
-  async remove(userId: string, id: string): Promise<boolean> {
+  async remove(scope: WorkspaceScope, id: string): Promise<boolean> {
     const store = await getStore();
-    const result = await store.run('DELETE FROM connections WHERE id = ? AND user_id = ?', [id, userId]);
+    const result = await store.run('DELETE FROM connections WHERE id = ? AND workspace_id = ?', [id, scope.workspaceId]);
     return result.changes > 0;
   }
 }

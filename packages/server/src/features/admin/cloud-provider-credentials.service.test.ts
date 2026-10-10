@@ -3,17 +3,24 @@ import { describe, it, expect, beforeAll } from 'vitest';
 process.env.APP_DB_PATH = ':memory:';
 process.env.APP_ENCRYPTION_KEY = '0'.repeat(64);
 
-import { AuthModule } from '../auth/auth.service';
+import { AuthModule, type AuthUser } from '../auth/auth.service';
+import type { WorkspaceScope } from '../../platform/http/scope';
 import { CloudProviderCredentialsStore } from './cloud-provider-credentials.service';
 import { getStore } from '../../database/store';
 
 const auth = new AuthModule();
+
+/** The account's own workspace, which its rows now belong to. */
+const scopeFor = async (user: AuthUser): Promise<WorkspaceScope> => ({
+  userId: user.id,
+  workspaceId: (await auth.inWorkspace(user, undefined)).workspace.id,
+});
 const store = new CloudProviderCredentialsStore();
 
-let alice: string;
+let alice: WorkspaceScope;
 
 beforeAll(async () => {
-  alice = (await auth.createUser('alice-cloud-creds@example.com', 'correct-horse-9', 'viewer')).id;
+  alice = await scopeFor(await auth.createUser('alice-cloud-creds@example.com', 'correct-horse-9', 'viewer'));
 });
 
 describe('CloudProviderCredentialsStore', () => {

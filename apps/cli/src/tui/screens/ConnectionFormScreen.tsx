@@ -102,7 +102,7 @@ export function ConnectionFormScreen({ role, onSubmit }: Props): React.JSX.Eleme
 
       if (shouldSave) {
         const ctx = await getContext();
-        await ctx.connections.create(ctx.userId, {
+        await ctx.connections.create(ctx.scope, {
           name: values.name,
           dialect,
           schema: values.schema || undefined,

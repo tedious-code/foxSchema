@@ -138,7 +138,7 @@ export function createWorkflowRoutes(
     '/connections',
     requirePermissions('workflow.design'),
     async (req: AppRequest, res: FastifyReply) => {
-      res.send({ connections: await grants.list(actorOf(req).userId!) });
+      res.send({ connections: await grants.list(actorOf(req).scope!) });
     },
   );
 
@@ -146,9 +146,8 @@ export function createWorkflowRoutes(
     '/connections/:id/grant',
     requirePermissions('workflow.design'),
     async (req: AppRequest, res: FastifyReply) => {
-      const userId = actorOf(req).userId!;
       const { id } = req.params as { id: string };
-      const name = await grants.grant(userId, id);
+      const name = await grants.grant(actorOf(req).scope!, id);
       if (name === undefined) {
         sendError(res, 'not_found', 'Saved connection not found');
         return;
@@ -177,7 +176,7 @@ export function createWorkflowRoutes(
       }
       if (!upstream?.ok) {
         // A grant the engine cannot use is not worth keeping.
-        await grants.revoke(userId, id);
+        await grants.revoke(actorOf(req).userId!, id);
         sendError(
           res,
           'unavailable',

@@ -8,6 +8,7 @@
 import { getStore } from '../../database/store';
 import type { MetadataStore } from '../../database/stores/types';
 import { assertAdminSlotFree } from './admin-policy.service';
+import { syncPersonalRole } from '../workspaces/workspace.service';
 import {
   APP_ROLES,
   DEFAULT_ROLE_PERMISSIONS,
@@ -72,6 +73,7 @@ export class RbacModule {
     }
 
     await store.run('UPDATE users SET app_role = ? WHERE id = ?', [role, userId]);
+    await syncPersonalRole(store, userId, role);
   }
 
   /**
@@ -101,6 +103,8 @@ export class RbacModule {
       `UPDATE users SET app_role = CASE WHEN id = ? THEN 'admin' ELSE ? END WHERE id IN (?, ?)`,
       [toUserId, demoteTo, fromUserId, toUserId]
     );
+    await syncPersonalRole(store, toUserId, 'admin');
+    await syncPersonalRole(store, fromUserId, demoteTo);
   }
 
   /** Replace the permission set for a non-admin role. Admin is always full. */
@@ -264,6 +268,13 @@ const ONE_TIME_GRANTS: Array<{
     key: 'rbac.grant.git.view',
     perms: ['git.view'],
     when: (p) => p.has('schema.browse') || p.has('schema.compare'),
+  },
+  {
+    // Workspaces: roles that deploy migrations (owner by default) run their
+    // workspace — invite members and change its settings.
+    key: 'rbac.grant.workspace.manage',
+    perms: ['workspace.members', 'workspace.settings'],
+    when: (p) => p.has('schema.migrate'),
   },
 ];
 

@@ -5,6 +5,8 @@
  *
  * Data migration routes. Extracted verbatim from api/routes.ts.
  */
+import { scopeOf } from '../../platform/http/scope';
+import type { ConnectionResolver } from '../../platform/db/resolve';
 import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
@@ -20,14 +22,15 @@ import { isSingleSqlStatement } from '../../api/single-statement';
 import { executeDataMigrateOps, type DataMigrateExecOp } from './data-migrate-execute';
 import { identitySessionSql } from './identity-session';
 import type {
+  DataMigrateHistoryStore,
   DataMigrateOpResult,
   DataMigrateRunStatus,
 } from './data-migrate-history.service';
 import { sendError, sendThrown } from '../../platform/http/respond';
 
 export interface DataMigrateRouteDeps {
-  resolveRef: (...args: any[]) => Promise<any>;
-  dataMigrateHistory: Record<string, any>;
+  resolveRef: ConnectionResolver['resolveRef'];
+  dataMigrateHistory: DataMigrateHistoryStore;
 }
 
 export function createDataMigrateRoutes(deps: DataMigrateRouteDeps): Router {
@@ -114,7 +117,7 @@ export function createDataMigrateRoutes(deps: DataMigrateRouteDeps): Router {
 
       let resolved;
       try {
-        resolved = await deps.resolveRef(authed.userId, body);
+        resolved = await deps.resolveRef(scopeOf(authed), body);
       } catch (error: unknown) {
         sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Invalid connection');
         return;
@@ -153,7 +156,7 @@ export function createDataMigrateRoutes(deps: DataMigrateRouteDeps): Router {
   );
 
   router.get('/data-migrations', requirePermissions('editor.dml'), async (req: AppRequest, res: FastifyReply) => {
-    res.send({ runs: await deps.dataMigrateHistory.list((req as AuthedRequest).userId!) });
+    res.send({ runs: await deps.dataMigrateHistory.list(scopeOf(req as AuthedRequest)!) });
   });
 
   router.post(
@@ -178,7 +181,7 @@ export function createDataMigrateRoutes(deps: DataMigrateRouteDeps): Router {
         sendError(res, 'invalid_input', 'dialect and script are required');
         return;
       }
-      const started = await deps.dataMigrateHistory.start((req as AuthedRequest).userId!, {
+      const started = await deps.dataMigrateHistory.start(scopeOf(req as AuthedRequest)!, {
         dialect: body.dialect,
         sourceHost: body.sourceHost,
         targetHost: body.targetHost,
@@ -217,7 +220,7 @@ export function createDataMigrateRoutes(deps: DataMigrateRouteDeps): Router {
         return;
       }
       const run = await deps.dataMigrateHistory.get(
-        (req as AuthedRequest).userId!,
+        scopeOf(req as AuthedRequest)!,
         String(req.params.id)
       );
       if (!run) {
@@ -238,7 +241,7 @@ export function createDataMigrateRoutes(deps: DataMigrateRouteDeps): Router {
     requirePermissions('editor.dml'),
     async (req: AppRequest, res: FastifyReply) => {
       const run = await deps.dataMigrateHistory.get(
-        (req as AuthedRequest).userId!,
+        scopeOf(req as AuthedRequest)!,
         String(req.params.id)
       );
       if (!run) {
@@ -254,7 +257,7 @@ export function createDataMigrateRoutes(deps: DataMigrateRouteDeps): Router {
     requirePermissions('editor.dml'),
     async (req: AppRequest, res: FastifyReply) => {
       const removed = await deps.dataMigrateHistory.remove(
-        (req as AuthedRequest).userId!,
+        scopeOf(req as AuthedRequest)!,
         String(req.params.id)
       );
       if (!removed) {

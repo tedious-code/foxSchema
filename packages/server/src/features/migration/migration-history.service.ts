@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { WorkspaceScope } from '../../platform/http/scope';
 import { getStore } from '../../database/store';
 import { truncateForDisplay } from '../../database/stored-text';
 import type { MigrationRunStatus } from '@foxschema/shared';
@@ -68,7 +69,7 @@ const MAX_RUNS_PER_USER = 200;
 export class MigrationHistoryStore {
   /** Record the start of a migration; returns the run id. */
   async start(
-    userId: string,
+    scope: WorkspaceScope,
     input: {
       dialect: string;
       host?: string;
@@ -84,12 +85,13 @@ export class MigrationHistoryStore {
     const store = await getStore();
     await store.run(
       `INSERT INTO migration_runs
-         (id, user_id, status, dialect, target_host, database_name, "schema", object_count, script, started_at,
+         (id, user_id, workspace_id, status, dialect, target_host, database_name, "schema", object_count, script, started_at,
           git_repo_id, git_branch, git_commit, git_path)
-       VALUES (?, ?, 'RUNNING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, 'RUNNING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
-        userId,
+        scope.userId,
+        scope.workspaceId,
         input.dialect,
         input.host ?? null,
         input.database ?? null,
@@ -103,22 +105,22 @@ export class MigrationHistoryStore {
         input.git?.path ?? null,
       ]
     );
-    await this.prune(userId);
+    await this.prune(scope);
     return id;
   }
 
   /** Keep only the most recent MAX_RUNS_PER_USER runs for a user. */
-  private async prune(userId: string): Promise<void> {
+  private async prune(scope: WorkspaceScope): Promise<void> {
     const store = await getStore();
     await store.run(
       `DELETE FROM migration_runs
-        WHERE user_id = ?
+        WHERE workspace_id = ?
           AND id NOT IN (
             SELECT id FROM (
-              SELECT id FROM migration_runs WHERE user_id = ? ORDER BY started_at DESC LIMIT ?
+              SELECT id FROM migration_runs WHERE workspace_id = ? ORDER BY started_at DESC LIMIT ?
             ) AS keep
           )`,
-      [userId, userId, MAX_RUNS_PER_USER]
+      [scope.workspaceId, scope.workspaceId, MAX_RUNS_PER_USER]
     );
   }
 
@@ -161,20 +163,20 @@ export class MigrationHistoryStore {
     };
   }
 
-  async list(userId: string, limit = 100): Promise<MigrationRunSummary[]> {
+  async list(scope: WorkspaceScope, limit = 100): Promise<MigrationRunSummary[]> {
     const store = await getStore();
     const rows = await store.all<Row>(
       `SELECT id, status, dialect, target_host, database_name, "schema", object_count, error, started_at, finished_at,
               git_repo_id, git_branch, git_commit, git_path
-         FROM migration_runs WHERE user_id = ? ORDER BY started_at DESC LIMIT ?`,
-      [userId, limit]
+         FROM migration_runs WHERE workspace_id = ? ORDER BY started_at DESC LIMIT ?`,
+      [scope.workspaceId, limit]
     );
     return rows.map((r) => this.summary(r));
   }
 
-  async get(userId: string, id: string): Promise<MigrationRunDetail | null> {
+  async get(scope: WorkspaceScope, id: string): Promise<MigrationRunDetail | null> {
     const store = await getStore();
-    const r = await store.get<Row>('SELECT * FROM migration_runs WHERE id = ? AND user_id = ?', [id, userId]);
+    const r = await store.get<Row>('SELECT * FROM migration_runs WHERE id = ? AND workspace_id = ?', [id, scope.workspaceId]);
     if (!r) return null;
     let results: MigrationObjectResult[] = [];
     try {
@@ -190,28 +192,28 @@ export class MigrationHistoryStore {
     };
   }
 
-  async remove(userId: string, id: string): Promise<boolean> {
+  async remove(scope: WorkspaceScope, id: string): Promise<boolean> {
     const store = await getStore();
-    const result = await store.run('DELETE FROM migration_runs WHERE id = ? AND user_id = ?', [id, userId]);
+    const result = await store.run('DELETE FROM migration_runs WHERE id = ? AND workspace_id = ?', [id, scope.workspaceId]);
     return result.changes > 0;
   }
 
   /** Delete a set of runs owned by the user. Returns how many were removed. */
-  async removeMany(userId: string, ids: string[]): Promise<number> {
+  async removeMany(scope: WorkspaceScope, ids: string[]): Promise<number> {
     if (!ids.length) return 0;
     const store = await getStore();
     const placeholders = ids.map(() => '?').join(', ');
     const result = await store.run(
-      `DELETE FROM migration_runs WHERE user_id = ? AND id IN (${placeholders})`,
-      [userId, ...ids]
+      `DELETE FROM migration_runs WHERE workspace_id = ? AND id IN (${placeholders})`,
+      [scope.workspaceId, ...ids]
     );
     return result.changes;
   }
 
   /** Delete every run for the user. Returns how many were removed. */
-  async clear(userId: string): Promise<number> {
+  async clear(scope: WorkspaceScope): Promise<number> {
     const store = await getStore();
-    const result = await store.run('DELETE FROM migration_runs WHERE user_id = ?', [userId]);
+    const result = await store.run('DELETE FROM migration_runs WHERE workspace_id = ?', [scope.workspaceId]);
     return result.changes;
   }
 }

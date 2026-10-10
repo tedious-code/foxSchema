@@ -13,7 +13,7 @@ vi.mock('@inquirer/prompts', () => ({
 /** Build a fake CliContext whose ConnectionStore methods are vi.fns. */
 function fakeCtx(rows: any[] = []) {
   return {
-    userId: 'u1',
+    userId: 'u1', scope: { userId: 'u1', workspaceId: 'w1' },
     connections: {
       list: vi.fn().mockResolvedValue(rows),
       create: vi.fn().mockImplementation(async (_uid, c) => ({ id: 'new-id', ...c })),
@@ -73,7 +73,7 @@ describe('CLI: connections command', () => {
       });
 
       expect(ctx.connections.create).toHaveBeenCalledWith(
-        'u1',
+        { userId: 'u1', workspaceId: 'w1' },
         expect.objectContaining({ name: 'prod', dialect: 'postgres', schema: 'public' })
       );
       // password comes from the prompt, and is carried in the encrypted option only
@@ -116,7 +116,7 @@ describe('CLI: connections command', () => {
 
       await removeConnection('demo_a');
 
-      expect(ctx.connections.remove).toHaveBeenCalledWith('u1', 'abc');
+      expect(ctx.connections.remove).toHaveBeenCalledWith({ userId: 'u1', workspaceId: 'w1' }, 'abc');
       expect(log).toHaveBeenCalledWith(expect.stringContaining('Removed'));
     });
 

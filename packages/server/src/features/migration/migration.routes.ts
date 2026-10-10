@@ -9,6 +9,9 @@
  * databases, so the handler bodies are copied unchanged and only closure
  * references become explicit deps — a rewrite here does not belong in a move.
  */
+import type { WorkspaceScope } from '../../platform/http/scope';
+import { scopeOf } from '../../platform/http/scope';
+import type { ConnectionResolver } from '../../platform/db/resolve';
 import { streamWrite, streamEnd } from '../../platform/http/reply';
 import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
@@ -21,18 +24,19 @@ import { gitServices, type GitMigrationsService } from '../git/git-migrations.se
 import type { AuthedRequest } from '../auth/auth.routes';
 import type { ConnectionRef } from '../../platform/db/resolve';
 import type {
+  MigrationHistoryStore,
   MigrationObjectResult,
   MigrationRunStatus,
 } from './migration-history.service';
 import { sendError } from '../../platform/http/respond';
 
 export interface MigrationRouteDeps {
-  resolveRef: (...args: any[]) => Promise<any>;
+  resolveRef: ConnectionResolver['resolveRef'];
   migrationModule: Record<string, any>;
-  migrationHistory: Record<string, any>;
+  migrationHistory: MigrationHistoryStore;
   connectionModule: Record<string, any>;
   sqlGenerator: Record<string, any>;
-  captureLiveSchema: (...args: any[]) => Promise<any>;
+  captureLiveSchema: (scope: WorkspaceScope, ...args: any[]) => Promise<any>;
   normalizeTableSchemas: (...args: any[]) => any;
   /** Committed migrations; defaults to the app's shared Git services. */
   gitMigrations?: Pick<GitMigrationsService, 'read' | 'recordApplied' | 'commitRequired' | 'canSee'>;
@@ -61,7 +65,7 @@ export function createMigrationRoutes(deps: MigrationRouteDeps): Router {
     let option: ConnectionOptions;
     let schema: string;
     try {
-      ({ dialect, option, schema } = await deps.resolveRef((req as AuthedRequest).userId, ref));
+      ({ dialect, option, schema } = await deps.resolveRef(scopeOf(req as AuthedRequest), ref));
     } catch (error: unknown) {
       sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Invalid connection');
       return;
@@ -123,7 +127,7 @@ export function createMigrationRoutes(deps: MigrationRouteDeps): Router {
       .join('\n\n');
     let runId: string | null = null;
     try {
-      runId = await deps.migrationHistory.start(userId, {
+      runId = await deps.migrationHistory.start(scopeOf(req as AuthedRequest)!, {
         dialect,
         host: option.host,
         database: option.database,
@@ -187,7 +191,7 @@ export function createMigrationRoutes(deps: MigrationRouteDeps): Router {
       // migrate still has a baseline version to compare against.
       try {
         const before = await deps.captureLiveSchema(
-          userId,
+          scopeOf(req as AuthedRequest)!,
           { dialect, option, schema },
           'migrate',
           { migrationRunId: runId ?? undefined }
@@ -213,7 +217,7 @@ export function createMigrationRoutes(deps: MigrationRouteDeps): Router {
     if (captureAfter) {
       try {
         const after = await deps.captureLiveSchema(
-          userId,
+          scopeOf(req as AuthedRequest)!,
           { dialect, option, schema },
           'migrate',
           { migrationRunId: runId ?? undefined }
@@ -271,24 +275,24 @@ export function createMigrationRoutes(deps: MigrationRouteDeps): Router {
   });
 
   router.get('/migrations', async (req: AppRequest, res: FastifyReply) => {
-    res.send({ runs: await deps.migrationHistory.list((req as AuthedRequest).userId!) });
+    res.send({ runs: await deps.migrationHistory.list(scopeOf(req as AuthedRequest)!) });
   });
 
   router.post('/migrations/delete', async (req: AppRequest, res: FastifyReply) => {
     const ids = Array.isArray((req.body as { ids?: unknown }).ids)
       ? ((req.body as { ids: unknown[] }).ids.filter((i) => typeof i === 'string') as string[])
       : [];
-    const removed = await deps.migrationHistory.removeMany((req as AuthedRequest).userId!, ids);
+    const removed = await deps.migrationHistory.removeMany(scopeOf(req as AuthedRequest)!, ids);
     res.send({ removed });
   });
 
   router.delete('/migrations', async (req: AppRequest, res: FastifyReply) => {
-    const removed = await deps.migrationHistory.clear((req as AuthedRequest).userId!);
+    const removed = await deps.migrationHistory.clear(scopeOf(req as AuthedRequest)!);
     res.send({ removed });
   });
 
   router.get('/migrations/:id', async (req: AppRequest, res: FastifyReply) => {
-    const run = await deps.migrationHistory.get((req as AuthedRequest).userId!, String(req.params.id));
+    const run = await deps.migrationHistory.get(scopeOf(req as AuthedRequest)!, String(req.params.id));
     if (!run) {
       sendError(res, 'not_found', 'Migration run not found');
       return;
@@ -297,7 +301,7 @@ export function createMigrationRoutes(deps: MigrationRouteDeps): Router {
   });
 
   router.delete('/migrations/:id', async (req: AppRequest, res: FastifyReply) => {
-    const removed = await deps.migrationHistory.remove((req as AuthedRequest).userId!, String(req.params.id));
+    const removed = await deps.migrationHistory.remove(scopeOf(req as AuthedRequest)!, String(req.params.id));
     if (!removed) {
       sendError(res, 'not_found', 'Migration run not found');
       return;

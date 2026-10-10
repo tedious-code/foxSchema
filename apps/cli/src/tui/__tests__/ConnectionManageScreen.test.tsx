@@ -8,7 +8,7 @@ const wait = (ms = 100) => new Promise((r) => setTimeout(r, ms));
 
 function fakeCtx(rows: any[] = []) {
   return {
-    userId: 'u1',
+    userId: 'u1', scope: { userId: 'u1', workspaceId: 'w1' },
     connections: {
       list: vi.fn().mockResolvedValue(rows),
       remove: vi.fn().mockResolvedValue(undefined),
@@ -50,7 +50,7 @@ describe('ConnectionManageScreen', () => {
     await wait();
 
     stdin.write('\r'); // "Yes, delete it" is pre-selected
-    await vi.waitFor(() => expect(ctx.connections.remove).toHaveBeenCalledWith('u1', '1'));
+    await vi.waitFor(() => expect(ctx.connections.remove).toHaveBeenCalledWith({ userId: 'u1', workspaceId: 'w1' }, '1'));
   });
 
   it('goes back without deleting when "No" is chosen', async () => {

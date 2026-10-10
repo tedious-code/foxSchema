@@ -13,12 +13,14 @@
 import type { AppRequest } from './types';
 import type { ActorContext } from '../contracts/actor';
 import type { AuthedRequest } from '../../features/auth/auth.routes';
+import { scopeOf } from './scope';
 import { permissionSatisfied, type Permission } from '@foxschema/shared';
 
 export function actorOf(req: AppRequest): ActorContext {
   const authed = req as AuthedRequest;
   return {
     userId: authed.userId,
+    scope: scopeOf(authed),
     can: (permission) =>
       authed.appRole === 'admin' ||
       permissionSatisfied(authed.permissions ?? new Set<Permission>(), permission),

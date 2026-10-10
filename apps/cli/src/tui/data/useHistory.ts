@@ -7,12 +7,12 @@ import type { AsyncState } from '../types';
 /** Plain, hook-independent data functions — unit-testable with the same vi.spyOn(store, 'getContext') pattern as the line commands. */
 export async function loadHistoryList(): Promise<MigrationRunSummary[]> {
   const ctx = await getContext();
-  return ctx.history.list(ctx.userId);
+  return ctx.history.list(ctx.scope);
 }
 
 export async function loadHistoryDetail(runId: string): Promise<MigrationRunDetail | null> {
   const ctx = await getContext();
-  return ctx.history.get(ctx.userId, runId);
+  return ctx.history.get(ctx.scope, runId);
 }
 
 export function useHistoryList(): AsyncState<MigrationRunSummary[]> {

@@ -7,7 +7,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, ChevronRight, GitBranch, KeyRound, Loader2, LogIn, Mail, Shield, UserCog, Users, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, GitBranch, KeyRound, Layers, Loader2, LogIn, Mail, Shield, UserCog, Users, X } from 'lucide-react';
 import { passwordProblem } from '@foxschema/shared';
 import {
   apiAdminCreateUser,
@@ -30,6 +30,7 @@ import {
 } from '@/shared/api/authApi';
 import { IssuedCodeNotice } from './IssuedCodeNotice';
 import { SignInSettingsPanel } from './SignInSettingsPanel';
+import { AdminWorkspacesPanel } from './AdminWorkspacesPanel';
 import { GitReposAdmin } from '@/features/git';
 import {
   adminSlotTaken,
@@ -52,7 +53,7 @@ import { PasswordInput } from '@/shared/components/PasswordInput';
 import { AccessReport } from '@/features/access/components/AccessReport';
 import { sectionLabelCls } from '@/shared/components/surfaces';
 
-type Tab = 'users' | 'roles' | 'users-roles' | 'sign-in' | 'git';
+type Tab = 'users' | 'roles' | 'users-roles' | 'sign-in' | 'git' | 'workspaces';
 
 type AdminUserRow = {
   id: string;
@@ -470,6 +471,19 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
             >
               <LogIn className="w-3.5 h-3.5 inline mr-1" />
               Sign-in
+            </button>
+          )}
+          {me?.role === 'admin' && (
+            <button
+              type="button"
+              data-testid="admin-tab-workspaces"
+              onClick={() => setTab('workspaces')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md ${
+                tab === 'workspaces' ? 'bg-slate-800 text-slate-100' : 'text-slate-400'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5 inline mr-1" />
+              Workspaces
             </button>
           )}
           {canGit && (
@@ -987,6 +1001,8 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
           {tab === 'sign-in' && canUsers && <SignInSettingsPanel />}
 
           {tab === 'git' && canGit && <GitReposAdmin />}
+
+          {tab === 'workspaces' && me?.role === 'admin' && <AdminWorkspacesPanel />}
         </div>
 
         {tab === 'roles' && canRoles && (

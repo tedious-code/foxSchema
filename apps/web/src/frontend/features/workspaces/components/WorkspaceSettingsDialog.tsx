@@ -32,10 +32,12 @@ const ROLES: WorkspaceRole[] = ['viewer', 'editor', 'owner'];
 
 export const WorkspaceSettingsDialog: React.FC<{
   workspaceId: string;
+  /** Its name when the caller is not a member (an admin managing it), so it is not in their list. */
+  knownName?: string;
   onClose: () => void;
   /** Reload after leaving or archiving the current workspace; replaced in tests. */
   reload?: () => void;
-}> = ({ workspaceId, onClose, reload = () => window.location.reload() }) => {
+}> = ({ workspaceId, knownName, onClose, reload = () => window.location.reload() }) => {
   const me = useAuthStore((s) => s.user);
   const [workspace, setWorkspace] = useState<WorkspaceItem | null>(null);
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
@@ -53,11 +55,11 @@ export const WorkspaceSettingsDialog: React.FC<{
     const [list, people] = await Promise.all([apiListWorkspaces(), apiWorkspaceMembers(workspaceId)]);
     const ws = list.workspaces.find((w) => w.id === workspaceId) ?? null;
     setWorkspace(ws);
-    setName(ws?.name ?? '');
+    setName(ws?.name ?? knownName ?? '');
     setMembers(people);
     // Pending invites are for those who run the members; others get a 403 and see none.
     setInvites(await apiWorkspaceInvites(workspaceId).catch(() => []));
-  }, [workspaceId]);
+  }, [workspaceId, knownName]);
 
   useEffect(() => {
     load().catch((e: unknown) => setError(e instanceof Error ? e.message : 'Could not load the workspace'));
@@ -96,7 +98,7 @@ export const WorkspaceSettingsDialog: React.FC<{
       >
         <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-800">
           <Layers className="w-4 h-4 text-slate-400" />
-          <h2 className="text-sm font-bold text-slate-100 flex-1 truncate">{workspace?.name ?? 'Workspace'}</h2>
+          <h2 className="text-sm font-bold text-slate-100 flex-1 truncate">{workspace?.name ?? knownName ?? 'Workspace'}</h2>
           <button data-testid="workspace-settings-close" type="button" onClick={onClose} className="p-1 text-slate-400 hover:text-slate-100">
             <X className="w-4 h-4" />
           </button>
@@ -137,7 +139,7 @@ export const WorkspaceSettingsDialog: React.FC<{
               <button
                 type="submit"
                 data-testid="workspace-settings-rename-submit"
-                disabled={busy || !name.trim() || name.trim() === workspace?.name}
+                disabled={busy || !name.trim() || name.trim() === (workspace?.name ?? knownName)}
                 className="rounded-md border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 disabled:opacity-50"
               >
                 Rename

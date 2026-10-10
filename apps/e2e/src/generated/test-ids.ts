@@ -595,6 +595,8 @@ export const TestIds = {
       adminTabUsers: 'admin-tab-users',
       /** button · Users and Roles */
       adminTabUsersRoles: 'admin-tab-users-roles',
+      /** button · Workspaces */
+      adminTabWorkspaces: 'admin-tab-workspaces',
       /** button · Hand the admin role to this account. You become an owner. */
       adminTransferAdmin: (id: string | number) => `admin-transfer-admin-${id}`,
       /** span */
@@ -623,6 +625,26 @@ export const TestIds = {
       adminUsersRolesPanel: 'admin-users-roles-panel',
       /** p */
       adminUsersStatus: 'admin-users-status',
+    },
+    AdminWorkspacesPanel: {
+      /** li */
+      adminWorkspace: (id: string | number) => `admin-workspace-${id}`,
+      /** button · Archive */
+      adminWorkspaceArchive: (id: string | number) => `admin-workspace-archive-${id}`,
+      /** button · Join */
+      adminWorkspaceJoin: (id: string | number) => `admin-workspace-join-${id}`,
+      /** button · Members */
+      adminWorkspaceMembers: (id: string | number) => `admin-workspace-members-${id}`,
+      /** button · Open */
+      adminWorkspaceOpen: (id: string | number) => `admin-workspace-open-${id}`,
+      /** div */
+      adminWorkspaces: 'admin-workspaces',
+      /** p */
+      adminWorkspacesError: 'admin-workspaces-error',
+      /** ul */
+      adminWorkspacesList: 'admin-workspaces-list',
+      /** input */
+      adminWorkspacesShowArchived: 'admin-workspaces-show-archived',
     },
     IssuedCodeNotice: {
       /** div */
@@ -3607,6 +3629,7 @@ export type TestId =
   | 'admin-tab-sign-in'
   | 'admin-tab-users'
   | 'admin-tab-users-roles'
+  | 'admin-tab-workspaces'
   | `admin-transfer-admin-${string}`
   | 'admin-unsaved'
   | `admin-user-expand-${string}`
@@ -3621,6 +3644,15 @@ export type TestId =
   | `admin-user-row-${string}`
   | 'admin-users-roles-panel'
   | 'admin-users-status'
+  | `admin-workspace-${string}`
+  | `admin-workspace-archive-${string}`
+  | `admin-workspace-join-${string}`
+  | `admin-workspace-members-${string}`
+  | `admin-workspace-open-${string}`
+  | 'admin-workspaces'
+  | 'admin-workspaces-error'
+  | 'admin-workspaces-list'
+  | 'admin-workspaces-show-archived'
   | 'app-error-boundary-dismiss'
   | 'app-toast'
   | 'applies-git-btn'

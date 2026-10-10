@@ -55,6 +55,16 @@ export function createWorkspaceRoutes(
     }
   });
 
+  /** Every workspace, for an admin (`?archived=1` includes archived ones). */
+  router.get('/all', async (req: AuthedRequest, res: FastifyReply) => {
+    try {
+      const archived = (req.query as { archived?: string } | undefined)?.archived === '1';
+      res.send({ workspaces: await directory.listAll(actorOf(req), archived) });
+    } catch (error) {
+      fail(res, error);
+    }
+  });
+
   /** Where this session acts, everywhere it may, and whether it may make more. */
   router.get('/', async (req: AuthedRequest, res: FastifyReply) => {
     const actor = actorOf(req);

@@ -26,6 +26,7 @@ const GUEST_EMAIL = `e2e-wsguest-${RUN}@foxschema.test`;
 const GUEST_PASSWORD = `guest-${randomBytes(8).toString('hex')}`;
 let guestId = '';
 let sharedConnectionId = '';
+let guestCookie = '';
 
 async function api(method: string, path: string, body?: unknown, cookie = admin) {
   const res = await fetch(`${API_URL}/api${path}`, {
@@ -142,7 +143,7 @@ describe('workspaces', () => {
       body: JSON.stringify({ email: GUEST_EMAIL, password: GUEST_PASSWORD }),
     });
     expect(login.status).toBe(200);
-    const guestCookie = (login.headers.get('set-cookie') ?? '').split(';')[0]!;
+    guestCookie = (login.headers.get('set-cookie') ?? '').split(';')[0]!;
     expect((await api('POST', `/workspaces/${teamId}/select`, {}, guestCookie)).status).toBe(404);
 
     const guest = await buildDriver({ signedIn: false });
@@ -165,6 +166,32 @@ describe('workspaces', () => {
     expect(mine.json.workspaces.find((w: { id: string }) => w.id === teamId).role).toBe('editor');
     const conns = (await api('GET', '/connections', undefined, guestCookie)).json.connections.map((c: { id: string }) => c.id);
     expect(conns).toContain(sharedConnectionId);
+  });
+
+  it('an admin sees every workspace, opens one it is not in only by joining, and the members see it joined', async () => {
+    const guestWs = (await api('GET', '/workspaces', undefined, guestCookie)).json.workspaces.find((w: { personal: boolean }) => w.personal);
+    // Not a member yet: it cannot act there.
+    expect((await api('POST', `/workspaces/${guestWs.id}/select`, {})).status).toBe(404);
+
+    await driver.goto(BASE_URL);
+    await clickWhen(driver, byTestId('profile-menu-trigger'));
+    await clickWhen(driver, byTestId('profile-access-control'));
+    await clickWhen(driver, byTestId('admin-tab-workspaces'));
+    const row = byTestId(`admin-workspace-${guestWs.id}`);
+    await waitFor(driver, row, 15_000);
+    expect(await driver.locator(row).innerText()).toContain(`personal · ${GUEST_EMAIL}`);
+    expect(await driver.locator(byTestId(`admin-workspace-open-${guestWs.id}`)).count()).toBe(0);
+    await saveScreenshot(driver, 'workspaces-admin-tab');
+
+    driver.once('dialog', (d) => void d.accept());
+    await clickWhen(driver, byTestId(`admin-workspace-join-${guestWs.id}`));
+    await waitFor(driver, byTestId(`admin-workspace-open-${guestWs.id}`), 10_000);
+    const members = (await api('GET', `/workspaces/${guestWs.id}/members`, undefined, guestCookie)).json.members;
+    expect(members.map((m: { email: string }) => m.email)).toContain('e2e-admin@foxschema.test');
+
+    // Leave again; the guest's workspace is the guest's.
+    const adminId = members.find((m: { email: string }) => m.email === 'e2e-admin@foxschema.test').userId;
+    expect((await api('DELETE', `/workspaces/${guestWs.id}/members/${adminId}`, {})).status).toBe(200);
   });
 });
 

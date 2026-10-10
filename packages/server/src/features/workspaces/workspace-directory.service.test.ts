@@ -157,3 +157,56 @@ describe('personal workspaces', () => {
     expect((await dir.members(actor(ben), own)).map((m) => m.userId)).toEqual([ben.id]);
   });
 });
+
+describe('admins and private workspaces (D6)', () => {
+  let privateId: string;
+  let owner: AuthUser;
+
+  beforeAll(async () => {
+    await setMembersCreate(true);
+    owner = await auth.createUser('d6-owner@example.com', 'correct-horse-9', 'editor');
+    privateId = (await dir.create(actor(owner), 'Private books')).id;
+    await setMembersCreate(false);
+    const conn = new ConnectionStore();
+    await conn.create({ userId: owner.id, workspaceId: privateId }, { name: 'payroll', dialect: 'sqlite', option: { database: '/tmp/p.db' } });
+  });
+
+  it('an admin sees every workspace, with its owners and size, but not what it holds', async () => {
+    const all = await dir.listAll(actor(admin));
+    const row = all.find((w) => w.id === privateId);
+    expect(row).toMatchObject({ name: 'Private books', owners: ['d6-owner@example.com'], memberCount: 1, adminIsMember: false, personalOwner: null });
+    expect(JSON.stringify(row)).not.toContain('payroll');
+    // Personal workspaces are listed too, by whose they are.
+    expect(all.some((w) => w.personalOwner === 'd6-owner@example.com')).toBe(true);
+  });
+
+  it('is only for admins', async () => {
+    await expect(dir.listAll(actor(owner))).rejects.toMatchObject({ code: 'forbidden' });
+  });
+
+  it('an admin cannot act in a workspace it is not in — not even by id', async () => {
+    await expect(auth.inWorkspace(admin, privateId)).rejects.toMatchObject({ code: 'not_found' });
+    await expect(dir.select(admin.id, privateId)).rejects.toMatchObject({ code: 'not_found' });
+  });
+
+  it('joining is how an admin opens one, and its members see who joined and who added them', async () => {
+    await dir.addMember(actor(admin), privateId, admin.id, 'owner');
+    const members = await dir.members(actor(owner), privateId);
+    expect(members.find((m) => m.userId === admin.id)).toMatchObject({ role: 'owner', addedBy: 'dir-admin@example.com' });
+    expect((await auth.inWorkspace(admin, privateId)).workspace.id).toBe(privateId);
+    const conns = await new ConnectionStore().list({ userId: admin.id, workspaceId: privateId });
+    expect(conns.map((c) => c.name)).toEqual(['payroll']);
+    expect((await dir.listAll(actor(admin))).find((w) => w.id === privateId)?.adminIsMember).toBe(true);
+  });
+
+  it('an admin can transfer ownership and archive a workspace it is not in', async () => {
+    const other = (await dir.create(actor(admin), 'Hand-off')).id;
+    await dir.addMember(actor(admin), other, owner.id, 'viewer');
+    await dir.setMemberRole(actor(admin), other, owner.id, 'owner');
+    await dir.removeMember(actor(admin), other, admin.id);
+    expect((await dir.listAll(actor(admin))).find((w) => w.id === other)).toMatchObject({ owners: ['d6-owner@example.com'], adminIsMember: false });
+    await dir.archive(actor(admin), other);
+    expect((await dir.listAll(actor(admin))).some((w) => w.id === other)).toBe(false);
+    expect((await dir.listAll(actor(admin), true)).find((w) => w.id === other)?.archived).toBe(true);
+  });
+});

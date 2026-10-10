@@ -8,3 +8,10 @@
  */
 export { WorkspaceMenu } from './components/WorkspaceMenu';
 export { WorkspaceSettingsDialog } from './components/WorkspaceSettingsDialog';
+export {
+  apiAdminListWorkspaces,
+  apiArchiveWorkspace,
+  apiSelectWorkspace,
+  apiSetWorkspaceMember,
+  type AdminWorkspaceRow,
+} from './api/workspacesApi';

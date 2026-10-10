@@ -721,20 +721,8 @@ export const TestIds = {
       historyBtn: 'history-btn',
       /** button · Home */
       homeOpenBtn: 'home-open-btn',
-      /** data · Snapshots */
-      syncPaneHistoryBtn: 'sync-pane-history-btn',
-      /** data */
-      viewAccessBtn: 'view-access-btn',
       /** button · Preferences */
       viewSettingsBtn: 'view-settings-btn',
-      /** data */
-      viewSqlEditorBtn: 'view-sql-editor-btn',
-      /** data */
-      viewSyncBtn: 'view-sync-btn',
-      /** data · Utils */
-      viewUtilitiesBtn: 'view-utilities-btn',
-      /** data */
-      viewWorkflowBtn: 'view-workflow-btn',
       /** nav · Workspace */
       workspaceSwitcher: 'workspace-switcher',
     },
@@ -823,6 +811,20 @@ export const TestIds = {
     ErrorBoundary: {
       /** button · Dismiss */
       appErrorBoundaryDismiss: 'app-error-boundary-dismiss',
+    },
+    featureRegistry: {
+      /** data · Snapshots */
+      syncPaneHistoryBtn: 'sync-pane-history-btn',
+      /** data */
+      viewAccessBtn: 'view-access-btn',
+      /** data */
+      viewSqlEditorBtn: 'view-sql-editor-btn',
+      /** data */
+      viewSyncBtn: 'view-sync-btn',
+      /** data · Utils */
+      viewUtilitiesBtn: 'view-utilities-btn',
+      /** data */
+      viewWorkflowBtn: 'view-workflow-btn',
     },
     HomeView: {
       /** button · Search workspaces and recents ⌘K */

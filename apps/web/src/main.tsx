@@ -6,7 +6,7 @@ import { resolveApiBase } from '@/shared/api/apiBase'
 import { getSignupState } from '@/features/auth/api/authApi'
 import { useAuthStore } from '@/app/store/authStore'
 import { useUiStore } from '@/app/store/uiStore'
-import { prefetchView } from '@/app/shell/viewLoaders'
+import { prefetchView } from '@/app/features/featureRegistry'
 import './style.css'
 
 const rootEl = document.getElementById('app')

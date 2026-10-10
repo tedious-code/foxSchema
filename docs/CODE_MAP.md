@@ -168,9 +168,19 @@ A feature uses the layers it needs; it does not create empty ones.
 
 ```
 app/         The application shell, settings screens and global stores.
-features/    One folder per business domain.
+  features/    The view registry: `viewIds.ts` (every workspace view) and
+               `featureRegistry.ts` (its rail button, who may see it, where
+               someone goes who may not, and its lazy entry). App.tsx, the
+               activity rail and prefetch all read it.
+features/    One folder per business domain. `index.ts` is the public API;
+             a workspace view's lazy entry is `view.ts` beside it.
 shared/      Reusable across features: api clients, ui components, lib, utils.
 ```
+
+Adding a workspace view: its id in `app/features/viewIds.ts`, its entry in
+`app/features/featureRegistry.ts`, and the feature's `view.ts`. No shell file
+changes. `app/features/featureRegistry.test.ts` pins rail order, labels,
+test IDs and every redirect.
 
 Imports may run `app → features → shared`, never `shared → features`.
 `architecture.test.ts` enforces it.

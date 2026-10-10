@@ -9,9 +9,13 @@ import { DEFAULT_ROLE_PERMISSIONS } from '@foxschema/shared';
 import { useAuthStore } from '@/app/store/authStore';
 import { useUiStore } from '@/app/store/uiStore';
 import { ActivityRail } from './ActivityRail';
-import { prefetchView } from './viewLoaders';
+import { prefetchView } from '@/app/features/featureRegistry';
 
-vi.mock('./viewLoaders', () => ({ prefetchView: vi.fn() }));
+// The real rail items; only the network side of prefetch is stubbed.
+vi.mock('@/app/features/featureRegistry', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/app/features/featureRegistry')>()),
+  prefetchView: vi.fn(),
+}));
 
 describe('ActivityRail', () => {
   it('keeps workspace testids and opens Home from the logo', () => {

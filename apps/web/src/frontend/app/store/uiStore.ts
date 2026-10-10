@@ -1,3 +1,4 @@
+import { isActiveView, type ActiveView } from '@/app/features/viewIds';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { apiPutPreferences } from '@/shared/api/authApi';
@@ -176,15 +177,8 @@ function applyToDocument(themeMode: ThemeMode, tone: ToneId, fontSize: FontSize,
 }
 
 /** Top-level workspace views. Snapshots (Lokee) is its own view, not a Sync pane. */
-export type ActiveView =
-  | 'sync'
-  | 'sqlEditor'
-  | 'access'
-  | 'workflow'
-  | 'snapshots'
-  | 'home'
-  | 'utilities'
-  | 'settings';
+export type { ActiveView } from '@/app/features/viewIds';
+
 /**
  * Browse is its own pane, not a mode hiding inside Compare. It answers a
  * different question — "what is in this one database?" rather than "how do
@@ -249,18 +243,7 @@ export function migrateUiPersist(persisted: unknown, _version: number): unknown 
     state.activeView = 'snapshots';
     state.syncPane = 'compare';
   }
-  if (
-    ![
-      'sync',
-      'sqlEditor',
-      'access',
-      'workflow',
-      'snapshots',
-      'home',
-      'utilities',
-      'settings',
-    ].includes(state.activeView as string)
-  ) {
+  if (!isActiveView(state.activeView)) {
     state.activeView = 'home';
   }
   if (_version < 3 && state.activeView === 'sync') {

@@ -189,6 +189,20 @@ const ROUTES: RouteExpectation[] = [
   { method: 'GET', path: '/api/workspaces/:id/invites', status: 404 },
   { method: 'POST', path: '/api/workspaces/:id/invites', status: 400 },
   { method: 'DELETE', path: '/api/workspaces/:id/invites/:inviteId', status: 404 },
+  { method: 'GET', path: '/api/health', status: 200 },
+  { method: 'GET', path: '/api/config', status: 200 },
+  { method: 'POST', path: '/api/auth/launch', status: 401 },
+  { method: 'POST', path: '/api/auth/verify', status: 401 },
+  { method: 'POST', path: '/api/auth/verify/send', status: 401 },
+  { method: 'POST', path: '/api/lokee/databases/:id/force-migrate', status: 400 },
+  { method: 'POST', path: '/api/lokee/databases/:id/force-migrate/plan', status: 400 },
+  { method: 'GET', path: '/api/workflow/settings', status: 200 },
+  { method: 'PUT', path: '/api/workflow/settings', status: 200 },
+  { method: 'GET', path: '/api/workflow/connections', status: 200 },
+  { method: 'PUT', path: '/api/workflow/connections/:id/grant', status: 404 },
+  { method: 'DELETE', path: '/api/workflow/connections/:id/grant', status: 200 },
+  { method: 'GET', path: '/api/workflow-internal/engine-config', status: 503 },
+  { method: 'POST', path: '/api/workflow-internal/connections/resolve', status: 503 },
 ];
 
 const KEY = '0'.repeat(64);
@@ -202,7 +216,18 @@ const PUBLIC = [
   /^\/api\/config$/,
   /^\/api\/auth\//,
   /^\/api\/signup/,
+  // Called by the workflow engine with its service token, never a session;
+  // they answer 503 until that token is configured.
+  /^\/api\/workflow-internal\//,
 ];
+
+/**
+ * Mounted but not probed here: the workflow proxy forwards these to the
+ * workflow engine, a separate process with its own tests
+ * (`apps/workflow-server`), so what an empty request gets depends on whether
+ * that process is running. Everything else a feature mounts is in ROUTES.
+ */
+const PROXIED = [/^\/api\/workflow\/engine\//];
 
 /** The session the probes run as: the admin first-run setup creates. */
 let sessionCookie = '';
@@ -307,8 +332,25 @@ describe('HTTP contract', () => {
       // 133 -> 134: every workspace, for an admin (/api/workspaces/all).
       //
       // 134 -> 136: public workspaces (/api/workspaces/discover, /:id/join).
-      expect(ROUTES.length).toBe(136);
+      //
+      // 136 -> 150: routes that were served but never listed, found when the
+      // table was first compared with what the feature registry mounts:
+      // health and config, the launch link and email verification, Lokee's
+      // force-migrate, the workflow settings and connection grants, and the
+      // two routes the workflow engine calls.
+      expect(ROUTES.length).toBe(150);
       expect(new Set(ROUTES.map((r) => `${r.method} ${r.path}`)).size).toBe(ROUTES.length);
+    });
+
+    it('lists exactly the routes the feature registry serves', async () => {
+      // The count above only says the table did not shrink. This says each
+      // route a feature mounts is in it, and each row is still served — so a
+      // new feature's routes are listed here, with their answers, before it
+      // ships.
+      const { buildApiRoutes } = await import('./server');
+      const key = (r: { method: string; path: string }) => `${r.method.toUpperCase()} ${r.path}`;
+      const served = buildApiRoutes().filter((r) => !PROXIED.some((p) => p.test(r.path)));
+      expect(served.map(key).sort()).toEqual(ROUTES.map(key).sort());
     });
 
     it('sets the security headers on a live response, and no framework banner', async () => {

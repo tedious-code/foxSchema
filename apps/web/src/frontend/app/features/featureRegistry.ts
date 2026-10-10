@@ -5,8 +5,8 @@
  *
  * Every workspace view, in one typed list: where it sits on the activity
  * rail, who may see it, where someone goes who may not, what it adds to the
- * top toolbar, and where its code comes from. App.tsx, the rail and prefetch all read this; adding a view
- * touches no shell file.
+ * top toolbar, and where its code comes from. App.tsx, the toolbar, the rail
+ * and prefetch all read this; adding a view touches no shell file.
  *
  * Code loads on demand. A feature's view is its `view.ts` entry, never its
  * barrel, so opening the rail does not drag a feature's other exports in.

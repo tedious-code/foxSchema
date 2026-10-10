@@ -249,7 +249,8 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | Change | Where |
 |---|---|
 | New API endpoint | `packages/server/src/features/<domain>/`, mounted in that feature's `index.ts` |
-| A new server feature | its folder + `index.ts`, then one line in `packages/server/src/app/feature-registry.ts` |
+| A new feature | `npm run feature:new -- <id>`: scaffolds the server module and the web feature and registers both ([FEATURE-MODULE-GUIDE.md](architecture/FEATURE-MODULE-GUIDE.md)) |
+| A new server feature by hand | its folder + `index.ts`, then one line in `packages/server/src/app/feature-registry.ts` |
 | Dialect-specific SQL | `packages/sql/src/providers/<dialect>/` |
 | A new driver | `packages/db/src/providers/<dialect>/` |
 | Something the frontend and backend both need | `packages/shared/src/` |

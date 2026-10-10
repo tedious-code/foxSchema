@@ -46,6 +46,7 @@ export default defineConfig({
             // The browser suites need a running app; their pure helpers do not.
             'apps/e2e/src/helpers/**/*.test.ts',
             'scripts/security/**/*.test.mjs',
+            'scripts/feature/**/*.test.mjs',
           ],
           // `exclude` REPLACES vitest's defaults, it does not add to them — so
           // listing the TUI here silently dropped `**/node_modules/**` too.

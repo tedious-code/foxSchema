@@ -575,6 +575,8 @@ export const TestIds = {
       adminPolicyHint: 'admin-policy-hint',
       /** input */
       adminPolicyMembersCreate: 'admin-policy-members-create',
+      /** input */
+      adminPolicyOwnersInviteNew: 'admin-policy-owners-invite-new',
       /** p */
       adminRolesHint: 'admin-roles-hint',
       /** button · Save password */
@@ -3413,12 +3415,38 @@ export const TestIds = {
       workspaceMenuCreateSubmit: 'workspace-menu-create-submit',
       /** p */
       workspaceMenuError: 'workspace-menu-error',
+      /** div */
+      workspaceMenuInvite: (id: string | number) => `workspace-menu-invite-${id}`,
+      /** button · Accept */
+      workspaceMenuInviteAccept: (id: string | number) => `workspace-menu-invite-accept-${id}`,
+      /** button · Decline */
+      workspaceMenuInviteDecline: (id: string | number) => `workspace-menu-invite-decline-${id}`,
+      /** div */
+      workspaceMenuInvites: 'workspace-menu-invites',
       /** button */
       workspaceMenuItem: (id: string | number) => `workspace-menu-item-${id}`,
       /** button · Workspace settings */
       workspaceMenuSettings: 'workspace-menu-settings',
     },
     WorkspaceSettingsDialog: {
+      /** li */
+      workspaceInvite: (id: string | number) => `workspace-invite-${id}`,
+      /** input · teammate@company.com */
+      workspaceInviteEmail: 'workspace-invite-email',
+      /** form */
+      workspaceInviteForm: 'workspace-invite-form',
+      /** div */
+      workspaceInviteNewAccount: 'workspace-invite-new-account',
+      /** span */
+      workspaceInviteNewAccountCode: 'workspace-invite-new-account-code',
+      /** button · Revoke */
+      workspaceInviteRevoke: (id: string | number) => `workspace-invite-revoke-${id}`,
+      /** select · Role for the invite */
+      workspaceInviteRole: 'workspace-invite-role',
+      /** button · Invite */
+      workspaceInviteSubmit: 'workspace-invite-submit',
+      /** ul */
+      workspaceInvites: 'workspace-invites',
       /** li */
       workspaceMember: (userId: string | number) => `workspace-member-${userId}`,
       /** button · Remove */
@@ -3568,6 +3596,7 @@ export type TestId =
   | `admin-policy-${string}`
   | 'admin-policy-hint'
   | 'admin-policy-members-create'
+  | 'admin-policy-owners-invite-new'
   | 'admin-roles-hint'
   | 'admin-save-password'
   | 'admin-save-role-perms'
@@ -5019,6 +5048,15 @@ export type TestId =
   | `workflow-trigger-settings-workflow-${string}`
   | `workflow-variables-environment-${string}`
   | 'workflow-view'
+  | `workspace-invite-${string}`
+  | 'workspace-invite-email'
+  | 'workspace-invite-form'
+  | 'workspace-invite-new-account'
+  | 'workspace-invite-new-account-code'
+  | `workspace-invite-revoke-${string}`
+  | 'workspace-invite-role'
+  | 'workspace-invite-submit'
+  | 'workspace-invites'
   | `workspace-member-${string}`
   | `workspace-member-remove-${string}`
   | `workspace-member-role-${string}`
@@ -5028,6 +5066,10 @@ export type TestId =
   | 'workspace-menu-create-name'
   | 'workspace-menu-create-submit'
   | 'workspace-menu-error'
+  | `workspace-menu-invite-${string}`
+  | `workspace-menu-invite-accept-${string}`
+  | `workspace-menu-invite-decline-${string}`
+  | 'workspace-menu-invites'
   | `workspace-menu-item-${string}`
   | 'workspace-menu-settings'
   | 'workspace-settings'

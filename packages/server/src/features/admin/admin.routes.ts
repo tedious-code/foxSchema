@@ -27,6 +27,7 @@ import {
   writeAdminPolicy,
 } from '../authorization/admin-policy.service';
 import { MEMBERS_CREATE_KEY, membersCanCreate } from '../workspaces/workspace-directory.service';
+import { OWNERS_INVITE_NEW_KEY, ownersCanInviteNew } from '../workspaces/workspace-invites.service';
 
 export function createAdminRoutes(
   rbac = new RbacModule(),
@@ -82,6 +83,7 @@ export function createAdminRoutes(
         source,
         activeAdmins: await activeAdminEmails(store),
         membersCanCreateWorkspaces: await membersCanCreate(store),
+        ownersCanInviteNew: await ownersCanInviteNew(store),
       });
     }
   );
@@ -90,15 +92,23 @@ export function createAdminRoutes(
     '/policy',
     requirePermissions('admin.users'),
     async (req: AuthedRequest, res: FastifyReply) => {
-      const body = (req.body ?? {}) as { adminPolicy?: unknown; membersCanCreateWorkspaces?: unknown };
+      const body = (req.body ?? {}) as {
+        adminPolicy?: unknown;
+        membersCanCreateWorkspaces?: unknown;
+        ownersCanInviteNew?: unknown;
+      };
       const value = body.adminPolicy;
       const create = body.membersCanCreateWorkspaces;
-      if ((value === undefined && create === undefined) || (value !== undefined && !isAdminPolicyValue(value))) {
+      const inviteNew = body.ownersCanInviteNew;
+      if (
+        (value === undefined && create === undefined && inviteNew === undefined) ||
+        (value !== undefined && !isAdminPolicyValue(value))
+      ) {
         sendError(res, 'invalid_input', "adminPolicy must be 'one' or 'several'.");
         return;
       }
-      if (create !== undefined && typeof create !== 'boolean') {
-        sendError(res, 'invalid_input', 'membersCanCreateWorkspaces must be true or false.');
+      if ((create !== undefined && typeof create !== 'boolean') || (inviteNew !== undefined && typeof inviteNew !== 'boolean')) {
+        sendError(res, 'invalid_input', 'membersCanCreateWorkspaces and ownersCanInviteNew must be true or false.');
         return;
       }
       try {
@@ -109,6 +119,14 @@ export function createAdminRoutes(
             'app_settings',
             ['key'],
             { key: MEMBERS_CREATE_KEY, value: create ? 'on' : 'off', updated_at: new Date().toISOString() },
+            ['value', 'updated_at']
+          );
+        }
+        if (inviteNew !== undefined) {
+          await store.upsert(
+            'app_settings',
+            ['key'],
+            { key: OWNERS_INVITE_NEW_KEY, value: inviteNew ? 'on' : 'off', updated_at: new Date().toISOString() },
             ['value', 'updated_at']
           );
         }

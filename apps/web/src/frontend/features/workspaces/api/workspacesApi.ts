@@ -66,3 +66,52 @@ export async function apiSetWorkspaceMember(id: string, userId: string, role: Wo
 export async function apiRemoveWorkspaceMember(id: string, userId: string): Promise<void> {
   await api.delete(`/workspaces/${enc(id)}/members/${enc(userId)}`, {});
 }
+
+// --- Invites -----------------------------------------------------------------
+
+export interface WorkspaceInvite {
+  id: string;
+  workspaceId: string;
+  workspaceName: string;
+  email: string;
+  role: WorkspaceRole;
+  invitedBy: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+/** When inviting made the account: how its code went out, and the code itself for an admin. */
+export interface NewAccountCode {
+  code?: string;
+  link?: string;
+  expiresAt: string;
+  delivery: 'email' | 'log' | 'failed';
+}
+
+export async function apiInviteToWorkspace(
+  id: string,
+  email: string,
+  role: WorkspaceRole
+): Promise<{ invite: WorkspaceInvite; newAccount?: NewAccountCode }> {
+  return api.post(`/workspaces/${enc(id)}/invites`, { email, role });
+}
+
+export async function apiWorkspaceInvites(id: string): Promise<WorkspaceInvite[]> {
+  return (await api.get<{ invites: WorkspaceInvite[] }>(`/workspaces/${enc(id)}/invites`)).invites;
+}
+
+export async function apiRevokeWorkspaceInvite(id: string, inviteId: string): Promise<void> {
+  await api.delete(`/workspaces/${enc(id)}/invites/${enc(inviteId)}`, {});
+}
+
+export async function apiMyInvites(): Promise<WorkspaceInvite[]> {
+  return (await api.get<{ invites: WorkspaceInvite[] }>('/workspaces/invites')).invites;
+}
+
+export async function apiAcceptInvite(inviteId: string): Promise<string> {
+  return (await api.post<{ workspaceId: string }>(`/workspaces/invites/${enc(inviteId)}/accept`, {})).workspaceId;
+}
+
+export async function apiDeclineInvite(inviteId: string): Promise<void> {
+  await api.post(`/workspaces/invites/${enc(inviteId)}/decline`, {});
+}

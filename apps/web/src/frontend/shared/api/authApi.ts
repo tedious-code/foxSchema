@@ -219,6 +219,8 @@ export interface AdminPolicySettings {
   activeAdmins: string[];
   /** Whether accounts other than admins may create workspaces. */
   membersCanCreateWorkspaces: boolean;
+  /** Whether workspace owners may invite emails that have no account (which makes one). */
+  ownersCanInviteNew: boolean;
 }
 
 export async function apiAdminGetPolicy(): Promise<AdminPolicySettings> {
@@ -231,6 +233,10 @@ export async function apiAdminSetPolicy(adminPolicy: AdminPolicyValue): Promise<
 
 export async function apiAdminSetMembersCanCreateWorkspaces(on: boolean): Promise<void> {
   await api.put('/admin/policy', { membersCanCreateWorkspaces: on }, EMPTY_OK);
+}
+
+export async function apiAdminSetOwnersCanInviteNew(on: boolean): Promise<void> {
+  await api.put('/admin/policy', { ownersCanInviteNew: on }, EMPTY_OK);
 }
 
 /** Make `userId` the admin; the caller takes `demoteTo` in the same step. */

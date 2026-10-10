@@ -13,11 +13,16 @@ import { Layers, X } from 'lucide-react';
 import { useAuthStore } from '@/app/store/authStore';
 import {
   apiArchiveWorkspace,
+  apiInviteToWorkspace,
   apiListWorkspaces,
+  apiRevokeWorkspaceInvite,
+  apiWorkspaceInvites,
   apiRemoveWorkspaceMember,
   apiRenameWorkspace,
   apiSetWorkspaceMember,
   apiWorkspaceMembers,
+  type NewAccountCode,
+  type WorkspaceInvite,
   type WorkspaceItem,
   type WorkspaceMember,
   type WorkspaceRole,
@@ -38,6 +43,11 @@ export const WorkspaceSettingsDialog: React.FC<{
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  const [invites, setInvites] = useState<WorkspaceInvite[]>([]);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<WorkspaceRole>('viewer');
+  /** The account code to pass on, when an invite just made the account. */
+  const [newAccount, setNewAccount] = useState<(NewAccountCode & { email: string }) | null>(null);
 
   const load = useCallback(async () => {
     const [list, people] = await Promise.all([apiListWorkspaces(), apiWorkspaceMembers(workspaceId)]);
@@ -45,6 +55,8 @@ export const WorkspaceSettingsDialog: React.FC<{
     setWorkspace(ws);
     setName(ws?.name ?? '');
     setMembers(people);
+    // Pending invites are for those who run the members; others get a 403 and see none.
+    setInvites(await apiWorkspaceInvites(workspaceId).catch(() => []));
   }, [workspaceId]);
 
   useEffect(() => {
@@ -67,6 +79,8 @@ export const WorkspaceSettingsDialog: React.FC<{
   };
 
   const isOwner = workspace?.role === 'owner' || me?.role === 'admin';
+  /** Who may invite and change roles: owners, admins, and everyone in their own workspace. */
+  const managesMembers = isOwner || workspace?.personal === true;
 
   return createPortal(
     <div
@@ -131,6 +145,91 @@ export const WorkspaceSettingsDialog: React.FC<{
             )}
           </form>
 
+          {managesMembers && (
+            <section className="space-y-2">
+              <form
+                data-testid="workspace-invite-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const email = inviteEmail.trim().toLowerCase();
+                  void run(async () => {
+                    const { newAccount: made } = await apiInviteToWorkspace(workspaceId, email, inviteRole);
+                    setNewAccount(made ? { ...made, email } : null);
+                    setInviteEmail('');
+                  }, `Invited ${email}. They join when they accept.`);
+                }}
+                className="flex flex-wrap items-end gap-2"
+              >
+                <label className="flex-1 min-w-[12rem] flex flex-col gap-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                  Invite · email
+                  <input
+                    data-testid="workspace-invite-email"
+                    type="email"
+                    required
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="teammate@company.com"
+                    className="rounded-md border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs normal-case tracking-normal font-normal text-slate-100 outline-none accent-focus"
+                  />
+                </label>
+                <select
+                  data-testid="workspace-invite-role"
+                  aria-label="Role for the invite"
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value as WorkspaceRole)}
+                  className="bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-100"
+                >
+                  {ROLES.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="submit"
+                  data-testid="workspace-invite-submit"
+                  disabled={busy || !inviteEmail.trim()}
+                  className="rounded-md accent-grad on-accent-fg px-3 py-1.5 text-xs font-bold disabled:opacity-60"
+                >
+                  Invite
+                </button>
+              </form>
+              {newAccount && (
+                <div data-testid="workspace-invite-new-account" className="rounded-md border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-100">
+                  {newAccount.delivery === 'email'
+                    ? `${newAccount.email} had no account, so one was made and its invite emailed.`
+                    : newAccount.code
+                      ? `${newAccount.email} had no account, so one was made. Pass this one-time code on yourself:`
+                      : `${newAccount.email} had no account, so one was made, but email is not set up. Ask an admin to pass its invite on (App users → Resend invite).`}
+                  {newAccount.delivery !== 'email' && newAccount.code && (
+                    <span data-testid="workspace-invite-new-account-code" className="ml-1 font-mono font-bold">
+                      {newAccount.code}
+                    </span>
+                  )}
+                </div>
+              )}
+              {invites.length > 0 && (
+                <ul data-testid="workspace-invites" className="divide-y divide-slate-800 rounded-lg border border-slate-800">
+                  {invites.map((i) => (
+                    <li key={i.id} data-testid={`workspace-invite-${i.id}`} className="flex items-center gap-2 px-3 py-1.5 text-xs">
+                      <span className="flex-1 min-w-0 truncate font-mono text-slate-300">{i.email}</span>
+                      <span className="text-[10px] uppercase tracking-wide text-slate-500">{i.role} · invited</span>
+                      <button
+                        type="button"
+                        data-testid={`workspace-invite-revoke-${i.id}`}
+                        disabled={busy}
+                        onClick={() => void run(() => apiRevokeWorkspaceInvite(workspaceId, i.id), `Revoked the invite for ${i.email}.`)}
+                        className="text-[11px] text-rose-300 hover:text-rose-200 disabled:opacity-50"
+                      >
+                        Revoke
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+
           <section>
             <h3 className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
               Members · {members.length}
@@ -148,7 +247,7 @@ export const WorkspaceSettingsDialog: React.FC<{
                       {m.email}
                       {self && <span className="ml-1 font-sans text-slate-500">(you)</span>}
                     </span>
-                    {isOwner && !m.personalOwner ? (
+                    {managesMembers && !m.personalOwner ? (
                       <select
                         data-testid={`workspace-member-role-${m.userId}`}
                         value={m.role}
@@ -170,7 +269,7 @@ export const WorkspaceSettingsDialog: React.FC<{
                         {m.role}
                       </span>
                     )}
-                    {isOwner && !m.personalOwner && !self && (
+                    {managesMembers && !m.personalOwner && !self && (
                       <button
                         type="button"
                         data-testid={`workspace-member-remove-${m.userId}`}

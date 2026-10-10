@@ -99,6 +99,8 @@ export class WorkspaceDirectory {
   private async require(store: MetadataStore, actor: WorkspaceActor, workspaceId: string, permission: Permission) {
     const ws = await this.workspace(store, workspaceId);
     if (actor.appRole === 'admin') return ws;
+    // Everyone runs the membership of their own workspace, whatever its role there.
+    if (permission === 'workspace.members' && ws.personal_owner_id === actor.userId) return ws;
     const role = await this.roleIn(store, workspaceId, actor.userId);
     if (!role) throw new ServiceError('not_found', 'Workspace not found');
     if (!permissionSatisfied(await this.rbac.permissionsForRole(role), permission)) {

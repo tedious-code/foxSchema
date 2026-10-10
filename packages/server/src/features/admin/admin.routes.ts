@@ -26,8 +26,7 @@ import {
   readAdminPolicy,
   writeAdminPolicy,
 } from '../../platform/authorization/admin-policy.service';
-import { MEMBERS_CREATE_KEY, membersCanCreate } from '../workspaces/workspace-directory.service';
-import { OWNERS_INVITE_NEW_KEY, ownersCanInviteNew } from '../workspaces/workspace-invites.service';
+import { MEMBERS_CREATE_KEY, membersCanCreate, OWNERS_INVITE_NEW_KEY, ownersCanInviteNew } from '../workspaces';
 
 export function createAdminRoutes(
   rbac = new RbacModule(),

@@ -24,7 +24,7 @@ import {
   type Permission,
 } from '@foxschema/shared';
 import { sqlStatementCategories, statementVerb, errorMessage } from '@foxschema/sql';
-import { isSingleSqlStatement } from '../../api/single-statement';
+import { isSingleSqlStatement } from '../../platform/statements/single-statement';
 import { clampOffset, parseSqlSeek } from './sql-page-wrap.service';
 import { makeBeamCellQueryRunner, makeCellQueryRunner } from './code-cell-query.service';
 import type { CellQueryRunner } from './code-cell-execute.service';

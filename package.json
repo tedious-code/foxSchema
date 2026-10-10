@@ -16,6 +16,7 @@
     "lint": "eslint .",
     "lint:security": "eslint . --config eslint.security.config.js --max-warnings 0",
     "test-ids": "node scripts/test-ids/extract-test-ids.mjs --write",
+    "feature:new": "node scripts/feature/new-feature.mjs",
     "bundle:first-load": "node scripts/bundle/first-load.mjs apps/web/dist --budget-gzip-kb=170",
     "audit:security": "npm audit --audit-level=high --omit=dev",
     "scan:deps-security": "node scripts/security/scan-node-modules.mjs --fail-on high",

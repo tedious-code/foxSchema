@@ -35,7 +35,7 @@ Use the layers you need; do not create empty ones. Split a growing service by
 use case (`compare-schemas.service.ts`, `apply-migration.service.ts`), not by
 abstract layer.
 
-**`index.ts` exports a `ServerFeatureModule`** (step 2):
+**`index.ts` exports a `ServerFeatureModule`**:
 
 ```ts
 // features/backup/index.ts
@@ -113,11 +113,33 @@ product-neutral part to `shared/`, not to another feature.
 ## Adding a feature
 
 ```bash
-npm run feature:new -- <id>        # step 5: scaffolds both sides and registers them
+npm run feature:new -- audit-log                 # both sides
+npm run feature:new -- audit-log --server-only   # or --web-only
+npm run feature:new -- audit-log --dry-run       # list what it would write
 ```
 
-Then fill in the service, the routes and the screen. The checklist below is
-what review looks for.
+The id is kebab-case. The scaffold writes:
+
+| Side | Files | Registered in |
+|---|---|---|
+| Server | `features/audit-log/`: `index.ts` (the module, mounted at `/api/audit-log` for a signed-in user), `audit-log.routes.ts`, `audit-log.service.ts` and a test for each | `app/feature-registry.ts`, plus a row in `api/http-contract.test.ts` |
+| Web | `features/audit-log/`: `index.ts`, `view.ts`, `api/auditLogApi.ts`, `components/AuditLogView.tsx` and its test | `app/features/viewIds.ts` and `app/features/featureRegistry.ts` (view `auditLog`) |
+
+It also regenerates the test-ID catalog. It refuses an id either side already
+has, and writes nothing until every edit is ready. The result passes typecheck
+and the whole suite as written, so work starts from green.
+
+Then:
+
+- Replace the starter route and screen with the real ones, and say what the
+  feature does in the headers marked TODO.
+- Give the view a rail button if it needs one: `rail` on its registry entry,
+  and the button in `featureRegistry.test.ts`, which pins the rail.
+- List every new route in `api/http-contract.test.ts`, with what it answers.
+  A test compares that table with what the registry serves, so a route you
+  forget fails there.
+
+The checklist below is what review looks for.
 
 ## Acceptance checklist
 

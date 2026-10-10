@@ -41,7 +41,7 @@ database/   metadata store and migrations
 6. Workspace-owned data is reached through `platform/connections` and the
    services that take a `WorkspaceScope`, never by raw SQL from another feature.
 
-Enforced by `packages/server/src/architecture.test.ts` (step 2).
+Enforced by `packages/server/src/architecture.test.ts`.
 
 ## Web app (`apps/web/src/frontend`)
 

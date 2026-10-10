@@ -106,6 +106,11 @@ const ALWAYS = [
     label: 'One admin or several',
   },
   {
+    key: 'workspaces',
+    file: 'src/tests/workspaces.test.ts',
+    label: 'Workspaces: create, switch, settings',
+  },
+  {
     key: 'sql-editor',
     file: [
       'src/tests/sql-editor-smoke.test.ts',

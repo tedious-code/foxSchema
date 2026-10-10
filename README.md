@@ -2,6 +2,8 @@
 
 # Fox Schema
 
+*NEW FEATURE BUILDING*
+
 **Compare schemas · generate migrations · run SQL — across 14 SQL dialects.**
 
 Install once, then open the local web UI (`foxschema`) for **Compare**, the

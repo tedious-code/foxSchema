@@ -6,11 +6,11 @@
  * Permission guards for Express routes.
  */
 import type { FastifyReply } from 'fastify';
-import type { AppRequest, NextFunction } from '../../platform/http/types';
+import type { AppRequest, NextFunction } from '../http/types';
 import { permissionSatisfied } from '@foxschema/shared';
 import type { Permission } from '@foxschema/shared';
-import type { AuthedRequest } from '../auth/auth.routes';
-import { sendError } from '../../platform/http/respond';
+import type { AuthedRequest } from '../http/types';
+import { sendError } from '../http/respond';
 
 /** After a session is resolved, reject when any required permission is missing. */
 export function requirePermissions(...required: Permission[]) {

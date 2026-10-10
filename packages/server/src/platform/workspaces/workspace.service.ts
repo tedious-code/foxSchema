@@ -22,9 +22,9 @@ import {
   type WorkspaceRole,
 } from '@foxschema/shared';
 import type { MetadataStore } from '../../database/stores/types';
-import { ServiceError } from '../../platform/contracts/actor';
+import { ServiceError } from '../contracts/actor';
 
-export type { WorkspaceScope } from '../../platform/http/scope';
+export type { WorkspaceScope } from '../http/scope';
 
 export interface ResolvedWorkspace {
   id: string;

@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createWorkspaceRoutes } from './workspaces.routes';
 import type { WorkspaceDirectory } from './workspace-directory.service';
 import type { WorkspaceInvites } from './workspace-invites.service';
-import type { AuthMailer } from '../auth/auth-mail';
+import type { AuthMailer } from '../../platform/identity/auth-mail';
 
 function inviteHandler(invites: Partial<WorkspaceInvites>, mailer: Partial<AuthMailer>) {
   const route = createWorkspaceRoutes({} as WorkspaceDirectory, invites as WorkspaceInvites, mailer as AuthMailer)

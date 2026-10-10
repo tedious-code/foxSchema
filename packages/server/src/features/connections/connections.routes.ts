@@ -2,9 +2,9 @@ import type { FastifyReply } from 'fastify';
 import { scopeOf } from '../../platform/http/scope';
 import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
-import { ConnectionStore } from './connection-store.service';
+import { ConnectionStore } from '../../platform/connections/connection-store.service';
 import { pruneOrphanFileQueryConnections } from '../files/file-query.service';
-import { AuthedRequest } from '../auth/auth.routes';
+import type { AuthedRequest } from '../../platform/http/types';
 import { sendError, sendThrown } from '../../platform/http/respond';
 
 /** CRUD for the signed-in user's saved connections (credentials encrypted at rest). */

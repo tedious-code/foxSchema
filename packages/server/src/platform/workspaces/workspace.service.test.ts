@@ -8,17 +8,17 @@ import { DEFAULT_ROLE_PERMISSIONS, PERMISSIONS } from '@foxschema/shared';
 import { getStore } from '../../database/store';
 import { createMetadataStore } from '../../database/stores/registry';
 import { runMigrations } from '../../database/schema';
-import { AuthModule, type AuthUser } from '../auth/auth.service';
+import { AuthModule, type AuthUser } from '../identity/auth.service';
 import { RbacModule } from '../authorization/rbac.service';
 import { writeAdminPolicy } from '../authorization/admin-policy.service';
 import { ConnectionStore } from '../connections/connection-store.service';
-import { AppSecretsStore } from '../admin/app-secrets.service';
-import { CloudProviderCredentialsStore } from '../admin/cloud-provider-credentials.service';
-import { MigrationHistoryStore } from '../migration/migration-history.service';
-import { DataMigrateHistoryStore } from '../data-migrate/data-migrate-history.service';
-import { LokeeWeaveStore } from '../history/lokee-weave.service';
-import { ServiceError } from '../../platform/contracts/actor';
-import type { WorkspaceScope } from '../../platform/http/scope';
+import { AppSecretsStore } from '../../features/admin/app-secrets.service';
+import { CloudProviderCredentialsStore } from '../../features/admin/cloud-provider-credentials.service';
+import { MigrationHistoryStore } from '../../features/migration/migration-history.service';
+import { DataMigrateHistoryStore } from '../../features/data-migrate/data-migrate-history.service';
+import { LokeeWeaveStore } from '../../features/history/lokee-weave.service';
+import { ServiceError } from '../contracts/actor';
+import type { WorkspaceScope } from '../http/scope';
 import {
   WORKSPACE_OWNED_TABLES,
   backfillWorkspaces,

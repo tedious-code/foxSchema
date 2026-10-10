@@ -20,8 +20,8 @@ import type { FastifyInstance } from 'fastify';
 process.env.APP_DB_PATH = ':memory:';
 process.env.APP_ENCRYPTION_KEY ||= '0'.repeat(64);
 
-import { AuthModule } from './auth.service';
-import { AppSettingsStore } from '../admin/app-settings.service';
+import { AuthModule } from '../../platform/identity/auth.service';
+import { AppSettingsStore } from '../../platform/settings/app-settings.service';
 import { getStore } from '../../database/store';
 
 let app: FastifyInstance;

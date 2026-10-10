@@ -11,7 +11,7 @@ import {
   type WorkflowEngineConfig,
   type WorkflowHealth,
 } from '@foxschema/workflow-contract';
-import { AppSettingsStore } from '../admin/app-settings.service';
+import { AppSettingsStore } from '../../platform/settings/app-settings.service';
 
 export const WORKFLOW_ENGINE_CONFIG_KEY = 'workflow.engine_config';
 

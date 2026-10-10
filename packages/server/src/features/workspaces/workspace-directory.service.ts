@@ -25,7 +25,7 @@ import {
 } from '@foxschema/shared';
 import { getStore } from '../../database/store';
 import type { MetadataStore } from '../../database/stores/types';
-import { RbacModule } from '../authorization/rbac.service';
+import { RbacModule } from '../../platform/authorization/rbac.service';
 import { ServiceError } from '../../platform/contracts/actor';
 
 export const MEMBERS_CREATE_KEY = 'workspaces.members_create';

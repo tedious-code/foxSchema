@@ -12,7 +12,7 @@
  */
 import type { AppRequest } from './types';
 import type { ActorContext } from '../contracts/actor';
-import type { AuthedRequest } from '../../features/auth/auth.routes';
+import type { AuthedRequest } from './types';
 import { scopeOf } from './scope';
 import { permissionSatisfied, type Permission } from '@foxschema/shared';
 

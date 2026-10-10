@@ -9,7 +9,7 @@
 import type { FastifyReply } from 'fastify';
 import { Router } from '../../platform/http/router';
 import { sendError } from '../../platform/http/respond';
-import type { AuthedRequest } from '../auth/auth.routes';
+import type { AuthedRequest } from '../../platform/http/types';
 import { BackupSettingsModule, UnknownBackupDialect } from './backup-settings.service';
 
 export function createBackupSettingsRoutes(module: BackupSettingsModule = new BackupSettingsModule()): Router {

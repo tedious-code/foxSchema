@@ -6,7 +6,7 @@ process.env.APP_DB_PATH = ':memory:';
 import { randomUUID } from 'node:crypto';
 import { getStore } from '../../database/store';
 import { RbacModule } from './rbac.service';
-import { AuthModule } from '../auth/auth.service';
+import { AuthModule } from '../identity/auth.service';
 import {
   ADMIN_POLICY_KEY,
   AdminPolicyError,

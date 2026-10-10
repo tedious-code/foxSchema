@@ -7,7 +7,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 
 process.env.APP_DB_PATH = ':memory:';
 
-import { AuthModule } from '../auth/auth.service';
+import { AuthModule } from '../../platform/identity/auth.service';
 import { getStore } from '../../database/store';
 import { BackupSettingsModule, UnknownBackupDialect } from './backup-settings.service';
 

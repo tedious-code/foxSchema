@@ -22,7 +22,7 @@
  *              (`xms_edov`).
  */
 import { createHash, randomBytes } from 'node:crypto';
-import type { AppRequest } from '../../platform/http/types';
+import type { AppRequest } from '../http/types';
 import type { SsoProviderConfig } from './sign-in-settings.service';
 
 export type { SsoProviderConfig, SsoProviderId } from './sign-in-settings.service';

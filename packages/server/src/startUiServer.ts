@@ -13,7 +13,7 @@ import type http from 'node:http';
 import { ConnectionFactory, setupDb2ClientEnv } from '@foxschema/db';
 import { createFastifyApp } from './api/fastify-server';
 import { sweepOnBoot } from './api/server';
-import { assertListenPosture, defaultListenHost } from './api/deployment';
+import { assertListenPosture, defaultListenHost } from './platform/runtime/deployment';
 import { DEFAULT_API_PORT } from './defaultApiPort';
 
 export interface StartUiServerOptions {

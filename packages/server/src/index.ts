@@ -28,10 +28,10 @@ export { createFastifyApp } from './api/fastify-server';
 export { getStore } from './database/store';
 
 /** Feature services the CLI drives without going through HTTP. */
-export { AuthModule } from './features/auth/auth.service';
-export { ConnectionStore } from './features/connections/connection-store.service';
+export { AuthModule } from './platform/identity/auth.service';
+export { ConnectionStore } from './platform/connections/connection-store.service';
 export type { WorkspaceScope } from './platform/http/scope';
-export type { SavedConnectionSummary } from './features/connections/connection-store.service';
+export type { SavedConnectionSummary } from './platform/connections/connection-store.service';
 export { MigrationHistoryStore } from './features/migration/migration-history.service';
 export type {
   MigrationRunDetail,
@@ -39,7 +39,7 @@ export type {
   MigrationObjectResult,
   MigrationRunStatus,
 } from './features/migration/migration-history.service';
-export { AppSettingsStore } from './features/admin/app-settings.service';
+export { AppSettingsStore } from './platform/settings/app-settings.service';
 
 /** Logging, so a host process writes into the same stream as the server. */
 export { getLogger } from './platform/logger/logger';

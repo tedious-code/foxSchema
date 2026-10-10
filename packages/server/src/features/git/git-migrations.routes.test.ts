@@ -190,7 +190,7 @@ describe('secrets and policy', () => {
   });
 
   it('will not run a committed migration from a repository the person may not see', async () => {
-    const { AuthModule } = await import('../auth/auth.service');
+    const { AuthModule } = await import('../../platform/identity/auth.service');
     // An owner may run migrations, but this repository is for editors.
     await new AuthModule().createUser('olu@example.com', 'amber-forest-8', 'owner');
     const ownerCookie = (await call('POST', '/auth/login', { email: 'olu@example.com', password: 'amber-forest-8' }, '')).cookie;

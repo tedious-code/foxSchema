@@ -7,7 +7,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ConnectionModule } from '@foxschema/db';
 import type { Permission } from '@foxschema/shared';
-import type { AuthedRequest } from '../auth/auth.routes';
+import type { AuthedRequest } from '../../platform/http/types';
 import { bindRoutes } from '../../platform/http/fastify-bind';
 import { createAccessRoutes } from './access.routes';
 

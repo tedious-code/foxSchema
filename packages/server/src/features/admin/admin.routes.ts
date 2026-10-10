@@ -9,14 +9,14 @@
 import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
-import { RbacModule } from '../authorization/rbac.service';
-import { AuthModule } from '../auth/auth.service';
-import { AuthMailer, type Delivery } from '../auth/auth-mail';
-import type { PasswordCodePurpose } from '../auth/auth-codes';
-import type { IssuedCode } from '../auth/auth.service';
+import { RbacModule } from '../../platform/authorization/rbac.service';
+import { AuthModule } from '../../platform/identity/auth.service';
+import { AuthMailer, type Delivery } from '../../platform/identity/auth-mail';
+import type { PasswordCodePurpose } from '../../platform/identity/auth-codes';
+import type { IssuedCode } from '../../platform/identity/auth.service';
 import { APP_ROLES, PERMISSION_META, isAppRole } from '@foxschema/shared';
-import type { AuthedRequest } from '../auth/auth.routes';
-import { requirePermissions } from '../authorization/rbac.guard';
+import type { AuthedRequest } from '../../platform/http/types';
+import { requirePermissions } from '../../platform/authorization/rbac.guard';
 import { sendError } from '../../platform/http/respond';
 import { getStore } from '../../database/store';
 import {
@@ -25,7 +25,7 @@ import {
   isAdminPolicyValue,
   readAdminPolicy,
   writeAdminPolicy,
-} from '../authorization/admin-policy.service';
+} from '../../platform/authorization/admin-policy.service';
 import { MEMBERS_CREATE_KEY, membersCanCreate } from '../workspaces/workspace-directory.service';
 import { OWNERS_INVITE_NEW_KEY, ownersCanInviteNew } from '../workspaces/workspace-invites.service';
 

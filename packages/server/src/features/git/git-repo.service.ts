@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import git, { Errors, type ReadCommitResult, type TreeEntry } from 'isomorphic-git';
-import { isLocalSingleUser } from '../../api/deployment';
+import { isLocalSingleUser } from '../../platform/runtime/deployment';
 import { createGitHttpClient, DEFAULT_MAX_RESPONSE_BYTES, DEFAULT_TIMEOUT_MS, type GitNetworkPolicy } from './git-http';
 import { GitReposStore, type GitRepoSecret } from './git-repos.store';
 import { normalizeBranchName, normalizeFolder } from './git-url';

@@ -11,8 +11,8 @@
  * reading a one-time code from the server's own log.
  */
 import { randomBytes, timingSafeEqual } from 'node:crypto';
-import type { AppRequest } from '../../platform/http/types';
-import { defaultListenHost, isLocalSingleUser, isLoopbackHost } from '../../api/deployment';
+import type { AppRequest } from '../http/types';
+import { defaultListenHost, isLocalSingleUser, isLoopbackHost } from '../runtime/deployment';
 
 let code: string | undefined;
 

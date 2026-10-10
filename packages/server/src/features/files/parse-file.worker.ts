@@ -7,7 +7,7 @@
  * network — which is exactly the shape worth moving.
  */
 import { parentPort, workerData } from 'node:worker_threads';
-import { parseFileToTable, type FileQueryImportInput } from '../files/file-query.service';
+import { parseFileToTable, type FileQueryImportInput } from './file-query.service';
 import { errorMessage } from '@foxschema/sql';
 
 interface ParseJob {

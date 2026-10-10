@@ -6,13 +6,13 @@
  * Schema browse routes. Extracted verbatim from api/routes.ts.
  */
 import { scopeOf } from '../../platform/http/scope';
-import type { ConnectionResolver } from '../../platform/db/resolve';
+import type { ConnectionResolver } from '../../platform/connections/resolve';
 import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
-import { requirePermissions } from '../authorization/rbac.guard';
-import type { AuthedRequest } from '../auth/auth.routes';
-import type { ConnectionRef } from '../../platform/db/resolve';
+import { requirePermissions } from '../../platform/authorization/rbac.guard';
+import type { AuthedRequest } from '../../platform/http/types';
+import type { ConnectionRef } from '../../platform/connections/resolve';
 import { getProviderSettings, type DbObjectType } from '@foxschema/db';
 import { sendError, sendThrown } from '../../platform/http/respond';
 

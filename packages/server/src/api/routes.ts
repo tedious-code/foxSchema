@@ -13,10 +13,10 @@ import {
   normalizeTableSchemas,
   type ConnectionOptions,
 } from '@foxschema/db';
-import { ConnectionStore } from '../features/connections/connection-store.service';
+import { ConnectionStore } from '../platform/connections/connection-store.service';
 import { MigrationHistoryStore } from '../features/migration/migration-history.service';
 import { DataMigrateHistoryStore } from '../features/data-migrate/data-migrate-history.service';
-import { AppSettingsStore } from '../features/admin/app-settings.service';
+import { AppSettingsStore } from '../platform/settings/app-settings.service';
 import { LokeeWeaveStore } from '../features/history/lokee-weave.service';
 import { rateLimit } from '../platform/guards/rate-limit';
 import { targetLocks } from '../platform/guards/target-lock';
@@ -29,10 +29,10 @@ import {
 } from '../features/sql-editor/sql-execute.service';
 import { getMetadataDbConfig, SUPPORTED_ENGINES, type DbEngine } from '../database/config';
 import { createMetadataStore } from '../database/stores/registry';
-import type { AuthedRequest } from '../features/auth/auth.routes';
-import { requirePermissions } from '../features/authorization/rbac.guard';
-import { isLocalSingleUser } from './deployment';
-import { makeConnectionResolver, type ConnectionRef } from '../platform/db/resolve';
+import type { AuthedRequest } from '../platform/http/types';
+import { requirePermissions } from '../platform/authorization/rbac.guard';
+import { isLocalSingleUser } from '../platform/runtime/deployment';
+import { makeConnectionResolver, type ConnectionRef } from '../platform/connections/resolve';
 import { makeCompareService } from '../features/compare/compare.service';
 import { createCompareRoutes } from '../features/compare/compare.routes';
 import { createAccessRoutes } from '../features/access/access.routes';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NdjsonStreamReader, collectColumns } from './ndjson-stream';
-import { parseJsonRecords } from '../files/file-query.service';
+import { parseJsonRecords } from './file-query.service';
 
 /** Read `text` through the streaming reader in fixed-size chunks. */
 function stream(text: string, chunkSize: number): Record<string, unknown>[] {

@@ -12,8 +12,8 @@ import { expect, it, vi } from 'vitest';
 process.env.APP_DB_PATH = ':memory:';
 
 const hashes = vi.hoisted(() => ({ count: 0 }));
-vi.mock('../../platform/crypto/crypto', async (importOriginal) => {
-  const real = await importOriginal<typeof import('../../platform/crypto/crypto')>();
+vi.mock('../crypto/crypto', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../crypto/crypto')>();
   return {
     ...real,
     hashPassword: (password: string) => {

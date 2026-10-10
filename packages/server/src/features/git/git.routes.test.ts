@@ -19,7 +19,7 @@ process.env.FOX_GIT_ALLOW_HTTP = '1';
 const dataDir = mkdtempSync(join(tmpdir(), 'fox-gitroutes-'));
 process.env.FOX_GIT_DIR = dataDir;
 
-import { AuthModule } from '../auth/auth.service';
+import { AuthModule } from '../../platform/identity/auth.service';
 import { startTestGitServer, type TestGitServer } from './test-git-server';
 
 let app: FastifyInstance;

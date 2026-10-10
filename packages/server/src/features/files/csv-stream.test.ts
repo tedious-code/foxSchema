@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CsvStreamReader } from './csv-stream';
-import { parseCsv } from '../files/file-query.service';
+import { parseCsv } from './file-query.service';
 
 /** Read `text` through the streaming reader in fixed-size chunks. */
 function stream(text: string, chunkSize: number, delimiter?: string): string[][] {

@@ -14,7 +14,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { capacityMessage, importCapacity } from '../import-process/import-capacity';
+import { capacityMessage, importCapacity } from './import-capacity';
 import {
   fileQueryTempDir,
   type FileQueryFormat,

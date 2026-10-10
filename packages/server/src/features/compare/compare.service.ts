@@ -8,7 +8,7 @@
 import { CompareModule, type DbObjectType } from '@foxschema/db';
 import { requirePermission, ServiceError, type ActorContext } from '../../platform/contracts/actor';
 import { schemaCompareBlocker } from '@foxschema/sql';
-import type { ConnectionRef, ConnectionResolver } from '../../platform/db/resolve';
+import type { ConnectionRef, ConnectionResolver } from '../../platform/connections/resolve';
 
 export interface CompareInput {
   source: ConnectionRef;

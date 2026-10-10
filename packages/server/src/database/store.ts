@@ -2,9 +2,9 @@ import { fileURLToPath } from 'node:url';
 import { getMetadataDbConfig } from './config';
 import { createMetadataStore } from './stores/registry';
 import { runMigrations } from './schema';
-import { seedDefaultRolePermissions, backfillDatagridRolePermissions } from '../features/authorization/rbac.service';
-import { backfillAdminPolicy } from '../features/authorization/admin-policy.service';
-import { backfillWorkspaces } from '../features/workspaces/workspace.service';
+import { seedDefaultRolePermissions, backfillDatagridRolePermissions } from '../platform/authorization/rbac.service';
+import { backfillAdminPolicy } from '../platform/authorization/admin-policy.service';
+import { backfillWorkspaces } from '../platform/workspaces/workspace.service';
 import type { MetadataStore } from './stores/types';
 
 // Default SQLite location, anchored to this module so it's independent of the

@@ -1,4 +1,4 @@
-import { AppSettingsStore } from '../admin/app-settings.service';
+import { AppSettingsStore } from '../../platform/settings/app-settings.service';
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const SHOWN_KEY = 'signup.wizard_shown';

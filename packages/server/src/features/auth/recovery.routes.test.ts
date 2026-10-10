@@ -14,8 +14,8 @@ import type { FastifyInstance } from 'fastify';
 process.env.APP_DB_PATH = ':memory:';
 process.env.APP_ENCRYPTION_KEY ||= '0'.repeat(64);
 
-import { AuthModule } from './auth.service';
-import { MAX_FAILURES } from './sign-in-throttle';
+import { AuthModule } from '../../platform/identity/auth.service';
+import { MAX_FAILURES } from '../../platform/identity/sign-in-throttle';
 import { DEFAULT_TRUST_PROXY, trustProxySetting } from '../../api/fastify-server';
 
 let app: FastifyInstance;

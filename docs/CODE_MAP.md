@@ -105,14 +105,21 @@ does not resolve.
 api/         The HTTP server itself: Fastify setup, route tree, security
              headers. Nothing business-specific.
 
-platform/    Cross-cutting infrastructure used by every feature.
-  contracts/   ActorContext and ServiceError
-  guards/      origin policy (`FOX_ALLOWED_ORIGINS`, literal LAN IPs in dev),
-               rate limit, idempotency, target locks
-  http/        request/response types, router, Fastify binding, responses
-  db/          connection resolution
-  crypto/      secret encryption
-  logger/      logging configuration
+platform/    Capabilities every feature needs. Never imports a feature.
+  identity/      accounts, sessions, the session guard (`auth.guard.ts`),
+                 SSO, sign-in mail, first-run setup code, sign-in settings
+  authorization/ RBAC role permissions, the permission guard, one admin or several
+  settings/      install-wide key/value settings (`app_settings`)
+  connections/   saved connections (encrypted) and resolving a connection ref
+  workspaces/    which workspace a request acts in; personal workspaces
+  runtime/       deployment posture: listen host, local install
+  contracts/     ActorContext and ServiceError
+  guards/        origin policy (`FOX_ALLOWED_ORIGINS`, literal LAN IPs in dev),
+                 rate limit, idempotency, target locks
+  http/          request/response types, router, Fastify binding, responses
+  db/            database error shaping
+  crypto/        secret encryption
+  logger/        logging configuration
 
 features/    One folder per business domain (see below).
 
@@ -129,19 +136,18 @@ database/    The metadata store and its migrations.
 | `access` | Database permission inspection and DBA utilities |
 | `admin` | Install-wide settings, secrets, cloud credentials |
 | `backup` | Per-user backup defaults (`GET`/`PUT /api/backup-settings`). Commands themselves are built in `@foxschema/sql` (`modules/utilities/backup.ts` + `providers/<d>/*.backup.ts`); the panel runs only a server-side SQL backup, after confirmation, and lists the backups the server recorded (`backupHistoryQuery`); restores are never run. |
-| `auth` | Login, sessions, SSO |
-| `authorization` | Role permissions (RBAC) and the permission guard |
+| `auth` | Sign-in, setup, password and SSO routes (the services are `platform/identity`) |
 | `compare` | Schema comparison |
-| `connections` | Saved database connections (`authMethod` / `domain` on encrypted `ConnectionOptions`; NTLM is adapter-side) |
+| `connections` | Routes for saved database connections; the store is `platform/connections` (`authMethod` / `domain` on encrypted `ConnectionOptions`; NTLM is adapter-side) |
 | `data-migrate` | Moving data between databases |
-| `files` | File uploads and querying an uploaded file |
+| `files` | File uploads, querying an uploaded file, and the import machinery: parsers, column detection, the parse worker pool |
 | `git` | Git repositories migrations are committed to: bare local copies through isomorphic-git, branches, fetch / pull / push, and the guarded HTTP client that refuses private addresses. Plan: [plans/2026-10-02-migrations-in-git.md](plans/2026-10-02-migrations-in-git.md) |
 | `history` | Schema history and revert (Lokee Weave) |
-| `import-process` | Parsers, column detection and the worker pool used by imports |
 | `migration` | Applying DDL migrations, and their run history |
 | `schema` | Reading a schema |
 | `sql-editor` | SQL editor, code cells, sandboxed execution |
 | `users` | Profile, preferences, first-run wizard |
+| `workspaces` | Shared workspaces: create, switch, members, invites, public or private (which workspace a request acts in is `platform/workspaces`) |
 | `workflow` | Workflow engine settings and health; the engine proxy (an allowlist of engine routes, each behind a `workflow.*` permission); saved-connection grants; and the token-guarded internal routes the engine calls to resolve a granted connection and read its settings. Runbook: [WORKFLOW.md](WORKFLOW.md). |
 
 Inside a feature:

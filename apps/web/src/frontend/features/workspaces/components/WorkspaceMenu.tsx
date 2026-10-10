@@ -10,9 +10,13 @@
 import React, { useEffect, useState } from 'react';
 import { Check, Layers, Plus, Settings2 } from 'lucide-react';
 import {
+  apiAcceptInvite,
   apiCreateWorkspace,
+  apiDeclineInvite,
   apiListWorkspaces,
+  apiMyInvites,
   apiSelectWorkspace,
+  type WorkspaceInvite,
   type WorkspaceList,
 } from '../api/workspacesApi';
 
@@ -26,9 +30,13 @@ export const WorkspaceMenu: React.FC<{
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
+  const [invites, setInvites] = useState<WorkspaceInvite[]>([]);
 
   useEffect(() => {
     let alive = true;
+    apiMyInvites()
+      .then((i) => alive && setInvites(i))
+      .catch(() => undefined);
     apiListWorkspaces()
       .then((l) => alive && setList(l))
       .catch((e: unknown) => alive && setError(e instanceof Error ? e.message : 'Could not load workspaces'));
@@ -59,6 +67,24 @@ export const WorkspaceMenu: React.FC<{
     }
   };
 
+  /** Accepting joins and goes there; declining just drops it. */
+  const answer = async (invite: WorkspaceInvite, accept: boolean) => {
+    setBusy(true);
+    setError(null);
+    try {
+      if (accept) {
+        await apiSelectWorkspace(await apiAcceptInvite(invite.id));
+        reload();
+        return;
+      }
+      await apiDeclineInvite(invite.id);
+      setInvites((prev) => prev.filter((i) => i.id !== invite.id));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not answer the invite');
+    }
+    setBusy(false);
+  };
+
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -75,6 +101,40 @@ export const WorkspaceMenu: React.FC<{
 
   return (
     <div data-testid="workspace-menu" className="border-b border-slate-800 py-2">
+      {invites.length > 0 && (
+        <div data-testid="workspace-menu-invites" className="mx-3 mb-2 rounded-lg border border-amber-500/30 bg-amber-950/20 py-1">
+          <p className="px-2 pb-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300">Invitations</p>
+          {invites.map((i) => (
+            <div key={i.id} data-testid={`workspace-menu-invite-${i.id}`} className="px-2 py-1 text-xs text-slate-200">
+              <p className="truncate" title={`${i.workspaceName}, from ${i.invitedBy}`}>
+                <span className="font-semibold">{i.workspaceName}</span>
+                <span className="text-slate-400"> · {i.role}</span>
+              </p>
+              <p className="truncate text-[10px] text-slate-500">from {i.invitedBy}</p>
+              <div className="mt-1 flex gap-2">
+                <button
+                  type="button"
+                  data-testid={`workspace-menu-invite-accept-${i.id}`}
+                  disabled={busy}
+                  onClick={() => void answer(i, true)}
+                  className="rounded accent-grad on-accent-fg px-2 py-0.5 text-[11px] font-bold disabled:opacity-60"
+                >
+                  Accept
+                </button>
+                <button
+                  type="button"
+                  data-testid={`workspace-menu-invite-decline-${i.id}`}
+                  disabled={busy}
+                  onClick={() => void answer(i, false)}
+                  className="rounded border border-slate-700 px-2 py-0.5 text-[11px] text-slate-300 disabled:opacity-60"
+                >
+                  Decline
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       <p className="px-4 pb-1 text-xs text-slate-500 uppercase tracking-wider font-bold">Workspace</p>
       <ul>
         {list.workspaces.map((w) => (

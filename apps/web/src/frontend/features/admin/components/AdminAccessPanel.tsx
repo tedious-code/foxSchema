@@ -19,6 +19,7 @@ import {
   apiAdminSetUserActive,
   apiAdminSetUserPassword,
   apiAdminSetMembersCanCreateWorkspaces,
+  apiAdminSetOwnersCanInviteNew,
   apiAdminSetPolicy,
   apiAdminSetUserRole,
   apiAdminTransferAdmin,
@@ -268,6 +269,21 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
       await load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Could not change who creates workspaces');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const changeOwnersInviteNew = async (on: boolean) => {
+    setBusy(true);
+    setError(null);
+    setSavedMsg(null);
+    try {
+      await apiAdminSetOwnersCanInviteNew(on);
+      setSavedMsg(on ? 'Workspace owners can now invite new people.' : 'Only admins add new people now.');
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not change who invites new people');
     } finally {
       setBusy(false);
     }
@@ -558,6 +574,18 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
                     />
                     Members can create workspaces
                     <span className="text-slate-500">· otherwise only admins can; everyone always has their own</span>
+                  </label>
+                  <label className="inline-flex items-center gap-1.5 text-[11px] text-slate-300 basis-full">
+                    <input
+                      type="checkbox"
+                      data-testid="admin-policy-owners-invite-new"
+                      checked={policy.ownersCanInviteNew}
+                      disabled={busy}
+                      onChange={(e) => void changeOwnersInviteNew(e.target.checked)}
+                      className="rounded border-slate-600 bg-slate-900"
+                    />
+                    Workspace owners can invite new people
+                    <span className="text-slate-500">· inviting an email with no account makes one (as a viewer)</span>
                   </label>
                 </div>
               )}

@@ -16,6 +16,12 @@ const apiSetWorkspaceMember = vi.fn();
 const apiRemoveWorkspaceMember = vi.fn();
 const apiRenameWorkspace = vi.fn();
 const apiArchiveWorkspace = vi.fn();
+const apiMyInvites = vi.fn();
+const apiAcceptInvite = vi.fn();
+const apiDeclineInvite = vi.fn();
+const apiInviteToWorkspace = vi.fn();
+const apiWorkspaceInvites = vi.fn();
+const apiRevokeWorkspaceInvite = vi.fn();
 
 vi.mock('../api/workspacesApi', () => ({
   apiListWorkspaces: (...a: unknown[]) => apiListWorkspaces(...a),
@@ -26,6 +32,12 @@ vi.mock('../api/workspacesApi', () => ({
   apiRemoveWorkspaceMember: (...a: unknown[]) => apiRemoveWorkspaceMember(...a),
   apiRenameWorkspace: (...a: unknown[]) => apiRenameWorkspace(...a),
   apiArchiveWorkspace: (...a: unknown[]) => apiArchiveWorkspace(...a),
+  apiMyInvites: (...a: unknown[]) => apiMyInvites(...a),
+  apiAcceptInvite: (...a: unknown[]) => apiAcceptInvite(...a),
+  apiDeclineInvite: (...a: unknown[]) => apiDeclineInvite(...a),
+  apiInviteToWorkspace: (...a: unknown[]) => apiInviteToWorkspace(...a),
+  apiWorkspaceInvites: (...a: unknown[]) => apiWorkspaceInvites(...a),
+  apiRevokeWorkspaceInvite: (...a: unknown[]) => apiRevokeWorkspaceInvite(...a),
 }));
 
 import { WorkspaceMenu } from './WorkspaceMenu';
@@ -35,7 +47,9 @@ const own = { id: 'own', name: "ana's workspace", visibility: 'private', persona
 const team = { id: 'team', name: 'Data team', visibility: 'private', personal: false, role: 'owner', memberCount: 2 };
 
 beforeEach(() => {
-  for (const f of [apiListWorkspaces, apiCreateWorkspace, apiSelectWorkspace, apiWorkspaceMembers, apiSetWorkspaceMember, apiRemoveWorkspaceMember, apiRenameWorkspace, apiArchiveWorkspace]) f.mockReset();
+  for (const f of [apiListWorkspaces, apiCreateWorkspace, apiSelectWorkspace, apiWorkspaceMembers, apiSetWorkspaceMember, apiRemoveWorkspaceMember, apiRenameWorkspace, apiArchiveWorkspace, apiMyInvites, apiAcceptInvite, apiDeclineInvite, apiInviteToWorkspace, apiWorkspaceInvites, apiRevokeWorkspaceInvite]) f.mockReset();
+  apiMyInvites.mockResolvedValue([]);
+  apiWorkspaceInvites.mockResolvedValue([]);
   apiListWorkspaces.mockResolvedValue({ currentId: 'own', workspaces: [own, team], canCreate: false });
   useAuthStore.setState({
     user: { id: 'ana', email: 'ana@example.com', onboardingCompleted: true, role: 'editor', permissions: [] },
@@ -129,3 +143,57 @@ describe('WorkspaceSettingsDialog', () => {
     expect(screen.queryByTestId('workspace-settings-archive')).toBeNull();
   });
 });
+
+describe('invitations', () => {
+  const invite = { id: 'inv1', workspaceId: 'team', workspaceName: 'Data team', email: 'ana@example.com', role: 'editor', invitedBy: 'boss@example.com', createdAt: '', expiresAt: '' };
+
+  it('the menu shows invitations; accepting joins and goes there', async () => {
+    apiMyInvites.mockResolvedValue([invite]);
+    apiAcceptInvite.mockResolvedValue('team');
+    apiSelectWorkspace.mockResolvedValue(undefined);
+    const reload = vi.fn();
+    render(<WorkspaceMenu onOpenSettings={() => undefined} reload={reload} />);
+    expect((await screen.findByTestId('workspace-menu-invite-inv1')).textContent).toMatch(/data team.*editor/i);
+    fireEvent.click(screen.getByTestId('workspace-menu-invite-accept-inv1'));
+    await waitFor(() => expect(apiAcceptInvite).toHaveBeenCalledWith('inv1'));
+    await waitFor(() => expect(apiSelectWorkspace).toHaveBeenCalledWith('team'));
+    expect(reload).toHaveBeenCalled();
+  });
+
+  it('declining drops the invitation without joining', async () => {
+    apiMyInvites.mockResolvedValue([invite]);
+    apiDeclineInvite.mockResolvedValue(undefined);
+    render(<WorkspaceMenu onOpenSettings={() => undefined} reload={vi.fn()} />);
+    fireEvent.click(await screen.findByTestId('workspace-menu-invite-decline-inv1'));
+    await waitFor(() => expect(screen.queryByTestId('workspace-menu-invite-inv1')).toBeNull());
+    expect(apiAcceptInvite).not.toHaveBeenCalled();
+  });
+
+  it('settings: inviting an email with no account shows the code to pass on', async () => {
+    apiWorkspaceMembers.mockResolvedValue([]);
+    apiInviteToWorkspace.mockResolvedValue({ invite, newAccount: { code: 'ABCD-EFGH', link: '', expiresAt: '', delivery: 'log' } });
+    render(<WorkspaceSettingsDialog workspaceId="team" onClose={() => undefined} reload={vi.fn()} />);
+    fireEvent.change(await screen.findByTestId('workspace-invite-email'), { target: { value: 'New@Example.com' } });
+    fireEvent.change(screen.getByTestId('workspace-invite-role'), { target: { value: 'editor' } });
+    fireEvent.submit(screen.getByTestId('workspace-invite-form'));
+    await waitFor(() => expect(apiInviteToWorkspace).toHaveBeenCalledWith('team', 'new@example.com', 'editor'));
+    expect((await screen.findByTestId('workspace-invite-new-account-code')).textContent).toBe('ABCD-EFGH');
+  });
+
+  it('settings: everyone may invite into their own workspace, even as a viewer there', async () => {
+    apiListWorkspaces.mockResolvedValue({ currentId: 'own', workspaces: [{ ...own, role: 'viewer' }], canCreate: false });
+    apiWorkspaceMembers.mockResolvedValue([]);
+    render(<WorkspaceSettingsDialog workspaceId="own" onClose={() => undefined} reload={vi.fn()} />);
+    expect(await screen.findByTestId('workspace-invite-form')).toBeTruthy();
+  });
+
+  it('settings: a viewer in a shared workspace cannot invite', async () => {
+    apiListWorkspaces.mockResolvedValue({ currentId: 'team', workspaces: [{ ...team, role: 'viewer' }], canCreate: false });
+    apiWorkspaceMembers.mockResolvedValue([]);
+    render(<WorkspaceSettingsDialog workspaceId="team" onClose={() => undefined} reload={vi.fn()} />);
+    await screen.findByTestId('workspace-settings-members');
+    await waitFor(() => expect(screen.getByTestId('workspace-settings-name')).toBeTruthy());
+    expect(screen.queryByTestId('workspace-invite-form')).toBeNull();
+  });
+});
+

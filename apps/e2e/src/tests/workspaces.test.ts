@@ -6,6 +6,7 @@
  * leftover "current workspace" would hide every one of them.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { randomBytes } from 'node:crypto';
 import type { Page } from 'playwright';
 import { buildDriver, quitDriver, clickWhen, waitFor, BASE_URL } from '../helpers/driver.js';
 import { sessionCookie } from '../helpers/app-session.js';
@@ -20,6 +21,11 @@ let admin = '';
 let driver: Page;
 let personalId = '';
 const created: string[] = [];
+const pages: Page[] = [];
+const GUEST_EMAIL = `e2e-wsguest-${RUN}@foxschema.test`;
+const GUEST_PASSWORD = `guest-${randomBytes(8).toString('hex')}`;
+let guestId = '';
+let sharedConnectionId = '';
 
 async function api(method: string, path: string, body?: unknown, cookie = admin) {
   const res = await fetch(`${API_URL}/api${path}`, {
@@ -48,6 +54,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (driver) await quitDriver(driver);
+  for (const page of pages) await quitDriver(page);
+  if (guestId) await api('PUT', `/admin/users/${guestId}/active`, { active: false });
   await api('POST', `/workspaces/${personalId}/select`, {});
   for (const id of created) await api('POST', `/workspaces/${id}/archive`, {});
 });
@@ -82,6 +90,7 @@ describe('workspaces', () => {
     expect(saved.status, JSON.stringify(saved.json)).toBe(200);
     const inTeam = (await api('GET', '/connections')).json.connections.map((c: { id: string }) => c.id);
     expect(inTeam).toEqual([saved.json.connection.id]);
+    sharedConnectionId = saved.json.connection.id;
 
     await api('POST', `/workspaces/${personalId}/select`, {});
     const inPersonal = (await api('GET', '/connections')).json.connections.map((c: { id: string }) => c.id);
@@ -108,4 +117,54 @@ describe('workspaces', () => {
     expect(res.status).toBe(401);
     // Signed in but not a member is covered by the server tests; the id answers 404 there.
   });
+
+  it('an invited account accepts from its own menu, joins with the invited role, and sees the shared connection', async () => {
+    const teamId = created[0]!;
+    const added = await api('POST', '/admin/users', { email: GUEST_EMAIL, password: GUEST_PASSWORD, role: 'viewer' });
+    expect(added.status, JSON.stringify(added.json)).toBe(200);
+    guestId = added.json.user.id;
+
+    // The owner invites through Workspace settings.
+    await api('POST', `/workspaces/${teamId}/select`, {});
+    await openMenu();
+    await clickWhen(driver, byTestId('workspace-menu-settings'));
+    await driver.fill(byTestId('workspace-invite-email'), GUEST_EMAIL);
+    await driver.selectOption(byTestId('workspace-invite-role'), 'editor');
+    await clickWhen(driver, byTestId('workspace-invite-submit'));
+    await waitFor(driver, `${byTestId('workspace-invites')} li`, 10_000);
+    await saveScreenshot(driver, 'workspaces-invite-pending');
+    await api('POST', `/workspaces/${personalId}/select`, {});
+
+    // Not a member until it accepts.
+    const login = await fetch(`${API_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: GUEST_EMAIL, password: GUEST_PASSWORD }),
+    });
+    expect(login.status).toBe(200);
+    const guestCookie = (login.headers.get('set-cookie') ?? '').split(';')[0]!;
+    expect((await api('POST', `/workspaces/${teamId}/select`, {}, guestCookie)).status).toBe(404);
+
+    const guest = await buildDriver({ signedIn: false });
+    pages.push(guest);
+    const [name, ...rest] = guestCookie.split('=');
+    await guest.context().addCookies([{ name: name!, value: rest.join('='), url: BASE_URL }]);
+    await guest.goto(BASE_URL);
+    // A first sign-in shows onboarding: wait for it or the app, and skip it.
+    await guest.waitForSelector(`${byTestId('onboarding-skip')}, ${byTestId('profile-menu-trigger')}`, { timeout: 30_000 });
+    const skip = guest.locator(byTestId('onboarding-skip'));
+    if (await skip.count()) await skip.click();
+    await clickWhen(guest, byTestId('profile-menu-trigger'));
+    const inviteRow = guest.locator(`${byTestId('workspace-menu-invites')} [data-testid^="workspace-menu-invite-accept-"]`);
+    await inviteRow.waitFor({ timeout: 15_000 });
+    await saveScreenshot(guest, 'workspaces-invite-received');
+    await Promise.all([guest.waitForEvent('load'), inviteRow.click()]);
+
+    const mine = await api('GET', '/workspaces', undefined, guestCookie);
+    expect(mine.json.currentId).toBe(teamId);
+    expect(mine.json.workspaces.find((w: { id: string }) => w.id === teamId).role).toBe('editor');
+    const conns = (await api('GET', '/connections', undefined, guestCookie)).json.connections.map((c: { id: string }) => c.id);
+    expect(conns).toContain(sharedConnectionId);
+  });
 });
+

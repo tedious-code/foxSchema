@@ -21,6 +21,7 @@ const apiAdminGetPolicy = vi.fn();
 const apiAdminSetPolicy = vi.fn();
 const apiAdminTransferAdmin = vi.fn();
 const apiAdminSetMembersCanCreateWorkspaces = vi.fn();
+const apiAdminSetOwnersCanInviteNew = vi.fn();
 
 vi.mock('@/shared/api/authApi', () => ({
   apiAdminCreateUser: (...args: unknown[]) => apiAdminCreateUser(...args),
@@ -35,6 +36,7 @@ vi.mock('@/shared/api/authApi', () => ({
   apiAdminSetPolicy: (...args: unknown[]) => apiAdminSetPolicy(...args),
   apiAdminTransferAdmin: (...args: unknown[]) => apiAdminTransferAdmin(...args),
   apiAdminSetMembersCanCreateWorkspaces: (...args: unknown[]) => apiAdminSetMembersCanCreateWorkspaces(...args),
+  apiAdminSetOwnersCanInviteNew: (...args: unknown[]) => apiAdminSetOwnersCanInviteNew(...args),
 }));
 
 import { AdminAccessPanel } from './AdminAccessPanel';
@@ -62,7 +64,7 @@ beforeEach(() => {
   apiAdminTransferAdmin.mockReset();
 
   apiAdminListUsers.mockResolvedValue({ users: [localUser] });
-  apiAdminGetPolicy.mockResolvedValue({ adminPolicy: 'several', source: 'app', activeAdmins: [localUser.email], membersCanCreateWorkspaces: false });
+  apiAdminGetPolicy.mockResolvedValue({ adminPolicy: 'several', source: 'app', activeAdmins: [localUser.email], membersCanCreateWorkspaces: false, ownersCanInviteNew: false });
   apiAdminRolePermissions.mockResolvedValue({
     matrix: {
       viewer: [...DEFAULT_ROLE_PERMISSIONS.viewer],
@@ -436,5 +438,14 @@ describe('AdminAccessPanel — who creates workspaces', () => {
     fireEvent.click(box);
     await waitFor(() => expect(apiAdminSetMembersCanCreateWorkspaces).toHaveBeenCalledWith(true));
     expect(await screen.findByText(/everyone can now create workspaces/i)).toBeTruthy();
+  });
+});
+
+describe('AdminAccessPanel — who invites new people', () => {
+  it('lets the admin let workspace owners invite emails with no account', async () => {
+    apiAdminSetOwnersCanInviteNew.mockResolvedValue(undefined);
+    render(<AdminAccessPanel open onClose={() => undefined} />);
+    fireEvent.click(await screen.findByTestId('admin-policy-owners-invite-new'));
+    await waitFor(() => expect(apiAdminSetOwnersCanInviteNew).toHaveBeenCalledWith(true));
   });
 });

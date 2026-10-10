@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **970** buttons, text boxes, selects and textareas.
+Every control has a test ID: **977** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -309,6 +309,7 @@ Every control has a test ID: **970** buttons, text boxes, selects and textareas.
   - `admin-policy-{value}` · button
   - `admin-policy-hint` · span
   - `admin-policy-members-create` · input
+  - `admin-policy-owners-invite-new` · input
   - `admin-roles-hint` · p
   - `admin-save-password` · button · Save password
   - `admin-save-role-perms` · button · Save permissions
@@ -1807,9 +1808,22 @@ Every control has a test ID: **970** buttons, text boxes, selects and textareas.
   - `workspace-menu-create-name` · input · New workspace name
   - `workspace-menu-create-submit` · button · Create
   - `workspace-menu-error` · p
+  - `workspace-menu-invite-{id}` · div
+  - `workspace-menu-invite-accept-{id}` · button · Accept
+  - `workspace-menu-invite-decline-{id}` · button · Decline
+  - `workspace-menu-invites` · div
   - `workspace-menu-item-{id}` · button
   - `workspace-menu-settings` · button · Workspace settings
 - **WorkspaceSettingsDialog** · `features/workspaces/components/WorkspaceSettingsDialog.tsx`
+  - `workspace-invite-{id}` · li
+  - `workspace-invite-email` · input · teammate@company.com
+  - `workspace-invite-form` · form
+  - `workspace-invite-new-account` · div
+  - `workspace-invite-new-account-code` · span
+  - `workspace-invite-revoke-{id}` · button · Revoke
+  - `workspace-invite-role` · select · Role for the invite
+  - `workspace-invite-submit` · button · Invite
+  - `workspace-invites` · ul
   - `workspace-member-{userId}` · li
   - `workspace-member-remove-{userId}` · button · Remove
   - `workspace-member-role-{userId}` · select

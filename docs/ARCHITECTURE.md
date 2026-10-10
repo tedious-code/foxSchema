@@ -107,6 +107,24 @@ change belongs.
 Formula/                Homebrew formula (tap this GitHub repo directly)
 ```
 
+## Feature modules
+
+The server and the web app are each a modular monolith: product code lives in one
+folder per feature, composed in one static, typed registry per side.
+
+| | Server (`packages/server/src`) | Web (`apps/web/src/frontend`) |
+|---|---|---|
+| A feature | `features/<id>/`, whose `index.ts` exports a `ServerFeatureModule` (its mounts and their access level) | `features/<id>/`, whose root files are its public API: a light `index.ts`, plus `view.ts`, `toolbar.ts`, `ui.ts` where needed |
+| Registered in | `app/feature-registry.ts` | `app/features/viewIds.ts` and `app/features/featureRegistry.ts` |
+| Shared capabilities | `platform/`: identity, authorization, settings, connections, workspaces, http | `shared/`: api client, ui components, lib |
+| Enforced by | `architecture.test.ts`: platform never imports a feature; features meet only through `index.ts`; no cycles | `architecture.test.ts`: outside a feature only its root files; no cycle across a feature boundary |
+
+`npm run feature:new -- <id>` scaffolds both sides and registers them. The HTTP contract test
+compares its table with what the registry serves, so a new route is listed with what it
+answers. The conventions are in
+[docs/architecture/FEATURE-MODULE-GUIDE.md](architecture/FEATURE-MODULE-GUIDE.md), the import
+rules in [docs/architecture/FEATURE-DEPENDENCY-RULES.md](architecture/FEATURE-DEPENDENCY-RULES.md).
+
 ## Database connection auth
 
 Saved credentials keep `ConnectionOptions` (including optional `authMethod`

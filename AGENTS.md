@@ -15,6 +15,15 @@ dev/test/build commands.
 layout. They are enforced by `packages/shared/src/naming.test.ts`, so a file
 that breaks one fails `npx vitest run`. Read it before adding files.
 
+## Feature modules
+
+Product code is one folder per feature on each side, composed in one static registry
+per side (`packages/server/src/app/feature-registry.ts`,
+`apps/web/src/frontend/app/features/featureRegistry.ts`). Add a feature with
+`npm run feature:new -- <id>`; read `docs/architecture/FEATURE-MODULE-GUIDE.md` and
+`docs/architecture/FEATURE-DEPENDENCY-RULES.md` before moving code between features.
+Both `architecture.test.ts` files enforce the import rules.
+
 ## Cursor Cloud specific instructions
 
 Standard commands live in `CONTRIBUTING.md` and `package.json` scripts (`npm run dev`,
@@ -62,8 +71,5 @@ Standard commands live in `CONTRIBUTING.md` and `package.json` scripts (`npm run
   port/user/pass are ignored). `POST /api/compare` also accepts inline SQLite options.
 
 ### Lint
-- `npm run lint` currently exits non-zero due to **one pre-existing error** in
-  `apps/web/src/frontend/features/sql-editor/components/DataGrid.tsx`: `Definition for rule
-  'react-hooks/exhaustive-deps' was not found` (the eslint config references a
-  react-hooks rule whose plugin isn't loaded). This is unrelated to environment setup —
-  don't assume you broke lint. The other ~49 items are pre-existing `security/*` warnings.
+- `npm run lint` and `npm run lint:security` are clean (2026-10-10); a new error or
+  warning is yours.

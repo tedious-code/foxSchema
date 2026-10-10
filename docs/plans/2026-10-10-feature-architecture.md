@@ -4,7 +4,8 @@ Implements `FOXSCHEMA_FEATURE_ARCHITECTURE_PLAN.md` (the target plan) against th
 repository as it is today. The user accepted a risky restructure where it ends
 clean. Each step below is one PR: build, test, fix, review, merge, in order.
 
-**Status: approved schedule, in progress.**
+**Status: built, 2026-10-10** (#498–#504). Where the result differs from the
+schedule is in §6.
 
 ## 1. What exists today (verified, Phase 0)
 
@@ -143,3 +144,53 @@ the only composition point (test), no deep cross-feature imports and no cycles
 (test, both sides), platform never imports features (test), all 136 routes
 unchanged (contract test), a new feature is one command plus its code
 (scaffold + test), docs updated (doc-paths test).
+
+## 6. As built
+
+| # | PR | Notes |
+|---|---|---|
+| 0 | #498 | As scheduled. |
+| 1 | #499 | As scheduled. |
+| 2 | #500 | Proved route-for-route: 184 routes with the same methods, paths, guards and shared limiter before and after. |
+| 3 | #501 | The registry is `app/features/featureRegistry.ts` (with `viewIds.ts`), not `registry.ts`. |
+| 4 | #502 | See below: Compare took `object-detail`, entries are weight-separated, and the toolbar became registry-driven. |
+| 5 | #503 | `npm run feature:new`. The contract test now has to match the registry. |
+| 6 | #504 | Docs, the doc-paths check over the two guides, final verification. |
+
+Where it differs from the schedule, and why:
+
+- **`object-detail` merged into the new `features/compare`.** Only the Compare shell
+  used it (the detail panel, browse bar, deploy dialogs), so a separate feature was a
+  boundary with one side.
+- **A feature's public API is its root files, not just `index.ts` + `view.ts`.**
+  Measured: one `index.ts` import from the eager toolbar took the first visit from
+  141.5 to 195.7 KB gzip, because Rolldown keeps re-exported modules that have top-level
+  calls. So `index.ts` stays light, and heavier pieces get named entries:
+  - `ui.ts` (schema-diff renderers, sql-editor components)
+  - `state.ts` (the SQL editor store, which Home must not load)
+  - `monaco.ts`, `toolbar.ts` and `view.ts`
+  Lazy components are `load…` functions in `index.ts`.
+- **The top toolbar is registry-driven** (`toolbar: { start, end, below }` on a view).
+  Not in the schedule. Without it, the shell kept importing Compare's and Snapshots'
+  internals.
+- **The boundary tests are stricter than planned.** The frontend test resolves relative
+  paths too, which caught a `shared/` test importing a migrations API through
+  `../../features/…`. It also forbids any static import cycle across a feature boundary;
+  there are none on either side.
+- **The contract table grew from 136 to 150.** Comparing it with what the registry
+  serves found 14 routes that were served but never listed. The workflow engine proxy
+  (`/api/workflow/engine/*`) is excluded by name, because it answers whatever the engine
+  process does.
+- **First visit is 144.1 KB gzip, up from 141.5 KB,** in 21 files instead of 10. The
+  modules are the same: Rolldown now splits more of what the entry shares with lazy
+  chunks. Budget 170.
+
+Left for later:
+
+- The saved-connections list lives in the Compare store, though ten features read it.
+  It belongs to `features/connections`.
+- `utilities` and `workflow` still re-export their whole view from `index.ts`, unused
+  outside the feature. Trim them when either gains a real public API.
+- The dialect e2e suites that need SQL Server, Oracle or Db2 containers were not rerun
+  for this series. The SQLite suites and the Postgres flows were.
+

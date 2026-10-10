@@ -97,9 +97,23 @@ describe('workspaces', () => {
     sharedConnectionId = saved.json.connection.id;
 
     await api('POST', `/workspaces/${personalId}/select`, {});
+    // And the other way round: one saved in the personal workspace stays there.
+    // Made here rather than assumed, so a fresh install with no connections proves it too.
+    const own = await api('POST', '/connections', {
+      name: `e2e-ws-own-${RUN}`,
+      dialect: 'sqlite',
+      option: { database: `/tmp/e2e-ws-own-${RUN}.db` },
+    });
+    expect(own.status, JSON.stringify(own.json)).toBe(200);
     const inPersonal = (await api('GET', '/connections')).json.connections.map((c: { id: string }) => c.id);
     expect(inPersonal).not.toContain(saved.json.connection.id);
-    expect(inPersonal.length).toBeGreaterThan(0);
+    expect(inPersonal).toContain(own.json.connection.id);
+    await api('DELETE', `/connections/${own.json.connection.id}`, {});
+
+    await api('POST', `/workspaces/${created[0]}/select`, {});
+    const backInTeam = (await api('GET', '/connections')).json.connections.map((c: { id: string }) => c.id);
+    expect(backInTeam).toEqual([saved.json.connection.id]);
+    await api('POST', `/workspaces/${personalId}/select`, {});
   });
 
   it('workspace settings rename it and show its members', async () => {

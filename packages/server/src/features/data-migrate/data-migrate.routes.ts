@@ -14,11 +14,11 @@ import { requirePermissions, denyUnless } from '../../platform/authorization/rba
 import type { AuthedRequest } from '../../platform/http/types';
 import type { ConnectionRef } from '../../platform/connections/resolve';
 import { rateLimit } from '../../platform/guards/rate-limit';
-import { MAX_STATEMENT_LENGTH } from '../sql-editor/sql-execute.service';
+import { MAX_STATEMENT_LENGTH } from '../sql-editor';
 import type { Permission } from '@foxschema/shared';
 import { CATEGORY_PERMISSION, DATAGRID_ACTION_PERMISSION } from '@foxschema/shared';
 import { sqlStatementCategories, statementVerb } from '@foxschema/sql';
-import { isSingleSqlStatement } from '../../api/single-statement';
+import { isSingleSqlStatement } from '../../platform/statements/single-statement';
 import { executeDataMigrateOps, type DataMigrateExecOp } from './data-migrate-execute';
 import { identitySessionSql } from './identity-session';
 import type {

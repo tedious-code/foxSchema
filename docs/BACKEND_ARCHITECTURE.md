@@ -34,7 +34,8 @@ architecture does not.
 ## 2. HTTP: Fastify only
 
 **Express is gone.** `packages/server/src/api/fastify-server.ts` is the only HTTP
-edge; `api/routes.ts` declares the route tree and `bindRoutes` registers each
+edge; `app/feature-registry.ts` composes the route tree from every feature's
+module and `bindRoutes` registers each
 route with Fastify, using that route's guards as its `preHandler` chain. There
 is no second server, no bridge, and no `express` dependency in any workspace.
 
@@ -155,38 +156,59 @@ has not been done. Database lines correlate by time, not by `reqId`.
 
 ## 5. Module structure — one folder per business feature
 
-Every backend file lives in a feature folder. Nothing sits loose in `features/`,
-and `api/` holds only the shared HTTP edge.
+Layers, top to bottom; each imports only the ones below it
+(`packages/server/src/architecture.test.ts` enforces it, and
+[architecture/FEATURE-DEPENDENCY-RULES.md](architecture/FEATURE-DEPENDENCY-RULES.md)
+explains it):
 
 ```
 backend/
-  api/            server.ts · fastify-server.ts · routes.ts · shared edge helpers
-  platform/       cross-cutting, feature-agnostic
-                    contracts/  ActorContext
-                    guards/     origin-policy · rate-limit · idempotency
-                                target-lock · security-headers
-                    http/       types · router · fastify-bind · respond · redact
-                    logger/     pino config + redaction
-                    db/         connection resolve · db-errors
-                    crypto/     secret encryption
-  internal/       callable in-process, deliberately not exposed as API
-  features/       one folder per business domain
-    auth            login, sessions, SSO
-    authorization   RBAC: role/permission service + the requirePermissions guard
-    users           profile, preferences, onboarding state, first-run wizard
-    admin           install-wide config: app settings, secrets, cloud credentials
+  api/            Fastify bootstrap, security headers, static assets — no routes
+  app/            feature-registry.ts: FEATURES and composeFeatures, the one
+                  place features are mounted; feature-module.ts: the contract
+  features/       one folder per product domain, each with index.ts
+    system          health, version, updates, app info, activity
+    auth            sign-in, setup, password and SSO routes, sign-in settings
+    users           profile, preferences, first-run wizard
+    admin           users and roles, secrets, cloud credentials, policy
+    workspaces      shared workspaces, members, invites, visibility
+    connections     saved-connection routes, driver check/install, connection test
+    files           uploads, file-query, the import engine (parsers, column
+                    detection, capacity limits, worker pool, worker entrypoint),
+                    the database-file picker
     compare         schema comparison
     schema          schema read
-    history         schema history (Lokee)
+    history         schema history (Lokee), live capture, revert
     migration       DDL migration + run history
     data-migrate    data movement + run history
     sql-editor      SQL editor, code cells, sandboxed execution
     access          permissions inspector, DBA utilities, index maintenance
-    connections     saved connection store
-    files           file upload sessions, file-query
-    import-process  the ingest engine: streaming parsers, column detection,
-                    capacity limits, worker pool, worker entrypoint
+    git             migration repositories
+    backup          backup defaults
+    workflow        engine settings, proxy, grants, internal routes
+  platform/       capabilities every feature uses; never imports a feature
+                    identity/       auth service, sessions, auth.guard, SSO, mail
+                    authorization/  RBAC, requirePermissions, admin policy
+                    settings/       install-wide settings
+                    connections/    saved-connection store, ref resolver
+                    workspaces/     the workspace a request acts in
+                    runtime/        deployment posture
+                    statements/     single-statement checks
+                    contracts/      ActorContext
+                    guards/         origin-policy · rate-limit · idempotency
+                                    target-lock · security-headers
+                    http/           types · router · fastify-bind · respond · redact
+                    logger/         pino config + redaction
+                    db/             db-errors
+                    crypto/         secret encryption
+  internal/       callable in-process, deliberately not exposed as API
+  database/       metadata store and migrations
 ```
+
+A feature's `index.ts` exports its `ServerFeatureModule` (id, mounts with
+`access` = `public` | `internal` | `user` | `registered`, and `rateLimited`)
+plus whatever other features may call. Mounting is
+[architecture/FEATURE-MODULE-GUIDE.md](architecture/FEATURE-MODULE-GUIDE.md).
 
 ### The layers inside a module
 
@@ -221,7 +243,7 @@ the same map. Moving a file named in one and not the other typechecks clean and
 fails only in the CLI tests. Change both.
 
 **Worker entrypoints are referenced as strings.** `files.routes.ts` spawns
-`import-process/parse-file.worker.ts` via `new URL(...)`, and
+`./parse-file.worker.ts` via `new URL(...)`, and
 `editor/code-cell-execute.service.ts` spawns `code-cell-thread.ts` the same way.
 `tsc` cannot see either path. After any move, grep `new Worker(` and `new URL('`
 and check the resolved path on disk — then actually run the upload, since only a
@@ -275,7 +297,9 @@ engines and still missed this.
 | Concern | File |
 |---|---|
 | Fastify edge | `packages/server/src/api/fastify-server.ts` |
-| Route tree | `packages/server/src/api/routes.ts` |
+| Route tree | `packages/server/src/app/feature-registry.ts` |
+| Feature contract | `packages/server/src/app/feature-module.ts` |
+| Layering test | `packages/server/src/architecture.test.ts` |
 | Route binding | `packages/server/src/platform/http/router.ts` |
 | Service pattern | `packages/server/src/features/compare/compare.service.ts` |
 | Module map | section 5 of this doc |

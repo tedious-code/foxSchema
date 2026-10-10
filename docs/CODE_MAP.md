@@ -102,8 +102,12 @@ does not resolve.
 ## Backend — `packages/server/src`
 
 ```
-api/         The HTTP server itself: Fastify setup, route tree, security
-             headers. Nothing business-specific.
+api/         The HTTP server itself: Fastify setup, security headers, static
+             assets. Declares no routes.
+
+app/         The feature registry (`feature-registry.ts`): every feature's
+             module, composed into the route tree with its guards. Adding a
+             feature is one line here.
 
 platform/    Capabilities every feature needs. Never imports a feature.
   identity/      accounts, sessions, the session guard (`auth.guard.ts`),
@@ -134,13 +138,14 @@ database/    The metadata store and its migrations.
 | Folder | What it covers |
 |---|---|
 | `access` | Database permission inspection and DBA utilities |
-| `admin` | Install-wide settings, secrets, cloud credentials |
+| `system` | Health and version, updates, app info, the metadata-database probe, activity |
+| `admin` | Users and roles, secrets, cloud credentials, policy |
 | `backup` | Per-user backup defaults (`GET`/`PUT /api/backup-settings`). Commands themselves are built in `@foxschema/sql` (`modules/utilities/backup.ts` + `providers/<d>/*.backup.ts`); the panel runs only a server-side SQL backup, after confirmation, and lists the backups the server recorded (`backupHistoryQuery`); restores are never run. |
 | `auth` | Sign-in, setup, password and SSO routes (the services are `platform/identity`) |
 | `compare` | Schema comparison |
-| `connections` | Routes for saved database connections; the store is `platform/connections` (`authMethod` / `domain` on encrypted `ConnectionOptions`; NTLM is adapter-side) |
+| `connections` | Routes for saved database connections, driver check/install and connection tests; the store is `platform/connections` (`authMethod` / `domain` on encrypted `ConnectionOptions`; NTLM is adapter-side) |
 | `data-migrate` | Moving data between databases |
-| `files` | File uploads, querying an uploaded file, and the import machinery: parsers, column detection, the parse worker pool |
+| `files` | File uploads, querying an uploaded file, the import machinery (parsers, column detection, the parse worker pool) and the database-file picker |
 | `git` | Git repositories migrations are committed to: bare local copies through isomorphic-git, branches, fetch / pull / push, and the guarded HTTP client that refuses private addresses. Plan: [plans/2026-10-02-migrations-in-git.md](plans/2026-10-02-migrations-in-git.md) |
 | `history` | Schema history and revert (Lokee Weave) |
 | `migration` | Applying DDL migrations, and their run history |
@@ -150,9 +155,12 @@ database/    The metadata store and its migrations.
 | `workspaces` | Shared workspaces: create, switch, members, invites, public or private (which workspace a request acts in is `platform/workspaces`) |
 | `workflow` | Workflow engine settings and health; the engine proxy (an allowlist of engine routes, each behind a `workflow.*` permission); saved-connection grants; and the token-guarded internal routes the engine calls to resolve a granted connection and read its settings. Runbook: [WORKFLOW.md](WORKFLOW.md). |
 
-Inside a feature:
+Every feature folder has an `index.ts` exporting its `ServerFeatureModule`
+and its public API; other features import only that
+(`packages/server/src/architecture.test.ts`). Inside a feature:
 
 ```
+index.ts         the module (id, mounts, access) and what other features may use
 *.routes.ts      paths, methods and which guards run
 *.guard.ts       admits or refuses a request
 *.handler.ts     one endpoint: read the request, call a controller
@@ -218,7 +226,8 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 
 | Change | Where |
 |---|---|
-| New API endpoint | `packages/server/src/features/<domain>/` |
+| New API endpoint | `packages/server/src/features/<domain>/`, mounted in that feature's `index.ts` |
+| A new server feature | its folder + `index.ts`, then one line in `packages/server/src/app/feature-registry.ts` |
 | Dialect-specific SQL | `packages/sql/src/providers/<dialect>/` |
 | A new driver | `packages/db/src/providers/<dialect>/` |
 | Something the frontend and backend both need | `packages/shared/src/` |

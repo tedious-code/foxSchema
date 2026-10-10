@@ -20,7 +20,7 @@ import type { ConnectionOptions, MigrationStep } from '@foxschema/db';
 import { requirePermissions } from '../../platform/authorization/rbac.guard';
 import { idempotency } from '../../platform/guards/idempotency';
 import { targetKey, targetLocks } from '../../platform/guards/target-lock';
-import { gitServices, type GitMigrationsService } from '../git/git-migrations.service';
+import { gitServices, type GitMigrationsService } from '../git';
 import type { AuthedRequest } from '../../platform/http/types';
 import type { ConnectionRef } from '../../platform/connections/resolve';
 import type {

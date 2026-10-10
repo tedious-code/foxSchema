@@ -10,7 +10,7 @@ import type { Permission, WorkspaceRole } from '@foxschema/shared';
 import { Router } from '../../platform/http/router';
 import { AuthModule, SESSION_COOKIE, SESSION_MAX_AGE_MS, SignInLockedError, type AuthUser } from '../../platform/identity/auth.service';
 import { AuthMailer } from '../../platform/identity/auth-mail';
-import { SignupModule } from '../users/signup-wizard.service';
+import { SignupModule } from '../users';
 import { AppSettingsStore } from '../../platform/settings/app-settings.service';
 import { sendError } from '../../platform/http/respond';
 import { ServiceError } from '../../platform/contracts/actor';

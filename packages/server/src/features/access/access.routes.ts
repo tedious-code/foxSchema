@@ -21,7 +21,7 @@ import type { AuthedRequest } from '../../platform/http/types';
 import type { ConnectionRef } from '../../platform/connections/resolve';
 import { probeTableFragmentation, mapPool } from './index-fragmentation.service';
 import { probeDbaUtility } from './dba-utilities.service';
-import { probeTableInsight } from '../schema/table-insight.service';
+import { probeTableInsight } from '../schema';
 import type { DbaUtilityKind } from '@foxschema/db';
 import { probeDbAccess } from './db-access.service';
 import {

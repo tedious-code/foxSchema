@@ -9,8 +9,8 @@ import {
 } from './cloud-provider-credentials.service';
 import type { CloudSecretRef } from '../../internal/cloud-secrets';
 import { isCloudSecretSource } from '../../internal/cloud-secrets';
-import { AuthedRequest } from '../auth/auth.routes';
-import { requirePermissions } from '../authorization/rbac.guard';
+import type { AuthedRequest } from '../../platform/http/types';
+import { requirePermissions } from '../../platform/authorization/rbac.guard';
 import { sendError, sendThrown } from '../../platform/http/respond';
 
 function parseSecretBody(body: unknown): Partial<AppSecretInput> {

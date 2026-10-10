@@ -20,7 +20,7 @@
  * Host header, a reset link would point wherever the requester said.
  */
 import { sendMail as smtpSend } from '@foxschema/db/mail';
-import { getLogger } from '../../platform/logger/logger';
+import { getLogger } from '../logger/logger';
 import type { PasswordCodePurpose } from './auth-codes';
 import type { IssuedCode } from './auth.service';
 import { SignInSettings } from './sign-in-settings.service';

@@ -2,7 +2,7 @@ import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
 import { UserModule, UserPreferences } from './user.service';
-import { AuthedRequest } from '../auth/auth.routes';
+import type { AuthedRequest } from '../../platform/http/types';
 
 /** The signed-in user's preferences / onboarding state. */
 export function createUserRoutes(user: UserModule): Router {

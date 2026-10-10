@@ -15,7 +15,7 @@ import type {
   WorkflowConnectionSummary,
 } from '@foxschema/workflow-contract';
 import { getStore } from '../../database/store';
-import { ConnectionStore } from '../connections/connection-store.service';
+import { ConnectionStore } from '../../platform/connections/connection-store.service';
 import type { WorkspaceScope } from '../../platform/http/scope';
 
 export class WorkflowConnectionGrants {

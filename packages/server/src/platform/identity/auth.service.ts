@@ -5,7 +5,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { getStore } from '../../database/store';
-import { hashPassword, verifyPassword, newToken } from '../../platform/crypto/crypto';
+import { hashPassword, verifyPassword, newToken } from '../crypto/crypto';
 import { RbacModule, toAppRole } from '../authorization/rbac.service';
 import { assertAdminSlotFree } from '../authorization/admin-policy.service';
 import {
@@ -25,7 +25,7 @@ import {
   type PasswordCodePurpose,
 } from './auth-codes';
 import { clearFailures, lockedFor, recordFailure } from './sign-in-throttle';
-import { AppSettingsStore } from '../admin/app-settings.service';
+import { AppSettingsStore } from '../settings/app-settings.service';
 
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 /** A session's last use is written at most this often, not on every request. */

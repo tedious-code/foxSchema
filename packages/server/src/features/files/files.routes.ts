@@ -7,17 +7,17 @@ import type { AppRequest } from '../../platform/http/types';
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import { Router } from '../../platform/http/router';
-import type { AuthedRequest } from '../auth/auth.routes';
-import { denyUnless, requirePermissions } from '../authorization/rbac.guard';
-import { capacityMessage, importCapacity } from '../import-process/import-capacity';
+import type { AuthedRequest } from '../../platform/http/types';
+import { denyUnless, requirePermissions } from '../../platform/authorization/rbac.guard';
+import { capacityMessage, importCapacity } from './import-capacity';
 import {
   detectDelimitedColumns,
   detectFixedWidthColumns,
   MAX_DETECT_CHARS,
   MAX_DETECT_LINES,
-} from '../import-process/text-columns';
+} from './text-columns';
 import { rateLimit } from '../../platform/guards/rate-limit';
-import { ConnectionStore } from '../connections/connection-store.service';
+import { ConnectionStore } from '../../platform/connections/connection-store.service';
 import {
   appendFileToSqliteWorkspace,
   isFileQueryConnectionName,
@@ -32,7 +32,7 @@ import {
   type TextOffsetColumn,
 } from './file-query.service';
 import { bulkLoadIntoConnection } from './file-query-bulk.service';
-import { cpuPool } from '../import-process/worker-pool';
+import { cpuPool } from './worker-pool';
 import {
   abortUploadSession,
   appendUploadChunk,
@@ -527,7 +527,7 @@ async function parseUpload(
     return parseFileToTable(input, { maxChars });
   }
   return cpuPool.run<{ input: FileQueryImportInput; maxChars: number }, ReturnType<typeof parseFileToTable>>({
-    script: new URL('../import-process/parse-file.worker.ts', import.meta.url),
+    script: new URL('./parse-file.worker.ts', import.meta.url),
     input: { input, maxChars },
     timeoutMs: 120_000,
   }).promise;

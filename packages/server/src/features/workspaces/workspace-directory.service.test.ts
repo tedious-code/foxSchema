@@ -4,10 +4,10 @@ process.env.APP_DB_PATH = ':memory:';
 process.env.APP_ENCRYPTION_KEY = '0'.repeat(64);
 
 import { getStore } from '../../database/store';
-import { AuthModule, type AuthUser } from '../auth/auth.service';
-import { ConnectionStore } from '../connections/connection-store.service';
-import { writeAdminPolicy } from '../authorization/admin-policy.service';
-import { RbacModule } from '../authorization/rbac.service';
+import { AuthModule, type AuthUser } from '../../platform/identity/auth.service';
+import { ConnectionStore } from '../../platform/connections/connection-store.service';
+import { writeAdminPolicy } from '../../platform/authorization/admin-policy.service';
+import { RbacModule } from '../../platform/authorization/rbac.service';
 import { MEMBERS_CREATE_KEY, WorkspaceDirectory, type WorkspaceActor } from './workspace-directory.service';
 
 const auth = new AuthModule();

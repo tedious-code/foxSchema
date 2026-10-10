@@ -14,8 +14,8 @@ import { scopeOf } from '../../platform/http/scope';
 import type { WorkspaceScope } from '../../platform/http/scope';
 import type { FastifyReply } from 'fastify';
 import { Router } from '../../platform/http/router';
-import type { AuthedRequest } from '../auth/auth.routes';
-import { requirePermissions } from '../authorization/rbac.guard';
+import type { AuthedRequest } from '../../platform/http/types';
+import { requirePermissions } from '../../platform/authorization/rbac.guard';
 import { canSeeRepo } from './git-access';
 import { sendError } from '../../platform/http/respond';
 import { rateLimit } from '../../platform/guards/rate-limit';
@@ -24,7 +24,7 @@ import { type GitRepoInput } from './git-repos.store';
 import { GitOperationError, gitErrorMessage, type GitAuthor } from './git-repo.service';
 import { gitServices, type CommitInput, type PlanInput } from './git-migrations.service';
 import { targetKey } from '../../platform/guards/target-lock';
-import type { ConnectionRef } from '../../platform/db/resolve';
+import type { ConnectionRef } from '../../platform/connections/resolve';
 import type { ConnectionOptions } from '@foxschema/sql';
 
 /** Resolves a saved or inline connection for the current user (the app's resolver). */

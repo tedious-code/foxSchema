@@ -15,7 +15,7 @@ import {
   type DbObjectType,
   type TableSchema,
 } from '@foxschema/db';
-import type { ConnectionStore } from '../../features/connections/connection-store.service';
+import type { ConnectionStore } from './connection-store.service';
 import { ServiceError } from '../contracts/actor';
 import type { WorkspaceScope } from '../http/scope';
 

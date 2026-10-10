@@ -3,8 +3,8 @@ import { describe, it, expect, beforeAll } from 'vitest';
 process.env.APP_DB_PATH = ':memory:';
 process.env.APP_ENCRYPTION_KEY = '0'.repeat(64);
 
-import { AuthModule, type AuthUser } from '../auth/auth.service';
-import type { WorkspaceScope } from '../../platform/http/scope';
+import { AuthModule, type AuthUser } from '../identity/auth.service';
+import type { WorkspaceScope } from '../http/scope';
 import { ConnectionStore } from './connection-store.service';
 import { getStore } from '../../database/store';
 import { buildConnectionString } from '@foxschema/db';

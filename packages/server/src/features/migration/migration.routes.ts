@@ -11,18 +11,18 @@
  */
 import type { WorkspaceScope } from '../../platform/http/scope';
 import { scopeOf } from '../../platform/http/scope';
-import type { ConnectionResolver } from '../../platform/db/resolve';
+import type { ConnectionResolver } from '../../platform/connections/resolve';
 import { streamWrite, streamEnd } from '../../platform/http/reply';
 import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
 import type { ConnectionOptions, MigrationStep } from '@foxschema/db';
-import { requirePermissions } from '../authorization/rbac.guard';
+import { requirePermissions } from '../../platform/authorization/rbac.guard';
 import { idempotency } from '../../platform/guards/idempotency';
 import { targetKey, targetLocks } from '../../platform/guards/target-lock';
 import { gitServices, type GitMigrationsService } from '../git/git-migrations.service';
-import type { AuthedRequest } from '../auth/auth.routes';
-import type { ConnectionRef } from '../../platform/db/resolve';
+import type { AuthedRequest } from '../../platform/http/types';
+import type { ConnectionRef } from '../../platform/connections/resolve';
 import type {
   MigrationHistoryStore,
   MigrationObjectResult,

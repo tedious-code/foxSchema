@@ -9,13 +9,13 @@
  */
 import type { FastifyReply } from 'fastify';
 import { Router } from '../../platform/http/router';
-import type { AuthedRequest } from './auth.routes';
-import { requirePermissions } from '../authorization/rbac.guard';
+import type { AuthedRequest } from '../../platform/http/types';
+import { requirePermissions } from '../../platform/authorization/rbac.guard';
 import { sendError } from '../../platform/http/respond';
 import { rateLimit } from '../../platform/guards/rate-limit';
-import { isSsoProviderId, SignInSettings } from './sign-in-settings.service';
-import { AuthMailer } from './auth-mail';
-import { redirectUri } from './sso.service';
+import { isSsoProviderId, SignInSettings } from '../../platform/identity/sign-in-settings.service';
+import { AuthMailer } from '../../platform/identity/auth-mail';
+import { redirectUri } from '../../platform/identity/sso.service';
 
 export function createSignInSettingsRoutes(settings = new SignInSettings(), mailer = new AuthMailer(settings)): Router {
   const router = Router();

@@ -19,8 +19,8 @@ import {
 } from '@foxschema/shared';
 import { getStore } from '../../database/store';
 import type { MetadataStore } from '../../database/stores/types';
-import { RbacModule } from '../authorization/rbac.service';
-import { AuthModule, type IssuedCode } from '../auth/auth.service';
+import { RbacModule } from '../../platform/authorization/rbac.service';
+import { AuthModule, type IssuedCode } from '../../platform/identity/auth.service';
 import { ServiceError } from '../../platform/contracts/actor';
 import type { WorkspaceActor } from './workspace-directory.service';
 

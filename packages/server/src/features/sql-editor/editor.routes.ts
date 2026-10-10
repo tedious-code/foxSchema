@@ -8,15 +8,15 @@
  * Extracted verbatim from api/routes.ts; handler bodies are unchanged.
  */
 import { scopeOf } from '../../platform/http/scope';
-import type { ConnectionResolver } from '../../platform/db/resolve';
+import type { ConnectionResolver } from '../../platform/connections/resolve';
 import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
-import { denyUnless } from '../authorization/rbac.guard';
+import { denyUnless } from '../../platform/authorization/rbac.guard';
 import { rateLimit } from '../../platform/guards/rate-limit';
 import { idempotency } from '../../platform/guards/idempotency';
-import type { AuthedRequest } from '../auth/auth.routes';
-import type { ConnectionRef } from '../../platform/db/resolve';
+import type { AuthedRequest } from '../../platform/http/types';
+import type { ConnectionRef } from '../../platform/connections/resolve';
 import {
   CATEGORY_PERMISSION,
   DATAGRID_ACTION_PERMISSION,

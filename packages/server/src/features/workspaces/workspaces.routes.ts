@@ -13,7 +13,7 @@ import { sendError } from '../../platform/http/respond';
 import { ServiceError } from '../../platform/contracts/actor';
 import { WorkspaceDirectory, type WorkspaceActor } from './workspace-directory.service';
 import { WorkspaceInvites } from './workspace-invites.service';
-import { AuthMailer } from '../auth/auth-mail';
+import { AuthMailer } from '../../platform/identity/auth-mail';
 
 function actorOf(req: AuthedRequest): WorkspaceActor {
   return { userId: req.userId!, appRole: req.appRole ?? 'viewer', permissions: req.permissions ?? new Set() };

@@ -7,7 +7,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WorkflowEngineConfig } from '@foxschema/workflow-contract';
-import type { AppSettingsStore } from '../admin/app-settings.service';
+import type { AppSettingsStore } from '../../platform/settings/app-settings.service';
 import { WorkflowSettingsService } from './workflow-settings.service';
 
 function serviceWith(state: WorkflowEngineConfig['state'], respond: () => Response) {

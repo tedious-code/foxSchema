@@ -124,7 +124,7 @@ describe('the Fox sign-in service', () => {
   });
 
   it('keeps admin accounts out when an admin says so, and lets everyone else in', async () => {
-    const { AuthModule } = await import('./auth.service');
+    const { AuthModule } = await import('../../platform/identity/auth.service');
     await new AuthModule().createUser('pat@example.com', 'amber-forest-8', 'editor');
     const signIn = async (email: string) => {
       const { state, returnTo, nonce } = await start('github');

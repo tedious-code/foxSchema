@@ -15,8 +15,8 @@
  * encrypted with the install key, and nothing here ever returns them.
  */
 import type { SmtpOptions, SmtpSecurity } from '@foxschema/db/mail';
-import { AppSettingsStore } from '../admin/app-settings.service';
-import { decryptSecret, encryptSecret } from '../../platform/crypto/crypto';
+import { AppSettingsStore } from '../settings/app-settings.service';
+import { decryptSecret, encryptSecret } from '../crypto/crypto';
 import { brokerUrl } from './sso-broker';
 
 export type SsoProviderId = 'google' | 'microsoft' | 'github';

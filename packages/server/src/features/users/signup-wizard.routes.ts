@@ -9,7 +9,7 @@
 import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
-import { AppSettingsStore } from '../admin/app-settings.service';
+import { AppSettingsStore } from '../../platform/settings/app-settings.service';
 import { SignupModule } from './signup-wizard.service';
 import { rateLimit } from '../../platform/guards/rate-limit';
 import { sendError } from '../../platform/http/respond';

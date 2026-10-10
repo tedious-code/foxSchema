@@ -2,12 +2,12 @@ import { timingSafeEqual } from 'node:crypto';
 import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
-import { AuthModule } from '../auth/auth.service';
+import { AuthModule } from '../../platform/identity/auth.service';
 import { newToken } from '../../platform/crypto/crypto';
-import { readCookie, setSessionCookie } from '../auth/auth.routes';
-import { authorizeUrl, fetchVerifiedEmail, newPkce, redirectUri } from './sso.service';
-import { SignInSettings } from './sign-in-settings.service';
-import { SsoBroker } from './sso-broker';
+import { readCookie, setSessionCookie } from '../../platform/identity/auth.guard';
+import { authorizeUrl, fetchVerifiedEmail, newPkce, redirectUri } from '../../platform/identity/sso.service';
+import { SignInSettings } from '../../platform/identity/sign-in-settings.service';
+import { SsoBroker } from '../../platform/identity/sso-broker';
 import { sendError } from '../../platform/http/respond';
 import { setCookie, clearCookie } from '../../platform/http/reply';
 

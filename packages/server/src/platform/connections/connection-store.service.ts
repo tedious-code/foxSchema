@@ -1,7 +1,7 @@
-import type { WorkspaceScope } from '../../platform/http/scope';
+import type { WorkspaceScope } from '../http/scope';
 import { randomUUID } from 'node:crypto';
 import { getStore } from '../../database/store';
-import { encryptSecret, decryptSecret } from '../../platform/crypto/crypto';
+import { encryptSecret, decryptSecret } from '../crypto/crypto';
 import { ConnectionOptions, buildConnectionString, resolveAuthMethod, assertWindowsAccount } from '@foxschema/db';
 
 export interface SavedConnectionInput {

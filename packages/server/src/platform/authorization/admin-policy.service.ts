@@ -17,7 +17,7 @@
  * the default at startup.
  */
 import type { MetadataStore } from '../../database/stores/types';
-import type { SettingSource } from '../auth/sign-in-settings.service';
+import type { SettingSource } from '../identity/sign-in-settings.service';
 
 export type AdminPolicyValue = 'one' | 'several';
 

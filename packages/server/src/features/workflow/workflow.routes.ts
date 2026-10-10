@@ -10,7 +10,7 @@ import type { FastifyReply } from 'fastify';
 import type { AppRequest, RouteHandler } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
 import { connectionCredentialId, type AdminConfigPut } from '@foxschema/workflow-contract';
-import { requirePermissions } from '../authorization/rbac.guard';
+import { requirePermissions } from '../../platform/authorization/rbac.guard';
 import { sendError } from '../../platform/http/respond';
 import { beginStream, pathOf, streamEnd, streamWrite } from '../../platform/http/reply';
 import { WorkflowSettingsService } from './workflow-settings.service';

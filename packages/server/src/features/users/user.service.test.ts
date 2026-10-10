@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 
 process.env.APP_DB_PATH = ':memory:';
 
-import { AuthModule } from '../auth/auth.service';
+import { AuthModule } from '../../platform/identity/auth.service';
 import { UserModule } from './user.service';
 
 const auth = new AuthModule();

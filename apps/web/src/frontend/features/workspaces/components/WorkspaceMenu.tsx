@@ -8,14 +8,17 @@
  * because every open view holds data from the old workspace.
  */
 import React, { useEffect, useState } from 'react';
-import { Check, Layers, Plus, Settings2 } from 'lucide-react';
+import { Check, Compass, Layers, Plus, Settings2 } from 'lucide-react';
 import {
   apiAcceptInvite,
   apiCreateWorkspace,
   apiDeclineInvite,
+  apiDiscoverWorkspaces,
+  apiJoinWorkspace,
   apiListWorkspaces,
   apiMyInvites,
   apiSelectWorkspace,
+  type PublicWorkspace,
   type WorkspaceInvite,
   type WorkspaceList,
 } from '../api/workspacesApi';
@@ -31,6 +34,8 @@ export const WorkspaceMenu: React.FC<{
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [invites, setInvites] = useState<WorkspaceInvite[]>([]);
+  /** Public workspaces to join, once asked for. */
+  const [publicList, setPublicList] = useState<PublicWorkspace[] | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -83,6 +88,28 @@ export const WorkspaceMenu: React.FC<{
       setError(e instanceof Error ? e.message : 'Could not answer the invite');
     }
     setBusy(false);
+  };
+
+  const browse = async () => {
+    setError(null);
+    try {
+      setPublicList(await apiDiscoverWorkspaces());
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not list public workspaces');
+    }
+  };
+
+  const join = async (id: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await apiJoinWorkspace(id);
+      await apiSelectWorkspace(id);
+      reload();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Could not join');
+      setBusy(false);
+    }
   };
 
   const create = async (e: React.FormEvent) => {
@@ -166,6 +193,47 @@ export const WorkspaceMenu: React.FC<{
         >
           <Settings2 className="w-3.5 h-3.5" /> Workspace settings
         </button>
+      )}
+      {publicList === null ? (
+        <button
+          type="button"
+          data-testid="workspace-menu-browse"
+          onClick={() => void browse()}
+          className="w-full flex items-center gap-2 px-4 py-1.5 text-sm text-slate-300 hover:bg-slate-800/60"
+        >
+          <Compass className="w-3.5 h-3.5" /> Browse public workspaces
+        </button>
+      ) : (
+        <div data-testid="workspace-menu-public" className="px-4 py-1">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Public workspaces</p>
+          {publicList.length === 0 ? (
+            <p data-testid="workspace-menu-public-empty" className="text-[11px] text-slate-500 py-1">
+              None to join right now.
+            </p>
+          ) : (
+            publicList.map((w) => (
+              <div key={w.id} data-testid={`workspace-menu-public-${w.id}`} className="flex items-center gap-2 py-1 text-xs text-slate-200">
+                <span className="flex-1 min-w-0">
+                  <span className="block truncate" title={w.name}>
+                    {w.name}
+                  </span>
+                  <span className="block text-[10px] text-slate-500">
+                    {w.memberCount} {w.memberCount === 1 ? 'member' : 'members'} · joins as {w.joinRole}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  data-testid={`workspace-menu-public-join-${w.id}`}
+                  disabled={busy}
+                  onClick={() => void join(w.id)}
+                  className="rounded accent-grad on-accent-fg px-2 py-0.5 text-[11px] font-bold disabled:opacity-60"
+                >
+                  Join
+                </button>
+              </div>
+            ))
+          )}
+        </div>
       )}
       {list.canCreate &&
         (creating ? (

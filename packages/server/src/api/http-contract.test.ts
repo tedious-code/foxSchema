@@ -182,6 +182,8 @@ const ROUTES: RouteExpectation[] = [
   { method: 'POST', path: '/api/workspaces/:id/select', status: 404 },
   { method: 'GET', path: '/api/workspaces/invites', status: 200 },
   { method: 'GET', path: '/api/workspaces/all', status: 200 },
+  { method: 'GET', path: '/api/workspaces/discover', status: 200 },
+  { method: 'POST', path: '/api/workspaces/:id/join', status: 404 },
   { method: 'POST', path: '/api/workspaces/invites/:inviteId/accept', status: 404 },
   { method: 'POST', path: '/api/workspaces/invites/:inviteId/decline', status: 404 },
   { method: 'GET', path: '/api/workspaces/:id/invites', status: 404 },
@@ -303,7 +305,9 @@ describe('HTTP contract', () => {
       // 127 -> 133: invites (/api/workspaces/invites, /api/workspaces/:id/invites).
       //
       // 133 -> 134: every workspace, for an admin (/api/workspaces/all).
-      expect(ROUTES.length).toBe(134);
+      //
+      // 134 -> 136: public workspaces (/api/workspaces/discover, /:id/join).
+      expect(ROUTES.length).toBe(136);
       expect(new Set(ROUTES.map((r) => `${r.method} ${r.path}`)).size).toBe(ROUTES.length);
     });
 

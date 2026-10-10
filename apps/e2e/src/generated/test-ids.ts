@@ -3427,6 +3427,8 @@ export const TestIds = {
     WorkspaceMenu: {
       /** div */
       workspaceMenu: 'workspace-menu',
+      /** button · Browse public workspaces */
+      workspaceMenuBrowse: 'workspace-menu-browse',
       /** button · New workspace */
       workspaceMenuCreate: 'workspace-menu-create',
       /** form */
@@ -3447,6 +3449,14 @@ export const TestIds = {
       workspaceMenuInvites: 'workspace-menu-invites',
       /** button */
       workspaceMenuItem: (id: string | number) => `workspace-menu-item-${id}`,
+      /** div */
+      workspaceMenuPublic: 'workspace-menu-public',
+      /** div */
+      workspaceMenuPublicForId: (id: string | number) => `workspace-menu-public-${id}`,
+      /** p */
+      workspaceMenuPublicEmpty: 'workspace-menu-public-empty',
+      /** button · Join */
+      workspaceMenuPublicJoin: (id: string | number) => `workspace-menu-public-join-${id}`,
       /** button · Workspace settings */
       workspaceMenuSettings: 'workspace-menu-settings',
     },
@@ -3483,6 +3493,8 @@ export const TestIds = {
       workspaceSettingsClose: 'workspace-settings-close',
       /** p */
       workspaceSettingsError: 'workspace-settings-error',
+      /** select · Role for people who join */
+      workspaceSettingsJoinRole: 'workspace-settings-join-role',
       /** button · Leave workspace */
       workspaceSettingsLeave: 'workspace-settings-leave',
       /** ul */
@@ -3495,6 +3507,10 @@ export const TestIds = {
       workspaceSettingsRenameSubmit: 'workspace-settings-rename-submit',
       /** p */
       workspaceSettingsSaved: 'workspace-settings-saved',
+      /** section */
+      workspaceSettingsVisibility: 'workspace-settings-visibility',
+      /** select · Visibility */
+      workspaceSettingsVisibilitySelect: 'workspace-settings-visibility-select',
     },
   },
 } as const;
@@ -5093,6 +5109,7 @@ export type TestId =
   | `workspace-member-remove-${string}`
   | `workspace-member-role-${string}`
   | 'workspace-menu'
+  | 'workspace-menu-browse'
   | 'workspace-menu-create'
   | 'workspace-menu-create-form'
   | 'workspace-menu-create-name'
@@ -5103,15 +5120,22 @@ export type TestId =
   | `workspace-menu-invite-decline-${string}`
   | 'workspace-menu-invites'
   | `workspace-menu-item-${string}`
+  | 'workspace-menu-public'
+  | `workspace-menu-public-${string}`
+  | 'workspace-menu-public-empty'
+  | `workspace-menu-public-join-${string}`
   | 'workspace-menu-settings'
   | 'workspace-settings'
   | 'workspace-settings-archive'
   | 'workspace-settings-close'
   | 'workspace-settings-error'
+  | 'workspace-settings-join-role'
   | 'workspace-settings-leave'
   | 'workspace-settings-members'
   | 'workspace-settings-name'
   | 'workspace-settings-rename'
   | 'workspace-settings-rename-submit'
   | 'workspace-settings-saved'
+  | 'workspace-settings-visibility'
+  | 'workspace-settings-visibility-select'
   | 'workspace-switcher';

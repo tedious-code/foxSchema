@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **983** buttons, text boxes, selects and textareas.
+Every control has a test ID: **987** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1814,6 +1814,7 @@ Every control has a test ID: **983** buttons, text boxes, selects and textareas.
 
 - **WorkspaceMenu** · `features/workspaces/components/WorkspaceMenu.tsx`
   - `workspace-menu` · div
+  - `workspace-menu-browse` · button · Browse public workspaces
   - `workspace-menu-create` · button · New workspace
   - `workspace-menu-create-form` · form
   - `workspace-menu-create-name` · input · New workspace name
@@ -1824,6 +1825,10 @@ Every control has a test ID: **983** buttons, text boxes, selects and textareas.
   - `workspace-menu-invite-decline-{id}` · button · Decline
   - `workspace-menu-invites` · div
   - `workspace-menu-item-{id}` · button
+  - `workspace-menu-public` · div
+  - `workspace-menu-public-{id}` · div
+  - `workspace-menu-public-empty` · p
+  - `workspace-menu-public-join-{id}` · button · Join
   - `workspace-menu-settings` · button · Workspace settings
 - **WorkspaceSettingsDialog** · `features/workspaces/components/WorkspaceSettingsDialog.tsx`
   - `workspace-invite-{id}` · li
@@ -1842,12 +1847,15 @@ Every control has a test ID: **983** buttons, text boxes, selects and textareas.
   - `workspace-settings-archive` · button · Archive
   - `workspace-settings-close` · button
   - `workspace-settings-error` · p
+  - `workspace-settings-join-role` · select · Role for people who join
   - `workspace-settings-leave` · button · Leave workspace
   - `workspace-settings-members` · ul
   - `workspace-settings-name` · input
   - `workspace-settings-rename` · form
   - `workspace-settings-rename-submit` · button · Rename
   - `workspace-settings-saved` · p
+  - `workspace-settings-visibility` · section
+  - `workspace-settings-visibility-select` · select · Visibility
 
 ## Shared on purpose
 

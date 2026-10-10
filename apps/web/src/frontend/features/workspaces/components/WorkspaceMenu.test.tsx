@@ -22,6 +22,9 @@ const apiDeclineInvite = vi.fn();
 const apiInviteToWorkspace = vi.fn();
 const apiWorkspaceInvites = vi.fn();
 const apiRevokeWorkspaceInvite = vi.fn();
+const apiUpdateWorkspace = vi.fn();
+const apiDiscoverWorkspaces = vi.fn();
+const apiJoinWorkspace = vi.fn();
 
 vi.mock('../api/workspacesApi', () => ({
   apiListWorkspaces: (...a: unknown[]) => apiListWorkspaces(...a),
@@ -38,16 +41,19 @@ vi.mock('../api/workspacesApi', () => ({
   apiInviteToWorkspace: (...a: unknown[]) => apiInviteToWorkspace(...a),
   apiWorkspaceInvites: (...a: unknown[]) => apiWorkspaceInvites(...a),
   apiRevokeWorkspaceInvite: (...a: unknown[]) => apiRevokeWorkspaceInvite(...a),
+  apiUpdateWorkspace: (...a: unknown[]) => apiUpdateWorkspace(...a),
+  apiDiscoverWorkspaces: (...a: unknown[]) => apiDiscoverWorkspaces(...a),
+  apiJoinWorkspace: (...a: unknown[]) => apiJoinWorkspace(...a),
 }));
 
 import { WorkspaceMenu } from './WorkspaceMenu';
 import { WorkspaceSettingsDialog } from './WorkspaceSettingsDialog';
 
-const own = { id: 'own', name: "ana's workspace", visibility: 'private', personal: true, role: 'editor', memberCount: 1 };
-const team = { id: 'team', name: 'Data team', visibility: 'private', personal: false, role: 'owner', memberCount: 2 };
+const own = { id: 'own', name: "ana's workspace", visibility: 'private', joinRole: 'viewer', personal: true, role: 'editor', memberCount: 1 };
+const team = { id: 'team', name: 'Data team', visibility: 'private', joinRole: 'viewer', personal: false, role: 'owner', memberCount: 2 };
 
 beforeEach(() => {
-  for (const f of [apiListWorkspaces, apiCreateWorkspace, apiSelectWorkspace, apiWorkspaceMembers, apiSetWorkspaceMember, apiRemoveWorkspaceMember, apiRenameWorkspace, apiArchiveWorkspace, apiMyInvites, apiAcceptInvite, apiDeclineInvite, apiInviteToWorkspace, apiWorkspaceInvites, apiRevokeWorkspaceInvite]) f.mockReset();
+  for (const f of [apiListWorkspaces, apiCreateWorkspace, apiSelectWorkspace, apiWorkspaceMembers, apiSetWorkspaceMember, apiRemoveWorkspaceMember, apiRenameWorkspace, apiArchiveWorkspace, apiMyInvites, apiAcceptInvite, apiDeclineInvite, apiInviteToWorkspace, apiWorkspaceInvites, apiRevokeWorkspaceInvite, apiUpdateWorkspace, apiDiscoverWorkspaces, apiJoinWorkspace]) f.mockReset();
   apiMyInvites.mockResolvedValue([]);
   apiWorkspaceInvites.mockResolvedValue([]);
   apiListWorkspaces.mockResolvedValue({ currentId: 'own', workspaces: [own, team], canCreate: false });
@@ -194,6 +200,70 @@ describe('invitations', () => {
     await screen.findByTestId('workspace-settings-members');
     await waitFor(() => expect(screen.getByTestId('workspace-settings-name')).toBeTruthy());
     expect(screen.queryByTestId('workspace-invite-form')).toBeNull();
+  });
+});
+
+describe('public workspaces', () => {
+  it('the menu lists public workspaces on request; joining goes there', async () => {
+    apiDiscoverWorkspaces.mockResolvedValue([{ id: 'pub', name: 'Open data', joinRole: 'viewer', memberCount: 4 }]);
+    apiJoinWorkspace.mockResolvedValue('viewer');
+    apiSelectWorkspace.mockResolvedValue(undefined);
+    const reload = vi.fn();
+    render(<WorkspaceMenu onOpenSettings={() => undefined} reload={reload} />);
+    fireEvent.click(await screen.findByTestId('workspace-menu-browse'));
+    expect((await screen.findByTestId('workspace-menu-public-pub')).textContent).toMatch(/open data.*4 members · joins as viewer/i);
+    fireEvent.click(screen.getByTestId('workspace-menu-public-join-pub'));
+    await waitFor(() => expect(apiJoinWorkspace).toHaveBeenCalledWith('pub'));
+    await waitFor(() => expect(apiSelectWorkspace).toHaveBeenCalledWith('pub'));
+    expect(reload).toHaveBeenCalled();
+  });
+
+  it('says so when there is none to join', async () => {
+    apiDiscoverWorkspaces.mockResolvedValue([]);
+    render(<WorkspaceMenu onOpenSettings={() => undefined} reload={vi.fn()} />);
+    fireEvent.click(await screen.findByTestId('workspace-menu-browse'));
+    expect(await screen.findByTestId('workspace-menu-public-empty')).toBeTruthy();
+  });
+
+  it('an owner makes a workspace public and picks the join role', async () => {
+    apiWorkspaceMembers.mockResolvedValue([]);
+    apiUpdateWorkspace.mockResolvedValue(undefined);
+    apiListWorkspaces
+      .mockResolvedValueOnce({ currentId: 'team', workspaces: [team], canCreate: false })
+      .mockResolvedValue({ currentId: 'team', workspaces: [{ ...team, visibility: 'public' }], canCreate: false });
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<WorkspaceSettingsDialog workspaceId="team" onClose={() => undefined} reload={vi.fn()} />);
+    fireEvent.change(await screen.findByTestId('workspace-settings-visibility-select'), { target: { value: 'public' } });
+    expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/use its saved connections/i));
+    confirm.mockRestore();
+    await waitFor(() => expect(apiUpdateWorkspace).toHaveBeenCalledWith('team', { visibility: 'public' }));
+    fireEvent.change(await screen.findByTestId('workspace-settings-join-role'), { target: { value: 'editor' } });
+    await waitFor(() => expect(apiUpdateWorkspace).toHaveBeenCalledWith('team', { joinRole: 'editor' }));
+    const roles = [...(screen.getByTestId('workspace-settings-join-role') as HTMLSelectElement).options].map((o) => o.value);
+    expect(roles).toEqual(['viewer', 'editor']);
+  });
+
+  it('does not go public unless confirmed', async () => {
+    apiWorkspaceMembers.mockResolvedValue([]);
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(<WorkspaceSettingsDialog workspaceId="team" onClose={() => undefined} reload={vi.fn()} />);
+    fireEvent.change(await screen.findByTestId('workspace-settings-visibility-select'), { target: { value: 'public' } });
+    expect(apiUpdateWorkspace).not.toHaveBeenCalled();
+    confirm.mockRestore();
+  });
+
+  it('offers no visibility for a personal workspace, nor to a viewer', async () => {
+    apiWorkspaceMembers.mockResolvedValue([]);
+    const { unmount } = render(<WorkspaceSettingsDialog workspaceId="own" onClose={() => undefined} reload={vi.fn()} />);
+    await screen.findByTestId('workspace-settings-members');
+    await waitFor(() => expect((screen.getByTestId('workspace-settings-name') as HTMLInputElement).value).not.toBe(''));
+    expect(screen.queryByTestId('workspace-settings-visibility')).toBeNull();
+    unmount();
+    apiListWorkspaces.mockResolvedValue({ currentId: 'team', workspaces: [{ ...team, role: 'viewer' }], canCreate: false });
+    render(<WorkspaceSettingsDialog workspaceId="team" onClose={() => undefined} reload={vi.fn()} />);
+    await screen.findByTestId('workspace-settings-members');
+    await waitFor(() => expect((screen.getByTestId('workspace-settings-name') as HTMLInputElement).value).toBe('Data team'));
+    expect(screen.queryByTestId('workspace-settings-visibility')).toBeNull();
   });
 });
 

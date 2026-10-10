@@ -16,6 +16,7 @@ import {
   apiInviteToWorkspace,
   apiListWorkspaces,
   apiRevokeWorkspaceInvite,
+  apiUpdateWorkspace,
   apiWorkspaceInvites,
   apiRemoveWorkspaceMember,
   apiRenameWorkspace,
@@ -146,6 +147,56 @@ export const WorkspaceSettingsDialog: React.FC<{
               </button>
             )}
           </form>
+
+          {isOwner && workspace && !workspace.personal && (
+            <section data-testid="workspace-settings-visibility" className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Who can find it</span>
+              <select
+                data-testid="workspace-settings-visibility-select"
+                aria-label="Visibility"
+                value={workspace.visibility}
+                disabled={busy}
+                onChange={(e) => {
+                  const visibility = e.target.value as 'private' | 'public';
+                  if (
+                    visibility === 'public' &&
+                    !window.confirm(
+                      `Make ${workspace.name} public? Anyone signed in to Fox can join it and use its saved connections.`
+                    )
+                  ) {
+                    return;
+                  }
+                  void run(
+                    () => apiUpdateWorkspace(workspaceId, { visibility }),
+                    visibility === 'public' ? 'Public: anyone signed in can find and join it.' : 'Private: only people you invite.'
+                  );
+                }}
+                className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-slate-100"
+              >
+                <option value="private">Private — invite only</option>
+                <option value="public">Public — anyone signed in can join</option>
+              </select>
+              {workspace.visibility === 'public' && (
+                <label className="inline-flex items-center gap-1.5 text-[11px] text-slate-300">
+                  joining as
+                  <select
+                    data-testid="workspace-settings-join-role"
+                    aria-label="Role for people who join"
+                    value={workspace.joinRole}
+                    disabled={busy}
+                    onChange={(e) => void run(() => apiUpdateWorkspace(workspaceId, { joinRole: e.target.value as WorkspaceRole }), 'Saved.')}
+                    className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-slate-100"
+                  >
+                    {(['viewer', 'editor'] as const).map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </section>
+          )}
 
           {managesMembers && (
             <section className="space-y-2">

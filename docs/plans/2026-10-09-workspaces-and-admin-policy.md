@@ -1,7 +1,25 @@
 # Workspaces and the admin policy — 2026-10-09
 
-**Status: proposed.** Nothing is built yet. The decisions in the next section
-need a yes before phase 1 starts.
+**Status (2026-10-10): built**, as stacked PRs, one per decision: D1 #491,
+D5 #492, D3 #493, D4 #494, D6 #495, D2 #496. Where it differs from the plan below:
+
+- **A personal workspace's role mirrors the account role** (admin = owner),
+  instead of every new account owning its own. That kept D5 permission-neutral.
+  To still let everyone invite into their own workspace, the account a personal
+  workspace belongs to always manages its members, whatever its role there.
+- **The current workspace lives on the server** (`user_preferences.last_workspace_id`,
+  chosen with `select`). Several feature APIs call `fetch` directly and would never send
+  an `X-Fox-Workspace` header; the header still works for API callers.
+- **No separate narrowing of the admin bypass (D6).** Every request, an admin's
+  included, must already be a member of the workspace it acts in; inside one an
+  admin keeps every permission.
+- **Only an admin ever sees a new account's one-time code** when an invite
+  makes one. For anyone else it is emailed, so a workspace owner cannot claim an
+  account under someone else's address.
+- **A public workspace's join role is viewer or editor, never owner**, so a
+  stranger joining cannot remove its owners and archive it.
+- The policy switches (**Members can create workspaces**, **Workspace owners
+  can invite new people**) sit on App users, next to **Admins: One / Several**.
 
 ## Summary
 

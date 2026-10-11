@@ -4,7 +4,7 @@ Implements `FOXSCHEMA_FEATURE_ARCHITECTURE_PLAN.md` (the target plan) against th
 repository as it is today. The user accepted a risky restructure where it ends
 clean. Each step below is one PR: build, test, fix, review, merge, in order.
 
-**Status: built, 2026-10-10** (#498–#504). Where the result differs from the
+**Status: built, 2026-10-10** (#498–#504); follow-ups 2026-10-11 (#506–#512, §7). Where the result differs from the
 schedule is in §6.
 
 ## 1. What exists today (verified, Phase 0)
@@ -187,10 +187,35 @@ Where it differs from the schedule, and why:
 
 Left for later:
 
-- The saved-connections list lives in the Compare store, though ten features read it.
-  It belongs to `features/connections`.
-- `utilities` and `workflow` still re-export their whole view from `index.ts`, unused
-  outside the feature. Trim them when either gains a real public API.
+- The saved-connections list stays in the Compare store, on purpose. `loadConnections`
+  sets the list and the restored Original/Target selections in one update, then
+  re-tests whichever side was connected. Its comments record three bugs from getting
+  that sequencing wrong. A separate store would make it two updates, and every reader
+  would have to be rewired.
+- `utilities` and `workflow` re-exporting their whole view from `index.ts`: done (#506).
 - The dialect e2e suites that need SQL Server, Oracle or Db2 containers were not rerun
   for this series. The SQLite suites and the Postgres flows were.
 
+## 7. Follow-ups (2026-10-11)
+
+From a `/simplify` review of the series (reuse, simplification, efficiency, altitude):
+
+| PR | What |
+|---|---|
+| #506 | Dead code and duplication removed: the route count, unused imports, the history `WeakMap`, the mount-order sort, unused view exports, stale mocks. `SchemaTreePanel` moved to Compare, so Compare no longer downloads Utilities code. `feature-module.ts` moved to `platform/`, with `onBoot`. Union-typed registry. Mocked-module check. |
+| #507 | Web `platform/` layer (`authStore`, `toastStore`, `uiStore`, `viewIds`). Layers run `app → features → platform → shared`, downward only. |
+| #508 | The contract test names public routes exactly, so sign-out-others and verify are checked to refuse a request without a session. `/app-info` records in parallel. |
+| #509 | `platform/http/route-doubles.ts` replaces copied reply doubles, including the scaffold's. |
+| #510 | History and migration route dependencies are typed. This exposed a migration guard assertion on a method the route never calls. |
+| #511 | One fetch stand-in for the API-client tests. |
+| #512 | The rail and the command palette show the same workspaces, by one rule. No rail button leads to a redirect, so Snapshots needs `schema.browse`. Compare shows for browse or compare. |
+
+Decided against:
+- **One import-graph helper for the seven boundary tests.** Their walkers differ on
+  purpose (test files, comments, aliases), and merging them risks weakening one of
+  them.
+- **Parsing the registries with the TypeScript compiler in the scaffold.** Its tests
+  already run each edit against the real files, so a format change fails there first.
+- **The first visit spanning 21 files instead of 10.** Same modules, +2.6 KB gzip.
+  Building without the toolbar slots took it to 14, but that also removed the toolbar's
+  own code. Four other probes did not move it.

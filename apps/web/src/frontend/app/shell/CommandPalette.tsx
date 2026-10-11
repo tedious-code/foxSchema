@@ -12,6 +12,7 @@ import { useAuthStore } from '@/platform/authStore';
 import { openRecentQuery, selectEditorConnection, useRecentQueries } from '@/features/sql-editor';
 import { useSyncStore } from '@/features/compare';
 import { useUiStore, type ActiveView } from '@/platform/uiStore';
+import { railItems } from '@/app/features/featureRegistry';
 import { COMMAND_PALETTE_EVENT } from './commandPaletteEvent';
 
 interface PaletteItem {
@@ -30,12 +31,9 @@ export const CommandPalette: React.FC = () => {
   const connections = useSyncStore((s) => s.connections);
   // Not the SQL editor store: that loads with the editor, not with the shell.
   const recentQueries = useRecentQueries((s) => s.recentQueries);
-  const canSchemaBrowse = useAuthStore((s) => s.can('schema.browse'));
-  const canSchemaCompare = useAuthStore((s) => s.can('schema.compare'));
-  const canEditorAccess = useAuthStore((s) => s.can('editor.access'));
-  const canUtilityAccess = useAuthStore((s) => s.can('utility.access'));
-  const canAccess = useAuthStore((s) => s.can('access.access'));
-  const canWorkflow = useAuthStore((s) => s.can('workflow.access'));
+  const can = useAuthStore((s) => s.can);
+  // `can` is one function whatever the permissions; this re-renders on a change.
+  const permissions = useAuthStore((s) => s.user?.permissions);
 
   const go = (view: ActiveView) => {
     setActiveView(view);
@@ -46,43 +44,9 @@ export const CommandPalette: React.FC = () => {
     const out: PaletteItem[] = [
       { id: 'ws-home', group: 'Workspace', label: 'Home', run: () => go('home') },
     ];
-    if (canSchemaBrowse || canSchemaCompare) {
-      out.push({ id: 'ws-sync', group: 'Workspace', label: 'Compare', run: () => go('sync') });
-    }
-    if (canEditorAccess) {
-      out.push({
-        id: 'ws-sql',
-        group: 'Workspace',
-        label: 'SQL Editor',
-        run: () => go('sqlEditor'),
-      });
-    }
-    if (canUtilityAccess) {
-      out.push({
-        id: 'ws-utilities',
-        group: 'Workspace',
-        label: 'Utilities',
-        run: () => go('utilities'),
-      });
-    }
-    if (canAccess) {
-      out.push({ id: 'ws-access', group: 'Workspace', label: 'Access', run: () => go('access') });
-    }
-    if (canWorkflow) {
-      out.push({
-        id: 'ws-workflow',
-        group: 'Workspace',
-        label: 'Workflow',
-        run: () => go('workflow'),
-      });
-    }
-    if (canSchemaBrowse) {
-      out.push({
-        id: 'ws-snapshots',
-        group: 'Workspace',
-        label: 'Snapshots',
-        run: () => go('snapshots'),
-      });
+    // The workspaces the rail shows this account, in its order.
+    for (const view of railItems(can)) {
+      out.push({ id: `ws-${view.view}`, group: 'Workspace', label: view.paletteLabel, run: () => go(view.view) });
     }
     out.push({
       id: 'ws-settings',
@@ -117,17 +81,7 @@ export const CommandPalette: React.FC = () => {
     return out;
     // go closes over setActiveView; items rebuild when catalogs change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    canSchemaBrowse,
-    canSchemaCompare,
-    canEditorAccess,
-    canUtilityAccess,
-    canAccess,
-    canWorkflow,
-    connections,
-    recentQueries,
-    setActiveView,
-  ]);
+  }, [can, permissions, connections, recentQueries, setActiveView]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

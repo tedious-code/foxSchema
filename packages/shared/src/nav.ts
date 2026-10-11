@@ -14,8 +14,8 @@ export type NavFeatureFlag = 'workflow' | 'enterprise.channels';
 export interface NavItem {
   id: string;
   label: string;
-  /** Hide the item when the actor lacks this permission. */
-  permission?: Permission;
+  /** Hide the item when the actor has none of these (one, or any of a list). */
+  permission?: Permission | readonly Permission[];
   children?: NavItem[];
   featureFlag?: NavFeatureFlag;
 }
@@ -25,7 +25,8 @@ export const COMMUNITY_NAV: NavItem[] = [
   {
     id: 'compare',
     label: 'Compare',
-    permission: 'schema.browse',
+    // Browsing or comparing: either is a reason to open the workspace.
+    permission: ['schema.browse', 'schema.compare'],
     children: [
       { id: 'compare.compare', label: 'Compare', permission: 'schema.compare' },
       { id: 'compare.browse', label: 'Browse', permission: 'schema.browse' },
@@ -79,7 +80,8 @@ export function filterNav(
   const out: NavItem[] = [];
   for (const item of items) {
     if (item.featureFlag && !flags[item.featureFlag]) continue;
-    if (item.permission && !can(item.permission)) continue;
+    const needs = typeof item.permission === 'string' ? [item.permission] : item.permission;
+    if (needs && !needs.some((p) => can(p))) continue;
     const children = item.children ? filterNav(item.children, can, flags) : undefined;
     out.push(children ? { ...item, children } : { ...item });
   }

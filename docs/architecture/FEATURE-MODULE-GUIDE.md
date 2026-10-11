@@ -101,11 +101,15 @@ adding its id to `platform/viewIds.ts`:
 
 ```ts
 utilities: {
-  rail: { label: 'Utils', icon: Wrench, testId: 'view-utilities-btn', visible: (can) => can('utility.access') },
+  rail: { label: 'Utils', paletteLabel: 'Utilities', icon: Wrench, testId: 'view-utilities-btn' },
   allowed: (can) => can('utility.access'),
   load: () => import('@/features/utilities/view'),
 },
 ```
+
+The rail button and the command-palette entry show only to accounts that
+`allowed` admits, so no button leads to a redirect. A view without `allowed`
+checks access itself; its button follows its nav item's permission (`navId`).
 
 The rail, the lazy view, prefetch-on-hover, the "you lost access, go home"
 redirect and the view's part of the top toolbar (`toolbar: { start, end, below }`)

@@ -26,11 +26,21 @@ import type { ActiveView } from '@/platform/viewIds';
 
 export type Can = (permission: Permission) => boolean;
 
-export type RailButton = { icon: ElementType; testId: string } & (
+/**
+ * A view's button on the rail, and its entry in the command palette. It is
+ * shown only to an account the view's `allowed` admits, so no button leads to
+ * a redirect.
+ */
+export type RailButton = {
+  icon: ElementType;
+  testId: string;
+  /** Its name in the command palette, where there is room for a longer one. Default: the rail label. */
+  paletteLabel?: string;
+} & (
   /** A COMMUNITY_NAV top-level id: the label and the permission come from there. */
   | { navId: string }
-  /** Its own label, and who sees the button. */
-  | { label: string; visible: (can: Can) => boolean }
+  /** Its own label; who sees it is the view's `allowed`. */
+  | { label: string }
 );
 
 /**
@@ -75,7 +85,7 @@ export const WORKSPACE_VIEWS: Record<ActiveView, WorkspaceViewDefinition> = {
     toolbar: { start: CompareToolbarStart, end: CompareToolbarEnd, below: CompareToolbarBelow },
   },
   sqlEditor: {
-    rail: { navId: 'editor', icon: Terminal, testId: 'view-sql-editor-btn' },
+    rail: { navId: 'editor', icon: Terminal, testId: 'view-sql-editor-btn', paletteLabel: 'SQL Editor' },
     allowed: (can) => can('editor.access'),
     fallback: (can) => (can('schema.browse') || can('schema.compare') ? 'sync' : 'home'),
     load: () => import('@/features/sql-editor/view'),
@@ -83,7 +93,7 @@ export const WORKSPACE_VIEWS: Record<ActiveView, WorkspaceViewDefinition> = {
     inside: () => import('@/features/sql-editor/viewPane'),
   },
   utilities: {
-    rail: { label: 'Utils', icon: Wrench, testId: 'view-utilities-btn', visible: (can) => can('utility.access') },
+    rail: { label: 'Utils', paletteLabel: 'Utilities', icon: Wrench, testId: 'view-utilities-btn' },
     allowed: (can) => can('utility.access'),
     load: () => import('@/features/utilities/view'),
   },
@@ -96,12 +106,7 @@ export const WORKSPACE_VIEWS: Record<ActiveView, WorkspaceViewDefinition> = {
     load: () => import('@/features/workflow/view'),
   },
   snapshots: {
-    rail: {
-      label: 'Snapshots',
-      icon: Camera,
-      testId: 'sync-pane-history-btn',
-      visible: (can) => can('compare.history') || can('schema.browse'),
-    },
+    rail: { label: 'Snapshots', icon: Camera, testId: 'sync-pane-history-btn' },
     allowed: (can) => can('schema.browse'),
     load: () => import('@/features/lokee-weave/view'),
     toolbar: { start: HistoryToolbar },
@@ -115,23 +120,20 @@ const NAV_FLAGS = { workflow: true } as const;
 export interface RailItem {
   view: ActiveView;
   label: string;
+  paletteLabel: string;
   icon: ElementType;
   testId: string;
 }
 
-/** The rail's main buttons this account sees, in order. */
+/** The rail's main buttons this account sees, in order. The command palette lists the same views. */
 export function railItems(can: Can): RailItem[] {
   const nav = new Map(filterNav(COMMUNITY_NAV, can, NAV_FLAGS).map((item) => [item.id, item]));
   const out: RailItem[] = [];
   for (const [view, def] of Object.entries(WORKSPACE_VIEWS) as [ActiveView, WorkspaceViewDefinition][]) {
     const rail = def.rail;
-    if (!rail) continue;
-    if ('navId' in rail) {
-      const item = nav.get(rail.navId);
-      if (item) out.push({ view, label: item.label, icon: rail.icon, testId: rail.testId });
-    } else if (rail.visible(can)) {
-      out.push({ view, label: rail.label, icon: rail.icon, testId: rail.testId });
-    }
+    if (!rail || (def.allowed && !def.allowed(can))) continue;
+    const label = 'navId' in rail ? nav.get(rail.navId)?.label : rail.label;
+    if (label) out.push({ view, label, paletteLabel: rail.paletteLabel ?? label, icon: rail.icon, testId: rail.testId });
   }
   return out;
 }

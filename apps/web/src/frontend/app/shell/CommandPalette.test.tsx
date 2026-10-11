@@ -89,6 +89,27 @@ describe('CommandPalette', () => {
     expect(setActiveView).toHaveBeenCalledWith('utilities');
   });
 
+  it('lists the rail’s workspaces, in its order, with the palette’s longer labels', () => {
+    render(<CommandPalette />);
+    fireEvent.keyDown(window, { key: 'k', metaKey: true });
+    const ids = screen
+      .getAllByTestId(/^command-palette-item-ws-/)
+      .map((el) => el.getAttribute('data-testid')!.replace('command-palette-item-', ''));
+    expect(ids).toEqual(['ws-home', 'ws-sync', 'ws-sqlEditor', 'ws-utilities', 'ws-access', 'ws-workflow', 'ws-snapshots', 'ws-settings']);
+    expect(screen.getByTestId('command-palette-item-ws-sqlEditor').textContent).toContain('SQL Editor');
+    expect(screen.getByTestId('command-palette-item-ws-utilities').textContent).toContain('Utilities');
+  });
+
+  it('offers no workspace the account would be sent away from', () => {
+    useAuthStore.setState({
+      user: { id: 'h', email: 'h@x', onboardingCompleted: true, role: 'viewer', permissions: ['compare.history'] },
+    });
+    render(<CommandPalette />);
+    fireEvent.keyDown(window, { key: 'k', metaKey: true });
+    const ids = screen.getAllByTestId(/^command-palette-item-ws-/).map((el) => el.getAttribute('data-testid'));
+    expect(ids).toEqual(['command-palette-item-ws-home', 'command-palette-item-ws-settings']);
+  });
+
   it('jumps to Preferences', () => {
     render(<CommandPalette />);
     fireEvent.keyDown(window, { key: 'k', metaKey: true });

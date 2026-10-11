@@ -25,6 +25,13 @@ describe('nav registry', () => {
     );
   });
 
+  it('shows an item needing any of several permissions for each one of them', () => {
+    const only = (granted: Permission) => (p: Permission) => p === granted;
+    expect(filterNav(COMMUNITY_NAV, only('schema.compare')).map((i) => i.id)).toContain('compare');
+    expect(filterNav(COMMUNITY_NAV, only('schema.browse')).map((i) => i.id)).toContain('compare');
+    expect(filterNav(COMMUNITY_NAV, only('editor.access')).map((i) => i.id)).not.toContain('compare');
+  });
+
   it('filters Access children by permission', () => {
     const granted = new Set<Permission>(['access.access', 'access.users']);
     const can = (p: Permission) => granted.has(p);

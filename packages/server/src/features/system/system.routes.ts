@@ -86,10 +86,12 @@ export function createSystemRoutes(appSettings = new AppSettingsStore()): Router
     const key = keySchemeInfo();
     // Persist a durable record of the active config (useful for later tooling).
     try {
-      await appSettings.set('db.engine', cfg.engine);
-      if (cfg.path) await appSettings.set('db.path', cfg.path);
-      if (key.boundEmail) await appSettings.set('key.boundEmail', key.boundEmail);
-      await appSettings.set('key.scheme', key.scheme);
+      await Promise.all([
+        appSettings.set('db.engine', cfg.engine),
+        cfg.path ? appSettings.set('db.path', cfg.path) : undefined,
+        key.boundEmail ? appSettings.set('key.boundEmail', key.boundEmail) : undefined,
+        appSettings.set('key.scheme', key.scheme),
+      ]);
     } catch {
       /* best-effort; never block the response */
     }

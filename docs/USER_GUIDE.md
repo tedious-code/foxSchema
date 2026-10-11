@@ -573,6 +573,28 @@ On a multi-user install, **Profile → Access control** assigns Fox Schema roles
 (`viewer` / `editor` / `owner` / `admin`) and permission keys — that is **app**
 access, not GRANT on a connected database.
 
+### What a Fox role stops, and what it cannot
+
+Before the SQL editor runs a statement, Fox works out what kind it is. A read,
+a data change (`editor.write`), a schema change (`editor.ddl`) and a privilege
+change (`editor.grant`) each need their permission, and the server checks the
+same before anything reaches the database. A statement Fox cannot prove is a
+read counts as a schema change. Fox reads MySQL's executable comments
+(`/*! … */`) as code, as MySQL does.
+
+What Fox cannot see is what a **function** does. A `SELECT` that calls one
+reads as a `SELECT`, whatever the function does inside. For example:
+- Postgres `lo_export` writes a file on the server.
+- `dblink_exec` runs SQL on another database.
+- `pg_terminate_backend` ends other sessions.
+- SQL Server `OPENROWSET` reaches other data sources.
+- Any user-defined function may write.
+
+So a `viewer` is read-only only as far as the connection's database account
+allows. **To make a connection truly read-only, save it with a database account
+that has only read privileges.** Fox roles sit on top of database privileges;
+they do not replace them.
+
 **Database** users and privileges have two entry points that share one catalog
 API (`POST /schema/db-access`):
 

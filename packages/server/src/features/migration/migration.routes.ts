@@ -6,14 +6,21 @@
  * Migration routes: execute (NDJSON stream) and run history. Execute runs
  * DDL against real databases.
  */
-import type { WorkspaceScope } from '../../platform/http/scope';
+import type { CaptureLiveSchema } from '../history';
 import { scopeOf } from '../../platform/http/scope';
 import type { ConnectionResolver } from '../../platform/connections/resolve';
 import { streamWrite, streamEnd } from '../../platform/http/reply';
 import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
-import type { ConnectionOptions, MigrationStep } from '@foxschema/db';
+import type {
+  ConnectionModule,
+  ConnectionOptions,
+  MigrationModule,
+  MigrationStep,
+  SqlGeneratorModule,
+  normalizeTableSchemas,
+} from '@foxschema/db';
 import { requirePermissions } from '../../platform/authorization/rbac.guard';
 import { idempotency } from '../../platform/guards/idempotency';
 import { targetKey, targetLocks } from '../../platform/guards/target-lock';
@@ -29,12 +36,12 @@ import { sendError } from '../../platform/http/respond';
 
 export interface MigrationRouteDeps {
   resolveRef: ConnectionResolver['resolveRef'];
-  migrationModule: Record<string, any>;
+  migrationModule: MigrationModule;
   migrationHistory: MigrationHistoryStore;
-  connectionModule: Record<string, any>;
-  sqlGenerator: Record<string, any>;
-  captureLiveSchema: (scope: WorkspaceScope, ...args: any[]) => Promise<any>;
-  normalizeTableSchemas: (...args: any[]) => any;
+  connectionModule: ConnectionModule;
+  sqlGenerator: SqlGeneratorModule;
+  captureLiveSchema: CaptureLiveSchema;
+  normalizeTableSchemas: typeof normalizeTableSchemas;
   /** Committed migrations; defaults to the app's shared Git services. */
   gitMigrations?: Pick<GitMigrationsService, 'read' | 'recordApplied' | 'commitRequired' | 'canSee'>;
 }
@@ -180,7 +187,7 @@ export function createMigrationRoutes(deps: MigrationRouteDeps): Router {
         snapshot += `-- Target schema snapshot (pre-migration)\n`;
         snapshot += `-- Schema: ${schema}  |  Taken At: ${new Date().toISOString()}\n`;
         snapshot += `-- =========================================================================\n\n`;
-        snapshot += targetObjects.map((t: { name?: string }) => deps.sqlGenerator.generateObjectDdl(t)).join('\n');
+        snapshot += targetObjects.map((t) => deps.sqlGenerator.generateObjectDdl(t)).join('\n');
         send({ type: 'snapshot', ddl: snapshot });
       }
 

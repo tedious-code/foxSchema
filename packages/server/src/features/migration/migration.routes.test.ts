@@ -28,13 +28,14 @@ async function serve(permissions: Permission[]) {
   // Rejecting stops a permitted request at the connection lookup, so nothing
   // past the guard needs a real database.
   const resolveRef = vi.fn().mockRejectedValue(new Error('no such connection'));
-  const executeMigration = vi.fn();
+  // Named after the method the route calls, so "never ran" can fail.
+  const runMigration = vi.fn();
   const router = createMigrationRoutes({
     resolveRef,
-    migrationModule: { executeMigration },
+    migrationModule: { execute: runMigration } as never,
     migrationHistory: {} as never,
-    connectionModule: {},
-    sqlGenerator: {},
+    connectionModule: {} as never,
+    sqlGenerator: {} as never,
     captureLiveSchema: vi.fn(),
     normalizeTableSchemas: vi.fn(),
     gitMigrations: { read: vi.fn(), recordApplied: vi.fn(), commitRequired: vi.fn(), canSee: vi.fn() },
@@ -48,7 +49,7 @@ async function serve(permissions: Permission[]) {
   });
   bindRoutes(app, router.flatten());
   await app.ready();
-  return { server: app, resolveRef, executeMigration };
+  return { server: app, resolveRef, runMigration };
 }
 
 const execute = (server: FastifyInstance) =>
@@ -61,13 +62,13 @@ const execute = (server: FastifyInstance) =>
 describe('POST /migration/execute', () => {
   it('refuses an actor without schema.migrate before looking up the connection', async () => {
     // Everything short of migrating: browsing, comparing, running SQL.
-    const { server, resolveRef, executeMigration } = await serve(['schema.browse', 'schema.compare', 'editor.run']);
+    const { server, resolveRef, runMigration } = await serve(['schema.browse', 'schema.compare', 'editor.run']);
     const res = await execute(server);
 
     expect(res.statusCode).toBe(403);
     expect(res.json().code).toBe('forbidden');
     expect(resolveRef).not.toHaveBeenCalled();
-    expect(executeMigration).not.toHaveBeenCalled();
+    expect(runMigration).not.toHaveBeenCalled();
   });
 
   it('lets an actor with schema.migrate past the guard', async () => {

@@ -912,38 +912,17 @@ const READ_ONLY_KEYWORDS = new Set([
   'select', 'show', 'describe', 'desc', 'values', 'table', 'explain', 'with', 'pragma',
 ]);
 
-/** Strip SQL strings and comments so keyword scans can't be fooled by literals. */
+/**
+ * SQL with its strings, quoted names and comments blanked out, so keyword scans
+ * cannot be fooled by a literal. A comment reads as whitespace, as the engines
+ * read it: `IN` and `TO` with a comment between them are not `INTO`.
+ */
 function stripSqlStringsAndComments(sql: string): string {
   let out = '';
-  let mode: Mode = 'code';
-  let dollarTag = '';
-  for (let i = 0; i < sql.length; i++) {
-    const ch = sql[i]!;
-    const next = i + 1 < sql.length ? sql[i + 1]! : '';
-    if (mode === 'code') {
-      if (ch === '-' && next === '-') { mode = 'line-comment'; i++; continue; }
-      if (ch === '#') { mode = 'line-comment'; continue; }
-      if (ch === '/' && next === '*') { mode = 'block-comment'; i++; continue; }
-      if (ch === "'") { mode = 'single'; out += ' '; continue; }
-      if (ch === '"') { mode = 'double'; out += ' '; continue; }
-      if (ch === '`') { mode = 'backtick'; out += ' '; continue; }
-      if (ch === '[') { mode = 'bracket'; out += ' '; continue; }
-      if (ch === '$') {
-        const m = DOLLAR_TAG_RE.exec(sql.slice(i));
-        if (m) { dollarTag = m[0]; mode = 'dollar'; i += dollarTag.length - 1; out += ' '; continue; }
-      }
-      out += ch;
-      continue;
-    }
-    if (mode === 'line-comment') { if (ch === '\n') { mode = 'code'; out += '\n'; } continue; }
-    if (mode === 'block-comment') { if (ch === '*' && next === '/') { mode = 'code'; i++; } continue; }
-    if (mode === 'single' && ch === "'") { mode = 'code'; continue; }
-    if (mode === 'double' && ch === '"') { mode = 'code'; continue; }
-    if (mode === 'backtick' && ch === '`') { mode = 'code'; continue; }
-    if (mode === 'bracket' && ch === ']') { mode = 'code'; continue; }
-    if (mode === 'dollar' && ch === '$' && sql.startsWith(dollarTag, i)) {
-      mode = 'code'; i += dollarTag.length - 1; continue;
-    }
+  for (const token of sqlTokens(sql, SPLITTER_TOKENS)) {
+    const text = sql.slice(token.start, token.end);
+    const blank = token.kind === 'comment' || token.kind === 'string' || token.kind === 'name' || token.kind === 'dollar';
+    out += blank ? (text.includes('\n') ? '\n' : ' ') : text;
   }
   return out;
 }

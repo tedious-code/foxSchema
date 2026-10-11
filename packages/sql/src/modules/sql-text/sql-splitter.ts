@@ -714,7 +714,9 @@ export function splitSqlStatements(sql: string): SplitStatement[] {
  * comment here, and `N'x'` is the word N then a string, as its own scanners
  * have always read them.
  */
-const SPLITTER_TOKENS: SqlTokenOptions = { hashComments: true, stringPrefixes: false };
+// `executableComments`: MySQL runs `/*!…` comments, so `SELECT 1 /*!INTO OUTFILE …`
+// writes a file. The classifiers must see it; splitting does not use these options.
+const SPLITTER_TOKENS: SqlTokenOptions = { hashComments: true, stringPrefixes: false, executableComments: true };
 
 /** First code word of a statement (lowercased), skipping leading comments/whitespace/parens/semicolons. */
 export function firstKeyword(text: string): string | null {

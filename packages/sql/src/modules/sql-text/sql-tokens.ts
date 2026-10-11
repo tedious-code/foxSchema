@@ -33,6 +33,14 @@ export interface SqlTokenOptions {
    * (true, the default). False reads the prefix as a word of its own.
    */
   stringPrefixes?: boolean;
+  /**
+   * MySQL and MariaDB run the inside of a comment that opens with `/*!`
+   * (optionally followed by a version, as in `/*!50001`). True reads that
+   * inside as code, its markers as spaces, so a scan sees what the server will
+   * run. Elsewhere it is an ordinary comment; reading it as code only makes a
+   * scan see more.
+   */
+  executableComments?: boolean;
 }
 
 const SPACE = /\s+/y;
@@ -100,10 +108,26 @@ function tokenAt(text: string, i: number, options: SqlTokenOptions): SqlToken {
   return token('punct', i + 1);
 }
 
+/** The opening of a MySQL executable comment, with its optional version. */
+const EXECUTABLE_OPEN = /\/\*!\d*/y;
+
+const spaceToken = (start: number, end: number): SqlToken => ({ kind: 'space', start, end, upper: '', open: '', close: '' });
+
 /** The tokens of `text`, lexed as they are read: stop early and the rest is never scanned. */
 export function* sqlTokens(text: string, options: SqlTokenOptions = {}): Generator<SqlToken> {
+  let executable = false;
   for (let i = 0; i < text.length; ) {
-    const token = tokenAt(text, i, options);
+    let token: SqlToken;
+    const open = options.executableComments && !executable ? matchAt(EXECUTABLE_OPEN, text, i) : '';
+    if (executable && text.startsWith('*/', i)) {
+      executable = false;
+      token = spaceToken(i, i + 2);
+    } else if (open) {
+      executable = true;
+      token = spaceToken(i, i + open.length);
+    } else {
+      token = tokenAt(text, i, options);
+    }
     yield token;
     i = token.end;
   }

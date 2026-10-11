@@ -13,7 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { COMMUNITY_NAV, DEFAULT_ROLE_PERMISSIONS, type Permission } from '@foxschema/shared';
 import { railItems, redirectFor, WORKSPACE_VIEWS } from './featureRegistry';
-import { VIEW_IDS } from './viewIds';
+import { VIEW_IDS } from '@/platform/viewIds';
 
 const FE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const canWith = (perms: readonly Permission[]) => (p: Permission) => perms.includes(p);

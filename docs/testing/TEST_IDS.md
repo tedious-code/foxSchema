@@ -387,26 +387,10 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
 - **BackendOfflineBanner** · `app/shell/BackendOfflineBanner.tsx`
   - `backend-offline-banner` · div
   - `backend-offline-retry` · button · Retry now
-- **CloudProviderCredentialsSection** · `app/settings/CloudProviderCredentialsSection.tsx`
-  - `cloud-cred-add` · button · Add cloud credential
-  - `cloud-cred-cancel` · button · Cancel
-  - `cloud-cred-card-{id}` · div
-  - `cloud-cred-close-form` · button
-  - `cloud-cred-edit-{id}` · button · Edit
-  - `cloud-cred-field-{key}` · textarea
-  - `cloud-cred-form` · div
-  - `cloud-cred-name` · input · Name (e.g. Prod AWS)
-  - `cloud-cred-provider-select` · select
-  - `cloud-cred-remove-{id}` · button · Remove
-  - `cloud-cred-save` · button · Save
-  - `cloud-cred-status-{id}` · button · Updated
-  - `cloud-provider-credentials` · div
 - **CommandPalette** · `app/shell/CommandPalette.tsx`
   - `command-palette` · div
   - `command-palette-input` · input · Go to a workspace, connection, or recent query…
   - `command-palette-item-{id}` · button
-- **ErrorBoundary** · `app/shell/ErrorBoundary.tsx`
-  - `app-error-boundary-dismiss` · button · Dismiss
 - **featureRegistry** · `app/features/featureRegistry.ts`
   - `sync-pane-history-btn` · data · Snapshots
   - `view-access-btn` · data
@@ -633,6 +617,20 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
 
 ## connections
 
+- **CloudProviderCredentialsSection** · `features/connections/components/CloudProviderCredentialsSection.tsx`
+  - `cloud-cred-add` · button · Add cloud credential
+  - `cloud-cred-cancel` · button · Cancel
+  - `cloud-cred-card-{id}` · div
+  - `cloud-cred-close-form` · button
+  - `cloud-cred-edit-{id}` · button · Edit
+  - `cloud-cred-field-{key}` · textarea
+  - `cloud-cred-form` · div
+  - `cloud-cred-name` · input · Name (e.g. Prod AWS)
+  - `cloud-cred-provider-select` · select
+  - `cloud-cred-remove-{id}` · button · Remove
+  - `cloud-cred-save` · button · Save
+  - `cloud-cred-status-{id}` · button · Updated
+  - `cloud-provider-credentials` · div
 - **ConnectionModal** · `features/connections/components/ConnectionModal.tsx`
   - `conn-auth-method` · select
   - `conn-cancel` · button · Cancel
@@ -938,6 +936,8 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
 - **controls** · `shared/components/controls.tsx`
   - `{testId}` · div · passed in by the parent
   - `{testId}-{value}` · button · passed in by the parent
+- **ErrorBoundary** · `shared/components/ErrorBoundary.tsx`
+  - `app-error-boundary-dismiss` · button · Dismiss
 - **FilterPicker** · `shared/components/FilterPicker.tsx`
   - `{option.testId}` · label · passed in by the parent
   - `{testId}-backdrop` · div · passed in by the parent

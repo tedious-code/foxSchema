@@ -30,7 +30,7 @@ import {
 } from '@foxschema/ui-shared';
 import { useSyncStore } from '@/features/compare';
 import { useSqlEditorStore } from '@/features/sql-editor/state';
-import { useUiStore } from '@/app/store/uiStore';
+import { useUiStore } from '@/platform/uiStore';
 import { apiGetBackupSettings, apiSaveBackupSettings } from '@/shared/api/backupApi';
 import { writeClipboard } from '@/shared/utils/clipboard';
 import { dialectLabel } from '@/shared/lib/dialectLabel';

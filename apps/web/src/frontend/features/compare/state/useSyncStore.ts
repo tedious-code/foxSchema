@@ -20,8 +20,8 @@ import {
 import type { CommittedMigrationRef, ConnectionConfig, SyncState } from './syncTypes';
 import type { MigrationStep } from '@foxschema/ui-shared';
 import { buildRef, buildMapping, regenerateSql, buildIncludedDiffs, loadSqlGenerator, sqlGenerator } from './syncHelpers';
-import { toast } from '@/app/store/toastStore';
-import { useUiStore } from '@/app/store/uiStore';
+import { toast } from '@/platform/toastStore';
+import { useUiStore } from '@/platform/uiStore';
 import {
   clearSessionPassword,
   getSessionPassword,

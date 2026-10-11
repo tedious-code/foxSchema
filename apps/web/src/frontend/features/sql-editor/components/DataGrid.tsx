@@ -11,7 +11,7 @@ import type { SqlStatementResult } from '@/shared/api/sqlApi';
 import { CELL_DIFF_CLASS, type CellDiffKind } from '@/features/sql-editor/lib/resultDataDiff';
 import { columnToListValues, rowsForTableVariable } from '@/shared/lib/sql-variables';
 import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
-import { toast } from '@/app/store/toastStore';
+import { toast } from '@/platform/toastStore';
 import {
   pickColumns,
   selectionCellCount,

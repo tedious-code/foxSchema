@@ -6,7 +6,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { DEFAULT_ROLE_PERMISSIONS } from '@foxschema/shared';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 
 const fetchDbAccess = vi.fn();
 const fetchSchemaList = vi.fn();
@@ -40,7 +40,7 @@ vi.mock('@/features/sql-editor/state/useSqlEditorStore', () => {
   };
 });
 
-vi.mock('@/app/store/uiStore', () => ({
+vi.mock('@/platform/uiStore', () => ({
   useUiStore: (sel: (s: { setActiveView: typeof setActiveView }) => unknown) =>
     sel({ setActiveView }),
 }));

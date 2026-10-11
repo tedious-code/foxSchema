@@ -6,7 +6,7 @@
  * Shared setup for the designer's small JSON editors.
  */
 import type { EditorProps } from '@monaco-editor/react';
-import { useUiStore } from '@/app/store/uiStore';
+import { useUiStore } from '@/platform/uiStore';
 // Also what makes Monaco load from the bundle rather than its default CDN, when
 // the Workflow screen is the first to open an editor.
 import { MONACO_THEME, MONACO_THEME_LIGHT } from '@/features/sql-editor/monaco';

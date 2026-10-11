@@ -35,8 +35,8 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useAuthStore } from '@/app/store/authStore';
-import { useUiStore } from '@/app/store/uiStore';
+import { useAuthStore } from '@/platform/authStore';
+import { useUiStore } from '@/platform/uiStore';
 import { toast } from '../lib/notify';
 import { api } from '../api/engineClient';
 import {

@@ -27,7 +27,7 @@ import {
   type SsoProviderSettings,
 } from '@/shared/api/authApi';
 import { PasswordInput } from '@/shared/components/PasswordInput';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 
 const inputCls =
   'w-full rounded-md border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs outline-none accent-focus disabled:opacity-60';

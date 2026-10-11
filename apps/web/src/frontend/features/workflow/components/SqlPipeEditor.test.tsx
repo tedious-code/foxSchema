@@ -22,7 +22,7 @@ vi.mock('@/features/sql-editor/lib/monacoSetup', () => ({ monacoLanguage: (diale
 vi.mock('../lib/jsonEditorOptions', () => ({ JSON_EDITOR_OPTIONS: {}, useJsonEditorTheme: () => 'vs' }));
 vi.mock('../api/engineQueries', () => ({ invalidateEngineQueries: vi.fn() }));
 vi.mock('@/shared/api/schemaApi', () => ({ loadSchema: vi.fn() }));
-vi.mock('@/app/store/authStore', () => ({
+vi.mock('@/platform/authStore', () => ({
   useAuthStore: (select: (state: { can: () => boolean }) => unknown) => select({ can: () => true }),
 }));
 vi.mock('../api/workflowApi', async (importOriginal) => ({

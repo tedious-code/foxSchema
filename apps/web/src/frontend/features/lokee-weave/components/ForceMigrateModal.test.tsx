@@ -35,7 +35,7 @@ vi.mock('@/features/compare/state/useSyncStore', () => ({
     }),
 }));
 
-vi.mock('@/app/store/toastStore', () => ({ toast: vi.fn() }));
+vi.mock('@/platform/toastStore', () => ({ toast: vi.fn() }));
 
 const VERSION = {
   id: 'v1',

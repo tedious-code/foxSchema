@@ -1,4 +1,4 @@
-import { isActiveView, type ActiveView } from '@/app/features/viewIds';
+import { isActiveView, type ActiveView } from '@/platform/viewIds';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { apiPutPreferences } from '@/shared/api/authApi';
@@ -177,7 +177,7 @@ function applyToDocument(themeMode: ThemeMode, tone: ToneId, fontSize: FontSize,
 }
 
 /** Top-level workspace views. Snapshots (Lokee) is its own view, not a Sync pane. */
-export type { ActiveView } from '@/app/features/viewIds';
+export type { ActiveView } from '@/platform/viewIds';
 
 /**
  * Browse is its own pane, not a mode hiding inside Compare. It answers a

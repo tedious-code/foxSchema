@@ -31,7 +31,7 @@ import {
   type ThemeMode,
   type AccentId,
   type ThemePreset,
-} from '@/app/store/uiStore';
+} from '@/platform/uiStore';
 import { fetchAppInfo, type AppInfo } from '@/features/auth';
 import { EmailSettings } from './EmailSettings';
 import { UpdatesSettings } from './UpdatesSettings';

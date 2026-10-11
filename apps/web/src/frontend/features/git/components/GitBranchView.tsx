@@ -11,9 +11,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowDownToLine, ArrowUpFromLine, GitBranch, Loader2, Play, RefreshCw, X } from 'lucide-react';
 import { useSyncStore } from '@/features/compare';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import { buildRef } from '@/features/compare';
-import { toast } from '@/app/store/toastStore';
+import { toast } from '@/platform/toastStore';
 import { gitApi, type BranchState, type MigrationListing } from '../api/gitApi';
 import { useGitStore } from '../store/useGitStore';
 

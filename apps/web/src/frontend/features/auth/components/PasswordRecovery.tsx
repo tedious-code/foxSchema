@@ -9,7 +9,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Loader2, MailCheck, ScrollText } from 'lucide-react';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import { apiForgotPassword, apiInspectCode, type CodeDelivery, type CodePurpose } from '@/shared/api/authApi';
 import { NewPasswordFields, NewsOptIn, newPasswordError } from './NewPasswordFields';
 import { authInputCls, authLabelCls, authLinkCls, authSubmitCls } from './authStyles';

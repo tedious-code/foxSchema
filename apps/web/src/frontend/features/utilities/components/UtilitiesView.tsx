@@ -22,7 +22,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { useSyncStore } from '@/features/compare';
-import { useUiStore } from '@/app/store/uiStore';
+import { useUiStore } from '@/platform/uiStore';
 import { FileImportsPanel } from '@/features/sql-editor/ui';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import { BackupRestorePanel } from './BackupRestorePanel';

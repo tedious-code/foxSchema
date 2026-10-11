@@ -3,7 +3,7 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import type { ActiveView, SyncPane } from '@/app/store/uiStore';
+import type { ActiveView, SyncPane } from '@/platform/uiStore';
 
 export interface OnboardingLanding {
   view: ActiveView;

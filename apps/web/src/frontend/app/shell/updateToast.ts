@@ -1,6 +1,6 @@
 import type { UpdateInfo } from '@/shared/api/updatesApi';
 import { applyUpdate, waitForServerAndReload } from '@/shared/api/updatesApi';
-import { toast } from '@/app/store/toastStore';
+import { toast } from '@/platform/toastStore';
 
 const DISMISSED_KEY = 'foxschema-update-toast-v';
 const UPGRADE_CMD = 'npm install -g foxschema@latest';

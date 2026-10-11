@@ -6,8 +6,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { DEFAULT_ROLE_PERMISSIONS } from '@foxschema/shared';
-import { useAuthStore } from '@/app/store/authStore';
-import { useUiStore } from '@/app/store/uiStore';
+import { useAuthStore } from '@/platform/authStore';
+import { useUiStore } from '@/platform/uiStore';
 import { ActivityRail } from './ActivityRail';
 import { prefetchView } from '@/app/features/featureRegistry';
 

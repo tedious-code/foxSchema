@@ -9,7 +9,7 @@
  */
 import React from 'react';
 import { Search } from 'lucide-react';
-import { useUiStore } from '@/app/store/uiStore';
+import { useUiStore } from '@/platform/uiStore';
 import { WORKSPACE_VIEWS } from '@/app/features/featureRegistry';
 import { ActivityIndicator } from './ActivityIndicator';
 import { openCommandPalette } from './commandPaletteEvent';

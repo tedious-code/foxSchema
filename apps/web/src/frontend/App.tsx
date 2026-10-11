@@ -1,18 +1,18 @@
 import React, { Suspense, lazy, useEffect } from 'react';
 import { TopToolbar } from '@/app/shell/TopToolbar';
 import { ActivityRail } from '@/app/shell/ActivityRail';
-import { ErrorBoundary } from '@/app/shell/ErrorBoundary';
+import { ErrorBoundary } from '@/shared/components/ErrorBoundary';
 import { LoadingScreen } from '@/app/shell/LoadingScreen';
 import { useSyncStore } from '@/features/compare';
-import { useAuthStore } from '@/app/store/authStore';
-import { useUiStore } from '@/app/store/uiStore';
+import { useAuthStore } from '@/platform/authStore';
+import { useUiStore } from '@/platform/uiStore';
 import { apiGetPreferences } from '@/shared/api/authApi';
 import { ToastHost } from '@/app/shell/ToastHost';
 import { AlertCircle, AlertTriangle, Loader2, X } from 'lucide-react';
 import { BackendOfflineBanner } from '@/app/shell/BackendOfflineBanner';
 import { CommandPalette } from '@/app/shell/CommandPalette';
 import { WORKSPACE_VIEWS, redirectFor } from '@/app/features/featureRegistry';
-import type { ActiveView } from '@/app/features/viewIds';
+import type { ActiveView } from '@/platform/viewIds';
 import { loadAccountBanners, loadAuthPage, loadOnboardingWizard } from '@/features/auth';
 
 // Only someone signed out or not yet onboarded sees these, so a signed-in

@@ -27,10 +27,10 @@ import {
   type LokeeDatabase,
 } from '../api/lokeeApi';
 import { getSessionPassword } from '@/shared/lib/sessionPasswords';
-import { toast } from '@/app/store/toastStore';
+import { toast } from '@/platform/toastStore';
 import { useSyncStore } from '@/features/compare';
-import { useAuthStore } from '@/app/store/authStore';
-import { useUiStore } from '@/app/store/uiStore';
+import { useAuthStore } from '@/platform/authStore';
+import { useUiStore } from '@/platform/uiStore';
 import { useLokeeHistoryStore } from '@/features/lokee-weave/store/lokeeHistoryStore';
 import {
   databaseLocation,

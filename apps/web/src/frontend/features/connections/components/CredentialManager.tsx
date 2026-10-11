@@ -17,7 +17,7 @@ import {
 import { useSyncStore } from '@/features/compare';
 import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { ConnectionModal } from './ConnectionModal';
-import { CloudProviderCredentialsSection } from '@/app/settings/CloudProviderCredentialsSection';
+import { CloudProviderCredentialsSection } from '@/features/connections/components/CloudProviderCredentialsSection';
 import { PROVIDER_SETTINGS, type ConnectionOptions, type Dialect } from '@/shared/lib/provider-settings';
 import { dialectLabel } from '@/shared/lib/dialectLabel';
 import { sessionPasswordMap, setSessionPassword } from '@/shared/lib/sessionPasswords';

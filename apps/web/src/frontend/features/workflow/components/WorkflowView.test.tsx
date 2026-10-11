@@ -6,7 +6,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { DEFAULT_ROLE_PERMISSIONS } from '@foxschema/shared';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import { useWorkflowUiStore } from '../store/workflowUiStore';
 import { WorkflowView } from './WorkflowView';
 

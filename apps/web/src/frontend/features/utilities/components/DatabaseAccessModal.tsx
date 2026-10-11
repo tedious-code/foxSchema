@@ -39,7 +39,7 @@ import { fetchDbAccess, invalidateDbAccessCache } from '@/shared/api/schemaApi';
 import { runAccessSql } from '@/shared/api/accessSql';
 import { useSyncStore } from '@/features/compare';
 import { useSqlEditorStore } from '@/features/sql-editor/state';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import { PROVIDER_SETTINGS, connectionNeedsSecret } from '@/shared/lib/provider-settings';
 import { DbAccessPermissionSections } from '@/features/access';
 import { sectionLabelCls } from '@/shared/components/surfaces';

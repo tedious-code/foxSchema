@@ -12,7 +12,7 @@
 import React, { useEffect, useState } from 'react';
 import { UserCog, GitCompare, ShieldCheck } from 'lucide-react';
 import { useSyncStore } from '@/features/compare';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import type { Permission } from '@foxschema/shared';
 import { PermissionDiff } from './PermissionDiff';
 import { UserManagement } from './UserManagement';

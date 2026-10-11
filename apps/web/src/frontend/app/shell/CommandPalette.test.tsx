@@ -6,7 +6,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { DEFAULT_ROLE_PERMISSIONS } from '@foxschema/shared';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import { CommandPalette } from './CommandPalette';
 
 const setActiveView = vi.fn();
@@ -14,7 +14,7 @@ const openRecentQuery = vi.fn();
 const ensureConnectionSelected = vi.fn();
 const ensureSchema = vi.fn();
 
-vi.mock('@/app/store/uiStore', () => ({
+vi.mock('@/platform/uiStore', () => ({
   useUiStore: (sel: (s: Record<string, unknown>) => unknown) => sel({ setActiveView }),
 }));
 

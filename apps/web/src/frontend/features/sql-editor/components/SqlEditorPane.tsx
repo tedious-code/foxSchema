@@ -17,7 +17,7 @@ import {
   ensureFoxscriptSemanticTokens,
   refreshFoxscriptSemanticTokens,
 } from '@/features/sql-editor/lib/foxscriptSemanticTokens';
-import { MONACO_FONT_PX, useUiStore } from '@/app/store/uiStore';
+import { MONACO_FONT_PX, useUiStore } from '@/platform/uiStore';
 import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import {
   parseFoxScript,

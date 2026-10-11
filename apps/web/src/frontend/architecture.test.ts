@@ -5,18 +5,17 @@
  *
  * The frontend's dependency rules, checked automatically.
  *
- * Layers, and which direction imports may run:
+ * Layers, top to bottom. A layer imports only the layers below it:
  *
- *   app      the application shell, settings and global stores
- *   features one folder per business domain
- *   shared   code reusable by any feature: api clients, ui, lib, utils
+ *   app       the application shell, settings screens and the view registry
+ *   features  one folder per business domain
+ *   platform  the app-wide state every feature reads: who is signed in and
+ *             what they may do, toasts, appearance and navigation
+ *   shared    code reusable anywhere: api clients, ui components, lib, utils
  *
- *   app     -> features, shared    allowed (the shell composes features)
- *   features -> shared             allowed
- *   shared  -> features            not allowed
- *
- * `shared` must not depend on a feature, or it can no longer be reused without
- * pulling a business domain along with it.
+ * A feature never imports `app/`: the shell composes features, not the other
+ * way round. `shared` depends on nothing above it, or it could no longer be
+ * reused without pulling a business domain along with it.
  *
  * A feature's public API is the files at its root: `index.ts`, and named
  * entries beside it (`view.ts`, `toolbar.ts`, `ui.ts`, ...). Its folders are
@@ -120,9 +119,11 @@ describe('frontend layering', () => {
     expect(imports.filter((i) => i.target).length).toBeGreaterThan(300);
   });
 
-  it('shared/ never depends on a feature', () => {
+  it('each layer imports only the layers below it', () => {
+    const ORDER = ['shared', 'platform', 'features', 'app'];
+    const rank = (rel: string | null) => (rel === null ? -1 : ORDER.indexOf(layerOf(rel)));
     const offenders = imports
-      .filter((i) => layerOf(i.from) === 'shared' && featureTarget(i))
+      .filter((i) => i.target && rank(i.from) >= 0 && rank(i.target) > rank(i.from))
       .map((i) => `${i.from} → ${i.spec}`);
     expect(offenders).toEqual([]);
   });

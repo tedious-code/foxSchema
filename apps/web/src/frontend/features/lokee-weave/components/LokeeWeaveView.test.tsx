@@ -52,12 +52,12 @@ vi.mock('@/features/compare/state/useSyncStore', () => ({
     }),
 }));
 
-vi.mock('@/app/store/uiStore', () => ({
+vi.mock('@/platform/uiStore', () => ({
   useUiStore: (sel: (s: { lokeeEpoch: number; bumpLokeeEpoch: () => void }) => unknown) =>
     sel({ lokeeEpoch: 0, bumpLokeeEpoch: () => undefined }),
 }));
 
-vi.mock('@/app/store/toastStore', () => ({
+vi.mock('@/platform/toastStore', () => ({
   toast: vi.fn(),
 }));
 
@@ -85,7 +85,7 @@ vi.mock('./LokeeWeavePage', () => ({
 }));
 
 import { LokeeWeaveView } from './LokeeWeaveView';
-import { toast } from '@/app/store/toastStore';
+import { toast } from '@/platform/toastStore';
 import { useLokeeHistoryStore } from '@/features/lokee-weave/store/lokeeHistoryStore';
 
 const DB = {

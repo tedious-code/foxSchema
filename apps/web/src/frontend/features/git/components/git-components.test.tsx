@@ -29,10 +29,10 @@ const gitApi = vi.hoisted(() => ({
   file: vi.fn(),
 }));
 vi.mock('../api/gitApi', () => ({ gitApi }));
-vi.mock('@/app/store/toastStore', () => ({ toast: vi.fn() }));
+vi.mock('@/platform/toastStore', () => ({ toast: vi.fn() }));
 
 import { useSyncStore } from '@/features/compare';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import { commitRequirement, useGitStore } from '../store/useGitStore';
 import { CommitMigrationDialog } from './CommitMigrationDialog';
 import { GitReposAdmin } from './GitReposAdmin';

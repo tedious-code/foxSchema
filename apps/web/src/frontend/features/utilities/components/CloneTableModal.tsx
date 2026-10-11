@@ -13,7 +13,7 @@ import { Copy, Loader2, Play, X } from 'lucide-react';
 import { executeSql } from '@/shared/api/sqlApi';
 import { useSyncStore } from '@/features/compare';
 import { useSqlEditorStore } from '@/features/sql-editor/state';
-import { useUiStore } from '@/app/store/uiStore';
+import { useUiStore } from '@/platform/uiStore';
 import type { TableSchema } from '@/shared/lib/types';
 import { PROVIDER_SETTINGS, connectionNeedsSecret } from '@/shared/lib/provider-settings';
 import { insertAtCursor } from '@/features/sql-editor';

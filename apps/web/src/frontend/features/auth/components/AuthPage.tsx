@@ -16,8 +16,8 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { useAuthStore } from '@/app/store/authStore';
-import { Brand } from '@/app/shell/Brand';
+import { useAuthStore } from '@/platform/authStore';
+import { Brand } from '@/shared/components/Brand';
 import { PasswordInput } from '@/shared/components/PasswordInput';
 import { SsoButtons } from './SsoButtons';
 import { AuthError } from './AuthError';

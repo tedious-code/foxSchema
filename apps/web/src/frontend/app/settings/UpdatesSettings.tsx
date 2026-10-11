@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { RefreshCw, CheckCircle2, ArrowUpCircle, Loader2, Download } from 'lucide-react';
 import { checkForUpdates, type UpdateInfo } from '@/shared/api/updatesApi';
 import { runSelfUpdate, toastUpdateCheckResult } from '@/app/shell/updateToast';
-import { toast } from '@/app/store/toastStore';
+import { toast } from '@/platform/toastStore';
 
 /** Current version + check / one-click update controls, in Settings. */
 export const UpdatesSettings: React.FC = () => {

@@ -8,7 +8,7 @@
  */
 import { KeyRound, Plus, Trash2, X } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import { api, type CredentialMeta } from '../api/engineClient';
 import { toast } from '../lib/notify';
 import { Badge, Button, Input, Label, Select } from './controls';

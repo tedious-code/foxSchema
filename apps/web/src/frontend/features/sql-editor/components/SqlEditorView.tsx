@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useSyncStore } from '@/features/compare';
 import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import { splitSqlStatements, type SplitStatement } from '@/shared/lib/sql-splitter';
 import { formatEditorSql } from '@/shared/utils/formatSql';
 import {

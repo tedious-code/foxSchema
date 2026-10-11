@@ -21,7 +21,7 @@ import {
   type BackupCommands,
   type BackupHistoryEntry,
 } from '@foxschema/ui-shared';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import { useSqlEditorStore } from '@/features/sql-editor/state';
 import type { useSyncStore } from '@/features/compare';
 import { executeSql } from '@/shared/api/sqlApi';

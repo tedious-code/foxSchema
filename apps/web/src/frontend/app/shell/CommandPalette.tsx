@@ -8,10 +8,10 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import { openRecentQuery, selectEditorConnection, useRecentQueries } from '@/features/sql-editor';
 import { useSyncStore } from '@/features/compare';
-import { useUiStore, type ActiveView } from '@/app/store/uiStore';
+import { useUiStore, type ActiveView } from '@/platform/uiStore';
 import { COMMAND_PALETTE_EVENT } from './commandPaletteEvent';
 
 interface PaletteItem {

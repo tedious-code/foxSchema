@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useCallback, useMemo } from 'react';
 import Editor, { DiffEditor } from '@monaco-editor/react';
 import { MONACO_THEME, MONACO_THEME_LIGHT, MONACO_DIFF_THEME, MONACO_DIFF_THEME_LIGHT, monacoLanguage, MONACO_EDITOR_BASE_OPTIONS } from '@/features/sql-editor/lib/monacoSetup';
-import { MONACO_FONT_PX, useUiStore } from '@/app/store/uiStore';
+import { MONACO_FONT_PX, useUiStore } from '@/platform/uiStore';
 
 /**
  * Highlight every (case-insensitive) occurrence of `term` in a Monaco editor,

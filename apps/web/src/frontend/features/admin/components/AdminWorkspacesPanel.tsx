@@ -12,7 +12,7 @@
  */
 import React, { lazy, useCallback, useEffect, useState } from 'react';
 import { Layers, Loader2 } from 'lucide-react';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import { MountWhenOpened } from '@/shared/components/MountWhenOpened';
 import {
   apiAdminListWorkspaces,

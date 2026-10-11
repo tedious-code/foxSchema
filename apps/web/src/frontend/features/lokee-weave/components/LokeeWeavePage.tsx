@@ -29,7 +29,7 @@ import type { LokeeObjectType } from '@foxschema/ui-shared';
 import { OBJECT_STYLES, STATUS_STYLES, objectStyle, statusStyle } from '@/features/lokee-weave/lib/lokeeColors';
 import { LOKEE_NODE_TYPES } from './nodes';
 import { buildVersionGraph, carryMeasurements, offeredObjectTypes } from './buildGraph';
-import { useUiStore } from '@/app/store/uiStore';
+import { useUiStore } from '@/platform/uiStore';
 import { VersionCompareModal } from './VersionCompareModal';
 import {
   DEFAULT_LAYOUT,

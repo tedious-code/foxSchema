@@ -6,7 +6,7 @@
  * has its own error boundary, so a crash in one leaves the other usable.
  */
 import React from 'react';
-import { ErrorBoundary } from '@/app/shell/ErrorBoundary';
+import { ErrorBoundary } from '@/shared/components/ErrorBoundary';
 import { SchemaTreePanel } from './SchemaTreePanel';
 import { ObjectDetailPanel } from '@/features/compare/components/ObjectDetailPanel';
 

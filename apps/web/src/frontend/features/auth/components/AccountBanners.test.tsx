@@ -25,7 +25,7 @@ vi.mock('@/shared/api/authApi', async (importOriginal) => ({
 }));
 vi.mock('./SsoButtons', () => ({ SsoButtons: () => null }));
 
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import type { AuthUser } from '@/shared/api/authApi';
 import { AccountBanners, dueIn } from './AccountBanners';
 

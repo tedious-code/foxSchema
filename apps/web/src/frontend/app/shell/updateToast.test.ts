@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const toastMock = vi.fn();
-vi.mock('@/app/store/toastStore', () => ({
+vi.mock('@/platform/toastStore', () => ({
   toast: (...args: unknown[]) => toastMock(...args),
 }));
 

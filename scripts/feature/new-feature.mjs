@@ -36,7 +36,7 @@ export const PATHS = {
   serverRegistry: 'packages/server/src/app/feature-registry.ts',
   contract: 'packages/server/src/api/http-contract.test.ts',
   webFeatures: 'apps/web/src/frontend/features',
-  viewIds: 'apps/web/src/frontend/app/features/viewIds.ts',
+  viewIds: 'apps/web/src/frontend/platform/viewIds.ts',
   viewRegistry: 'apps/web/src/frontend/app/features/featureRegistry.ts',
 };
 

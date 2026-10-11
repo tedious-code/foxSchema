@@ -8,7 +8,7 @@
  * the registry's icons and components.
  *
  * Adding a view: add its id here; TypeScript then requires its entry in
- * `featureRegistry.ts`.
+ * `app/features/featureRegistry.ts`.
  */
 export const VIEW_IDS = ['home', 'sync', 'sqlEditor', 'utilities', 'access', 'workflow', 'snapshots', 'settings'] as const;
 

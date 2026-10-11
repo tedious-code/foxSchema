@@ -11,6 +11,8 @@ import { createHistoryRoutes } from './history.routes';
 import { LokeeWeaveStore } from './lokee-weave.service';
 import { makeCaptureLiveSchema, type CaptureLiveSchema } from './live-capture.service';
 
+export type { CaptureLiveSchema } from './live-capture.service';
+
 /**
  * Captures a database's live schema as a history version. Migrate captures
  * before and after it runs, so the migration feature takes this as well.

@@ -5,8 +5,8 @@
  *
  * Schema history (Lokee) routes.
  */
+import type { CaptureLiveSchema } from './live-capture.service';
 import type { LokeeWeaveStore } from './lokee-weave.service';
-import type { WorkspaceScope } from '../../platform/http/scope';
 import { scopeOf } from '../../platform/http/scope';
 import type { ConnectionResolver } from '../../platform/connections/resolve';
 import type { FastifyReply } from 'fastify';
@@ -24,7 +24,7 @@ import type { ForceMigrateErrorCode, LokeeRevertErrorCode } from '@foxschema/sha
 
 export interface HistoryRouteDeps {
   lokee: LokeeWeaveStore;
-  captureLiveSchema: (scope: WorkspaceScope, ...args: any[]) => Promise<any>;
+  captureLiveSchema: CaptureLiveSchema;
   resolveRef: ConnectionResolver['resolveRef'];
   migrationModule: MigrationModule;
   /**

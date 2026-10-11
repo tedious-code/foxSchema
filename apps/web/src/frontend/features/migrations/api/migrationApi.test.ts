@@ -10,20 +10,9 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { apiClearMigrations, apiDeleteMigration } from './migrationApi';
+import { captureRequests, restoreFetch } from '@/test/fetchCapture';
 
-const realFetch = globalThis.fetch;
-afterEach(() => {
-  globalThis.fetch = realFetch;
-});
-
-function captureRequests() {
-  const calls: { url: string; init: RequestInit }[] = [];
-  globalThis.fetch = (async (url: string, init: RequestInit = {}) => {
-    calls.push({ url: String(url), init });
-    return { ok: true, status: 200, statusText: '', text: async () => '{"ok":true,"removed":0}' } as unknown as Response;
-  }) as typeof fetch;
-  return calls;
-}
+afterEach(restoreFetch);
 
 describe('migration deletes send no JSON content type', () => {
   it.each([

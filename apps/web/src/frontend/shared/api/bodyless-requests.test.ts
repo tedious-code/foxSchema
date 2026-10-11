@@ -19,20 +19,9 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { apiDeleteConnection, apiLogout } from './authApi';
+import { captureRequests, restoreFetch } from '@/test/fetchCapture';
 
-const realFetch = globalThis.fetch;
-afterEach(() => {
-  globalThis.fetch = realFetch;
-});
-
-function captureRequests() {
-  const calls: { url: string; init: RequestInit }[] = [];
-  globalThis.fetch = (async (url: string, init: RequestInit = {}) => {
-    calls.push({ url: String(url), init });
-    return { ok: true, status: 200, statusText: '', text: async () => '{"ok":true,"removed":0}' } as unknown as Response;
-  }) as typeof fetch;
-  return calls;
-}
+afterEach(restoreFetch);
 
 function contentType(init: RequestInit): string | undefined {
   const headers = new Headers(init.headers);

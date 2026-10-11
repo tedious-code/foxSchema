@@ -257,6 +257,32 @@ databases you compare) defaults to a SQLite file on the **`/data` volume**.
 
   Then you don't need the `/data` volume at all.
 
+### Run exactly one instance
+
+Fox Schema keeps some security and coordination state in the server's memory, not in
+the metadata database. Two instances behind one URL would each enforce half of it.
+Each would count failed sign-ins, rate limits and replayed sign-in assertions on its
+own, and each would let a migration, a commit or a schema snapshot start while the
+other ran one. So run one instance, even with a managed metadata database. On Cloud
+Run, set the maximum instances to 1 (`--max-instances=1`).
+
+What is held in memory:
+
+| State | Where |
+|---|---|
+| Failed sign-in counts and lockouts | `packages/server/src/platform/identity/sign-in-throttle.ts` |
+| Fox sign-in service assertions already used (replay check) | `packages/server/src/platform/identity/sso-broker.ts` |
+| First-run setup, one at a time | `packages/server/src/platform/identity/auth.service.ts` |
+| Rate-limit buckets | `packages/server/src/platform/guards/rate-limit-core.ts` |
+| Idempotency keys for retried writes | `packages/server/src/platform/guards/idempotency.ts` |
+| One migration per target database at a time | `packages/server/src/platform/guards/target-lock.ts` |
+| One commit per Git repository at a time | `packages/server/src/features/git/git-repo.service.ts` |
+| One schema snapshot per database at a time | `packages/server/src/features/history/lokee-weave.service.ts` |
+| File uploads in progress | `packages/server/src/features/files/file-session.service.ts` |
+
+A restart clears all of it. That is harmless, except that lockouts and rate limits
+start counting again.
+
 ## Access: sign-in + SSO
 
 **Every install requires sign-in.** Until the first admin exists the server is

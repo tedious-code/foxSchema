@@ -5,12 +5,11 @@
  *
  * Whether Execute may run the migration, and why not.
  *
- * Two answers that must agree: the reason shown on the button, most severe and
- * least self-service first, and whether the button takes a click at all. They
- * used to be two hand-kept lists in the panel. They differ on purpose in one
- * place: a missing foreign-key target or an unacknowledged narrowing change
- * blocks the run, but the button stays clickable, so the click can open the
- * dialog that resolves it.
+ * Three answers that must agree: the reason shown on the button, most severe
+ * and least self-service first; whether the button takes a click at all; and
+ * what a click does. A missing foreign-key target or an unacknowledged
+ * narrowing change blocks the run but keeps the click, so the click opens what
+ * resolves it (`executeClick`) instead of running the migration.
  */
 
 export interface ExecuteGateInput {
@@ -67,4 +66,21 @@ export function executeGate(i: ExecuteGateInput): ExecuteGate {
     i.gitPending ||
     commitBlocks;
   return { reason, disabled };
+}
+
+/** What a click on Execute opens: the review a blocking conflict needs, or the confirm step. */
+export type ExecuteClick = 'review-foreign-keys' | 'review-dependencies' | 'review-narrowing' | 'confirm';
+
+/**
+ * Where a click on Execute goes. A conflict that blocks the run but keeps the
+ * click opens its review; only a clean plan goes on to confirm (and, with
+ * "don't ask again", straight to running). Same order as `reason`.
+ */
+export function executeClick(
+  i: Pick<ExecuteGateInput, 'missingFkTargets' | 'unresolvedDropDeps' | 'narrowingUnacked'>
+): ExecuteClick {
+  if (i.missingFkTargets > 0) return 'review-foreign-keys';
+  if (i.unresolvedDropDeps > 0) return 'review-dependencies';
+  if (i.narrowingUnacked) return 'review-narrowing';
+  return 'confirm';
 }

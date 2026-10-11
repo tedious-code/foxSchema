@@ -4,7 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/platform/authStore';
 import { Play, RefreshCw, FileText, CheckCircle2, Copy, AlertTriangle, GitCommitHorizontal } from 'lucide-react';
 import { CommitMigrationDialog, commitRequirement, useGitStore } from '@/features/git';
-import { executeGate } from '../lib/executeGate';
+import { executeClick, executeGate } from '../lib/executeGate';
 import { SqlGeneratorModule } from '@/shared/lib/sql-generator';
 import { findDropDependencies } from '@foxschema/ui-shared';
 import { findMissingFkTargets, findNarrowingTypeChanges, extractReviewNotices, resolveDialect } from '@/shared/lib/migration-validation';
@@ -348,16 +348,19 @@ export const ObjectDetailPanel: React.FC = () => {
     }
   };
 
-  // Execute is disabled whenever hasUnresolvedDropDeps is true (see the disabled
-  // expression on the button below), so reaching this handler means the dependency
-  // scan is already clean. Kept as a defensive re-check rather than trusting that
-  // every call site respects the disabled state.
+  // A conflict that blocks the run but keeps the button clickable opens its
+  // review instead of deploying (see executeGate). Dependencies disable the
+  // button, so that branch is a defensive re-check.
   const handleExecuteClick = () => {
-    if (liveDropDeps.length > 0) {
-      setShowDepsDialog(true);
-      return;
-    }
-    proceedToConfirm();
+    const next = executeClick({
+      missingFkTargets: missingFkIssues.length,
+      unresolvedDropDeps: liveDropDeps.length,
+      narrowingUnacked: hasNarrowingChanges && !narrowingAcked,
+    });
+    if (next === 'review-foreign-keys') setShowFkDialog(true);
+    else if (next === 'review-dependencies') setShowDepsDialog(true);
+    else if (next === 'review-narrowing') setShowNarrowingDialog(true);
+    else proceedToConfirm();
   };
 
   const confirmExecute = () => {
@@ -628,8 +631,8 @@ export const ObjectDetailPanel: React.FC = () => {
 
   // Display priority for the blocked reason + greyed styling, most severe /
   // least self-service first. `null` means nothing is blocking. Some of these
-  // states stay clickable on purpose so the click can open the resolution
-  // dialog — see the narrower `disabled` list on the button itself.
+  // states stay clickable on purpose: the click opens their review
+  // (`handleExecuteClick`).
   // Committed, and the plan unchanged since: Execute runs it from that commit.
   const planIsCommitted = !!committedMigration && commitMatchesPlan();
 

@@ -6,7 +6,7 @@
  * The Execute button's gate: what it says, and whether it takes a click.
  */
 import { describe, expect, it } from 'vitest';
-import { executeGate, type ExecuteGateInput } from './executeGate';
+import { executeClick, executeGate, type ExecuteGateInput } from './executeGate';
 
 const ready: ExecuteGateInput = {
   canMigrate: true,
@@ -53,7 +53,31 @@ describe('the Execute gate', () => {
       const g = gate(over);
       expect(g.reason, JSON.stringify(over)).not.toBeNull();
       expect(g.disabled, JSON.stringify(over)).toBe(false);
+      // …and the click opens that review rather than running the migration.
+      expect(executeClick({ ...ready, ...over }), JSON.stringify(over)).not.toBe('confirm');
     }
+  });
+
+  describe('a click on Execute', () => {
+    it('opens the review a blocking conflict needs, most severe first', () => {
+      expect(executeClick({ ...ready, missingFkTargets: 1 })).toBe('review-foreign-keys');
+      expect(executeClick({ ...ready, narrowingUnacked: true })).toBe('review-narrowing');
+      expect(executeClick({ ...ready, unresolvedDropDeps: 2 })).toBe('review-dependencies');
+      expect(executeClick({ ...ready, missingFkTargets: 1, narrowingUnacked: true })).toBe('review-foreign-keys');
+    });
+
+    it('goes on to confirm only when nothing blocks the run', () => {
+      expect(executeClick(ready)).toBe('confirm');
+    });
+
+    it('never confirms while the button says the run is blocked by a conflict it keeps clickable', () => {
+      for (const over of [{ missingFkTargets: 3 }, { narrowingUnacked: true }, { unresolvedDropDeps: 1 }] as const) {
+        const input = { ...ready, ...over };
+        if (executeGate(input).reason !== null && !executeGate(input).disabled) {
+          expect(executeClick(input), JSON.stringify(over)).not.toBe('confirm');
+        }
+      }
+    });
   });
 
   it('refuses the click for what only the person can fix first', () => {

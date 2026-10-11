@@ -5,28 +5,18 @@
  * The history feature: schema versions (Lokee Weave), revert and force-migrate.
  */
 import { MigrationModule } from '@foxschema/db';
-import type { FeatureContext, ServerFeatureModule } from '../../app/feature-module';
+import type { FeatureContext, ServerFeatureModule } from '../../platform/feature-module';
 import { gitServices } from '../git';
 import { createHistoryRoutes } from './history.routes';
 import { LokeeWeaveStore } from './lokee-weave.service';
 import { makeCaptureLiveSchema, type CaptureLiveSchema } from './live-capture.service';
 
-export type { CaptureLiveSchema } from './live-capture.service';
-
-const runtimes = new WeakMap<FeatureContext, { lokee: LokeeWeaveStore; captureLiveSchema: CaptureLiveSchema }>();
-
 /**
- * One history store per app: migrate and revert both capture through it,
- * and its per-database lock only works if they share it.
+ * Captures a database's live schema as a history version. Migrate captures
+ * before and after it runs, so the migration feature takes this as well.
  */
-export function historyRuntime(ctx: FeatureContext): { lokee: LokeeWeaveStore; captureLiveSchema: CaptureLiveSchema } {
-  let runtime = runtimes.get(ctx);
-  if (!runtime) {
-    const lokee = new LokeeWeaveStore();
-    runtime = { lokee, captureLiveSchema: makeCaptureLiveSchema(lokee, ctx.resolver.loadScopedTables) };
-    runtimes.set(ctx, runtime);
-  }
-  return runtime;
+export function captureLiveSchemaFor(ctx: FeatureContext, lokee = new LokeeWeaveStore()): CaptureLiveSchema {
+  return makeCaptureLiveSchema(lokee, ctx.resolver.loadScopedTables);
 }
 
 export const historyFeature: ServerFeatureModule = {
@@ -36,15 +26,17 @@ export const historyFeature: ServerFeatureModule = {
       prefix: '/api',
       access: 'user',
       rateLimited: true,
-      routes: (ctx) =>
-        createHistoryRoutes({
-          lokee: historyRuntime(ctx).lokee,
-          captureLiveSchema: historyRuntime(ctx).captureLiveSchema,
+      routes: (ctx) => {
+        const lokee = new LokeeWeaveStore();
+        return createHistoryRoutes({
+          lokee,
+          captureLiveSchema: captureLiveSchemaFor(ctx, lokee),
           resolveRef: ctx.resolver.resolveRef,
           migrationModule: new MigrationModule(),
           loadScopedTables: ctx.resolver.loadScopedTables,
           commitRequired: () => gitServices().migrations.commitRequired(),
-        }),
+        });
+      },
     },
   ],
 };

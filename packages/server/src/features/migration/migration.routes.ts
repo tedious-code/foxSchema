@@ -3,11 +3,8 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * Migration routes: execute (NDJSON stream) and run history.
- *
- * Extracted verbatim from api/routes.ts. This one executes DDL against real
- * databases, so the handler bodies are copied unchanged and only closure
- * references become explicit deps — a rewrite here does not belong in a move.
+ * Migration routes: execute (NDJSON stream) and run history. Execute runs
+ * DDL against real databases.
  */
 import type { WorkspaceScope } from '../../platform/http/scope';
 import { scopeOf } from '../../platform/http/scope';

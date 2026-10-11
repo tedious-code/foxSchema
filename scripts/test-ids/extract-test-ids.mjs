@@ -644,18 +644,25 @@ export function renderTypeScript(catalog) {
   return lines.join('\n');
 }
 
+/** Regenerates the Markdown and TypeScript catalogs under `root`; returns the paths written. */
+export function writeCatalog(catalog, root = REPO_ROOT) {
+  const written = [];
+  for (const [rel, text] of [
+    [MARKDOWN_PATH, renderMarkdown(catalog)],
+    [TYPESCRIPT_PATH, renderTypeScript(catalog)],
+  ]) {
+    fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+    fs.writeFileSync(path.join(root, rel), text);
+    written.push(rel);
+  }
+  return written;
+}
+
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const catalog = collectTestIds();
   if (process.argv.includes('--write')) {
-    for (const [rel, text] of [
-      [MARKDOWN_PATH, renderMarkdown(catalog)],
-      [TYPESCRIPT_PATH, renderTypeScript(catalog)],
-    ]) {
-      fs.mkdirSync(path.dirname(path.join(REPO_ROOT, rel)), { recursive: true });
-      fs.writeFileSync(path.join(REPO_ROOT, rel), text);
-      console.log(`wrote ${rel}`);
-    }
+    for (const rel of writeCatalog(catalog)) console.log(`wrote ${rel}`);
   }
   const controls = controlsWithId(catalog);
   console.log(`${catalog.entries.length} test IDs; controls with an ID ${controls}, without ${catalog.missing.length}; ${duplicates(catalog).length} used in more than one place`);

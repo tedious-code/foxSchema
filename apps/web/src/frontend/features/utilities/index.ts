@@ -3,10 +3,8 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * The utilities feature's public surface.
- *
- * Everything else under this folder is internal, so the layout can change
- * without touching a consumer. `UtilitiesView` is the only entry the app
- * shell needs.
+ * The utilities feature's public API: nothing yet. No other feature uses it, and
+ * the shell loads the workspace through the lazy `view.ts`. Re-exporting the
+ * view here would pull the whole workspace into whatever imports this file.
  */
-export { UtilitiesView } from './components/UtilitiesView';
+export {};

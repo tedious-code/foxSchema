@@ -5,7 +5,7 @@
  * The workspaces feature: shared workspaces, members, invites, visibility.
  * Which workspace a request acts in is platform/workspaces.
  */
-import type { ServerFeatureModule } from '../../app/feature-module';
+import type { ServerFeatureModule } from '../../platform/feature-module';
 import { createWorkspaceRoutes } from './workspaces.routes';
 
 export { MEMBERS_CREATE_KEY, membersCanCreate } from './workspace-directory.service';

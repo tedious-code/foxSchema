@@ -6,4 +6,6 @@
  * The feedback feature's public surface: the dialog the profile menu opens.
  * The issue builder under lib/ is internal.
  */
-export { FeedbackDialog } from './components/FeedbackDialog';
+/** Opens on a click, so nobody pays for it on first load. */
+export const loadFeedbackDialog = () =>
+  import('./components/FeedbackDialog').then((m) => ({ default: m.FeedbackDialog }));

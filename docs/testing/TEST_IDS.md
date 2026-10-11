@@ -616,6 +616,18 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
   - `migrate-toggle-sync-selection` · input
   - `migrate-view-details` · button · view details
   - `migrate-view-notes` · button · View notes
+- **SchemaTreePanel** · `features/compare/components/SchemaTreePanel.tsx`
+  - `browse-type-{type}` · button
+  - `browse-type-filter` · div
+  - `continue-on-error-checkbox` · input
+  - `diff-briefing-open` · button · Briefing
+  - `non-destructive-checkbox` · input
+  - `schema-status-filter-{status}` · button
+  - `schema-tree` · div
+  - `schema-tree-empty` · div
+  - `sql-schema-tree-include-all` · input
+  - `sql-schema-tree-search` · input · Search objects, columns, indexes...
+  - `sql-schema-tree-type-all` · button · All
 - **ValidationWarningsDialog** · `features/compare/components/ValidationWarningsDialog.tsx`
   - `migrate-validation-warnings-close` · button · Close
 
@@ -1194,18 +1206,6 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
   - `sql-results-running` · div
   - `sql-results-side-by-side` · div
   - `sql-results-warnings` · div
-- **SchemaTreePanel** · `features/sql-editor/components/SchemaTreePanel.tsx`
-  - `browse-type-{type}` · button
-  - `browse-type-filter` · div
-  - `continue-on-error-checkbox` · input
-  - `diff-briefing-open` · button · Briefing
-  - `non-destructive-checkbox` · input
-  - `schema-status-filter-{status}` · button
-  - `schema-tree` · div
-  - `schema-tree-empty` · div
-  - `sql-schema-tree-include-all` · input
-  - `sql-schema-tree-search` · input · Search objects, columns, indexes...
-  - `sql-schema-tree-type-all` · button · All
 - **SelectColumnPicker** · `features/sql-editor/components/SelectColumnPicker.tsx`
   - `sql-select-all-star` · button · SELECT *
   - `sql-select-close` · button · Close

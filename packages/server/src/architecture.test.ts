@@ -15,7 +15,6 @@ import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { dirname, join, normalize, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { FEATURES } from './app/feature-registry';
 
 const SRC = dirname(fileURLToPath(import.meta.url));
 
@@ -95,8 +94,13 @@ describe('server layering', () => {
     expect(cycles).toEqual([]);
   });
 
-  it('features never import the HTTP bootstrap', () => {
-    const bad = ALL.filter((i) => featureOf(i.from) && parts(i.target)[0] === 'api');
+  it('features never import the app layer that composes them, or the HTTP bootstrap', () => {
+    const bad = ALL.filter((i) => featureOf(i.from) && ['app', 'api'].includes(parts(i.target)[0]!));
+    expect(bad.map((i) => `${i.from} → ${i.spec}`)).toEqual([]);
+  });
+
+  it('api/ reaches features only through the registry', () => {
+    const bad = ALL.filter((i) => parts(i.from)[0] === 'api' && featureOf(i.target));
     expect(bad.map((i) => `${i.from} → ${i.spec}`)).toEqual([]);
   });
 
@@ -111,15 +115,33 @@ describe('server layering', () => {
 });
 
 describe('feature registry', () => {
-  const folders = readdirSync(join(SRC, 'features')).filter((n) => statSync(join(SRC, 'features', n)).isDirectory());
+  const folders = readdirSync(join(SRC, 'features'), { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name);
 
   it('every feature folder has an index.ts', () => {
     expect(folders.filter((f) => !existsSync(join(SRC, 'features', f, 'index.ts')))).toEqual([]);
   });
 
   it('every feature folder is registered, under its folder name, once', () => {
-    const ids = FEATURES.map((f) => f.id);
-    expect(new Set(ids).size).toBe(ids.length);
-    expect([...ids].sort()).toEqual([...folders].sort());
+    // Read, not imported: importing the registry would load the whole server,
+    // and run its module-level setup, to compare a few names.
+    const registry = readFileSync(join(SRC, 'app', 'feature-registry.ts'), 'utf8');
+    const listed = registry.slice(registry.indexOf('export const FEATURES')).split('];')[0]!.split(/[\s,[\]]+/);
+    const problems: string[] = [];
+    for (const folder of folders) {
+      const index = readFileSync(join(SRC, 'features', folder, 'index.ts'), 'utf8');
+      const module = /export const (\w+): ServerFeatureModule = \{\s*id: '([^']+)'/.exec(index);
+      if (!module) {
+        problems.push(`${folder}: index.ts exports no ServerFeatureModule`);
+        continue;
+      }
+      const [, name, id] = module;
+      if (id !== folder) problems.push(`${folder}: its id is '${id}'`);
+      const imported = registry.split(`import { ${name} } from '../features/${folder}';`).length - 1;
+      const entries = listed.filter((token) => token === name).length;
+      if (imported !== 1 || entries !== 1) problems.push(`${folder}: imported ${imported}×, listed ${entries}× in FEATURES`);
+    }
+    expect(problems).toEqual([]);
   });
 });

@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Schema history (Lokee) routes.
- *
- * Extracted verbatim from api/routes.ts; handler bodies are unchanged.
  */
 import type { LokeeWeaveStore } from './lokee-weave.service';
 import type { WorkspaceScope } from '../../platform/http/scope';

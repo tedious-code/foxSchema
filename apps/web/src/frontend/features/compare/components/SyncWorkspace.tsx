@@ -7,7 +7,7 @@
  */
 import React from 'react';
 import { ErrorBoundary } from '@/app/shell/ErrorBoundary';
-import { SchemaTreePanel } from '@/features/sql-editor/ui';
+import { SchemaTreePanel } from './SchemaTreePanel';
 import { ObjectDetailPanel } from '@/features/compare/components/ObjectDetailPanel';
 
 export default function SyncWorkspace(): React.ReactElement {

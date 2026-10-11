@@ -19,12 +19,11 @@ import {
   apiArchiveWorkspace,
   apiSelectWorkspace,
   apiSetWorkspaceMember,
+  loadWorkspaceSettingsDialog,
   type AdminWorkspaceRow,
 } from '@/features/workspaces';
 
-const WorkspaceSettingsDialog = lazy(() =>
-  import('@/features/workspaces').then((m) => ({ default: m.WorkspaceSettingsDialog }))
-);
+const WorkspaceSettingsDialog = lazy(loadWorkspaceSettingsDialog);
 
 export const AdminWorkspacesPanel: React.FC<{ reload?: () => void }> = ({ reload = () => window.location.reload() }) => {
   const me = useAuthStore((s) => s.user);

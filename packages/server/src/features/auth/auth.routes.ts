@@ -3,12 +3,11 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { setCookie, clearCookie } from '../../platform/http/reply';
+import { clearCookie } from '../../platform/http/reply';
 import type { FastifyReply } from 'fastify';
-import type { AppRequest, AuthedRequest, NextFunction } from '../../platform/http/types';
-import type { Permission, WorkspaceRole } from '@foxschema/shared';
+import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
-import { AuthModule, SESSION_COOKIE, SESSION_MAX_AGE_MS, SignInLockedError, type AuthUser } from '../../platform/identity/auth.service';
+import { AuthModule, SESSION_COOKIE, SignInLockedError, type AuthUser } from '../../platform/identity/auth.service';
 import { AuthMailer } from '../../platform/identity/auth-mail';
 import { SignupModule } from '../users';
 import { AppSettingsStore } from '../../platform/settings/app-settings.service';
@@ -17,15 +16,7 @@ import { ServiceError } from '../../platform/contracts/actor';
 import { rateLimit } from '../../platform/guards/rate-limit';
 import { getLogger } from '../../platform/logger/logger';
 import { isDirectLocalRequest, launchLinksAllowed, resetSetupCode, setupCode, setupCodeMatches } from '../../platform/identity/setup-code';
-
-import {
-  authGuard,
-  readCookie,
-  requireRegisteredAccount,
-  setSessionCookie,
-  attachAuthUser,
-  requestedWorkspace,
-} from '../../platform/identity/auth.guard';
+import { readCookie, requestedWorkspace, setSessionCookie } from '../../platform/identity/auth.guard';
 
 export function createAuthRoutes(
   auth: AuthModule,

@@ -14,9 +14,6 @@ vi.mock('@/shared/api/schemaApi', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return { ...actual, executeMigration: (...args: unknown[]) => executeMigration(...args) };
 });
-vi.mock('@/app/store/useUiStore', () => ({
-  useUiStore: { getState: () => ({ bumpLokeeEpoch: vi.fn() }) },
-}));
 
 import { useSyncStore } from './useSyncStore';
 import { loadSqlGenerator } from './syncHelpers';

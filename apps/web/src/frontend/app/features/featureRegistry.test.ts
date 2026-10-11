@@ -20,11 +20,10 @@ const canWith = (perms: readonly Permission[]) => (p: Permission) => perms.inclu
 const can = (...perms: Permission[]) => canWith(perms);
 
 describe('view registry', () => {
-  it('defines every view id, each shown directly or loaded', () => {
+  it('defines every view id', () => {
     for (const id of VIEW_IDS) {
       const def = WORKSPACE_VIEWS[id];
       expect(def, id).toBeTruthy();
-      expect(Boolean(def.component) !== Boolean(def.load), `${id}: exactly one of component / load`).toBe(true);
     }
     expect(Object.keys(WORKSPACE_VIEWS).sort()).toEqual([...VIEW_IDS].sort());
   });
@@ -32,7 +31,7 @@ describe('view registry', () => {
   it('only names nav ids that COMMUNITY_NAV has', () => {
     const navIds = new Set(COMMUNITY_NAV.map((n) => n.id));
     for (const def of Object.values(WORKSPACE_VIEWS)) {
-      if (def.rail?.navId) expect(navIds.has(def.rail.navId), def.rail.navId).toBe(true);
+      if (def.rail && 'navId' in def.rail) expect(navIds.has(def.rail.navId), def.rail.navId).toBe(true);
     }
   });
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useSyncStore } from '@/features/compare';
+import { useSyncStore } from '../state/useSyncStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useUiStore } from '@/app/store/uiStore';
 import { Search, Layers } from 'lucide-react';

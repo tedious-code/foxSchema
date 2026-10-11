@@ -5,7 +5,7 @@
  * The compare feature: comparing two schemas.
  */
 import { CompareModule } from '@foxschema/db';
-import type { ServerFeatureModule } from '../../app/feature-module';
+import type { ServerFeatureModule } from '../../platform/feature-module';
 import { createCompareRoutes } from './compare.routes';
 import { makeCompareService } from './compare.service';
 

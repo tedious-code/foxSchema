@@ -26,15 +26,12 @@ import type { ActiveView } from './viewIds';
 
 export type Can = (permission: Permission) => boolean;
 
-export interface RailButton {
-  icon: ElementType;
-  testId: string;
+export type RailButton = { icon: ElementType; testId: string } & (
   /** A COMMUNITY_NAV top-level id: the label and the permission come from there. */
-  navId?: string;
-  /** Without `navId`: the label, and who sees the button. */
-  label?: string;
-  visible?: (can: Can) => boolean;
-}
+  | { navId: string }
+  /** Its own label, and who sees the button. */
+  | { label: string; visible: (can: Can) => boolean }
+);
 
 /**
  * What a view adds to the top toolbar while it is shown. The shell keeps its
@@ -50,21 +47,22 @@ export interface ViewToolbar {
   below?: ComponentType;
 }
 
-export interface WorkspaceViewDefinition {
+export type WorkspaceViewDefinition = {
   /** A button in the rail's main group, in registry order. Home and Preferences have fixed places. */
   rail?: RailButton;
   /** Whether this account may be shown the view. Absent: always. */
   allowed?: (can: Can) => boolean;
   /** Where to go instead when `allowed` says no. Default: Home. */
   fallback?: (can: Can) => ActiveView;
-  /** The view: loaded on first show, or when its rail button is reached. */
-  load?: () => Promise<{ default: ComponentType }>;
-  /** Shown without loading (the first screen). */
-  component?: ComponentType;
   /** What the view loads lazily inside itself, worth starting along with it on a likely click. */
   inside?: () => Promise<unknown>;
   toolbar?: ViewToolbar;
-}
+} & (
+  /** Loaded on first show, or when its rail button is reached. */
+  | { load: () => Promise<{ default: ComponentType }>; component?: undefined }
+  /** Shown without loading (the first screen). */
+  | { component: ComponentType; load?: undefined }
+);
 
 export const WORKSPACE_VIEWS: Record<ActiveView, WorkspaceViewDefinition> = {
   home: { component: HomeView },
@@ -128,11 +126,11 @@ export function railItems(can: Can): RailItem[] {
   for (const [view, def] of Object.entries(WORKSPACE_VIEWS) as [ActiveView, WorkspaceViewDefinition][]) {
     const rail = def.rail;
     if (!rail) continue;
-    if (rail.navId) {
+    if ('navId' in rail) {
       const item = nav.get(rail.navId);
       if (item) out.push({ view, label: item.label, icon: rail.icon, testId: rail.testId });
-    } else if (rail.visible?.(can) ?? true) {
-      out.push({ view, label: rail.label ?? view, icon: rail.icon, testId: rail.testId });
+    } else if (rail.visible(can)) {
+      out.push({ view, label: rail.label, icon: rail.icon, testId: rail.testId });
     }
   }
   return out;

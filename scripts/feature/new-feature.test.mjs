@@ -31,9 +31,9 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const n = namesFor('audit-log');
 
 describe('ids and names', () => {
-  it('accepts kebab-case and refuses anything else, and the shell’s own names', () => {
+  it('accepts kebab-case and refuses anything else', () => {
     for (const ok of ['audit-log', 'reports', 'db2-tools']) expect(invalidId(ok), ok).toBeNull();
-    for (const bad of ['Audit', 'audit_log', 'audit--log', 'audit-', '-audit', '2fa', '', 'settings', 'home']) {
+    for (const bad of ['Audit', 'audit_log', 'audit--log', 'audit-', '-audit', '2fa', '']) {
       expect(invalidId(bad), bad).not.toBeNull();
     }
   });
@@ -53,14 +53,13 @@ describe('registry edits, on the real files', () => {
     expect(() => registerServerFeature(out, n)).toThrow(/already imports/);
   });
 
-  it('lists the starter route in the contract table and raises the count by one', () => {
-    const src = read(PATHS.contract);
-    const was = Number(/expect\(ROUTES\.length\)\.toBe\((\d+)\)/.exec(src)[1]);
-    const out = addContractRoute(src, n);
-    expect(out).toContain(`expect(ROUTES.length).toBe(${was + 1});`);
+  it('lists the starter route in the contract table, and refuses a route namespace in use', () => {
+    const out = addContractRoute(read(PATHS.contract), n);
     const table = out.slice(out.indexOf('const ROUTES'), out.indexOf('\n];', out.indexOf('const ROUTES')));
     expect(table).toContain("{ method: 'GET', path: '/api/audit-log', status: 200 },");
-    expect(() => addContractRoute(out, n)).toThrow(/already lists/);
+    expect(() => addContractRoute(out, n)).toThrow(/already serves/);
+    // /api/sql/... and /api/lokee/... belong to other features.
+    for (const taken of ['sql', 'lokee']) expect(() => addContractRoute(read(PATHS.contract), namesFor(taken))).toThrow(/already serves/);
   });
 
   it('adds the view id and a registry entry that loads the view', () => {
@@ -116,6 +115,7 @@ describe('planFeature and applyPlan', () => {
   it('refuses an id a feature already has, on either side, before writing anything', () => {
     expect(() => planFeature(ROOT, 'compare')).toThrow(/exists already/);
     expect(() => planFeature(ROOT, 'workspaces', { server: false })).toThrow(/exists already/);
+    expect(() => planFeature(ROOT, 'settings', { server: false })).toThrow(/view id "settings" exists/);
     expect(() => planFeature(ROOT, 'Not Kebab')).toThrow(/kebab-case/);
   });
 

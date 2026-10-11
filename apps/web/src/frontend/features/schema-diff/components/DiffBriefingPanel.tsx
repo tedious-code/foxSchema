@@ -11,7 +11,7 @@ import { ArrowRight, Layers } from 'lucide-react';
 import type { TableDiff } from '@/shared/lib/types';
 import { useSyncStore } from '@/features/compare';
 import { diffBriefing } from '../lib/diffBriefing';
-import { TYPE_META } from './SchemaDiffTree';
+import { TYPE_META } from './objectTypeMeta';
 
 const STATUS_TONE: Record<string, string> = {
   ADDED: 'text-emerald-400',

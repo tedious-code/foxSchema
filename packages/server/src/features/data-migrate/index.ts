@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * The data-migrate feature: moving rows between databases, and its run history.
  */
-import type { ServerFeatureModule } from '../../app/feature-module';
+import type { ServerFeatureModule } from '../../platform/feature-module';
 import { createDataMigrateRoutes } from './data-migrate.routes';
 import { DataMigrateHistoryStore } from './data-migrate-history.service';
 

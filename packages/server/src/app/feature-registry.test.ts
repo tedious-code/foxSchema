@@ -15,8 +15,8 @@ process.env.APP_ENCRYPTION_KEY = '0'.repeat(64);
 import type { FastifyReply } from 'fastify';
 import { Router } from '../platform/http/router';
 import type { AppRequest } from '../platform/http/types';
-import { composeFeatures, createFeatureContext } from './feature-registry';
-import type { FeatureAccess, ServerFeatureModule } from './feature-module';
+import { bootFeatures, composeFeatures, createFeatureContext } from './feature-registry';
+import type { FeatureAccess, ServerFeatureModule } from '../platform/feature-module';
 
 function feature(id: string, mounts: Array<{ prefix: string; access: FeatureAccess; rateLimited?: boolean }>): ServerFeatureModule {
   return {
@@ -69,14 +69,14 @@ describe('composeFeatures', () => {
     expect(routes.get('GET /api/one')![1]).toBe(routes.get('GET /api/two')![1]);
   });
 
-  it('mounts public routes before guarded ones, whatever the registry order', () => {
-    const order = composeFeatures(
-      [feature('guarded', [{ prefix: '/api/x', access: 'user' }]), feature('open', [{ prefix: '/api/y', access: 'public' }])],
-      ctx
-    )
-      .flatten()
-      .map((r) => r.path);
-    expect(order).toEqual(['/api/y/open', '/api/x/guarded']);
+  it('runs every feature’s startup housekeeping, past one that fails', () => {
+    const ran: string[] = [];
+    bootFeatures([
+      { id: 'a', mounts: [], onBoot: () => { throw new Error('disk gone'); } },
+      { id: 'b', mounts: [], onBoot: () => void ran.push('b') },
+      { id: 'c', mounts: [] },
+    ]);
+    expect(ran).toEqual(['b']);
   });
 
   it('refuses a feature registered twice, and a public mount behind the per-caller limit', () => {

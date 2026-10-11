@@ -195,6 +195,13 @@ const ALWAYS = [
           // the teammate's run); the 300s default would kill it mid-run.
           timeoutMs: 720_000,
         },
+        // Execute with an unacknowledged narrowing change opens its review and
+        // deploys nothing; it builds two throwaway Postgres schemas.
+        {
+          key: 'execute-gate',
+          file: 'src/tests/execute-gate.test.ts',
+          label: 'Execute gate',
+        },
         // Backup & Restore: the panel against a saved Postgres connection
         // (and SQL Server's SQL editor hand-off when configured).
         {

@@ -152,7 +152,7 @@ The checklist below is what review looks for.
 - [ ] No secret is returned or logged (passwords, tokens, connection strings).
 - [ ] Errors use `ServiceError` / `sendError`; the HTTP contract test lists the new routes.
 - [ ] Workspace-owned rows are read and written through a `WorkspaceScope`.
-- [ ] Unit tests for the service, route tests for guards and statuses, a component test for the screen; A/B each new test (break the code, see it fail).
+- [ ] Unit tests for the service, route tests for guards and statuses (`routeHandler` / `fakeReply` from `platform/http/route-doubles.ts` call one handler without a server), a component test for the screen; A/B each new test (break the code, see it fail).
 - [ ] Persistence changes are a new numbered migration in `database/schema.ts` (append-only).
 - [ ] `npm run test-ids` after any JSX change; new controls have test IDs.
 - [ ] Typecheck, lint, the full suite and the web build (with the first-load budget) pass.

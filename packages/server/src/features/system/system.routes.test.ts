@@ -7,19 +7,15 @@
  * and a failure to record never fails the answer.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
+import { fakeReply, routeHandler } from '../../platform/http/route-doubles';
 import type { AppSettingsStore } from '../../platform/settings/app-settings.service';
 import { createSystemRoutes } from './system.routes';
 
 function appInfo(settings: Pick<AppSettingsStore, 'set'>) {
-  const route = createSystemRoutes(settings as AppSettingsStore)
-    .flatten()
-    .find((r) => r.method === 'GET' && r.path === '/app-info');
-  if (!route) throw new Error('GET /app-info is not registered');
-  let body: unknown;
-  const reply = { send: (b: unknown) => ((body = b), reply) } as unknown as FastifyReply;
-  return { run: () => route.handler({} as AppRequest, reply), body: () => body as { db: { engine: string } } };
+  const handler = routeHandler(createSystemRoutes(settings as AppSettingsStore), 'GET', '/app-info');
+  const { reply, sent } = fakeReply();
+  return { run: () => handler({} as AppRequest, reply), body: () => sent.body as { db: { engine: string } } };
 }
 
 const env = { ...process.env };

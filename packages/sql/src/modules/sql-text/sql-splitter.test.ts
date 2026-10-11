@@ -1043,3 +1043,22 @@ describe('a comment reads as whitespace in keyword scans', () => {
     expect(isWriteStatement('SELECT */* x */INTO t2 FROM t')).toBe(true);
   });
 });
+
+describe('MySQL executable comments are read as the server runs them', () => {
+  // MySQL and MariaDB execute the inside of `/*! … */`. Read as a comment, a
+  // write hidden there passed as a read, past Safe Mode and the write
+  // permission alike.
+  it('sees a write inside one', () => {
+    const sql = "SELECT 1 /*!INTO OUTFILE '/tmp/x' */";
+    expect(isWriteStatement(sql)).toBe(true);
+    expect(requiresWritePermission(sql)).toBe(true);
+    expect(sqlStatementCategory(sql)).not.toBe('read');
+    expect(isWriteStatement('SELECT * /*!50001 INTO DUMPFILE "/tmp/y" */ FROM t')).toBe(true);
+  });
+
+  it('leaves a plain comment, a hint and a string alone', () => {
+    expect(isWriteStatement('SELECT 1 /* INTO OUTFILE */')).toBe(false);
+    expect(isWriteStatement('/*+ INDEX(t i) */ SELECT 1')).toBe(false);
+    expect(isWriteStatement("SELECT '/*!INTO OUTFILE x*/'")).toBe(false);
+  });
+});

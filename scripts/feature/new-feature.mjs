@@ -179,29 +179,12 @@ describe('${n.pascal}Service', () => {
     [`${dir}/${n.id}.routes.test.ts`]: `${HEADER}
  */
 import { describe, expect, it } from 'vitest';
-import type { FastifyReply } from 'fastify';
 import type { AuthedRequest } from '../../platform/http/types';
+import { fakeReply, routeHandler } from '../../platform/http/route-doubles';
 import { create${n.pascal}Routes } from './${n.id}.routes';
 import { ${n.pascal}Service } from './${n.id}.service';
 
-function handler(method: string, path: string) {
-  const route = create${n.pascal}Routes(new ${n.pascal}Service())
-    .flatten()
-    .find((r) => r.method === method && r.path === path);
-  if (!route) throw new Error(\`\${method} \${path} is not registered\`);
-  return route.handler;
-}
-
-function fakeReply() {
-  const sent: { body?: unknown } = {};
-  const reply = {
-    send(body: unknown) {
-      sent.body = body;
-      return reply;
-    },
-  };
-  return { reply: reply as unknown as FastifyReply, sent };
-}
+const handler = (method: 'GET', path: string) => routeHandler(create${n.pascal}Routes(new ${n.pascal}Service()), method, path);
 
 describe('${n.id} routes', () => {
   it('GET / answers the caller’s summary', async () => {

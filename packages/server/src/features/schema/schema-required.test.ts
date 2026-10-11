@@ -19,38 +19,12 @@
  * saved connection can be used at all.
  */
 import { describe, expect, it, vi } from 'vitest';
+import { fakeReply, routeHandler } from '../../platform/http/route-doubles';
 import { createSchemaRoutes } from './schema.routes';
 
 /** The `/schema/load` handler, pulled out of the collected route tree. */
 function loadHandler(deps: Parameters<typeof createSchemaRoutes>[0]) {
-  const route = createSchemaRoutes(deps)
-    .flatten()
-    .find((r) => r.method === 'POST' && r.path === '/schema/load');
-  if (!route) throw new Error('POST /schema/load is not registered');
-  return route.handler;
-}
-
-/** Minimal reply double: records what the handler sent. */
-function fakeReply() {
-  const sent: { body?: unknown; status?: number } = {};
-  const reply = {
-    status(code: number) {
-      sent.status = code;
-      return reply;
-    },
-    code(code: number) {
-      sent.status = code;
-      return reply;
-    },
-    send(body: unknown) {
-      sent.body = body;
-      return reply;
-    },
-    header() {
-      return reply;
-    },
-  };
-  return { reply, sent };
+  return routeHandler(createSchemaRoutes(deps), 'POST', '/schema/load');
 }
 
 function depsFor(dialect: string, schema: string | undefined) {

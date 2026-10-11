@@ -12,36 +12,11 @@
  * along so the dialog can show what would run. Nothing executes on a refusal.
  */
 import { describe, expect, it, vi } from 'vitest';
+import { fakeReply, routeHandler } from '../../platform/http/route-doubles';
 import { createHistoryRoutes, type HistoryRouteDeps } from './history.routes';
 
 function handlerFor(deps: HistoryRouteDeps, path: string) {
-  const route = createHistoryRoutes(deps)
-    .flatten()
-    .find((r) => r.method === 'POST' && r.path === path);
-  if (!route) throw new Error(`${path} is not registered`);
-  return route.handler;
-}
-
-function fakeReply() {
-  const sent: { status?: number; body?: unknown } = {};
-  const reply = {
-    status(code: number) {
-      sent.status = code;
-      return reply;
-    },
-    code(code: number) {
-      sent.status = code;
-      return reply;
-    },
-    send(body: unknown) {
-      sent.body = body;
-      return reply;
-    },
-    header() {
-      return reply;
-    },
-  };
-  return { reply, sent };
+  return routeHandler(createHistoryRoutes(deps), 'POST', path);
 }
 
 let dbSeq = 0;

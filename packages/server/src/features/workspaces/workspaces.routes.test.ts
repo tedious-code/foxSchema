@@ -8,39 +8,15 @@
  * address, so a non-admin inviter learns only how it went out.
  */
 import { describe, expect, it, vi } from 'vitest';
+import { fakeReply, routeHandler } from '../../platform/http/route-doubles';
 import { createWorkspaceRoutes } from './workspaces.routes';
 import type { WorkspaceDirectory } from './workspace-directory.service';
 import type { WorkspaceInvites } from './workspace-invites.service';
 import type { AuthMailer } from '../../platform/identity/auth-mail';
 
 function inviteHandler(invites: Partial<WorkspaceInvites>, mailer: Partial<AuthMailer>) {
-  const route = createWorkspaceRoutes({} as WorkspaceDirectory, invites as WorkspaceInvites, mailer as AuthMailer)
-    .flatten()
-    .find((r) => r.method === 'POST' && r.path === '/:id/invites');
-  if (!route) throw new Error('POST /:id/invites is not registered');
-  return route.handler;
-}
-
-function fakeReply() {
-  const sent: { status?: number; body?: any } = {};
-  const reply = {
-    status(code: number) {
-      sent.status = code;
-      return reply;
-    },
-    code(code: number) {
-      sent.status = code;
-      return reply;
-    },
-    send(body: unknown) {
-      sent.body = body;
-      return reply;
-    },
-    header() {
-      return reply;
-    },
-  };
-  return { reply, sent };
+  const routes = createWorkspaceRoutes({} as WorkspaceDirectory, invites as WorkspaceInvites, mailer as AuthMailer);
+  return routeHandler(routes, 'POST', '/:id/invites');
 }
 
 const invite = { id: 'i1', workspaceId: 'w1', workspaceName: 'Team', email: 'new@x.com', role: 'viewer', invitedBy: 'o@x.com', createdAt: '', expiresAt: '' };

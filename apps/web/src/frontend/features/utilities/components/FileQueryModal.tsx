@@ -17,7 +17,7 @@ import { useSyncStore } from '@/features/compare';
 import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import { scrubRemovedFileConnections } from '@/features/sql-editor/state';
-import { toast } from '@/app/store/toastStore';
+import { toast } from '@/platform/toastStore';
 
 interface Props {
   open: boolean;

@@ -22,7 +22,7 @@ import { COMMUNITY_NAV, filterNav, type Permission } from '@foxschema/shared';
 import { HomeView } from '@/app/shell/HomeView';
 import { CompareToolbarBelow, CompareToolbarEnd, CompareToolbarStart } from '@/features/compare/toolbar';
 import { HistoryToolbar } from '@/features/lokee-weave/toolbar';
-import type { ActiveView } from './viewIds';
+import type { ActiveView } from '@/platform/viewIds';
 
 export type Can = (permission: Permission) => boolean;
 

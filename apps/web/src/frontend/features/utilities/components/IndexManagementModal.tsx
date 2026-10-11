@@ -47,7 +47,7 @@ import {
 import { executeSql } from '@/shared/api/sqlApi';
 import { useSyncStore } from '@/features/compare';
 import { useSqlEditorStore } from '@/features/sql-editor/state';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import type { IndexInfo, TableSchema } from '@/shared/lib/types';
 import { PROVIDER_SETTINGS, connectionNeedsSecret } from '@/shared/lib/provider-settings';
 import {

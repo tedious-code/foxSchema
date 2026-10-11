@@ -175,10 +175,9 @@ A feature uses the layers it needs; it does not create empty ones.
 ## Frontend — `apps/web/src/frontend`
 
 ```
-app/         The application shell, settings screens and global stores
-             (auth, ui, toasts).
-  features/    The view registry: `viewIds.ts` (every workspace view) and
-               `featureRegistry.ts` (its rail button, who may see it, where
+app/         The application shell and settings screens.
+  features/    The view registry: `featureRegistry.ts` (each view's rail
+               button, who may see it, where
                someone goes who may not, what it adds to the top toolbar,
                and its lazy entry). App.tsx, the toolbar, the activity rail
                and prefetch all read it.
@@ -192,15 +191,18 @@ features/    One folder per business domain. The files at its root are its
   ui.ts        heavier components other features compose (schema-diff,
                sql-editor); import it only from code loaded on demand
   state.ts     the SQL editor store, kept off the first screen
-shared/      Reusable across features: api clients, ui components, lib, utils.
+platform/    App-wide state every feature reads: `authStore` (who is signed in,
+             what they may do), `toastStore`, `uiStore` (appearance, the
+             active view) and `viewIds.ts` (every workspace view).
+shared/      Reusable anywhere: api clients, ui components, lib, utils.
 ```
 
-Adding a workspace view: its id in `app/features/viewIds.ts`, its entry in
+Adding a workspace view: its id in `platform/viewIds.ts`, its entry in
 `app/features/featureRegistry.ts`, and the feature's `view.ts`. No shell file
 changes. `app/features/featureRegistry.test.ts` pins rail order, labels,
 test IDs and every redirect.
 
-Imports may run `app → features → shared`, never `shared → features`. From
+Imports run downward only: `app → features → platform → shared`. From
 outside a feature, only its root files may be imported (`vi.mock` in a test is
 exempt), and no static import cycle may cross a feature boundary.
 `architecture.test.ts` enforces all three.
@@ -236,7 +238,7 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | `admin` | User and role administration |
 | `auth` | Sign-in, SSO buttons, onboarding |
 | `compare` | The Compare workspace: its store (connection pair, compare result, deploy selections), toolbar, schema tree, object detail panel, browse bar, deploy dialogs and migration progress |
-| `connections` | Connection modal (login method: password / Windows / LDAP), credential manager, database settings |
+| `connections` | Connection modal (login method: password / Windows / LDAP), credential manager with cloud provider credentials, database settings |
 | `lokee-weave` | Schema history graph and version compare (Snapshots workspace) |
 | `migrations` | Migration run history (Applies on the rail) |
 | `schema-diff` | Diff rendering shared by compare and history |

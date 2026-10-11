@@ -5,7 +5,7 @@
  *
  * Designer notifications, shown through FoxSchema's own toast host.
  */
-import { toast as push, type ToastTone } from '@/app/store/toastStore';
+import { toast as push, type ToastTone } from '@/platform/toastStore';
 
 type NotifyOptions = { description?: string };
 

@@ -28,7 +28,7 @@ import {
 } from '../api/lokeeApi';
 import { useSyncStore } from '@/features/compare';
 import { getSessionPassword } from '@/shared/lib/sessionPasswords';
-import { toast } from '@/app/store/toastStore';
+import { toast } from '@/platform/toastStore';
 import { riskStyle } from '@/features/lokee-weave/lib/lokeeColors';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import { versionDisplayName } from './graphTypes';

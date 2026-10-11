@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Loader2, ChevronRight, Table2, Eye, FunctionSquare, Code, Database } from 'lucide-react';
-import { useAuthStore } from '@/app/store/authStore';
-import { useUiStore } from '@/app/store/uiStore';
+import { useAuthStore } from '@/platform/authStore';
+import { useUiStore } from '@/platform/uiStore';
 import { landingForGoal } from '../lib/onboardingLanding';
 import { PROVIDER_SETTINGS } from '@/shared/lib/provider-settings';
 

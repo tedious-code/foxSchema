@@ -20,7 +20,7 @@ vi.mock('@/features/lokee-weave/api/lokeeApi', () => ({
     }
   },
 }));
-vi.mock('@/app/store/toastStore', () => ({ toast: vi.fn() }));
+vi.mock('@/platform/toastStore', () => ({ toast: vi.fn() }));
 vi.mock('@/shared/lib/sessionPasswords', () => ({ getSessionPassword: () => undefined }));
 
 import { VersionCompareModal } from './VersionCompareModal';

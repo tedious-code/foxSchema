@@ -48,7 +48,7 @@ import {
   type Permission,
   type PermissionMeta,
 } from '@/shared/lib/permissions';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import { PasswordInput } from '@/shared/components/PasswordInput';
 import { AccessReport } from '@/features/access';
 import { sectionLabelCls } from '@/shared/components/surfaces';

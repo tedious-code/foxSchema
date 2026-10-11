@@ -25,7 +25,7 @@ import {
   type VersionCompare,
 } from '../api/lokeeApi';
 import { getSessionPassword } from '@/shared/lib/sessionPasswords';
-import { toast } from '@/app/store/toastStore';
+import { toast } from '@/platform/toastStore';
 import { riskStyle } from '@/features/lokee-weave/lib/lokeeColors';
 import { SchemaBlueprint } from '@/features/schema-diff/ui';
 import { buildMigrationReport, migrationReportFilename } from '@/features/lokee-weave/lib/migrationReport';

@@ -9,7 +9,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Settings2 } from 'lucide-react';
 import type { EngineState, OverlapPolicy, WorkflowEngineConfig } from '@foxschema/workflow-contract';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import { sectionLabelCls } from '@/shared/components/surfaces';
 import {
   fetchWorkflowEngineHealth,

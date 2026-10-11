@@ -7,7 +7,7 @@ import {
   type FileImportListItem,
 } from '@/shared/api/fileQueryApi';
 import { useSyncStore } from '@/features/compare';
-import { toast } from '@/app/store/toastStore';
+import { toast } from '@/platform/toastStore';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import { scrubRemovedFileConnections, selectFileImportInEditor } from '../lib/fileQueryEditorHelpers';
 import { formatFileImportWhen, importCreatedAtMs } from '@/shared/lib/relativeTime';

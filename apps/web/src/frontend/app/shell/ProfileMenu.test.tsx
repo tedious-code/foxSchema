@@ -7,7 +7,7 @@ import React from 'react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { DEFAULT_ROLE_PERMISSIONS } from '@foxschema/shared';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 
 vi.mock('@/shared/api/updatesApi', () => ({
   checkForUpdates: vi.fn(async () => null),
@@ -32,7 +32,7 @@ vi.mock('@/shared/api/authApi', async (importOriginal) => ({
   apiSignOutOthers: signOutOthers,
 }));
 const toast = vi.hoisted(() => vi.fn());
-vi.mock('@/app/store/toastStore', () => ({ toast }));
+vi.mock('@/platform/toastStore', () => ({ toast }));
 
 import { ProfileMenu } from './ProfileMenu';
 

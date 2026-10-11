@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { ArrowUpCircle, CheckCircle2, Info, X } from 'lucide-react';
-import { useToastStore, type ToastItem, type ToastTone } from '@/app/store/toastStore';
+import { useToastStore, type ToastItem, type ToastTone } from '@/platform/toastStore';
 
 const TONE_ICON: Record<ToastTone, React.ReactNode> = {
   info: <Info className="w-4 h-4 text-sky-300 shrink-0" />,

@@ -10,7 +10,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Layers, X } from 'lucide-react';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import {
   apiArchiveWorkspace,
   apiInviteToWorkspace,

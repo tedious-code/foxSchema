@@ -97,7 +97,7 @@ everyone who imports any of it. So:
 after a change to an `index.ts`.
 
 **A workspace view is registered** in `app/features/featureRegistry.ts`, after
-adding its id to `app/features/viewIds.ts`:
+adding its id to `platform/viewIds.ts`:
 
 ```ts
 utilities: {
@@ -127,7 +127,7 @@ The id is kebab-case. The scaffold writes:
 | Side | Files | Registered in |
 |---|---|---|
 | Server | `features/audit-log/`: `index.ts` (the module, mounted at `/api/audit-log` for a signed-in user), `audit-log.routes.ts`, `audit-log.service.ts` and a test for each | `app/feature-registry.ts`, plus a row in `api/http-contract.test.ts` |
-| Web | `features/audit-log/`: `index.ts`, `view.ts`, `api/auditLogApi.ts`, `components/AuditLogView.tsx` and its test | `app/features/viewIds.ts` and `app/features/featureRegistry.ts` (view `auditLog`) |
+| Web | `features/audit-log/`: `index.ts`, `view.ts`, `api/auditLogApi.ts`, `components/AuditLogView.tsx` and its test | `platform/viewIds.ts` and `app/features/featureRegistry.ts` (view `auditLog`) |
 
 It also regenerates the test-ID catalog. It refuses an id either side already
 has, and writes nothing until every edit is ready. The result passes typecheck

@@ -23,13 +23,13 @@ vi.mock('@/features/sql-editor/state/useSqlEditorStore', () => ({
     sel({ setSql, ensureConnectionSelected, sessionPasswords: {} }),
 }));
 let canChangeSchema = true;
-vi.mock('@/app/store/authStore', () => ({
+vi.mock('@/platform/authStore', () => ({
   useAuthStore: (sel: (s: { can: () => boolean }) => unknown) => sel({ can: () => canChangeSchema }),
 }));
 const executeSql = vi.fn();
 vi.mock('@/shared/api/sqlApi', () => ({ executeSql: (...args: unknown[]) => executeSql(...args) }));
 const setActiveView = vi.fn();
-vi.mock('@/app/store/uiStore', () => ({
+vi.mock('@/platform/uiStore', () => ({
   useUiStore: (sel: (s: { setActiveView: typeof setActiveView }) => unknown) => sel({ setActiveView }),
 }));
 const getSettings = vi.fn();

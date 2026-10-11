@@ -11,11 +11,11 @@
  */
 import React, { lazy, useState } from 'react';
 import { History, KeyRound, Settings } from 'lucide-react';
-import { useAuthStore } from '@/app/store/authStore';
-import { useUiStore } from '@/app/store/uiStore';
+import { useAuthStore } from '@/platform/authStore';
+import { useUiStore } from '@/platform/uiStore';
 import { prefetchView, railItems } from '@/app/features/featureRegistry';
 import { MountWhenOpened } from '@/shared/components/MountWhenOpened';
-import { FoxLogo } from './FoxLogo';
+import { FoxLogo } from '@/shared/components/FoxLogo';
 import { ProfileMenu } from './ProfileMenu';
 import { loadCredentialManager } from '@/features/connections';
 import { loadMigrationHistory } from '@/features/migrations';

@@ -8,7 +8,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { useUiStore } from '@/app/store/uiStore';
+import { useUiStore } from '@/platform/uiStore';
 import { TopToolbar } from './TopToolbar';
 
 vi.mock('./ActivityIndicator', () => ({ ActivityIndicator: () => <span data-testid="activity" /> }));

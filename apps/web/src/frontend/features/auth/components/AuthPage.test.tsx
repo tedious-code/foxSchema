@@ -38,7 +38,7 @@ vi.mock('@/shared/api/authApi', () => ({
 }));
 vi.mock('./SsoButtons', () => ({ SsoButtons: () => null }));
 
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import { AuthPage } from './AuthPage';
 
 const ADMIN = { id: 'u1', email: 'owner@example.com', onboardingCompleted: true, role: 'admin', permissions: [] };

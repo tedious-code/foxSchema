@@ -1,7 +1,7 @@
 import React, { useState, useMemo, Suspense, lazy } from 'react';
 import { useSyncStore } from '@/features/compare/state/useSyncStore';
 import { useShallow } from 'zustand/react/shallow';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import { Play, RefreshCw, FileText, CheckCircle2, Copy, AlertTriangle, GitCommitHorizontal } from 'lucide-react';
 import { CommitMigrationDialog, commitRequirement, useGitStore } from '@/features/git';
 import { executeGate } from '../lib/executeGate';

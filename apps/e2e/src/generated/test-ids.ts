@@ -732,34 +732,6 @@ export const TestIds = {
       /** button · Retry now */
       backendOfflineRetry: 'backend-offline-retry',
     },
-    CloudProviderCredentialsSection: {
-      /** button · Add cloud credential */
-      cloudCredAdd: 'cloud-cred-add',
-      /** button · Cancel */
-      cloudCredCancel: 'cloud-cred-cancel',
-      /** div */
-      cloudCredCard: (id: string | number) => `cloud-cred-card-${id}`,
-      /** button */
-      cloudCredCloseForm: 'cloud-cred-close-form',
-      /** button · Edit */
-      cloudCredEdit: (id: string | number) => `cloud-cred-edit-${id}`,
-      /** textarea */
-      cloudCredField: (key: string | number) => `cloud-cred-field-${key}`,
-      /** div */
-      cloudCredForm: 'cloud-cred-form',
-      /** input · Name (e.g. Prod AWS) */
-      cloudCredName: 'cloud-cred-name',
-      /** select */
-      cloudCredProviderSelect: 'cloud-cred-provider-select',
-      /** button · Remove */
-      cloudCredRemove: (id: string | number) => `cloud-cred-remove-${id}`,
-      /** button · Save */
-      cloudCredSave: 'cloud-cred-save',
-      /** button · Updated */
-      cloudCredStatus: (id: string | number) => `cloud-cred-status-${id}`,
-      /** div */
-      cloudProviderCredentials: 'cloud-provider-credentials',
-    },
     CommandPalette: {
       /** div */
       commandPalette: 'command-palette',
@@ -767,10 +739,6 @@ export const TestIds = {
       commandPaletteInput: 'command-palette-input',
       /** button */
       commandPaletteItem: (id: string | number) => `command-palette-item-${id}`,
-    },
-    ErrorBoundary: {
-      /** button · Dismiss */
-      appErrorBoundaryDismiss: 'app-error-boundary-dismiss',
     },
     featureRegistry: {
       /** data · Snapshots */
@@ -1208,6 +1176,34 @@ export const TestIds = {
     },
   },
   connections: {
+    CloudProviderCredentialsSection: {
+      /** button · Add cloud credential */
+      cloudCredAdd: 'cloud-cred-add',
+      /** button · Cancel */
+      cloudCredCancel: 'cloud-cred-cancel',
+      /** div */
+      cloudCredCard: (id: string | number) => `cloud-cred-card-${id}`,
+      /** button */
+      cloudCredCloseForm: 'cloud-cred-close-form',
+      /** button · Edit */
+      cloudCredEdit: (id: string | number) => `cloud-cred-edit-${id}`,
+      /** textarea */
+      cloudCredField: (key: string | number) => `cloud-cred-field-${key}`,
+      /** div */
+      cloudCredForm: 'cloud-cred-form',
+      /** input · Name (e.g. Prod AWS) */
+      cloudCredName: 'cloud-cred-name',
+      /** select */
+      cloudCredProviderSelect: 'cloud-cred-provider-select',
+      /** button · Remove */
+      cloudCredRemove: (id: string | number) => `cloud-cred-remove-${id}`,
+      /** button · Save */
+      cloudCredSave: 'cloud-cred-save',
+      /** button · Updated */
+      cloudCredStatus: (id: string | number) => `cloud-cred-status-${id}`,
+      /** div */
+      cloudProviderCredentials: 'cloud-provider-credentials',
+    },
     ConnectionModal: {
       /** select */
       connAuthMethod: 'conn-auth-method',
@@ -1750,6 +1746,10 @@ export const TestIds = {
     },
   },
   shared: {
+    ErrorBoundary: {
+      /** button · Dismiss */
+      appErrorBoundaryDismiss: 'app-error-boundary-dismiss',
+    },
     PasswordInput: {
       /** button · Hold to show password */
       passwordReveal: 'password-reveal',

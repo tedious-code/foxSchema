@@ -7,7 +7,7 @@ import React from 'react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { DEFAULT_ROLE_PERMISSIONS, PERMISSION_META } from '@foxschema/shared';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 
 const apiAdminCreateUser = vi.fn();
 const apiAdminListUsers = vi.fn();

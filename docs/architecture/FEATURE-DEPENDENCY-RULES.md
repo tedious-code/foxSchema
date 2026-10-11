@@ -49,14 +49,18 @@ Enforced by `packages/server/src/architecture.test.ts`.
 ## Web app (`apps/web/src/frontend`)
 
 ```text
-App.tsx, app/     shell, settings, the view registry, global stores
+App.tsx, app/     shell, settings screens, the view registry
   ↓
 features/         product features; the files at a feature's root are public
+  ↓
+platform/         app-wide state: auth and permissions, toasts, appearance,
+                  navigation (authStore, toastStore, uiStore, viewIds)
   ↓
 shared/           api client, ui components, lib — product-neutral
 ```
 
-1. `shared/` never imports a feature.
+1. Each layer imports only the layers below it. A feature never imports
+   `app/`; `platform/` never imports a feature; `shared/` imports neither.
 2. Outside a feature, code imports it only through the files at its root
    (`index.ts`, `view.ts`, `toolbar.ts`, `ui.ts`, ...), never a path inside its
    folders. This holds for the app shell and for other features alike, and for

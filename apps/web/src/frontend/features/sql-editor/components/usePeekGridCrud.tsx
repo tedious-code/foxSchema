@@ -11,7 +11,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CopyPlus, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { useSyncStore } from '@/features/compare';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import {
   assessPeekEditability,
   buildPeekDelete,

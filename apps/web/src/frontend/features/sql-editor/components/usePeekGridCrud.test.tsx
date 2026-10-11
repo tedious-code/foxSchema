@@ -18,7 +18,7 @@ vi.mock('@/features/compare/state/useSyncStore', () => ({
     }),
 }));
 
-vi.mock('@/app/store/authStore', () => ({
+vi.mock('@/platform/authStore', () => ({
   useAuthStore: (selector: (state: { can: () => boolean }) => unknown) =>
     selector({ can: () => true }),
 }));

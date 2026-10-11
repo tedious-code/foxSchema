@@ -15,7 +15,7 @@ const connections = [
 vi.mock('@/features/compare/state/useSyncStore', () => ({
   useSyncStore: (sel: (s: { connections: typeof connections }) => unknown) => sel({ connections }),
 }));
-vi.mock('@/app/store/uiStore', () => ({
+vi.mock('@/platform/uiStore', () => ({
   useUiStore: (sel: (s: { activeView: string }) => unknown) => sel({ activeView: 'sqlEditor' }),
 }));
 

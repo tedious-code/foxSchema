@@ -40,7 +40,7 @@ vi.mock('@/features/compare/state/useSyncStore', () => ({
     }),
 }));
 
-vi.mock('@/app/store/uiStore', () => ({
+vi.mock('@/platform/uiStore', () => ({
   useUiStore: (sel: (s: Record<string, unknown>) => unknown) => sel({ setActiveView }),
 }));
 

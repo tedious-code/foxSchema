@@ -7,7 +7,7 @@ import {
 } from '@/shared/lib/sql-variables';
 import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { useSyncStore } from '@/features/compare';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 
 const TABLE_PREVIEW_ROWS = 20;

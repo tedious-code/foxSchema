@@ -6,7 +6,7 @@
 import React from 'react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 
 const apiAdminListWorkspaces = vi.fn();
 const apiArchiveWorkspace = vi.fn();

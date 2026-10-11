@@ -10,7 +10,7 @@ import React from 'react';
 import { Camera, Database, GitCompareArrows, Search, Terminal, Wrench } from 'lucide-react';
 import { openRecentQuery, selectEditorConnection, useRecentQueries } from '@/features/sql-editor';
 import { useSyncStore } from '@/features/compare';
-import { useUiStore } from '@/app/store/uiStore';
+import { useUiStore } from '@/platform/uiStore';
 import { formatRelativeDay } from '@/shared/lib/relativeTime';
 import { openCommandPalette } from './commandPaletteEvent';
 import { diffBriefing } from '@/features/schema-diff';

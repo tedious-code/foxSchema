@@ -90,8 +90,9 @@ packages/workflow-contract  Browser-safe engine types and token/route names
 packages/workflow-engine    Runtime, SQLite stores, built-in pipes (Node)
 
 apps/web/src/frontend/
-  app/                  Application shell, settings screens, global stores
+  app/                  Application shell, settings screens, view registry
   features/             One folder per business domain
+  platform/             App-wide state: auth, toasts, appearance, navigation
   shared/               API client, UI components, lib, utils
 
 apps/cli/               `foxschema` CLI — browser launcher (:3210), line commands, Ink TUI
@@ -115,9 +116,9 @@ folder per feature, composed in one static, typed registry per side.
 | | Server (`packages/server/src`) | Web (`apps/web/src/frontend`) |
 |---|---|---|
 | A feature | `features/<id>/`, whose `index.ts` exports a `ServerFeatureModule` (its mounts and their access level) | `features/<id>/`, whose root files are its public API: a light `index.ts`, plus `view.ts`, `toolbar.ts`, `ui.ts` where needed |
-| Registered in | `app/feature-registry.ts` | `app/features/viewIds.ts` and `app/features/featureRegistry.ts` |
-| Shared capabilities | `platform/`: identity, authorization, settings, connections, workspaces, http | `shared/`: api client, ui components, lib |
-| Enforced by | `architecture.test.ts`: platform never imports a feature; features meet only through `index.ts`; no cycles | `architecture.test.ts`: outside a feature only its root files; no cycle across a feature boundary |
+| Registered in | `app/feature-registry.ts` | `platform/viewIds.ts` and `app/features/featureRegistry.ts` |
+| Shared capabilities | `platform/`: identity, authorization, settings, connections, workspaces, http | `platform/`: auth, toasts, appearance, navigation; `shared/`: api client, ui components, lib |
+| Enforced by | `architecture.test.ts`: layers import downward only; features meet only through `index.ts`; no cycles | `architecture.test.ts`: layers import downward only; outside a feature only its root files; no cycle across a feature boundary |
 
 `npm run feature:new -- <id>` scaffolds both sides and registers them. The HTTP contract test
 compares its table with what the registry serves, so a new route is listed with what it

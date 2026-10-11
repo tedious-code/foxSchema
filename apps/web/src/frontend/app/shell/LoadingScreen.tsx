@@ -1,6 +1,6 @@
 import React from 'react';
-import { FoxLogo, FOX_ORANGE } from './FoxLogo';
-import { Wordmark } from './Brand';
+import { FoxLogo, FOX_ORANGE } from '@/shared/components/FoxLogo';
+import { Wordmark } from '@/shared/components/Brand';
 
 /**
  * Full-screen boot splash shown for the async gap between process start and

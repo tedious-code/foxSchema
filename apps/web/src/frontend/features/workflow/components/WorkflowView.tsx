@@ -13,7 +13,7 @@ import { Activity, Braces, KeyRound, ListTree, Power, Workflow } from 'lucide-re
 import type { Permission } from '@foxschema/shared';
 import '@xyflow/react/dist/style.css';
 import '../workflow.css';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import { useWorkflowUiStore, type WorkflowPane } from '../store/workflowUiStore';
 import { WorkflowDesigner } from './WorkflowDesigner';
 

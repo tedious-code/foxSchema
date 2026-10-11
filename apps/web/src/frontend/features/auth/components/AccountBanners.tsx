@@ -16,7 +16,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, MailCheck, UserPlus, X } from 'lucide-react';
-import { useAuthStore } from '@/app/store/authStore';
+import { useAuthStore } from '@/platform/authStore';
 import { FirstAccountForm } from './AuthPage';
 import { authInputCls } from './authStyles';
 

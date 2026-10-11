@@ -1019,3 +1019,27 @@ describe('RBAC classifier — leading punctuation / batches / parenthesized PRAG
     expect(statementVerb(cell)).toBe('node');
   });
 });
+
+describe('a comment reads as whitespace in keyword scans', () => {
+  // The scans used to delete a comment outright, gluing the words either side:
+  // `ON/**/DUPLICATE` became `ONDUPLICATE`, so an upsert read as a plain insert.
+  // Engines read a comment as a separator, and so do the scans now.
+  it('sees an upsert whose keywords a comment separates', () => {
+    expect(isInsertWriteStatement('INSERT INTO t VALUES (1) ON/**/DUPLICATE KEY UPDATE a = 1')).toBe(false);
+    expect(isInsertWriteStatement('INSERT OR/* x */REPLACE INTO t VALUES (1)')).toBe(false);
+    expect(isInsertWriteStatement('INSERT INTO t VALUES (1) ON CONFLICT DO/**/UPDATE SET a = 1')).toBe(false);
+    expect(isInsertWriteStatement('INSERT INTO t VALUES (1) ON CONFLICT DO/**/NOTHING')).toBe(true);
+  });
+
+  it('names a CTE whose AS a comment touches, so it is not taken for a table', () => {
+    expect(referencedTableNames('WITH c/**/AS (SELECT 1) SELECT * FROM c')).toEqual([]);
+    expect(referencedTableNames('WITH c/* x */AS (DELETE FROM t RETURNING *) SELECT * FROM c')).toEqual(['t']);
+  });
+
+  it('reads BEGIN and TRANSACTION apart, and IN and TO apart', () => {
+    expect(isWriteStatement('BEGIN/**/TRANSACTION')).toBe(false);
+    expect(isWriteStatement('SELECT * IN/**/TO t2 FROM t')).toBe(false);
+    // A real INTO still counts, whatever surrounds it.
+    expect(isWriteStatement('SELECT */* x */INTO t2 FROM t')).toBe(true);
+  });
+});

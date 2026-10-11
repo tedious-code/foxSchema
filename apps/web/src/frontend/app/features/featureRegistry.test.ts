@@ -91,10 +91,29 @@ describe('the rail', () => {
     ]);
   });
 
-  it('shows Snapshots for history or browse, and nothing without permissions', () => {
-    expect(railItems(can('compare.history')).map((i) => i.view)).toEqual(['snapshots']);
+  it('shows Snapshots to whoever may open it, and nothing without permissions', () => {
+    // History alone used to show a button that sent its account straight home.
+    expect(railItems(can('compare.history')).map((i) => i.view)).toEqual([]);
     expect(railItems(can('schema.browse')).map((i) => i.view)).toContain('snapshots');
     expect(railItems(can()).map((i) => i.view)).toEqual([]);
+  });
+
+  it('shows Compare for browsing or comparing alone', () => {
+    expect(railItems(can('schema.compare')).map((i) => i.view)).toEqual(['sync']);
+    expect(railItems(can('schema.browse')).map((i) => i.view)).toEqual(['sync', 'snapshots']);
+  });
+
+  it('never shows a button whose view would send its account elsewhere', () => {
+    const accounts: Permission[][] = [
+      ...Object.values(DEFAULT_ROLE_PERMISSIONS).map((perms) => [...perms]),
+      ...[...new Set(Object.values(DEFAULT_ROLE_PERMISSIONS).flat())].map((p) => [p]),
+      [],
+    ];
+    for (const perms of accounts) {
+      for (const item of railItems(canWith(perms))) {
+        expect(redirectFor(item.view, canWith(perms)), `${item.view} for [${perms.join(', ')}]`).toBeNull();
+      }
+    }
   });
 });
 

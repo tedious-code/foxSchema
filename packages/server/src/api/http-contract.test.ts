@@ -210,16 +210,35 @@ const KEY = '0'.repeat(64);
 /**
  * Routes that answer without a session. Everything else must refuse one:
  * every install signs in, so a route missing its guard is a hole.
+ *
+ * Exact paths, not prefixes: `/api/auth/` as a prefix also exempted
+ * sign-out-others and email verification, which need a session.
  */
-const PUBLIC = [
-  /^\/api\/health$/,
-  /^\/api\/config$/,
-  /^\/api\/auth\//,
-  /^\/api\/signup/,
+const PUBLIC = new Set([
+  '/api/health',
+  '/api/config',
+  // Signing in, out and up, and recovering an account: before there is a session.
+  '/api/auth/login',
+  '/api/auth/logout',
+  '/api/auth/me',
+  '/api/auth/register',
+  '/api/auth/setup',
+  '/api/auth/launch',
+  '/api/auth/password/code',
+  '/api/auth/password/forgot',
+  '/api/auth/password/reset',
+  '/api/auth/sso/providers',
+  '/api/auth/sso/:provider/start',
+  '/api/auth/sso/:provider/callback',
+  '/api/auth/sso/broker/callback',
+  '/api/signup',
+  '/api/signup/skip',
+  '/api/signup/state',
   // Called by the workflow engine with its service token, never a session;
   // they answer 503 until that token is configured.
-  /^\/api\/workflow-internal\//,
-];
+  '/api/workflow-internal/engine-config',
+  '/api/workflow-internal/connections/resolve',
+]);
 
 /**
  * Mounted but not probed here: the workflow proxy forwards these to the
@@ -293,6 +312,11 @@ describe('HTTP contract', () => {
 
     afterAll(async () => {
       await stop?.();
+    });
+
+    it('names as public only routes the table lists', () => {
+      const paths = new Set(ROUTES.map((r) => r.path));
+      expect([...PUBLIC].filter((p) => !paths.has(p))).toEqual([]);
     });
 
     it('lists each route once', () => {
@@ -370,7 +394,7 @@ describe('HTTP contract', () => {
     );
 
     it.each(
-      ROUTES.filter((r) => !PUBLIC.some((p) => p.test(r.path))).map(
+      ROUTES.filter((r) => !PUBLIC.has(r.path)).map(
         (r) => [`${r.method} ${r.path}`, r] as const
       )
     )(

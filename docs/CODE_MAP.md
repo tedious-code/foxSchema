@@ -235,7 +235,7 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | `access` | Permission builder, inspector and report |
 | `admin` | User and role administration |
 | `auth` | Sign-in, SSO buttons, onboarding |
-| `compare` | The Compare workspace: its store (connection pair, compare result, deploy selections), toolbar, object detail panel, browse bar, deploy dialogs and migration progress |
+| `compare` | The Compare workspace: its store (connection pair, compare result, deploy selections), toolbar, schema tree, object detail panel, browse bar, deploy dialogs and migration progress |
 | `connections` | Connection modal (login method: password / Windows / LDAP), credential manager, database settings |
 | `lokee-weave` | Schema history graph and version compare (Snapshots workspace) |
 | `migrations` | Migration run history (Applies on the rail) |

@@ -5,7 +5,7 @@
  * The connections feature: the saved-connection API, driver checks and installs,
  * and connection tests. The store itself is platform/connections.
  */
-import type { ServerFeatureModule } from '../../app/feature-module';
+import type { ServerFeatureModule } from '../../platform/feature-module';
 import { createConnectionStoreRoutes } from './connections.routes';
 import { createConnectionToolRoutes } from './connection-tools.routes';
 

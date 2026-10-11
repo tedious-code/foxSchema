@@ -295,58 +295,14 @@ describe('HTTP contract', () => {
       await stop?.();
     });
 
-    it('covers every route the API declares', () => {
-      // Guards against the table silently falling behind the router files.
-      // 81 is the count at the time of writing; a new route must be added here
-      // deliberately, which is the point.
-      //
-      // 80 -> 81: POST /api/schema/table-insight, behind dbaUtilityLimiter and
-      // requirePermissions('editor.run') because it powers Data Peek.
-      //
-      // 81 -> 84: POST /api/admin/users and GET/POST /api/auth/setup, when
-      // sign-in became mandatory and self-registration closed.
-      //
-      // 84 -> 95: forgot password (/api/auth/password/*), an admin's fresh
-      // invite or reset code, and the sign-in settings screen (/api/admin/sign-in).
-      //
-      // 95 -> 97: the Fox sign-in service switch and its callback.
-      //
-      // 97 -> 107: migration repositories (/api/git).
-      //
-      // 107 -> 111: committing migrations (preview, commit, list, read a file).
-      //
-      // 111 -> 112: who changed a Git repository (/api/git/repos/:id/activity).
-      //
-      // 112 -> 113: sign out other sessions (/api/auth/sign-out-others).
-      //
-      // 115 -> 116: TypeScript code cells compile on the server
-      // (/api/sql/code-cell/transpile) instead of downloading the compiler.
-      //
-      // 116 -> 119: one admin or several (/api/admin/policy) and handing the
-      // admin role over (/api/admin/users/:id/transfer-admin).
-      //
-      // 119 -> 127: shared workspaces (/api/workspaces).
-      //
-      // 127 -> 133: invites (/api/workspaces/invites, /api/workspaces/:id/invites).
-      //
-      // 133 -> 134: every workspace, for an admin (/api/workspaces/all).
-      //
-      // 134 -> 136: public workspaces (/api/workspaces/discover, /:id/join).
-      //
-      // 136 -> 150: routes that were served but never listed, found when the
-      // table was first compared with what the feature registry mounts:
-      // health and config, the launch link and email verification, Lokee's
-      // force-migrate, the workflow settings and connection grants, and the
-      // two routes the workflow engine calls.
-      expect(ROUTES.length).toBe(150);
+    it('lists each route once', () => {
       expect(new Set(ROUTES.map((r) => `${r.method} ${r.path}`)).size).toBe(ROUTES.length);
     });
 
     it('lists exactly the routes the feature registry serves', async () => {
-      // The count above only says the table did not shrink. This says each
-      // route a feature mounts is in it, and each row is still served — so a
-      // new feature's routes are listed here, with their answers, before it
-      // ships.
+      // Each route a feature mounts is in the table, and each row is still
+      // served — so a new route is listed here, with its answer, before it
+      // ships. A route is added here deliberately; that is the point.
       const { buildApiRoutes } = await import('./server');
       const key = (r: { method: string; path: string }) => `${r.method.toUpperCase()} ${r.path}`;
       const served = buildApiRoutes().filter((r) => !PROXIED.some((p) => p.test(r.path)));

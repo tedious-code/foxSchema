@@ -1178,6 +1178,30 @@ export const TestIds = {
       /** button · View notes */
       migrateViewNotes: 'migrate-view-notes',
     },
+    SchemaTreePanel: {
+      /** button */
+      browseType: (type: string | number) => `browse-type-${type}`,
+      /** div */
+      browseTypeFilter: 'browse-type-filter',
+      /** input */
+      continueOnErrorCheckbox: 'continue-on-error-checkbox',
+      /** button · Briefing */
+      diffBriefingOpen: 'diff-briefing-open',
+      /** input */
+      nonDestructiveCheckbox: 'non-destructive-checkbox',
+      /** button */
+      schemaStatusFilter: (status: string | number) => `schema-status-filter-${status}`,
+      /** div */
+      schemaTree: 'schema-tree',
+      /** div */
+      schemaTreeEmpty: 'schema-tree-empty',
+      /** input */
+      sqlSchemaTreeIncludeAll: 'sql-schema-tree-include-all',
+      /** input · Search objects, columns, indexes... */
+      sqlSchemaTreeSearch: 'sql-schema-tree-search',
+      /** button · All */
+      sqlSchemaTreeTypeAll: 'sql-schema-tree-type-all',
+    },
     ValidationWarningsDialog: {
       /** button · Close */
       migrateValidationWarningsClose: 'migrate-validation-warnings-close',
@@ -2227,30 +2251,6 @@ export const TestIds = {
       sqlResultsSideBySide: 'sql-results-side-by-side',
       /** div */
       sqlResultsWarnings: 'sql-results-warnings',
-    },
-    SchemaTreePanel: {
-      /** button */
-      browseType: (type: string | number) => `browse-type-${type}`,
-      /** div */
-      browseTypeFilter: 'browse-type-filter',
-      /** input */
-      continueOnErrorCheckbox: 'continue-on-error-checkbox',
-      /** button · Briefing */
-      diffBriefingOpen: 'diff-briefing-open',
-      /** input */
-      nonDestructiveCheckbox: 'non-destructive-checkbox',
-      /** button */
-      schemaStatusFilter: (status: string | number) => `schema-status-filter-${status}`,
-      /** div */
-      schemaTree: 'schema-tree',
-      /** div */
-      schemaTreeEmpty: 'schema-tree-empty',
-      /** input */
-      sqlSchemaTreeIncludeAll: 'sql-schema-tree-include-all',
-      /** input · Search objects, columns, indexes... */
-      sqlSchemaTreeSearch: 'sql-schema-tree-search',
-      /** button · All */
-      sqlSchemaTreeTypeAll: 'sql-schema-tree-type-all',
     },
     SelectColumnPicker: {
       /** button · SELECT * */

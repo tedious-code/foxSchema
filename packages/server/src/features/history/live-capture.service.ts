@@ -4,17 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Capture a database's whole live schema as a history version. Migrate
- * captures before and after it runs, revert after it applies; both must go
- * through the same store, whose per-database lock keeps two captures from
- * forking the history.
+ * captures before and after it runs, revert after it applies. The
+ * per-database capture lock in lokee-weave.service is module-level, so two
+ * captures of one database never fork its history, whichever store runs them.
  */
 import type { ConnectionOptions } from '@foxschema/db';
 import type { WorkspaceScope } from '../../platform/http/scope';
 import type { ConnectionResolver } from '../../platform/connections/resolve';
+import type { CaptureSource } from '@foxschema/shared';
 import type { LokeeWeaveStore } from './lokee-weave.service';
 import { LOKEE_FULL_SCOPE } from './lokee-scope';
-
-export type CaptureSource = 'manual' | 'migrate' | 'revert' | 'force-migrate';
 
 export type CaptureLiveSchema = (
   scope: WorkspaceScope,

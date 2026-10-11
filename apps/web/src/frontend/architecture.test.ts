@@ -100,6 +100,8 @@ const imports: Import[] = files.flatMap((from) =>
   }))
 );
 
+const isTest = (rel: string) => /\.test\.tsx?$/.test(rel);
+
 /** Which top-level layer a file belongs to. */
 const layerOf = (rel: string): string => rel.split(path.sep)[0]!;
 
@@ -132,10 +134,10 @@ describe('frontend layering', () => {
     // Everything in its folders can be reorganised without touching another
     // feature or the shell.
     //
-    // A mock is exempt: `vi.mock` has to name the module that defines the
-    // export it replaces.
+    // A mock in a test is exempt: `vi.mock` has to name the module that
+    // defines the export it replaces. The next test keeps those names honest.
     const offenders = imports
-      .filter((i) => i.kind !== 'mock')
+      .filter((i) => !(i.kind === 'mock' && isTest(i.from)))
       .filter((i) => {
         const target = featureTarget(i);
         if (target === null || target === featureOf(i.from)) return false;
@@ -145,6 +147,15 @@ describe('frontend layering', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('every mocked module exists', () => {
+    // A mock of a path nothing defines replaces nothing: after a move, the
+    // test would run against the real module while reading as if it did not.
+    const stale = imports
+      .filter((i) => i.kind === 'mock' && (i.spec.startsWith('@/') || i.spec.startsWith('.')) && !i.target)
+      .map((i) => `${i.from} → ${i.spec}`);
+    expect(stale).toEqual([]);
+  });
+
   it('no static import cycle crosses a feature boundary', () => {
     // Root entries re-export, so two features that import each other's
     // entries form a cycle, and ES modules then run one of them before the
@@ -152,7 +163,7 @@ describe('frontend layering', () => {
     // dynamic import() breaks the cycle; a type-only import never runs.
     const graph = new Map<string, string[]>();
     for (const i of imports) {
-      if (i.kind !== 'static' || !i.target || /\.test\.tsx?$/.test(i.from)) continue;
+      if (i.kind !== 'static' || !i.target || isTest(i.from)) continue;
       graph.set(i.from, [...(graph.get(i.from) ?? []), i.target]);
     }
     const area = (f: string) => featureOf(f) ?? layerOf(f);

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * The schema feature: reading a schema, table insight, DBA probes.
  */
-import type { ServerFeatureModule } from '../../app/feature-module';
+import type { ServerFeatureModule } from '../../platform/feature-module';
 import { createSchemaRoutes } from './schema.routes';
 
 export { probeTableInsight } from './table-insight.service';

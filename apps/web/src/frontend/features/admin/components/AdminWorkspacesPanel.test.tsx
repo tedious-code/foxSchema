@@ -14,7 +14,7 @@ const apiSelectWorkspace = vi.fn();
 const apiSetWorkspaceMember = vi.fn();
 
 vi.mock('@/features/workspaces', () => ({
-  WorkspaceSettingsDialog: () => null,
+  loadWorkspaceSettingsDialog: async () => ({ default: () => null }),
   apiAdminListWorkspaces: (...a: unknown[]) => apiAdminListWorkspaces(...a),
   apiArchiveWorkspace: (...a: unknown[]) => apiArchiveWorkspace(...a),
   apiSelectWorkspace: (...a: unknown[]) => apiSelectWorkspace(...a),

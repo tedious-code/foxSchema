@@ -31,7 +31,7 @@ export const useRecentQueries = create<{ recentQueries: RecentQuery[] }>(() => (
   recentQueries: savedRecentQueries(),
 }));
 
-const editorStore = async () => (await import('./useSqlEditorStore')).useSqlEditorStore.getState();
+const editorStore = async () => (await import('../state')).useSqlEditorStore.getState();
 
 /** Reopen a recent query as a SQL editor tab. */
 export async function openRecentQuery(id: string): Promise<void> {

@@ -28,7 +28,7 @@ const AccountBanners = lazy(loadAccountBanners);
 const VIEWS = Object.fromEntries(
   (Object.entries(WORKSPACE_VIEWS) as [ActiveView, (typeof WORKSPACE_VIEWS)[ActiveView]][]).map(([id, def]) => [
     id,
-    def.component ?? lazy(def.load!),
+    def.load ? lazy(def.load) : def.component,
   ])
 ) as Record<ActiveView, React.ComponentType>;
 
@@ -43,14 +43,13 @@ const Workspace: React.FC = () => {
   const accountReminder = useAuthStore(
     (s) => (s.launch && !!s.registration) || (!!s.emailVerification && !s.emailVerification.verified)
   );
-  const can = useAuthStore((s) => s.can);
-  // Subscribed so a change of permissions re-runs the redirect.
-  const permissions = useAuthStore((s) => s.user?.permissions);
-  const redirect = redirectFor(activeView, can);
+  // A value, not `can`: the store hands out the same function whatever the
+  // permissions, so selecting the answer is what re-runs this on a change.
+  const redirect = useAuthStore((s) => redirectFor(activeView, s.can));
 
   useEffect(() => {
     if (redirect) setActiveView(redirect);
-  }, [redirect, permissions, setActiveView]);
+  }, [redirect, setActiveView]);
 
   const View = VIEWS[activeView];
 

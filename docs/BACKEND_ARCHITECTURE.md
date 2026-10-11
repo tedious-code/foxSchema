@@ -298,7 +298,7 @@ engines and still missed this.
 |---|---|
 | Fastify edge | `packages/server/src/api/fastify-server.ts` |
 | Route tree | `packages/server/src/app/feature-registry.ts` |
-| Feature contract | `packages/server/src/app/feature-module.ts` |
+| Feature contract | `packages/server/src/platform/feature-module.ts` |
 | Layering test | `packages/server/src/architecture.test.ts` |
 | Route binding | `packages/server/src/platform/http/router.ts` |
 | Service pattern | `packages/server/src/features/compare/compare.service.ts` |

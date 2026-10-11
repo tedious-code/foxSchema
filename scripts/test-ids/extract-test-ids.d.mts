@@ -34,6 +34,7 @@ export function duplicates(catalog: TestIdCatalog): Array<[string, string[]]>;
 export function controlsWithId(catalog: TestIdCatalog): number;
 export function usableIds(catalog: TestIdCatalog): TestIdEntry[];
 export function renderMarkdown(catalog: TestIdCatalog): string;
+export function writeCatalog(catalog: TestIdCatalog, root?: string): string[];
 export function renderTypeScript(catalog: TestIdCatalog): string;
 export interface E2eSelector {
   id: string;

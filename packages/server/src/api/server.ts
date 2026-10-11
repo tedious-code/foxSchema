@@ -13,8 +13,7 @@
  */
 import { ConnectionFactory } from '@foxschema/db';
 import { AuthModule } from '../platform/identity/auth.service';
-import { sweepOrphanedUploadFiles } from '../features/files';
-import { composeFeatures, createFeatureContext, FEATURES } from '../app/feature-registry';
+import { bootFeatures, composeFeatures, createFeatureContext, FEATURES } from '../app/feature-registry';
 import { DEFAULT_API_PORT } from '../defaultApiPort';
 import { assertListenPosture } from '../platform/runtime/deployment';
 import { asAppLogger, getLogger } from '../platform/logger/logger';
@@ -46,25 +45,12 @@ async function purgeExpiredAuth(): Promise<void> {
 }
 
 /**
- * Housekeeping at boot.
- *
- * Partial uploads are tracked in memory, so any `.part` file on disk at startup
- * belongs to no live session and can be deleted. Startup is the only point at
- * which that is safe to assume.
- *
- * Expired sessions and used or expired sign-in codes are deleted now and then
- * daily; otherwise those tables only grow.
+ * Housekeeping at boot: each feature's own (`onBoot`, such as the orphaned
+ * upload sweep), then expired sessions and used or expired sign-in codes, now
+ * and then daily; otherwise those tables only grow.
  */
 export function sweepOnBoot(): void {
-  try {
-    const swept = sweepOrphanedUploadFiles();
-    if (swept > 0) {
-      getLogger().info({ component: 'uploads', removed: swept }, 'swept orphaned upload parts');
-    }
-  } catch (error: unknown) {
-    // Never block boot on temp-dir housekeeping.
-    getLogger().warn({ component: 'uploads', err: error }, 'upload sweep skipped');
-  }
+  bootFeatures();
   void purgeExpiredAuth();
   setInterval(() => void purgeExpiredAuth(), DAY_MS).unref();
 }

@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * SQL Editor routes: statement execution and code cells.
- *
- * Extracted verbatim from api/routes.ts; handler bodies are unchanged.
  */
 import { scopeOf } from '../../platform/http/scope';
 import type { ConnectionResolver } from '../../platform/connections/resolve';

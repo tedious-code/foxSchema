@@ -5,7 +5,7 @@
  *
  * The auth feature's public API.
  *
- * The screens are loaders for \`React.lazy\`, not re-exports: only someone
+ * The screens are loaders for `React.lazy`, not re-exports: only someone
  * signed out, not yet onboarded or with an account still to finish sees them,
  * so a signed-in first page does not carry them.
  */

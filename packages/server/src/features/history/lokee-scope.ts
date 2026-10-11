@@ -8,12 +8,10 @@ import type { DbObjectType } from '@foxschema/db';
 /**
  * Object types a Lokee capture reads.
  *
- * It lives here, next to the history feature that owns it, rather than being
- * exported from the composition root: `api/routes.ts` is where features are
- * assembled, and nothing under `features/` imports from it — exporting this
- * from there invited a `features → api` dependency that runs the wrong way.
+ * It lives here, next to the history feature that owns it. Nothing under
+ * `features/` imports the composition root, so the list cannot live there.
  *
- * Two callers need the *same* list: the capture in `api/routes.ts`, and the
+ * Two callers need the *same* list: the live capture (`live-capture.service.ts`), and the
  * force-migrate routes, which read a target's live schema to diff a stored
  * version against it. A second copy would be free to drift, and drift here is
  * silent — a shorter list makes force-migrate diff against a schema missing its

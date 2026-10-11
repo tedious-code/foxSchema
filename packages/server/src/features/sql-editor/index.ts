@@ -5,7 +5,7 @@
  * The SQL editor feature: running statements, code cells, data grid edits.
  */
 import type { ConnectionOptions } from '@foxschema/db';
-import type { ServerFeatureModule } from '../../app/feature-module';
+import type { ServerFeatureModule } from '../../platform/feature-module';
 import { createEditorRoutes } from './editor.routes';
 import { isRunnableStatement, MAX_STATEMENTS, MAX_STATEMENT_LENGTH } from './sql-execute.service';
 

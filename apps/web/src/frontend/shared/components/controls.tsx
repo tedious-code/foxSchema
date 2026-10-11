@@ -3,8 +3,8 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * Form controls shared by the Access panels, so the Permission Builder and
- * User Management read as one screen rather than two.
+ * Small form controls (field, segmented switch, empty state) shared by the
+ * Access panels and Utilities, so their forms read as one product.
  */
 import React from 'react';
 import { sectionLabelCls } from '@/shared/components/surfaces';

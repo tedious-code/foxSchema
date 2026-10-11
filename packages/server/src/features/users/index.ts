@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * The users feature: profile and preferences, and the first-open signup wizard.
  */
-import type { ServerFeatureModule } from '../../app/feature-module';
+import type { ServerFeatureModule } from '../../platform/feature-module';
 import { createSignupRoutes } from './signup-wizard.routes';
 import { createUserRoutes } from './user.routes';
 import { UserModule } from './user.service';

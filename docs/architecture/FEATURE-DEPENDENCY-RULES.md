@@ -35,10 +35,13 @@ database/   metadata store and migrations
 2. A feature imports another feature **only through `features/<x>/index.ts`**,
    never a deep path such as `features/git/git-repo.service`.
 3. No cycles between features, even through `index.ts`.
-4. `api/` declares no business route; it mounts what the registry returns.
-5. A feature does not reimplement drivers (`@foxschema/db`) or dialect SQL
+4. A feature never imports `app/` or `api/`. What a feature declares
+   (`ServerFeatureModule`) is in `platform/feature-module.ts` for that reason.
+5. `api/` declares no business route and imports no feature; it mounts what
+   the registry returns and runs the features' `onBoot` through it.
+6. A feature does not reimplement drivers (`@foxschema/db`) or dialect SQL
    (`@foxschema/sql`); dialect strings go in `packages/sql/src/providers/`.
-6. Workspace-owned data is reached through `platform/connections` and the
+7. Workspace-owned data is reached through `platform/connections` and the
    services that take a `WorkspaceScope`, never by raw SQL from another feature.
 
 Enforced by `packages/server/src/architecture.test.ts`.

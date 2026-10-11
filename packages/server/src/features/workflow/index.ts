@@ -6,7 +6,7 @@
  * the token-guarded internal routes the engine calls.
  */
 import { WORKFLOW_INTERNAL_PREFIX } from '@foxschema/workflow-contract';
-import type { ServerFeatureModule } from '../../app/feature-module';
+import type { ServerFeatureModule } from '../../platform/feature-module';
 import { createWorkflowRoutes } from './workflow.routes';
 import { createWorkflowInternalRoutes } from './workflow-internal.routes';
 

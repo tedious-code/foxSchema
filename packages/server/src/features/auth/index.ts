@@ -5,7 +5,7 @@
  * The auth feature: sign-in, setup, password and SSO routes, and the sign-in
  * settings screen. The services behind them are platform/identity.
  */
-import type { ServerFeatureModule } from '../../app/feature-module';
+import type { ServerFeatureModule } from '../../platform/feature-module';
 import { createAuthRoutes } from './auth.routes';
 import { createSsoRoutes } from './sso.routes';
 import { createSignInSettingsRoutes } from './sign-in-settings.routes';

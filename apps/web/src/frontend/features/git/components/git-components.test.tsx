@@ -30,7 +30,6 @@ const gitApi = vi.hoisted(() => ({
 }));
 vi.mock('../api/gitApi', () => ({ gitApi }));
 vi.mock('@/app/store/toastStore', () => ({ toast: vi.fn() }));
-vi.mock('@/app/store/useUiStore', () => ({ useUiStore: { getState: () => ({ bumpLokeeEpoch: vi.fn() }) } }));
 
 import { useSyncStore } from '@/features/compare';
 import { useAuthStore } from '@/app/store/authStore';

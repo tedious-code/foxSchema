@@ -4,10 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Access routes: index fragmentation, DBA utilities, database access.
- *
- * Extracted from api/routes.ts verbatim — the handler bodies are unchanged, so
- * this move cannot alter behaviour. Splitting them into handler/controller
- * layers is a separate step, deliberately not mixed with the extraction.
  */
 import { scopeOf } from '../../platform/http/scope';
 import type { WorkspaceScope } from '../../platform/http/scope';

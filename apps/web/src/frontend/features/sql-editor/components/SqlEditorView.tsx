@@ -56,7 +56,7 @@ import type { RevealRequest } from './SqlEditorPane';
 const NO_RUNS: never[] = [];
 const NO_STATEMENTS: string[] = [];
 
-const SqlEditorPane = lazy(() => import('./SqlEditorPane'));
+const SqlEditorPane = lazy(() => import('../viewPane'));
 
 const EditorFallback: React.FC = () => (
   <div

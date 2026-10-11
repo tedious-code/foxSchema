@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * The system feature: liveness, version and updates, app info, activity.
  */
-import type { ServerFeatureModule } from '../../app/feature-module';
+import type { ServerFeatureModule } from '../../platform/feature-module';
 import { createSystemPublicRoutes, createSystemRoutes } from './system.routes';
 
 export const systemFeature: ServerFeatureModule = {

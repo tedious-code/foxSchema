@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * The backup feature: saved backup defaults per engine.
  */
-import type { ServerFeatureModule } from '../../app/feature-module';
+import type { ServerFeatureModule } from '../../platform/feature-module';
 import { createBackupSettingsRoutes } from './backup-settings.routes';
 
 export const backupFeature: ServerFeatureModule = {

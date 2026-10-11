@@ -19,7 +19,7 @@ vi.mock('@/features/admin/components/AdminAccessPanel', () => ({
   AdminAccessPanel: ({ open }: { open: boolean }) =>
     open ? <div data-testid="admin-access-panel">Access control</div> : null,
 }));
-vi.mock('@/features/feedback', () => ({
+vi.mock('@/features/feedback/components/FeedbackDialog', () => ({
   FeedbackDialog: ({ open, version }: { open: boolean; version: string | null }) =>
     open ? <div data-testid="feedback-dialog">Send feedback · {version ?? 'no version'}</div> : null,
 }));

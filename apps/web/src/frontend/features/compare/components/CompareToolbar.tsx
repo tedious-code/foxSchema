@@ -7,11 +7,11 @@
  * the Original and Target connections, the Compare button, the snapshot
  * button and, under them, the object scope and the result filter.
  *
- * Three parts because the shell lays the row out: \`CompareToolbarStart\` leads
- * the first row, \`CompareToolbarEnd\` follows the shell's own controls at its
- * end, and \`CompareToolbarBelow\` is the second row.
+ * Three parts because the shell lays the row out: `CompareToolbarStart` leads
+ * the first row, `CompareToolbarEnd` follows the shell's own controls at its
+ * end, and `CompareToolbarBelow` is the second row.
  */
-import React, { lazy, useState } from 'react';
+import React, { lazy, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { ArrowRight, ArrowLeftRight, RefreshCw, AlertCircle, Zap, Settings, KeyRound, X, Layers, Camera } from 'lucide-react';
@@ -21,7 +21,6 @@ import { toast } from '@/app/store/toastStore';
 import { loadConnectionModal } from '@/features/connections';
 import { captureSchema } from '@/features/lokee-weave';
 import { DiffBriefingChips, TYPE_META, TYPE_ORDER, diffBriefing } from '@/features/schema-diff';
-import type { DbObjectType } from '@/shared/lib/types';
 import { connectionNeedsSecret } from '@/shared/lib/provider-settings';
 import { schemaCompareBlocker } from '@/shared/lib/dialect-features';
 import { MountWhenOpened } from '@/shared/components/MountWhenOpened';
@@ -44,18 +43,6 @@ function connectionSummary(config: {
     config.schema ? ` / ${config.schema}` : ''
   }`;
 }
-
-const OBJECT_SCOPE_OPTIONS: { type: DbObjectType; label: string }[] = [
-  { type: 'TABLE', label: 'Tables' },
-  { type: 'MQT', label: 'MQTs' },
-  { type: 'VIEW', label: 'Views' },
-  { type: 'FUNCTION', label: 'Functions' },
-  { type: 'PROCEDURE', label: 'Procedures' },
-  { type: 'TRIGGER', label: 'Triggers' },
-  { type: 'SEQUENCE', label: 'Sequences' },
-  { type: 'TYPE', label: 'Types' },
-  { type: 'ROLE', label: 'Roles' },
-];
 
 export const CompareToolbarStart: React.FC = () => {
   // useShallow: none of these change on a deploy-checkbox click, so the
@@ -204,7 +191,7 @@ export const CompareToolbarStart: React.FC = () => {
     (!targetConnected && 'Pick and connect the Target connection') ||
     undefined;
 
-  const briefing = diffBriefing(compareResult?.tables);
+  const briefing = useMemo(() => diffBriefing(compareResult?.tables), [compareResult]);
 
   return (
     <>
@@ -445,10 +432,12 @@ export const CompareToolbarBelow: React.FC = () => {
   );
   const syncPane = useUiStore((s) => s.syncPane);
 
-  const typeCounts = (type: 'ALL' | DbObjectType) =>
-    type === 'ALL'
-      ? (compareResult?.tables.length ?? 0)
-      : (compareResult?.tables.filter((t) => t.objectType === type).length ?? 0);
+  // One pass over the result, not one per type on every render.
+  const typeCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const t of compareResult?.tables ?? []) counts.set(t.objectType, (counts.get(t.objectType) ?? 0) + 1);
+    return counts;
+  }, [compareResult]);
 
   if (syncPane !== 'compare') return null;
   return (
@@ -457,19 +446,19 @@ export const CompareToolbarBelow: React.FC = () => {
         <span className="flex items-center gap-1 pr-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
           <Settings className="h-3 w-3 text-cyan-400" /> Scope
         </span>
-        {OBJECT_SCOPE_OPTIONS.map((opt) => {
-          const active = selectedObjectTypes.includes(opt.type);
+        {TYPE_ORDER.map((type) => {
+          const active = selectedObjectTypes.includes(type);
           return (
-            <button data-testid={`toolbar-toggle-object-type-${opt.type}`}
-              key={opt.type}
-              onClick={() => toggleObjectTypeFilter(opt.type)}
+            <button data-testid={`toolbar-toggle-object-type-${type}`}
+              key={type}
+              onClick={() => toggleObjectTypeFilter(type)}
               className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
                 active
                   ? 'border-cyan-500/30 bg-cyan-500/10 text-cyan-400'
                   : 'border-slate-850 bg-slate-900/50 text-slate-500 hover:bg-slate-900 hover:text-slate-400'
               }`}
             >
-              {opt.label}
+              {TYPE_META[type].group}
             </button>
           );
         })}
@@ -487,7 +476,7 @@ export const CompareToolbarBelow: React.FC = () => {
                 : 'border-slate-850 bg-slate-900/50 text-slate-500 hover:text-slate-400'
             }`}
           >
-            All {typeCounts('ALL')}
+            All {compareResult?.tables.length ?? 0}
           </button>
           {TYPE_ORDER.map((type) => {
             const active = typeFilter.includes(type);
@@ -503,7 +492,7 @@ export const CompareToolbarBelow: React.FC = () => {
               >
                 <span className={TYPE_META[type].color}>{TYPE_META[type].icon}</span>
                 {TYPE_META[type].group}
-                <span className="text-slate-500">{typeCounts(type)}</span>
+                <span className="text-slate-500">{typeCounts.get(type) ?? 0}</span>
               </button>
             );
           })}

@@ -22,8 +22,8 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { collectTestIds, writeCatalog } from '../test-ids/extract-test-ids.mjs';
 
 const HEADER = `/**
  * Fox Schema (foxschema)
@@ -40,16 +40,12 @@ export const PATHS = {
   viewRegistry: 'apps/web/src/frontend/app/features/featureRegistry.ts',
 };
 
-/** Names the shell already uses, or that would read as one of its own. */
-const RESERVED = new Set(['app', 'api', 'shared', 'platform', 'features', 'home', 'settings', 'index', 'view']);
-
 /** Why an id cannot be used, or null when it can. */
 export function invalidId(id) {
   const kebab = typeof id === 'string' && /^[a-z][a-z0-9-]*$/.test(id) && !id.includes('--') && !id.endsWith('-');
   if (!kebab) {
     return `"${id}" is not a kebab-case id: lowercase letters and digits, words joined by "-", starting with a letter (audit-log)`;
   }
-  if (RESERVED.has(id)) return `"${id}" is reserved`;
   return null;
 }
 
@@ -88,24 +84,19 @@ export function registerServerFeature(src, n) {
   return out.slice(0, end) + `  ${n.camel}Feature,\n` + out.slice(end);
 }
 
-/** The contract table with the feature's starter route, and the count raised to match. */
+/**
+ * The contract table with the feature's starter route. Refuses an id whose
+ * /api/<id> the API already serves: a feature mounted there would share
+ * another feature's route namespace.
+ */
 export function addContractRoute(src, n) {
-  const row = `  { method: 'GET', path: '/api/${n.id}', status: 200 },`;
-  if (src.includes(`path: '/api/${n.id}'`)) throw new Error(`the contract table already lists /api/${n.id}`);
+  if (src.includes(`path: '/api/${n.id}'`) || src.includes(`path: '/api/${n.id}/`)) {
+    throw new Error(`the API already serves routes under /api/${n.id}`);
+  }
   const start = src.indexOf('const ROUTES: RouteExpectation[] = [');
   if (start < 0) throw new Error('no ROUTES table in the contract test');
   const end = src.indexOf('\n];', start);
-  let out = src.slice(0, end) + '\n' + row + src.slice(end);
-  const count = /( +)expect\(ROUTES\.length\)\.toBe\((\d+)\);/;
-  const m = count.exec(out);
-  if (!m) throw new Error('no ROUTES.length assertion in the contract test');
-  const [, indent, was] = m;
-  const now = Number(was) + 1;
-  out = out.replace(
-    count,
-    `${indent}//\n${indent}// ${was} -> ${now}: ${n.title} (/api/${n.id}), from npm run feature:new.\n${indent}expect(ROUTES.length).toBe(${now});`
-  );
-  return out;
+  return src.slice(0, end) + `\n  { method: 'GET', path: '/api/${n.id}', status: 200 },` + src.slice(end);
 }
 
 /** VIEW_IDS with the feature's view id appended. */
@@ -131,7 +122,7 @@ export function serverFiles(n) {
     [`${dir}/index.ts`]: `${HEADER}
  * The ${n.title.toLowerCase()} feature. TODO: say in a sentence what it does.
  */
-import type { ServerFeatureModule } from '../../app/feature-module';
+import type { ServerFeatureModule } from '../../platform/feature-module';
 import { create${n.pascal}Routes } from './${n.id}.routes';
 
 export const ${n.camel}Feature: ServerFeatureModule = {
@@ -202,16 +193,8 @@ function handler(method: string, path: string) {
 }
 
 function fakeReply() {
-  const sent: { status?: number; body?: unknown } = {};
+  const sent: { body?: unknown } = {};
   const reply = {
-    status(code: number) {
-      sent.status = code;
-      return reply;
-    },
-    code(code: number) {
-      sent.status = code;
-      return reply;
-    },
     send(body: unknown) {
       sent.body = body;
       return reply;
@@ -387,7 +370,7 @@ function main(argv) {
   if (!flags.has('--dry-run')) {
     applyPlan(root, plan);
     // The new view's test ids belong in the catalog the e2e suite reads.
-    if (web) execFileSync(process.execPath, ['scripts/test-ids/extract-test-ids.mjs', '--write'], { cwd: root, stdio: 'ignore' });
+    if (web) writeCatalog(collectTestIds(root), root);
   }
   for (const rel of Object.keys(plan.files)) console.log(`${verb}   ${rel}`);
   for (const rel of Object.keys(plan.edits)) console.log(`${verb === 'wrote' ? 'updated' : 'would update'} ${rel}`);

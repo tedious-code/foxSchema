@@ -39,7 +39,7 @@ abstract layer.
 
 ```ts
 // features/backup/index.ts
-import type { ServerFeatureModule } from '../../app/feature-module';
+import type { ServerFeatureModule } from '../../platform/feature-module';
 import { createBackupSettingsRoutes } from './backup-settings.routes';
 
 export const backupFeature: ServerFeatureModule = {
@@ -47,6 +47,10 @@ export const backupFeature: ServerFeatureModule = {
   mounts: [{ prefix: '/api/backup-settings', access: 'user', routes: () => createBackupSettingsRoutes() }],
 };
 ```
+
+Housekeeping that is only safe at startup goes in `onBoot` (the files feature
+sweeps orphaned upload parts there). The registry runs it once; a failure is
+logged and boot carries on.
 
 - `access` is one of `public`, `user` (signed in), `registered` (signed in
   with a real account, not a launch link), `internal` (the workflow engine's

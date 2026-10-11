@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  * The admin feature: users and roles, secrets and cloud credentials, policy.
  */
-import type { ServerFeatureModule } from '../../app/feature-module';
+import type { ServerFeatureModule } from '../../platform/feature-module';
 import { createAdminRoutes } from './admin.routes';
 import { createAppSecretsRoutes } from './app-secrets.routes';
 import { AppSecretsStore } from './app-secrets.service';

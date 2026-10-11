@@ -24,8 +24,6 @@ import type { TableDiff } from '@/shared/lib/types';
 import { highlightMatch } from '@/features/schema-diff/lib/highlight';
 import { TYPE_META, TYPE_ORDER } from './objectTypeMeta';
 
-export { TYPE_META, TYPE_ORDER, type TypeMeta } from './objectTypeMeta';
-
 export function statusBadgeClass(status: TableDiff['status']): string {
   switch (status) {
     case 'ADDED':

@@ -18,8 +18,8 @@ export interface TypeMeta {
 /**
  * Icon, plural label and colour per object type.
  *
- * Exported because `TopToolbar` renders the same pills with counts — that bar
- * has the horizontal room this panel's narrow, resizable width does not. In
+ * Exported because Compare's toolbar renders the same pills with counts — that
+ * bar has the horizontal room this panel's narrow, resizable width does not. In
  * its own module so the always-loaded toolbar does not carry the whole tree.
  */
 export const TYPE_META: Record<DbObjectType, TypeMeta> = {

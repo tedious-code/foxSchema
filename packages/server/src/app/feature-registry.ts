@@ -8,12 +8,9 @@
  * Installing a feature is adding its module to FEATURES. Nothing registers
  * itself on import, and no feature attaches the session guard or the API
  * rate limit by hand: `composeFeatures` derives them from each mount's
- * `access` and `rateLimited`.
- *
- * Mount order: public mounts first (sign-in must not sit behind the
- * session guard), then the engine's internal routes, then signed-in
- * mounts, then the rate-limited `/api` group — the order the route tree
- * always had. Within each group, registry order.
+ * `access` and `rateLimited`. Order does not matter: each route is bound
+ * with its own guard chain, and Fastify matches routes by path, not by
+ * registration order.
  */
 import { ConnectionModule } from '@foxschema/db';
 import { Router } from '../platform/http/router';
@@ -23,7 +20,8 @@ import { AuthModule } from '../platform/identity/auth.service';
 import { ConnectionStore } from '../platform/connections/connection-store.service';
 import { makeConnectionResolver } from '../platform/connections/resolve';
 import { defaultApiRateLimit } from '../platform/guards/rate-limit';
-import type { FeatureContext, FeatureMount, ServerFeatureModule } from './feature-module';
+import { getLogger } from '../platform/logger/logger';
+import type { FeatureContext, FeatureMount, ServerFeatureModule } from '../platform/feature-module';
 import { systemFeature } from '../features/system';
 import { authFeature } from '../features/auth';
 import { usersFeature } from '../features/users';
@@ -74,10 +72,15 @@ export function createFeatureContext(): FeatureContext {
   };
 }
 
-function phase(mount: FeatureMount): number {
-  if (mount.access === 'public') return 0;
-  if (mount.access === 'internal') return 1;
-  return mount.rateLimited ? 3 : 2;
+/** Runs each feature's startup housekeeping. A failure is logged and never blocks boot. */
+export function bootFeatures(features: readonly ServerFeatureModule[] = FEATURES): void {
+  for (const feature of features) {
+    try {
+      feature.onBoot?.();
+    } catch (err: unknown) {
+      getLogger().warn({ component: feature.id, err }, 'startup housekeeping skipped');
+    }
+  }
 }
 
 /** The route tree for `features`, with each mount's guards applied. */
@@ -104,13 +107,8 @@ export function composeFeatures(features: readonly ServerFeatureModule[], contex
     return guards;
   };
 
-  const mounts = features
-    .flatMap((feature) => feature.mounts)
-    .map((mount, index) => ({ mount, index }))
-    .sort((a, b) => phase(a.mount) - phase(b.mount) || a.index - b.index);
-
   const root = Router();
-  for (const { mount } of mounts) {
+  for (const mount of features.flatMap((feature) => feature.mounts)) {
     root.use(mount.prefix, ...guardsFor(mount), mount.routes(context));
   }
   return root;

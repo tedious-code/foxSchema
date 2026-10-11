@@ -74,7 +74,7 @@ export function renderReport({ files, total }, budgetGzipKb) {
     const over = total.gzip / 1024 > budgetGzipKb;
     lines.push(
       over
-        ? `Over the ${budgetGzipKb} KB gzip budget. Something heavy is imported statically on the first page; load it on demand (shared/lib/loadOnce, MountWhenOpened, app/shell/viewLoaders).`
+        ? `Over the ${budgetGzipKb} KB gzip budget. Something heavy is imported statically on the first page; load it on demand (shared/lib/loadOnce, MountWhenOpened, a feature's view.ts or a load… function in its index.ts).`
         : `Within the ${budgetGzipKb} KB gzip budget.`
     );
   }

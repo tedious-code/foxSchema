@@ -3,7 +3,7 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * Schema browse routes. Extracted verbatim from api/routes.ts.
+ * Schema browse routes.
  */
 import { scopeOf } from '../../platform/http/scope';
 import type { ConnectionResolver } from '../../platform/connections/resolve';

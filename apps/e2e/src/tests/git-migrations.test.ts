@@ -1,13 +1,14 @@
 /**
- * Migrations in Git, end to end in a real browser, against Postgres and a
- * real Git server (git http-backend, started here).
+ * Migrations in Git, end to end in a real browser, against Postgres and
+ * MySQL and a real Git server (git http-backend, started here).
  *
  * Compare → Commit to Git (the exact file shown first) → push → Execute runs
  * it from the commit → Applies → Git shows it applied. Then a teammate pushes
  * a migration of their own: Fetch, Pull, and it appears as incoming; Run
  * applies it from its commit.
  *
- * Needs the Postgres demo databases (E2E_POSTGRES_*), and the dev API started
+ * Each engine runs when its demo databases are configured (E2E_POSTGRES_*,
+ * E2E_MYSQL_*) and skips otherwise. Needs the dev API started
  * with FOX_GIT_ALLOW_HTTP=1 (the dev:api script sets it) since the local Git
  * server speaks plain HTTP.
  */
@@ -40,7 +41,16 @@ async function startTestGitServer(): Promise<TestGitServer> {
 }
 
 const API_URL = process.env.E2E_API_URL ?? 'http://127.0.0.1:3210';
-const AUDIT_TABLE = `e2e_git_audit_${Date.now()}`;
+
+/**
+ * The whole flow for one engine. The seed gives every engine a `demo_a` and a
+ * `demo_b` to compare; on Postgres they are schemas, on MySQL databases, so the
+ * target's name comes from its config.
+ */
+function gitMigrationsFlow(dialect: string, label: string): void {
+const AUDIT_TABLE = `e2e_git_audit_${dialect}_${Date.now()}`;
+const target = () => getTargetConfig(dialect)!;
+const targetSchema = () => target().schema ?? target().database;
 
 let server: TestGitServer;
 let admin = '';
@@ -59,7 +69,7 @@ async function api(method: string, path: string, body?: unknown) {
   return { status: res.status, json: (await res.json().catch(() => null)) as any };
 }
 
-describe.skipIf(!hasConfig('postgres'))('Migrations in Git (Postgres)', () => {
+describe.skipIf(!hasConfig(dialect))(`Migrations in Git (${label})`, () => {
   beforeAll(async () => {
     server = await startTestGitServer();
     admin = await sessionCookie();
@@ -84,19 +94,19 @@ describe.skipIf(!hasConfig('postgres'))('Migrations in Git (Postgres)', () => {
   }, 120_000);
 
   afterAll(async () => {
-    await tryCleanup('postgres', [`DROP TABLE IF EXISTS demo_b.${AUDIT_TABLE}`]);
+    await tryCleanup(dialect, [`DROP TABLE IF EXISTS ${targetSchema()}.${AUDIT_TABLE}`]);
     if (repoId) await api('DELETE', `/git/repos/${repoId}`);
     if (driver) await quitDriver(driver);
     await server?.close();
   });
 
-  it('compares the Postgres demo schemas', async () => {
+  it(`compares the ${label} demo schemas`, async () => {
     await app.open();
     await app.openSourceModal();
-    await modal.connect(getSourceConfig('postgres')!);
+    await modal.connect(getSourceConfig(dialect)!);
     await app.waitForSourceConnected(30_000);
     await app.openTargetModal();
-    await modal.connect(getTargetConfig('postgres')!);
+    await modal.connect(target());
     await app.waitForTargetConnected(30_000);
     await app.waitForSourceConnected(30_000);
     await app.runCompare();
@@ -145,9 +155,9 @@ describe.skipIf(!hasConfig('postgres'))('Migrations in Git (Postgres)', () => {
 
   it("fetches and pulls a teammate's migration, and runs it from its commit", async () => {
     const preview = await api('POST', `/git/repos/${repoId}/preview`, {
-      steps: [{ action: 'CREATE', objectType: 'TABLE', objectName: AUDIT_TABLE, statements: [`CREATE TABLE demo_b.${AUDIT_TABLE} (id int PRIMARY KEY)`] }],
+      steps: [{ action: 'CREATE', objectType: 'TABLE', objectName: AUDIT_TABLE, statements: [`CREATE TABLE ${targetSchema()}.${AUDIT_TABLE} (id int PRIMARY KEY)`] }],
       note: 'Add the audit table',
-      dialect: 'postgres',
+      dialect,
     });
     server.teammateCommit('main', { [preview.json.path]: preview.json.content }, 'Add the audit table');
 
@@ -162,8 +172,21 @@ describe.skipIf(!hasConfig('postgres'))('Migrations in Git (Postgres)', () => {
       preview.json.fileName,
       { timeout: 60_000 }
     );
-    const applied = await api('POST', `/git/repos/${repoId}/migrations`, { branch: 'main', ...{ dialect: 'postgres', option: { host: getTargetConfig('postgres')!.host, port: getTargetConfig('postgres')!.port, database: getTargetConfig('postgres')!.database, username: getTargetConfig('postgres')!.username, password: getTargetConfig('postgres')!.password }, schema: 'demo_b' } });
+    const t = target();
+    const applied = await api('POST', `/git/repos/${repoId}/migrations`, {
+      branch: 'main',
+      dialect,
+      option: { host: t.host, port: t.port, database: t.database, username: t.username, password: t.password },
+      schema: targetSchema(),
+    });
     const theirs = applied.json.migrations.find((m: { path: string }) => m.path === preview.json.path);
     expect(theirs).toMatchObject({ incoming: false, applied: { status: 'SUCCESS' } });
   }, 120_000);
 });
+}
+
+gitMigrationsFlow('postgres', 'Postgres');
+// Review item 11: the flow had only ever run on Postgres. MySQL runs DDL outside
+// transactions and names databases where Postgres names schemas.
+gitMigrationsFlow('mysql', 'MySQL');
+

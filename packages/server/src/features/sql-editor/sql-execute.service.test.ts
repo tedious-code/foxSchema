@@ -94,6 +94,38 @@ describe('runStatements against a real SQLite file', () => {
     if (results[2].ok) expect(results[2].rows).toEqual([[3]]);
   });
 
+  it('with stopOnError, leaves every statement after a failure unrun', async () => {
+    // Clone Table's shape: a step fails, and the steps after it assumed it
+    // worked. Here the third statement would create a table if it ran.
+    const run = (stopOnError: boolean) =>
+      runStatements(
+        'sqlite',
+        { connectionString: dbPath },
+        [
+          'CREATE TABLE IF NOT EXISTS stop_first (x INTEGER);',
+          'INSERT INTO stop_missing VALUES (1);',
+          'CREATE TABLE stop_after (x INTEGER);',
+        ],
+        500,
+        undefined,
+        0,
+        [],
+        undefined,
+        stopOnError
+      );
+    const created = async () =>
+      (await runStatements('sqlite', { connectionString: dbPath }, ["SELECT name FROM sqlite_master WHERE name = 'stop_after';"], 10))[0];
+
+    const stopped = await run(true);
+    expect(stopped.map((r) => r.ok)).toEqual([true, false]);
+    expect(await created()).toMatchObject({ ok: true, rowCount: 0 });
+
+    // Without it every statement runs, as the editor reports them.
+    const all = await run(false);
+    expect(all.map((r) => r.ok)).toEqual([true, false, true]);
+    expect(await created()).toMatchObject({ ok: true, rowCount: 1 });
+  });
+
   it('applies the row cap with the truncated flag', async () => {
     const results = await runStatements('sqlite', { connectionString: dbPath }, ['SELECT * FROM t;'], 2);
     expect(results[0]).toMatchObject({ ok: true, rowCount: 2, truncated: true, hasNext: true });

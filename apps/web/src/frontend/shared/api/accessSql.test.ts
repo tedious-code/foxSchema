@@ -51,13 +51,36 @@ describe('runAccessSql', () => {
     expect(sent()).toEqual(['GRANT SELECT ON t TO r']);
   });
 
-  it('joins the errors of the statements that failed', async () => {
+  it('asks the server to stop at the first failure', async () => {
+    // A script's later steps assume its earlier ones; running them anyway
+    // half-applies access the reader was never shown as a plan.
+    await runAccessSql(ref, 'GRANT SELECT ON t TO r;\nGRANT INSERT ON t TO r;');
+    expect(executeSql.mock.calls[0]![5]).toEqual({ stopOnError: true });
+  });
+
+  it('says which statement failed, what was applied before it and what did not run', async () => {
+    // The server stops at the failure, so the results end there.
     executeSql.mockResolvedValue({
       results: [{ ok: true }, { ok: false, error: 'role "r" does not exist' }],
     });
+    await expect(
+      runAccessSql(ref, 'GRANT USAGE ON SCHEMA s TO r;\nGRANT SELECT ON t TO r;\nGRANT INSERT ON t TO r;')
+    ).resolves.toEqual({
+      ok: false,
+      error: 'Statement 2 of 3 failed: role "r" does not exist. The 1 before it was applied. The 1 after it did not run.',
+    });
+  });
+
+  it('reports a lone statement’s error as it is', async () => {
+    executeSql.mockResolvedValue({ results: [{ ok: false, error: 'permission denied' }] });
+    await expect(runAccessSql(ref, 'GRANT SELECT ON t TO r;')).resolves.toEqual({ ok: false, error: 'permission denied' });
+  });
+
+  it('does not report ok when fewer results came back than statements were sent', async () => {
+    executeSql.mockResolvedValue({ results: [{ ok: true }] });
     await expect(runAccessSql(ref, 'GRANT SELECT ON t TO r;\nGRANT INSERT ON t TO r;')).resolves.toEqual({
       ok: false,
-      error: 'role "r" does not exist',
+      error: 'Only 1 of 2 statements ran.',
     });
   });
 

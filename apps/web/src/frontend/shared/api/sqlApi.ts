@@ -35,6 +35,8 @@ export async function executeSql(
   opts?: {
     datagridAction?: 'insert' | 'update' | 'delete';
     seek?: { columns: string[]; values: unknown[]; descending?: boolean | boolean[] };
+    /** Leave the statements after a failure unrun; `results` then ends at it. */
+    stopOnError?: boolean;
   }
 ): Promise<{ results: SqlStatementResult[] }> {
   const data = await api.post<{ results?: SqlStatementResult[]; error?: string }>(`/sql/execute`, {
@@ -45,6 +47,7 @@ export async function executeSql(
       params,
       ...(opts?.datagridAction ? { datagridAction: opts.datagridAction } : {}),
       ...(opts?.seek ? { seek: opts.seek } : {}),
+      ...(opts?.stopOnError ? { stopOnError: true } : {}),
     });
   if (!data.results) throw new Error(data.error || 'Query failed: no results returned.');
   return { results: data.results };

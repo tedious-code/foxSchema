@@ -3,7 +3,7 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * Schema browse routes.
+ * Schema browse routes, and the table insight Data Peek shows.
  */
 import { scopeOf } from '../../platform/http/scope';
 import type { ConnectionResolver } from '../../platform/connections/resolve';
@@ -15,6 +15,8 @@ import type { AuthedRequest } from '../../platform/http/types';
 import type { ConnectionRef } from '../../platform/connections/resolve';
 import { getProviderSettings, type DbObjectType } from '@foxschema/db';
 import { sendError, sendThrown } from '../../platform/http/respond';
+import { rateLimit } from '../../platform/guards/rate-limit';
+import { probeTableInsight } from './table-insight.service';
 
 export interface SchemaRouteDeps {
   resolveRef: ConnectionResolver['resolveRef'];
@@ -53,6 +55,44 @@ export function createSchemaRoutes(deps: SchemaRouteDeps): Router {
       sendThrown(res, error, 'Failed to load schema');
     }
   });
+
+  const tableInsightLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 });
+  router.post(
+    '/schema/table-insight',
+    tableInsightLimiter,
+    // This powers Data Peek's Insight tab in the SQL Editor. Requiring
+    // utility.access locked the whole tab out for the built-in viewer role,
+    // even though viewers can open Data Peek and run its read-only queries.
+    requirePermissions('editor.run'),
+    async (req: AppRequest, res: FastifyReply) => {
+      const body = req.body as ConnectionRef & { schema?: unknown; table?: unknown };
+      const table = typeof body.table === 'string' ? body.table.trim() : '';
+      if (!table) {
+        sendError(res, 'invalid_input', 'table is required.');
+        return;
+      }
+      try {
+        const resolved = await deps.resolveRef(scopeOf(req as AuthedRequest), body);
+        const schema =
+          (typeof body.schema === 'string' && body.schema.trim()) || resolved.schema || '';
+        const probed = await probeTableInsight({
+          dialect: resolved.dialect,
+          option: resolved.option,
+          schema,
+          table,
+        });
+        if (!probed.ok) {
+          const { status, ...rest } = probed.failure;
+          res.status(status).send(rest);
+          return;
+        }
+        res.send({ ...probed.value, dialect: resolved.dialect });
+      } catch (error: unknown) {
+        sendThrown(res, error, 'Failed to load table insight');
+      }
+    }
+  );
+
 
   return router;
 }

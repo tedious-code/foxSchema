@@ -120,7 +120,7 @@ export const PERMISSION_META: PermissionMeta[] = [
   { id: 'editor.datagrid.update', group: 'Data grid', label: 'Update rows', description: 'Edit rows in Data Peek and editable query-result grids (also needs Change data).' },
   { id: 'editor.datagrid.delete', group: 'Data grid', label: 'Delete rows', description: 'Delete rows in Data Peek and editable query-result grids (also needs Change data).' },
   { id: 'utility.access', group: 'Utilities', label: 'Use utilities', description: 'Open the Utilities workspace (Index Management, Clone Table, Database Access, Server Insights, Query files). Database Access can list DB users/groups; running GRANT / REVOKE still needs Grant privileges.' },
-  { id: 'utility.index.drop', group: 'Utilities', label: 'Drop indexes', description: 'Drop secondary indexes from Index Management. Constraint-backed indexes still need Edit table. Also needs Change schema.' },
+  { id: 'utility.index.drop', group: 'Utilities', label: 'Drop indexes', description: 'Shows Drop for secondary indexes in Index Management (constraint-backed indexes still need Edit table). Also needs Change schema. It only governs that button: anyone with Change schema can still run DROP INDEX in the SQL Editor.' },
   { id: 'secrets.view', group: 'Secrets', label: 'View secrets', description: 'List secrets (values still resolved only when needed).' },
   { id: 'secrets.create', group: 'Secrets', label: 'Add secrets', description: 'Create vault entries and cloud provider credentials.' },
   { id: 'secrets.edit', group: 'Secrets', label: 'Edit secrets', description: 'Update existing secrets and provider credentials.' },

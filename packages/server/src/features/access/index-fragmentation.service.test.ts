@@ -162,6 +162,24 @@ describe('probeTableFragmentation against a real SQLite file', () => {
     expect(probed.failure.error).toMatch(/SELECT/);
   });
 
+  it('refuses a SELECT … INTO hidden behind a comment marker in a string, before running it', async () => {
+    // On Postgres or SQL Server this creates a table. SQLite has no
+    // SELECT … INTO, so had it reached the database the failure would be its
+    // syntax error as a 500; refused first, it is a 400 naming the write.
+    const probed = await probeTableFragmentation({
+      dialect: 'sqlite',
+      option,
+      schema: '',
+      table: 'orders',
+      preferCustom: true,
+      customSql: `SELECT '/*', 1 INTO fox_probe FROM orders -- */`,
+    });
+    expect(probed.ok).toBe(false);
+    if (probed.ok) return;
+    expect(probed.failure.status).toBe(400);
+    expect(probed.failure.error).toMatch(/read-only/);
+  });
+
   it('rejects multi-statement custom SQL', async () => {
     const probed = await probeTableFragmentation({
       dialect: 'sqlite',

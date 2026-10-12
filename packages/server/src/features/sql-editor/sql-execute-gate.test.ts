@@ -100,3 +100,17 @@ describe('POST /sql/execute reads a code fence as the database does', () => {
     expect(ran).toBe(false);
   });
 });
+
+describe('POST /sql/execute stopOnError', () => {
+  // runStatements' last argument: stop at the first failure.
+  const stopArg = () => vi.mocked(runStatements).mock.calls[0]!.at(-1);
+
+  it('passes it to the statement loop only when it is true', async () => {
+    await execute('postgres', ['editor.run'], { statements: ['SELECT 1'], stopOnError: true });
+    expect(stopArg()).toBe(true);
+    await execute('postgres', ['editor.run'], { statements: ['SELECT 1'] });
+    expect(stopArg()).toBe(false);
+    await execute('postgres', ['editor.run'], { statements: ['SELECT 1'], stopOnError: 'yes' });
+    expect(stopArg()).toBe(false);
+  });
+});

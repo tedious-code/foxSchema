@@ -26,7 +26,7 @@
  * driver rows and checks custom SQL; it knows no catalog table by name.
  */
 
-import { isWriteStatement } from '../sql-text/sql-splitter.js';
+import { firstKeyword, sqlStatementCategories, sqlStatementCount } from '../sql-text/sql-splitter.js';
 import { resolveIndexFragmentation } from './index-fragmentation.registry.js';
 import {
   CUSTOM_HINT,
@@ -341,30 +341,30 @@ export function buildIndexFragmentationCustomTemplate(opts: {
 }
 
 /**
- * Reject obviously unsafe custom probes on the stats endpoint.
- * Same trust model as the SQL editor for SELECTs, but refuse writes / multi-statements
- * — including PostgreSQL data-modifying CTEs that still end in SELECT.
+ * Reject unsafe custom probes on the stats endpoint: one read-only statement.
+ *
+ * The endpoint runs this SQL without the SQL editor's permission gate, so it
+ * applies that gate's reading here: the shared tokenizer, as `dialect` reads
+ * the text, and the same per-statement categories. A regex that removed
+ * comments first did not know a `/*` inside a string is not a comment, and
+ * `SELECT '/*', 1 INTO t FROM x -- *\/` hid its INTO that way and created a
+ * table.
  */
-export function isSafeIndexFragmentationCustomSql(sql: string): true | string {
+export function isSafeIndexFragmentationCustomSql(sql: string, dialect?: string): true | string {
   const t = sql.trim();
   if (!t) return 'Custom SQL is empty.';
   if (t.length > 20_000) return 'Custom SQL is too long.';
-  if (/;/.test(t.replace(/;+\s*$/, ''))) {
-    return 'Custom SQL must be a single statement (no extra semicolons).';
+  if (sqlStatementCount(t, dialect) > 1) {
+    return 'Custom SQL must be a single statement.';
   }
-  if (/--/.test(t) || /\/\*|\*\//.test(t)) {
-    // Allow leading comment block templates — strip line comments for verb check only.
-  }
-  const stripped = t
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/--[^\n]*/g, ' ')
-    .trim();
-  if (!/^(with|select)\b/i.test(stripped)) {
+  const verb = firstKeyword(t);
+  if (verb !== 'select' && verb !== 'with') {
     return 'Custom SQL must be a SELECT (or WITH … SELECT) statement.';
   }
-  // `WITH x AS (DELETE … RETURNING …) SELECT …` starts with WITH/SELECT but writes.
-  if (isWriteStatement(stripped)) {
-    return 'Custom SQL must be read-only (no INSERT/UPDATE/DELETE/DDL, including in CTEs).';
+  // `WITH x AS (DELETE … RETURNING …) SELECT …` and `SELECT … INTO t` start
+  // like reads but write.
+  if (sqlStatementCategories(t, dialect).some((category) => category !== 'read')) {
+    return 'Custom SQL must be read-only (no INSERT/UPDATE/DELETE/DDL, SELECT … INTO, or writes in CTEs).';
   }
   return true;
 }

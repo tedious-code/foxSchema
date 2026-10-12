@@ -8,6 +8,7 @@ import {
   requiresWritePermission,
   sqlStatementCategory,
   sqlStatementCategories,
+  sqlStatementCount,
   statementVerb,
   firstKeyword,
   extractTableAliases,
@@ -837,8 +838,10 @@ describe('requiresWritePermission (fail-closed RBAC gate)', () => {
     expect(needsWrite('SELECT 1 /* INTO evil */')).toBe(false);
   });
 
-  it('leaves code cells to the bridge', () => {
-    expect(needsWrite('-- @node\nreturn [];\n-- @end')).toBe(false);
+  it('reads a code fence as the comments the database sees', () => {
+    // The editor runs a real cell itself; text that reaches a gate goes to the
+    // database, where `return` is no read verb.
+    expect(needsWrite('-- @node\nreturn [];\n-- @end')).toBe(true);
   });
 });
 
@@ -992,7 +995,7 @@ describe('RBAC classifier — leading punctuation / batches / parenthesized PRAG
     // the bridge) must still need editor.dml / editor.ddl.
     const afterClosed =
       '-- @node\n-- @end\nDELETE FROM important_table WHERE id = 1';
-    expect(sqlStatementCategories(afterClosed).sort()).toEqual(['dml', 'read']);
+    expect(sqlStatementCategories(afterClosed)).toEqual(['dml']);
     expect(sqlStatementCategory(afterClosed)).toBe('dml');
     expect(requiresWritePermission(afterClosed)).toBe(true);
     expect(isWriteStatement(afterClosed)).toBe(true);
@@ -1011,10 +1014,34 @@ describe('RBAC classifier — leading punctuation / batches / parenthesized PRAG
     expect(statementVerb(unclosed)).toBe('delete');
   });
 
-  it('still treats a closed code cell alone as a read (bridge owns its SQL)', () => {
+  it('prices the SQL inside a closed fence, which the database runs', () => {
+    // Nothing that reaches a gate is a code cell — the editor runs those
+    // itself — so the fence lines are comments and the DROP is a statement.
+    const fenced = '-- @node\nDROP TABLE t\n-- @end';
+    expect(sqlStatementCategories(fenced, 'postgres')).toEqual(['ddl']);
+    expect(requiresWritePermission(fenced, 'postgres')).toBe(true);
+  });
+
+  it('does not cut a fence line out of a multi-line string', () => {
+    // The database reads `SELECT '<a, fence line, SELECT >'; DROP TABLE users;`
+    // and then a comment. Carving the fence out left `SELECT '; DROP …; --'`,
+    // which read as a SELECT of a string.
+    const carved = "SELECT 'a\n-- @node\nSELECT '; DROP TABLE users; --'\n-- @end";
+    expect(sqlStatementCategories(carved, 'postgres')).toContain('ddl');
+    expect(sqlStatementCount(carved, 'postgres')).toBe(2);
+  });
+
+  it('counts the statements inside a fence', () => {
+    // One fence was one statement, so a grid delete could carry an UPDATE.
+    const twoWrites = '/* x */\n-- @node\nDELETE FROM a WHERE id = 1;\nUPDATE b SET x = 1;\n-- @end';
+    expect(sqlStatementCount(twoWrites, 'postgres')).toBe(2);
+  });
+
+  it('still shows a closed code cell to the editor as a cell', () => {
+    // Safe Mode and the statement strip read the editor buffer, where the
+    // editor runs the cell itself and only its `sql` bridge statements reach
+    // the database.
     const cell = '-- @node\nreturn [{ ok: true }];\n-- @end';
-    expect(sqlStatementCategories(cell)).toEqual(['read']);
-    expect(requiresWritePermission(cell)).toBe(false);
     expect(isWriteStatement(cell)).toBe(false);
     expect(statementVerb(cell)).toBe('node');
   });

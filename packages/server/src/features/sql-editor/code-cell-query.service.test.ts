@@ -125,6 +125,13 @@ describe('code cell bridge permission policy', () => {
     await expect(runnerFor(dmlOnly)("SELECT 'a\\'; DROP TABLE t; --'", [])).rejects.toThrow(/editor\.ddl/);
   });
 
+  it('prices the SQL inside a code fence, which the database runs', async () => {
+    // `-- @node` / `-- @end` are comments to the database, not a nested cell.
+    await expect(runnerFor(new Set(), false)('-- @node\nDROP TABLE t\n-- @end', [])).rejects.toThrow(/Safe mode/);
+    const dmlOnly = new Set<Permission>(['editor.dml']);
+    await expect(runnerFor(dmlOnly)('-- @node\nDROP TABLE t\n-- @end', [])).rejects.toThrow(/editor\.ddl/);
+  });
+
   it('blocks parenthesized PRAGMA assignments', async () => {
     await expect(runnerFor(new Set(), false)('PRAGMA user_version(123)', [])).rejects.toThrow(/Safe mode/);
   });

@@ -126,6 +126,39 @@ answers. The conventions are in
 [docs/architecture/FEATURE-MODULE-GUIDE.md](architecture/FEATURE-MODULE-GUIDE.md), the import
 rules in [docs/architecture/FEATURE-DEPENDENCY-RULES.md](architecture/FEATURE-DEPENDENCY-RULES.md).
 
+## Workspaces
+
+Every persisted product row is workspace-scoped (`connections`, `app_secrets`,
+`cloud_provider_credentials`, `lokee_databases`, `migration_runs`,
+`data_migrate_runs`). Git repositories and install settings are install-wide.
+Workflow engine settings still use `COMMUNITY_WORKSPACE_ID` (`local`); a
+connection grant follows the connection’s workspace.
+
+- **Personal workspace.** Created with the account (`ensurePersonalWorkspace`).
+  Its member role mirrors the account role (`personalRoleFor`: admin → owner).
+  Always private; cannot be archived. The account it belongs to always manages
+  its members.
+- **Request scope.** `authGuard` calls `resolveWorkspace`. `X-Fox-Workspace`
+  names one the caller is a member of, else **404** (never 403 — that would
+  confirm a private id). No header: `user_preferences.last_workspace_id`, else
+  the personal workspace. The UI does not send the header; switching is
+  `POST /api/workspaces/:id/select`, then a reload. Use `scopeOf(req)` /
+  `WorkspaceScope` in services — never a bare `user_id` filter.
+- **Permissions.** `effectivePermissions(account, workspace)`: install keys
+  (`INSTALL_PERMISSIONS`: `editor.advanced`, Git, workflow, `admin.*`,
+  `workspace.create`) come from the account role; everything else from the
+  member’s role in this workspace. Neither side lends the other its keys. An
+  admin who is a member keeps every permission.
+- **Admin list.** `GET /api/workspaces/all` is names, owners and sizes — never
+  the workspace’s data. Opening it is joining (`AdminWorkspacesPanel`).
+- **Public join.** Anyone signed in may join a public non-personal workspace
+  (`GET /api/workspaces/discover`, `POST /:id/join`). Join role is viewer or
+  editor, never owner. An invite never adds: the invitee accepts
+  (`POST /api/workspaces/invites/:id/accept`, 14-day TTL).
+
+Startup `backfillWorkspaces` gives each account a personal workspace and moves
+rows that still have `workspace_id` null or `'local'` into their author’s.
+
 ## Database connection auth
 
 Saved credentials keep `ConnectionOptions` (including optional `authMethod`
@@ -171,6 +204,13 @@ core's.
    → `MigrationStep[]`. Runs in the browser on every selection toggle — no round-trip.
 3. **Execute** (server-side): `POST /api/migration/execute` → `MigrationModule` streams
    `MigrationEvent` objects via SSE back to `MigrationProgressPanel`.
+
+The Compare **Execute** button is gated in the browser first
+(`features/compare/lib/executeGate.ts`). A missing foreign-key target or an
+unacknowledged narrowing change **keeps the click** and opens that review
+(`executeClick`) instead of deploying. Drop-dependency conflicts, unacked
+destructive drops / MySQL binlog risk, a required Git commit, and a disconnected
+target disable the button.
 
 `SchemaMapping` threads through generation: `sourceSchema`, `targetSchema`, `sourceDialect`,
 `targetDialect`, `nonDestructive`, `targetServerVersion`.
@@ -299,6 +339,34 @@ Rendering on the hot paths (what to keep when editing these components):
   `React.memo` and are passed stable props; an inline callback or a default `[]` prop
   breaks that. The statement strip caches each statement's checks by its text.
 
+## SQL text: one tokenizer, dialect readings
+
+`packages/sql/src/modules/sql-text/` is the lexical foundation. Permission
+gates, data-migrate, the single-statement check and the editor strip must see
+SQL the way the destination database will.
+
+| File | Job |
+|---|---|
+| `sql-tokens.ts` | One tokenizer. Tokens cover the text exactly. Options are the engines’ disagreements (backslash escapes, `#` comments, dollar quotes, nested comments, `/*!` executable comments, `ANSI_QUOTES`, …). |
+| `sql-readings.ts` | Which option combinations each dialect can use. A session setting that we have not ruled out is a second reading. No dialect, or an unknown one, gets **every** reading. `canonicalSql` writes a form only that reading fits, so later scanners cannot disagree. |
+| `sql-splitter.ts` | Splits the editor buffer (`splitSqlStatements`, including `-- @js` / `-- @node` fences). Classifiers (`sqlStatementCategories`, `isWriteStatement`, `requiresWritePermission`, `statementVerb`, `sqlStatementCount`) take the dialect and ask **every** reading of it (`statementsAsSent`). |
+
+Constraints:
+
+- **Do not write a second scanner.** Keyword-scan strippers, migration-file
+  scrubbers and gates should read `sqlTokens` / `canonicalSql`.
+- **Pass the dialect.** The same text is a MySQL comment (`SELECT 1 # 2 INTO t`)
+  and a PostgreSQL `SELECT … INTO` (DDL). Without a dialect the gate assumes
+  every reading.
+- **Code fences that reach the database are comments.** The editor runs a closed
+  `-- @node` … `-- @end` cell itself and never posts it to `/sql/execute`. A
+  fence in text that does reach the database is two `--` lines around SQL, and
+  the SQL is priced like any other (`-- @node\nDROP TABLE t\n-- @end` needs
+  `editor.ddl`).
+- Adding a dialect: say how it lexes in `sql-readings.ts` (see
+  `packages/sql/src/providers/DIALECTS.md` step 5). Missing there is safe but
+  slow (every reading of every dialect).
+
 ## Adding a dialect (checklist)
 
 1. Create the dialect files in `packages/sql/src/providers/<name>/` and the driver files in `packages/db/src/providers/<name>/`
@@ -311,4 +379,7 @@ Rendering on the hot paths (what to keep when editing these components):
    editing — the frontend re-exports this registry.
 4. Add `parseType`/`renderType` round-trip tests in `type-mapping.test.ts`
 5. Verify each optional hook against real DDL — the generic fallbacks are often wrong for DROP INDEX/TRIGGER/FK
-6. `npx vitest run` + `cd apps/web && npx tsc --noEmit`
+6. Say how the engine lexes SQL in `modules/sql-text/sql-readings.ts` (comments,
+   quotes, escapes, and every reading a server setting can switch). A dialect
+   missing there gets every reading of every dialect.
+7. `npx vitest run` + `cd apps/web && npx tsc --noEmit`

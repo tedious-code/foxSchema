@@ -60,7 +60,7 @@ the Playwright E2E suite (see below).
 
 | Workspace | What it is |
 |-----------|------------|
-| [`packages/sql`](packages/sql) | Dialect knowledge: diff, migration generation, statement splitting, type mapping. Pure and browser-safe — zero deps, no Node built-ins. |
+| [`packages/sql`](packages/sql) | Dialect knowledge: diff, migration generation, statement splitting, type mapping. Pure and browser-safe — zero deps, no Node built-ins. SQL lexing lives in `src/modules/sql-text/` (one tokenizer + per-dialect readings); do not add a second scanner. |
 | [`packages/db`](packages/db) | The Node runtime: introspection, drivers, pooling, migration execution. Depends on `packages/sql`. |
 | [`packages/server`](packages/server) | Fastify HTTP API, feature modules, metadata store. |
 | [`packages/workflow-engine`](packages/workflow-engine) | Workflow runtime, SQLite stores, built-in pipes. |
@@ -71,6 +71,9 @@ the Playwright E2E suite (see below).
 
 The design, the migration pipeline, and the dialect system are described in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — read it before non-trivial changes.
+Workspace-owned rows (`connections`, secrets, history, runs) are read and written
+through a `WorkspaceScope`; see **Workspaces** there. Route unit tests use
+`routeHandler` / `fakeReply` from `packages/server/src/platform/http/route-doubles.ts`.
 
 ## Running each surface
 

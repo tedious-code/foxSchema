@@ -44,7 +44,11 @@ and the desktop app alike. Roles are `admin` / `editor` / `owner` / `viewer`.
   password or contain the email name.
 - First UI open can still show the **email subscriber wizard** (public; before sign-in).
 - Admins configure role permissions and assign users under **Profile → Access control**.
-- Permissions cover Schema Sync (browse / compare / migrate), SQL Editor (sidebar, variables, writes, Data grid insert/update/delete, code cells), Utilities, Secrets, Access, and Workflow (`workflow.access` / `design` / `run` / `admin`).
+  **Admins: One / Several** lives there (`FOX_ADMIN_POLICY` overrides it). Saved
+  connections, snapshots, runs and secrets belong to a **workspace**; every
+  account has a personal one. Admins see every workspace and open one only by
+  joining. [USER_GUIDE — Workspaces](USER_GUIDE.md#workspaces).
+- Permissions cover Schema Sync (browse / compare / migrate), SQL Editor (sidebar, variables, writes, Data grid insert/update/delete, code cells), Utilities, Secrets, Access, Workflow (`workflow.access` / `design` / `run` / `admin`), and Workspaces (`workspace.members` / `settings` / `create`). Code cells, Git, workflow and `workspace.create` are install-wide (account role); the rest follow the member’s role in the current workspace.
 - **Database Access** catalog (`POST /schema/db-access`) is an OR gate: **Use utilities** *or* any Access-workspace permission (`access.access`, Users, builder, diff, inspector, report) may load it. GRANT / REVOKE still needs **Grant privileges**.
 
 **Servers / teams:** Fox Schema ships as a **single Docker image** (all dialects including
@@ -133,6 +137,7 @@ docker compose -f docker-compose.app.yml up -d
 | `FOX_GIT_DIR` | beside the metadata DB (`<dir>/git`), else `~/.foxschema/git` | Where Fox keeps local copies of the Git repositories migrations are committed to (bare clones; safe to delete — they are fetched again). |
 | `FOX_GIT_ALLOW_HTTP` | off | Development only: accept `http://` Git remotes. Ignored when `NODE_ENV=production`; production remotes are always `https://`. |
 | `FOX_TRUST_PROXY` | `loopback, linklocal, uniquelocal` | Which peers' `X-Forwarded-*` headers are believed. Only a proxy may say who the client is; trusting everyone let any client pick its own address and skip rate limits. Set to your proxy's address or CIDR if it is on a public IP, or `true` / `false`. A trusted peer that forwards for others is also charged as one connection on the sign-in, setup and reset limits, at ten clients' worth, so a client in a trusted range that invents `X-Forwarded-For` addresses cannot step around them. |
+| `FOX_ADMIN_POLICY` | — | `one` or `several`. When set, it is the install’s admin policy and the Access control switch is read-only. Unset: stored setting (new installs default to **one**; an upgrade with more than one active admin is set to **several**). |
 | `FOX_REGISTRATION_GRACE_DAYS` | `7` | How long the owner of a personal install may use Fox through the `foxschema open` launch link before creating an account. `0` asks for the account straight away. See [Using Fox before creating an account](#using-fox-before-creating-an-account). |
 | `FOX_VERIFY_MAIL_URL` | `https://foxschema.com/wp-json/foxschema/v1/verify-email` | Where email-verification codes go when the install has no SMTP relay. `off` sends them nowhere: a new account then stays unverified until email is set up. See [Fox mail service](#fox-mail-service). |
 | `FOX_SETUP_ALLOW_LOCAL_WITHOUT_CODE` | off | Skip the first-run setup code for a direct loopback request. The `foxschema open` launcher sets this because it binds only to loopback. Never enable it behind a reverse proxy: an unlabelled proxy request is indistinguishable from a local one. |

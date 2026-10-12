@@ -21,7 +21,7 @@
  * readings says it needs. Without a dialect they assume every reading.
  */
 import { isTrivia, sqlTokens, type SqlTokenOptions } from './sql-tokens.js';
-import { canonicalSql, sqlReadingsFor } from './sql-readings.js';
+import { canonicalForms, canonicalSql, rememberRead, sqlReadingsFor } from './sql-readings.js';
 
 export type StatementKind = 'sql' | 'js' | 'ts' | 'node' | 'nodets';
 
@@ -733,9 +733,17 @@ interface ReadStatement {
  * other SQL: read as one statement, `SELECT 1; DROP TABLE t` after an unclosed
  * `-- @node` was a read.
  */
-function* statementsAsRead(text: string, dialect?: string): Generator<ReadStatement[]> {
+function statementsAsRead(text: string, dialect?: string): readonly ReadStatement[][] {
+  return rememberRead(readStatements, text, dialect, () => readEachWay(text, dialect));
+}
+const readStatements = new Map<string, readonly ReadStatement[][]>();
+
+function readEachWay(text: string, dialect?: string): ReadStatement[][] {
   const fences = findCodeFences(text);
-  const seen = new Set<string>();
+  if (fences.length === 0) {
+    return canonicalForms(text, dialect).map((form) => splitSqlOnly(form).map((s) => ({ text: s.text, cell: false })));
+  }
+  const out = new Map<string, ReadStatement[]>();
   for (const reading of sqlReadingsFor(text, dialect)) {
     const statements: ReadStatement[] = [];
     const sql = (gap: string) => {
@@ -750,16 +758,14 @@ function* statementsAsRead(text: string, dialect?: string): Generator<ReadStatem
     }
     sql(text.slice(cursor));
     const key = JSON.stringify(statements);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    yield statements;
+    if (!out.has(key)) out.set(key, statements);
   }
+  return [...out.values()];
 }
 
 /** True when `test` holds for some reading's statements. */
 function someReading(text: string, dialect: string | undefined, test: (statements: ReadStatement[]) => boolean): boolean {
-  for (const statements of statementsAsRead(text, dialect)) if (test(statements)) return true;
-  return false;
+  return statementsAsRead(text, dialect).some(test);
 }
 
 /**
@@ -1055,6 +1061,11 @@ const GRANT_KEYWORDS = new Set(['grant', 'revoke', 'deny']);
  *
  * `SELECT … INTO t` reports `ddl`: it creates a table, so it needs schema power
  * even though it starts with SELECT.
+ *
+ * Read the result as the set of permissions to ask for. It lists one entry
+ * per statement as the first reading of `dialect` splits them, then any
+ * category only another reading needs, so its entries do not line up with
+ * the statements once the readings disagree.
  */
 export function sqlStatementCategories(text: string, dialect?: string): SqlStatementCategory[] {
   // Split first so a closed `-- @node` … `-- @end` cell followed by real SQL
@@ -1160,7 +1171,7 @@ export function statementVerb(text: string, dialect?: string): string | null {
   // Only a closed fence is a code cell; unclosed `-- @node` + SQL should
   // report the SQL verb (fence lines are comments to the database).
   if (cell?.closed) return cell.kind;
-  const verbs = new Set(sqlReadingsFor(text, dialect).map((reading) => verbOf(canonicalSql(text, reading))));
+  const verbs = new Set(canonicalForms(text, dialect).map(verbOf));
   return verbs.size === 1 ? [...verbs][0]! : null;
 }
 
@@ -1353,22 +1364,17 @@ function skipExplainTrailingOptions(text: string, from: number): string {
 }
 
 /**
- * Heuristic: UPDATE/DELETE with no WHERE clause (full-table mutation risk).
- * Ignores WHERE inside strings/comments only loosely — strips simple quotes.
- * MERGE is excluded (matched via ON, not WHERE).
+ * Heuristic: UPDATE/DELETE with no WHERE clause (full-table mutation risk),
+ * under any reading of `dialect`. A WHERE inside a string or comment does not
+ * count. MERGE is excluded (matched via ON, not WHERE).
  */
-export function dmlLacksWhere(text: string): boolean {
-  const verb = statementVerb(text);
-  if (verb !== 'update' && verb !== 'delete') return false;
-  // Drop quoted literals so a string containing "where" does not count.
-  const stripped = text
-    .replace(/'(?:[^']|'')*'/g, "''")
-    .replace(/"(?:[^"]|"")*"/g, '""')
-    .replace(/`(?:[^`]|``)*`/g, '``')
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/--[^\n]*/g, ' ')
-    .replace(/#[^\n]*/g, ' ');
-  return !/\bwhere\b/i.test(stripped);
+export function dmlLacksWhere(text: string, dialect?: string): boolean {
+  if (parseCodeCell(text)?.closed) return false;
+  // Canonical text has no comments and no string contents left to fake a WHERE.
+  return canonicalForms(text, dialect).some((form) => {
+    const verb = verbOf(form);
+    return (verb === 'update' || verb === 'delete') && !/\bwhere\b/i.test(form);
+  });
 }
 
 /**

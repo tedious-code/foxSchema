@@ -197,6 +197,35 @@ export function sqlReadingsFor(text: string, dialect?: string): SqlTokenOptions[
   );
 }
 
+/** How many recent texts {@link rememberRead} keeps. */
+const REMEMBERED = 32;
+
+/**
+ * `make()` for `text` read as `dialect`, kept for the next few calls with the
+ * same pair. A gate asks one statement several questions — its categories,
+ * how many statements it is, its verb, whether it pages — and each would
+ * otherwise lex it again under every reading.
+ */
+export function rememberRead<T>(cache: Map<string, T>, text: string, dialect: string | undefined, make: () => T): T {
+  const key = `${dialect ?? ''}\u0000${text}`;
+  let value = cache.get(key);
+  if (value === undefined) {
+    value = make();
+    if (cache.size >= REMEMBERED) cache.delete(cache.keys().next().value!);
+    cache.set(key, value);
+  }
+  return value;
+}
+
+const forms = new Map<string, readonly string[]>();
+
+/** `text` in canonical form under each reading of `dialect`, one of each distinct form. */
+export function canonicalForms(text: string, dialect?: string): readonly string[] {
+  return rememberRead(forms, text, dialect, () => [
+    ...new Set(sqlReadingsFor(text, dialect).map((reading) => canonicalSql(text, reading))),
+  ]);
+}
+
 /** Punctuation that every scanner in the splitter reads as itself. The rest is written as `%`. */
 const PLAIN_PUNCT = new Set('(),;.=<>+-*/%&|^~!?:@{}');
 

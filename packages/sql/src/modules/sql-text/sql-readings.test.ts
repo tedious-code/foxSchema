@@ -11,7 +11,7 @@
  * run it, the write has to be seen.
  */
 import { describe, expect, it } from 'vitest';
-import { isWriteStatement, sqlStatementCategories, statementVerb } from './sql-splitter.js';
+import { dmlLacksWhere, isWriteStatement, sqlStatementCategories, statementVerb } from './sql-splitter.js';
 
 /** The categories `sql` needs on `dialect`. */
 const needs = (sql: string, dialect?: string) => sqlStatementCategories(sql, dialect);
@@ -96,6 +96,13 @@ describe('when the readings disagree', () => {
 
   it('Safe Mode sees the write too', () => {
     expect(isWriteStatement("SELECT 'a\\'; DROP TABLE t; --'", 'postgres')).toBe(true);
+  });
+
+  it('Safe Mode asks about a missing WHERE that any reading misses', () => {
+    // PostgreSQL nests comments: the WHERE is inside one.
+    expect(dmlLacksWhere('DELETE FROM t /* /* */ WHERE id = 1 */', 'postgres')).toBe(true);
+    // An UPDATE or a DELETE, by server version; neither has a WHERE.
+    expect(dmlLacksWhere('/*!99999 UPDATE */ DELETE FROM t', 'mysql')).toBe(true);
   });
 });
 

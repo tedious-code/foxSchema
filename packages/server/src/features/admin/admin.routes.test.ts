@@ -8,7 +8,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import type { AppRole, Permission } from '@foxschema/shared';
-import type { AuthedRequest, HttpMethod } from '../../platform/http/types';
+import type { AuthedRequest, HttpMethod, Middleware } from '../../platform/http/types';
 import { fakeReply, routeHandler } from '../../platform/http/route-doubles';
 import type { RbacModule } from '../../platform/authorization/rbac.service';
 import type { AuthModule } from '../../platform/identity/auth.service';
@@ -76,9 +76,9 @@ function admin(users: User[] = [user('admin-1', 'admin')]) {
 /** What a route's guards answer `caller`, or 'passed' when they let it through. */
 async function guardsAnswer(middlewares: unknown[], caller: Partial<AuthedRequest>) {
   const { reply, sent } = fakeReply();
-  for (const middleware of middlewares as Array<(req: AuthedRequest, res: unknown, next: () => void) => void>) {
+  for (const middleware of middlewares as Middleware[]) {
     let passed = false;
-    middleware(caller as AuthedRequest, reply, () => (passed = true));
+    await middleware(caller as AuthedRequest, reply, () => (passed = true));
     if (!passed) return sent;
   }
   return 'passed' as const;

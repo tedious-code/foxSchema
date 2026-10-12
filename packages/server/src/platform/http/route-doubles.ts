@@ -25,8 +25,11 @@ export function routeHandler(router: Router, method: HttpMethod, path: string): 
 interface SentReply {
   status?: number;
   body?: any;
-  /** Headers by lower-cased name; the last value set wins. */
-  headers: Record<string, string>;
+  /**
+   * Headers by lower-cased name. The last value set wins, except set-cookie,
+   * which collects every cookie the way Fastify does.
+   */
+  headers: Record<string, string | string[]>;
 }
 
 /** A reply that records the status, body and headers a handler sends. */
@@ -45,8 +48,10 @@ export function fakeReply(): { reply: FastifyReply; sent: SentReply } {
       sent.body = body;
       return reply;
     },
-    header(name: string, value: unknown) {
-      sent.headers[name.toLowerCase()] = String(value);
+    header(name: string, value: string | string[]) {
+      const key = name.toLowerCase();
+      const prev = sent.headers[key];
+      sent.headers[key] = key === 'set-cookie' && prev !== undefined ? [prev, value].flat() : value;
       return reply;
     },
   };

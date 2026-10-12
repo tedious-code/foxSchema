@@ -7,11 +7,17 @@
  * the changes that would lock the install out of its own admin account.
  */
 import { describe, expect, it, vi } from 'vitest';
-import type { AppRole, Permission } from '@foxschema/shared';
+
+// The /policy routes read and write the metadata store itself.
+process.env.APP_DB_PATH = ':memory:';
+process.env.APP_ENCRYPTION_KEY ||= '0'.repeat(64);
+delete process.env.FOX_ADMIN_POLICY;
+
+import { PERMISSION_META, type AppRole, type Permission } from '@foxschema/shared';
 import type { AuthedRequest, HttpMethod, Middleware } from '../../platform/http/types';
 import { fakeReply, routeHandler } from '../../platform/http/route-doubles';
-import type { RbacModule } from '../../platform/authorization/rbac.service';
-import type { AuthModule } from '../../platform/identity/auth.service';
+import { RbacModule } from '../../platform/authorization/rbac.service';
+import { AuthModule } from '../../platform/identity/auth.service';
 import type { AuthMailer } from '../../platform/identity/auth-mail';
 import { AdminPolicyError } from '../../platform/authorization/admin-policy.service';
 import { createAdminRoutes } from './admin.routes';
@@ -278,7 +284,46 @@ describe('PUT /role-permissions/:role', () => {
   });
 });
 
-describe('PUT /policy', () => {
+describe('GET /users and GET /role-permissions', () => {
+  it('answer with what the service lists, the matrix with its catalog', async () => {
+    const { rbac, call } = admin();
+    expect((await call('GET', '/users')).body).toEqual({ users: await rbac.listUsers() });
+    rbac.listRolePermissionMatrix.mockResolvedValueOnce({ editor: ['schema.browse'] });
+    expect((await call('GET', '/role-permissions')).body).toEqual({
+      matrix: { editor: ['schema.browse'] },
+      catalog: PERMISSION_META,
+    });
+  });
+});
+
+describe('/policy', () => {
+  it('refuses one admin while two are active, and lists them', async () => {
+    const { call } = admin();
+    await call('PUT', '/policy', { body: { adminPolicy: 'several' } });
+    const accounts = new AuthModule();
+    await accounts.createUser('policy-a@example.test', 'correct-horse-9', 'admin');
+    const second = await accounts.createUser('policy-b@example.test', 'correct-horse-9', 'admin');
+    expect((await call('PUT', '/policy', { body: { adminPolicy: 'one' } })).status).toBe(409);
+    const read = (await call('GET', '/policy')).body;
+    expect(read.adminPolicy).toBe('several');
+    expect(read.activeAdmins).toEqual(expect.arrayContaining(['policy-a@example.test', 'policy-b@example.test']));
+    // One active admin again, so the next test may switch to `one`.
+    await new RbacModule().setUserActive(second.id, false);
+  });
+
+  it('saves each setting it is sent, leaving the others, and reads back what was saved', async () => {
+    const { call } = admin();
+    const put = async (body: unknown) => expect((await call('PUT', '/policy', { body })).body).toEqual({ ok: true });
+    const read = async () => (await call('GET', '/policy')).body;
+
+    await put({ adminPolicy: 'several', membersCanCreateWorkspaces: true, ownersCanInviteNew: true });
+    expect(await read()).toMatchObject({ adminPolicy: 'several', source: 'app', membersCanCreateWorkspaces: true, ownersCanInviteNew: true });
+    await put({ membersCanCreateWorkspaces: false });
+    expect(await read()).toMatchObject({ adminPolicy: 'several', membersCanCreateWorkspaces: false, ownersCanInviteNew: true });
+    await put({ adminPolicy: 'one', ownersCanInviteNew: false });
+    expect(await read()).toMatchObject({ adminPolicy: 'one', membersCanCreateWorkspaces: false, ownersCanInviteNew: false });
+  });
+
   it('refuses a body with nothing to change, an unknown policy, or a flag that is not a boolean', async () => {
     const { call } = admin();
     expect((await call('PUT', '/policy', { body: {} })).status).toBe(400);

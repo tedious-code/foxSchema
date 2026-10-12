@@ -3,13 +3,42 @@
 Notes for the next release. At ship time, rename this file to that version's
 `RELEASE_<version>.md` and use it as the GitHub Release body.
 
-## Workspaces
+## Left-rail views
 
-- **Snapshots** is its own left-rail workspace (schema history / Lokee). **Applies**
+- **Snapshots** is its own left-rail view (schema history / Lokee). **Applies**
   at the bottom of the rail is migration-run history. They are not the same list.
-- **Utils** is its own workspace (Index Management, **Backup & Restore**, Clone
+- **Utils** is its own view (Index Management, **Backup & Restore**, Clone
   Table, insights, Query files, DB users & grants) — not a SQL Editor sidebar.
 - Saved credentials are grouped by dialect; Home continues last compare / query.
+  **⌘K** / the command palette list the same views the rail shows.
+
+## Team workspaces
+
+Connections, snapshots, migration runs, secrets and data-migrate history belong
+to a **workspace**, not to one account. Every account has a personal workspace
+(always private; its role follows the account). Admins create shared ones;
+**Members can create workspaces** lets others. Invite by email — they join when
+they accept (14 days). A workspace is **private** (invite only) or **public**
+(anyone signed in can join as viewer or editor, never owner). Admins see every
+workspace under Access control → Workspaces and open one only by joining.
+Install keys (code cells, Git, workflow, admin, create-workspace) come from the
+account role; the rest from the member’s role in this workspace.
+
+## Execute opens the review for a conflict
+
+A missing foreign-key target or an unacknowledged narrowing type change used
+to leave Execute looking runnable while a click still deployed. The button
+stays clickable and **opens that review** instead. Drop dependencies,
+destructive drops, MySQL binlog risk, a required Git commit and a disconnected
+target still disable it.
+
+## SQL is classified the way the database reads it
+
+Permission gates, data-migrate and the single-statement check lex SQL with
+the destination dialect’s readings (MySQL `#` / `/*!…*/`, PostgreSQL dollar
+quotes, session `sql_mode`, …). A closed `-- @node` … `-- @end` fence that
+reaches `/sql/execute` is two comments; the SQL between them is still priced.
+The splitter and the keyword-scan stripper share one tokenizer.
 
 ## Send feedback
 

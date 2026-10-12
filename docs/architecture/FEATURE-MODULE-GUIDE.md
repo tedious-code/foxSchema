@@ -4,9 +4,9 @@ How a FoxSchema feature is laid out, registered and tested — on the server
 and in the web app. The rules that keep features apart are in
 [FEATURE-DEPENDENCY-RULES.md](FEATURE-DEPENDENCY-RULES.md).
 
-> Status: being introduced by the series in
+> Status: **built** (#498–#504, follow-ups #506–#512). History of the series:
 > [../plans/2026-10-10-feature-architecture.md](../plans/2026-10-10-feature-architecture.md).
-> Each section says which step makes it true.
+> Import rules: [FEATURE-DEPENDENCY-RULES.md](FEATURE-DEPENDENCY-RULES.md).
 
 ## What counts as a feature
 

@@ -83,7 +83,7 @@ modules/     One folder per domain, named to match the frontend feature
 | Folder | What it covers |
 |---|---|
 | `dialect` | The `SqlDialect` contract, the registry, type mapping, capability flags |
-| `sql-text` | Statement splitting and SQL templating |
+| `sql-text` | Shared tokenizer (`sql-tokens.ts`), per-dialect readings (`sql-readings.ts`), statement splitting, and SQL templating. Classifiers (`sqlStatementCategories`, …) take the destination dialect and ask every way it can lex the text. Code fences that reach the database are `--` comments. |
 | `schema-diff` | Comparing two schemas, and browsing one. `normalizeDefinitionText` is shared with Lokee |
 | `migrations` | Generating DDL, ordering drops, validating a plan |
 | `lokee-weave` | Content-addressed schema versioning and revert |
@@ -115,7 +115,10 @@ platform/    Capabilities every feature needs. Never imports a feature.
   authorization/ RBAC role permissions, the permission guard, one admin or several
   settings/      install-wide key/value settings (`app_settings`)
   connections/   saved connections (encrypted) and resolving a connection ref
-  workspaces/    which workspace a request acts in; personal workspaces
+  workspaces/    which workspace a request acts in (`resolveWorkspace`,
+                 `ensurePersonalWorkspace`, `backfillWorkspaces`);
+                 `WorkspaceScope` is the argument services take instead of a
+                 bare user id
   runtime/       deployment posture: listen host, local install
   contracts/     ActorContext and ServiceError
   guards/        origin policy (`FOX_ALLOWED_ORIGINS`, literal LAN IPs in dev),
@@ -152,7 +155,7 @@ database/    The metadata store and its migrations.
 | `schema` | Reading a schema |
 | `sql-editor` | SQL editor, code cells, sandboxed execution |
 | `users` | Profile, preferences, first-run wizard |
-| `workspaces` | Shared workspaces: create, switch, members, invites, public or private (which workspace a request acts in is `platform/workspaces`) |
+| `workspaces` | Shared workspaces: create, switch, members, invites, public or private (`/api/workspaces`). Which workspace a request acts in is `platform/workspaces`. Admins list every workspace (`GET /all`) and open one only by joining. |
 | `workflow` | Workflow engine settings and health; the engine proxy (an allowlist of engine routes, each behind a `workflow.*` permission); saved-connection grants; and the token-guarded internal routes the engine calls to resolve a granted connection and read its settings. Runbook: [WORKFLOW.md](WORKFLOW.md). |
 
 Every feature folder has an `index.ts` exporting its `ServerFeatureModule`
@@ -237,7 +240,7 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | `access` | Permission builder, inspector and report |
 | `admin` | User and role administration |
 | `auth` | Sign-in, SSO buttons, onboarding |
-| `compare` | The Compare workspace: its store (connection pair, compare result, deploy selections), toolbar, schema tree, object detail panel, browse bar, deploy dialogs and migration progress |
+| `compare` | The Compare workspace: its store (connection pair, compare result, deploy selections), toolbar, schema tree, object detail panel, browse bar, deploy dialogs and migration progress. `lib/executeGate.ts` decides whether Execute may run and what a click opens (missing-FK / narrowing review vs confirm). |
 | `connections` | Connection modal (login method: password / Windows / LDAP), credential manager with cloud provider credentials, database settings |
 | `lokee-weave` | Schema history graph and version compare (Snapshots workspace) |
 | `migrations` | Migration run history (Applies on the rail) |
@@ -245,6 +248,7 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | `sql-editor` | SQL editor, its store, results grid, data peek, the shared Monaco setup (`monaco.ts`) (Index/Clone/Query files live in `utilities`) |
 | `utilities` | Own workspace: clone table, index management, backup & restore commands, server insights, query files, DB users & grants |
 | `workflow` | Workflow designer (canvas, inspector, triggers, SQL and script editors), runs, variables, credentials and engine settings — through the engine proxy, plus linking saved connections to workflows |
+| `workspaces` | Switcher and settings in the profile menu: create, invite, join public, members. Admin → Workspaces lists every workspace; opening one is joining. |
 
 ## Where does my change go?
 
@@ -264,6 +268,8 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | Backup / restore commands for an engine | `packages/sql/src/providers/<dialect>/*.backup.ts` registered in `modules/utilities/backup.registry.ts`. Saved folder/format defaults: `packages/server/src/features/backup/`. |
 | A dialect capability the app must branch on | `packages/sql/src/modules/capabilities/` (`dialect-features.ts`) and `packages/sql/src/modules/dialect/` |
 | Guard or cross-cutting HTTP concern | `packages/server/src/platform/` |
+| How a dialect lexes SQL (permission gates, splitter) | `packages/sql/src/modules/sql-text/sql-readings.ts` + `sql-tokens.ts`. Do not add a second scanner. |
+| Workspace membership, invites, public / private | `packages/server/src/features/workspaces/`; request scope is `platform/workspaces`. Services take `WorkspaceScope` (`scopeOf(req)`). |
 | Workflow pipe, runtime, or store | `packages/workflow-engine/` — HTTP process in `apps/workflow-server/` ([WORKFLOW.md](WORKFLOW.md)) |
 
 ## Checks to run

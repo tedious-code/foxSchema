@@ -7,6 +7,7 @@ SQL to make one match the other. This guide is for **using** Fox Schema — no c
 - [Install & run](#install--run)
 - [Updates](#updates)
 - [First run](#first-run)
+- [Workspaces](#workspaces)
 - [Connect a database](#connect-a-database)
 - [Run a comparison](#run-a-comparison)
 - [Read the diff](#read-the-diff)
@@ -95,9 +96,14 @@ your email so you can get product updates (new dialects, releases). It is
 optional — use **Skip for now** if you prefer. It only appears once per install.
 
 You land on **Home**: continue last compare / last query, **Snapshots**, **Utilities**,
-and saved connections (grouped by dialect). **⌘K** / **Ctrl+K** searches workspaces and
-recents. The left rail is **Compare**, **Editor**, **Utils**, **Access**, **Workflow**,
-**Snapshots**, then **Creds** and **Applies** at the bottom.
+and saved connections (grouped by dialect). **⌘K** / **Ctrl+K** searches the same
+rail workspaces the left rail shows, plus recents. The left rail is **Compare**,
+**Editor**, **Utils**, **Access**, **Workflow**, **Snapshots**, then **Creds** and
+**Applies** at the bottom.
+
+Saved connections, snapshots, migration runs and secrets belong to a
+**workspace** — every account has its own, and you can share others. See
+[Workspaces](#workspaces).
 
 Fox also sets up an **encryption key** that protects the database passwords you save.
 The CLI creates one under your user data directory; Docker auto-generates one on the
@@ -105,6 +111,56 @@ The CLI creates one under your user data directory; Docker auto-generates one on
 
 > Keep that key stable. If it changes, previously saved passwords can no longer be
 > read and you'll need to re-enter them.
+
+## Workspaces
+
+Connections, snapshots, migration runs, secrets and data-migrate history belong
+to a **workspace**, not to one account. Switching workspaces reloads the app,
+because every open view holds data from the old one.
+
+### Your own workspace
+
+Every account has a **personal workspace** (named like `ana's workspace`). Its
+role follows the account: an admin is its owner, an editor is its editor. It
+stays **private**, cannot be made public, and cannot be archived. You always
+manage its members, whatever your role there.
+
+### Switch, create, invite
+
+1. Open the **profile menu** (avatar at the foot of the left rail). The
+   **Workspace** list is the workspaces you are in — click one to switch.
+2. **Workspace settings** opens the current one: rename, members, invites,
+   public / private.
+3. **New workspace** creates a shared one and makes you its owner. Admins
+   always can; other accounts only when an admin turns on **Members can create
+   workspaces** (Access control, next to Admins: One / Several). Everyone still
+   has their own personal workspace. A new shared workspace starts private.
+
+To bring someone in: Workspace settings → invite by email with a role
+(`viewer` / `editor` / `owner`). They see it under **Invitations** in their
+profile menu and join only when they **Accept** (14 days to accept; **Decline**
+drops it). Inviting an email with no account creates one as a viewer — only an
+admin can, unless **Workspace owners can invite new people** is on. Only an
+admin ever sees that new account’s one-time code; otherwise it is emailed.
+
+### Public vs private
+
+- **Private — invite only** (default). Not listed to anyone else.
+- **Public — anyone signed in can join.** Listed under **Browse public
+  workspaces**. The join role is viewer or editor, never owner — a stranger
+  joining cannot remove the owners and archive it. Making a workspace public
+  asks you to confirm: joiners can use its saved connections.
+
+### Admins
+
+**Access control → Workspaces** lists every workspace on the install: names,
+owners and sizes, never its connections or secrets. An admin **opens** one
+only by **Join**, and its members see that. Inside a workspace they have
+joined, an admin keeps every permission.
+
+A workspace always keeps an owner. **Admins: One / Several** on Access control
+chooses whether this install allows one admin (hand the role over with **Make
+admin**) or several. `FOX_ADMIN_POLICY` on the server overrides the switch.
 
 ## Connect a database
 
@@ -165,6 +221,22 @@ look (view/function bodies, for instance, aren't auto-translated).
 
 You can always just copy the generated SQL and run it yourself instead of applying it
 through Fox Schema.
+
+### Execute will not skip a conflict
+
+**Execute** does not deploy a plan that would leave the target inconsistent, or
+that you have not acknowledged:
+
+- A foreign key that would point at a table missing from the target, or a type
+  change that **narrows** (for example `varchar(100)` → `varchar(20)`): the
+  button stays clickable and **opens that review** instead of deploying.
+  Include the missing table, drop the FK, or acknowledge the narrowing.
+- A drop that would break a dependent object, a **destructive drop**, or MySQL
+  `CREATE FUNCTION` when binlog privilege is a risk: the button stays disabled
+  until you resolve or acknowledge it.
+
+The button is also disabled when your role cannot migrate, nothing is
+selected, the target is disconnected, or a required Git commit is missing.
 
 ### Commit the migration to Git first
 
@@ -265,6 +337,14 @@ compare / migrate). It lives in the same local web UI you open with `foxschema`.
 
 Tips:
 
+- **What Run is allowed to do** is priced the way **that destination’s dialect**
+  reads the text (MySQL `#` comments, `/*! … */` executable comments,
+  PostgreSQL dollar quotes, and so on). The same statement can be a read on
+  one engine and a schema change on another — a `viewer` is refused the write.
+  A `-- @js` / `-- @node` fence pasted as SQL that actually reaches the
+  database is two `--` comments; the SQL between them still runs and still
+  needs its permission. Closed code cells in the editor are run by Fox itself,
+  not posted as SQL.
 - **Tabs** — open several buffers; rename with double-click. SQL text is remembered
   locally; result grids are not.
 - **Schema explorer** — browse objects on the left; click a name to insert it at the
@@ -569,9 +649,16 @@ Workflow and read runs without seeing Designer chrome.
 
 ## Access control
 
-On a multi-user install, **Profile → Access control** assigns Fox Schema roles
-(`viewer` / `editor` / `owner` / `admin`) and permission keys — that is **app**
-access, not GRANT on a connected database.
+On a multi-user install, **Profile → Access control** assigns Fox Schema
+**account** roles (`viewer` / `editor` / `owner` / `admin`) and permission keys —
+that is **app** access, not GRANT on a connected database. What you may do to
+saved connections and schema in the current workspace also follows your
+**workspace** role there ([Workspaces](#workspaces)). Code cells, Git,
+workflow and creating workspaces stay on the account role: owning a workspace
+does not grant them. **Admins: One / Several**, **Members can create
+workspaces** and **Workspace owners can invite new people** sit on the same
+panel. **Workspaces** (the tab) lists every workspace; an admin opens one only
+by joining.
 
 ### What a Fox role stops, and what it cannot
 
@@ -772,6 +859,10 @@ re-enter the passwords.
 **Lost my saved connections/history after a restart (Docker).** The app data lives on
 the `/data` volume — make sure you didn't remove it (`docker compose down -v` deletes
 volumes). See [DEPLOYMENT.md](DEPLOYMENT.md).
+
+**Saved connections disappeared after a switch.** They belong to the
+**workspace** you were in. Open the profile menu → **Workspace** and switch
+back; each workspace has its own connections, snapshots and runs.
 
 **Signed out while the UI was open.** A session unused for **8 hours** ends,
 whatever its 7-day expiry (`FOX_SESSION_IDLE_HOURS`; `0` turns the idle limit

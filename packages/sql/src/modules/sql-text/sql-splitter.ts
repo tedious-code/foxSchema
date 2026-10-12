@@ -769,13 +769,31 @@ function someReading(text: string, dialect: string | undefined, test: (statement
 }
 
 /**
- * The most statements any of `dialect`'s readings finds in `text`. A gate
- * that prices a write by its one verb needs this to be 1 under every reading,
- * not only under the one this file would pick.
+ * The statements of `text` under each of `dialect`'s readings, as the
+ * database gets them: code fences mean nothing here. The editor runs a closed
+ * `-- @node` … `-- @end` cell itself and never sends one, so a fence in text
+ * that does reach the database is `--` comment lines around SQL — and a fence
+ * line inside a multi-line string literal is part of the string, where cutting
+ * the fence out would have flipped what reads as string after it. The
+ * permission gates price text this way; {@link statementsAsRead} is the editor
+ * buffer's view.
+ */
+function statementsAsSent(text: string, dialect?: string): readonly string[][] {
+  return rememberRead(sentStatements, text, dialect, () =>
+    canonicalForms(text, dialect).map((form) => splitSqlOnly(form).map((s) => s.text))
+  );
+}
+const sentStatements = new Map<string, readonly string[][]>();
+
+/**
+ * The most statements any of `dialect`'s readings finds in `text`, as the
+ * database splits it. A gate that prices a write by its one verb needs this
+ * to be 1 under every reading, not only under the one this file would pick —
+ * and a fence around `DELETE …; UPDATE …` does not make it one statement.
  */
 export function sqlStatementCount(text: string, dialect?: string): number {
   let most = 0;
-  for (const statements of statementsAsRead(text, dialect)) most = Math.max(most, statements.length);
+  for (const statements of statementsAsSent(text, dialect)) most = Math.max(most, statements.length);
   return most;
 }
 
@@ -1062,16 +1080,18 @@ const GRANT_KEYWORDS = new Set(['grant', 'revoke', 'deny']);
  * `SELECT … INTO t` reports `ddl`: it creates a table, so it needs schema power
  * even though it starts with SELECT.
  *
+ * Every caller sends `text` to the database, so it is read as the database
+ * reads it ({@link statementsAsSent}): a closed `-- @node` … `-- @end` fence is
+ * two comment lines, not a code cell, and the SQL between them is priced like
+ * any other. Treating it as a cell let `-- @node\nDROP TABLE t\n-- @end` pass
+ * as a read.
+ *
  * Read the result as the set of permissions to ask for. It lists one entry
  * per statement as the first reading of `dialect` splits them, then any
  * category only another reading needs, so its entries do not line up with
  * the statements once the readings disagree.
  */
 export function sqlStatementCategories(text: string, dialect?: string): SqlStatementCategory[] {
-  // Split first so a closed `-- @node` … `-- @end` cell followed by real SQL
-  // (or an unclosed fence whose body is SQL) cannot short-circuit to `read`.
-  // `-- @node` is a SQL line comment to the database — only a *closed* fence
-  // is a code cell whose SQL is submitted later via the bridge.
   const out: SqlStatementCategory[] = [];
   // Readings mostly differ in a few statements; classify each text once.
   const known = new Map<string, SqlStatementCategory>();
@@ -1080,9 +1100,8 @@ export function sqlStatementCategories(text: string, dialect?: string): SqlState
     if (category === undefined) known.set(sql, (category = categoryOf(sql)));
     return category;
   };
-  for (const statements of statementsAsRead(text, dialect)) {
-    const categories: SqlStatementCategory[] =
-      statements.length === 0 ? ['read'] : statements.map((s) => (s.cell ? 'read' : classify(s.text)));
+  for (const statements of statementsAsSent(text, dialect)) {
+    const categories: SqlStatementCategory[] = statements.length === 0 ? ['read'] : statements.map(classify);
     // One entry per statement from the first reading; any other reading that
     // sees the text differently adds what it needs on top. A server setting
     // can pick either reading, so the gate asks for both.
@@ -1156,8 +1175,9 @@ function widen(a: SqlStatementCategory, b: SqlStatementCategory): SqlStatementCa
 export function requiresWritePermission(text: string, dialect?: string): boolean {
   // Same classifier as the RBAC buckets — keep one source of truth so a batch,
   // punctuation-prefixed write, or fence-disguised write cannot be "read" here
-  // and "dml"/"ddl" there. Closed code cells classify as read; the `sql`
-  // bridge gates each statement they submit (see code-cell-query.ts).
+  // and "dml"/"ddl" there. A code fence is read as the comments the database
+  // sees; a real cell never reaches the database (its `sql` bridge statements
+  // are gated one by one, see code-cell-query.service.ts).
   return sqlStatementCategory(text, dialect) !== 'read';
 }
 

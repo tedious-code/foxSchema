@@ -34,4 +34,25 @@ describe('POST /data-migrate/execute', () => {
     expect(sent.body.error).toMatch(/single statement/);
     expect(executeDataMigrateOps).not.toHaveBeenCalled();
   });
+
+  it('counts the statements inside a code fence', async () => {
+    const handler = routeHandler(
+      createDataMigrateRoutes({
+        resolveRef: vi.fn().mockResolvedValue({ dialect: 'postgres', option: {}, schema: 'public' }),
+        dataMigrateHistory: {} as never,
+      }),
+      'POST',
+      '/data-migrate/execute'
+    );
+    const { reply, sent } = fakeReply();
+    // The fence lines are comments to the database, which runs both writes.
+    // Its verb reads as a delete, so only the count stands between the UPDATE
+    // and an op priced as a delete.
+    const op = { op: 'delete', key: 'k1', sql: '/* x */\n-- @node\nDELETE FROM a WHERE id = 1;\nUPDATE b SET x = 1;\n-- @end' };
+    await handler({ body: { connectionId: 'c1', ops: [op] }, userId: 'u1', appRole: 'admin' } as never, reply as never);
+
+    expect(sent.status).toBe(400);
+    expect(sent.body.error).toMatch(/single statement/);
+    expect(executeDataMigrateOps).not.toHaveBeenCalled();
+  });
 });

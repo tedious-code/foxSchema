@@ -65,3 +65,38 @@ describe('POST /sql/execute reads statements in the connection dialect', () => {
     expect(ran).toBe(false);
   });
 });
+
+describe('POST /sql/execute reads a code fence as the database does', () => {
+  // The editor runs `-- @node` … `-- @end` cells itself and never posts one
+  // here. To the database the fence lines are `--` comments, so whatever sits
+  // between them runs as SQL.
+  it('prices the SQL inside a closed fence', async () => {
+    const { sent, ran } = await execute('postgres', ['editor.run'], {
+      statements: ['-- @node\nDROP TABLE t\n-- @end'],
+    });
+    expect(sent.status).toBe(403);
+    expect(sent.body.missing).toContain('editor.ddl');
+    expect(ran).toBe(false);
+  });
+
+  it('keeps a fence line inside a string literal part of the string', async () => {
+    // The database runs `SELECT '<…>'; DROP TABLE users;` and then a comment.
+    const { sent, ran } = await execute('postgres', ['editor.run'], {
+      statements: ["SELECT 'a\n-- @node\nSELECT '; DROP TABLE users; --'\n-- @end"],
+    });
+    expect(sent.status).toBe(403);
+    expect(sent.body.missing).toContain('editor.ddl');
+    expect(ran).toBe(false);
+  });
+
+  it('refuses a grid write that hides a second statement in a fence', async () => {
+    // Reads as a DELETE by its verb; the UPDATE needs editor.datagrid.update.
+    const { sent, ran } = await execute('postgres', ['editor.run', 'editor.dml', 'editor.datagrid.delete'], {
+      datagridAction: 'delete',
+      statements: ['/* x */\n-- @node\nDELETE FROM a WHERE id = 1;\nUPDATE b SET x = 1;\n-- @end'],
+    });
+    expect(sent.status).toBe(400);
+    expect(sent.body.error).toMatch(/single statement/);
+    expect(ran).toBe(false);
+  });
+});

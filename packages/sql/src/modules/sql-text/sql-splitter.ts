@@ -361,49 +361,6 @@ const TRANSACTION_BEGIN = new Set([
 /** Block frames pushed while scanning routine DDL bodies. */
 type RoutineBlock = 'begin' | 'case' | 'try' | 'catch';
 
-/** Skip whitespace and SQL comments; return the next non-trivia index. */
-function skipSqlTrivia(sql: string, start: number): number {
-  let i = start;
-  const len = sql.length;
-  while (i < len) {
-    const ch = sql[i]!;
-    const next = i + 1 < len ? sql[i + 1]! : '';
-    if (/\s/.test(ch)) {
-      i++;
-      continue;
-    }
-    if (ch === '-' && next === '-') {
-      i += 2;
-      while (i < len && sql[i] !== '\n') i++;
-      continue;
-    }
-    if (ch === '#') {
-      i++;
-      while (i < len && sql[i] !== '\n') i++;
-      continue;
-    }
-    if (ch === '/' && next === '*') {
-      i += 2;
-      while (i < len - 1 && !(sql[i] === '*' && sql[i + 1] === '/')) i++;
-      i = Math.min(len, i + 2);
-      continue;
-    }
-    break;
-  }
-  return i;
-}
-
-function readSqlIdent(sql: string, start: number): { word: string; end: number } | null {
-  if (start >= sql.length || !/[A-Za-z_]/.test(sql[start]!)) return null;
-  let j = start;
-  while (j < sql.length && /[A-Za-z_0-9$]/.test(sql[j]!)) j++;
-  return { word: sql.slice(start, j).toUpperCase(), end: j };
-}
-
-function peekSqlKeyword(sql: string, start: number): string | null {
-  return readSqlIdent(sql, skipSqlTrivia(sql, start))?.word ?? null;
-}
-
 function identIsQualified(sql: string, identStart: number): boolean {
   let k = identStart - 1;
   while (k >= 0 && /\s/.test(sql[k]!)) k--;
@@ -415,8 +372,6 @@ function splitSqlOnly(sql: string): SplitStatement[] {
   const out: SplitStatement[] = [];
   const len = sql.length;
 
-  let mode: Mode = 'code';
-  let dollarTag = '';
   let line = 1;
 
   // Statement text starts at the first CODE character — comments between
@@ -484,185 +439,114 @@ function splitSqlOnly(sql: string): SplitStatement[] {
     reset();
   };
 
-  let i = 0;
-  while (i < len) {
-    const ch = sql[i];
-    const next = i + 1 < len ? sql[i + 1] : '';
+  /** The splitter's word after `from` (uppercased), past spaces and comments; null when the next thing is not a word. */
+  const peekWord = (from: number): string | null => {
+    for (const token of sqlTokens(sql, SPLIT_TOKENS, from)) {
+      if (isTrivia(token)) continue;
+      return token.kind === 'word' && /[A-Za-z_]/.test(sql[token.start]!) ? sql.slice(token.start, token.end).toUpperCase() : null;
+    }
+    return null;
+  };
 
-    switch (mode) {
-      case 'code': {
-        if (ch === '-' && next === '-') { mode = 'line-comment'; i += 2; continue; }
-        if (ch === '#') { mode = 'line-comment'; i += 1; continue; }
-        if (ch === '/' && next === '*') { mode = 'block-comment'; i += 2; continue; }
-        if (ch === "'") { markCode(i); mode = 'single'; i += 1; continue; }
-        if (ch === '"') { markCode(i); mode = 'double'; i += 1; continue; }
-        if (ch === '`') { markCode(i); mode = 'backtick'; i += 1; continue; }
-        if (ch === '[') { markCode(i); mode = 'bracket'; i += 1; continue; }
-        if (ch === '$') {
-          const m = DOLLAR_TAG_RE.exec(sql.slice(i, i + 64));
-          if (m) { markCode(i); dollarTag = m[0]; mode = 'dollar'; i += m[0].length; continue; }
-        }
-        if (ch === ';') {
-          markCode(i);
-          // Routine bodies (CREATE PROCEDURE … BEGIN … END) contain many `;`
-          // that must not become extra editor cells.
-          if (inRoutineDdl && blockStack.length > 0) {
-            atProcStmtStart = true;
-            i += 1;
-            continue;
-          }
-          flush(i + 1, true);
-          i += 1;
-          continue;
-        }
-        if (/[A-Za-z_]/.test(ch)) {
-          markCode(i);
-          const ident = readSqlIdent(sql, i);
-          if (!ident) { i += 1; continue; }
-          const word = ident.word === 'PROC' ? 'PROCEDURE' : ident.word;
-          if (!identIsQualified(sql, i)) {
-            if (skipNextWord && word === skipNextWord) {
-              // Keep `atProcStmtStart` from the opener/closer that armed the
-              // skip (`BEGIN TRY` → still at stmt start; `END TRY` → next
-              // `END` may close the outer `BEGIN`).
-              skipNextWord = null;
-              i = ident.end;
-              continue;
-            }
-            skipNextWord = null;
-            if (stmtVerb === null) {
-              stmtVerb = word;
-              lookingForRoutine = word === 'CREATE' || word === 'ALTER';
-              if (word === 'BEGIN') {
-                // A bare BEGIN opens an anonymous block (PL/SQL, Db2 SQL PL,
-                // T-SQL) whose `;` belong to it, exactly like a routine body.
-                // `BEGIN;` and `BEGIN TRANSACTION` are transaction control.
-                const nxt = peekSqlKeyword(sql, ident.end);
-                if (nxt !== null && !TRANSACTION_BEGIN.has(nxt)) inRoutineDdl = true;
-              }
-            } else if (lookingForRoutine) {
-              if (ROUTINE_OBJECT.has(word)) {
-                inRoutineDdl = true;
-                lookingForRoutine = false;
-              } else if (NOT_ROUTINE_OBJECT.has(word)) {
-                lookingForRoutine = false;
-              }
-            }
-            if (inRoutineDdl) {
-              if (word === 'BEGIN') {
-                const nxt = peekSqlKeyword(sql, ident.end);
-                if (nxt === 'TRAN' || nxt === 'TRANSACTION' || nxt === 'WORK') {
-                  // BEGIN TRAN — not a nesting frame.
-                } else if (nxt === 'TRY') {
-                  blockStack.push('try');
-                  skipNextWord = 'TRY';
-                  atProcStmtStart = true;
-                } else if (nxt === 'CATCH') {
-                  blockStack.push('catch');
-                  skipNextWord = 'CATCH';
-                  atProcStmtStart = true;
-                } else {
-                  blockStack.push('begin');
-                  atProcStmtStart = true;
-                }
-              } else if (word === 'CASE') {
-                blockStack.push('case');
-                atProcStmtStart = false;
-              } else if (word === 'END') {
-                const nxt = peekSqlKeyword(sql, ident.end);
-                if (nxt && END_COMPOUND.has(nxt)) {
-                  skipNextWord = nxt;
-                  // END TRY / END CATCH close the matching BEGIN TRY/CATCH.
-                  // END IF / LOOP / … do not pop BEGIN (IF never pushed).
-                  if (nxt === 'TRY' || nxt === 'CATCH') {
-                    const want = nxt === 'TRY' ? 'try' : 'catch';
-                    if (blockStack[blockStack.length - 1] === want) blockStack.pop();
-                  }
-                  // Compound `END …` is its own statement; a following bare
-                  // `END` may close the enclosing `BEGIN`.
-                  atProcStmtStart = true;
-                } else if (nxt === 'CASE') {
-                  skipNextWord = 'CASE';
-                  if (blockStack[blockStack.length - 1] === 'case') blockStack.pop();
-                  atProcStmtStart = true;
-                } else if (blockStack[blockStack.length - 1] === 'case') {
-                  // CASE *expression* terminator (`… END`, `… END AS x`).
-                  blockStack.pop();
-                  atProcStmtStart = false;
-                } else if (
-                  atProcStmtStart &&
-                  blockStack[blockStack.length - 1] === 'begin'
-                ) {
-                  // Only a statement-leading `END` closes `BEGIN` — not
-                  // `SELECT end`, `AS end`, or `DECLARE end INT`.
-                  blockStack.pop();
-                  atProcStmtStart = false;
-                } else {
-                  atProcStmtStart = false;
-                }
-              } else {
-                atProcStmtStart = false;
-              }
-            }
-          } else if (inRoutineDdl) {
-            atProcStmtStart = false;
-          }
-          i = ident.end;
-          continue;
-        }
-        if (ch === '\n') { line++; i += 1; continue; }
-        if (!/\s/.test(ch)) markCode(i);
-        i += 1;
-        continue;
+  /** One identifier, `wordStart`…`wordEnd`: what routine DDL needs to know to keep a body's `;` together. */
+  const onWord = (wordStart: number, wordEnd: number) => {
+    const raw = sql.slice(wordStart, wordEnd).toUpperCase();
+    const word = raw === 'PROC' ? 'PROCEDURE' : raw;
+    if (identIsQualified(sql, wordStart)) {
+      if (inRoutineDdl) atProcStmtStart = false;
+      return;
+    }
+    if (skipNextWord && word === skipNextWord) {
+      // Keep `atProcStmtStart` from the opener/closer that armed the
+      // skip (`BEGIN TRY` → still at stmt start; `END TRY` → next
+      // `END` may close the outer `BEGIN`).
+      skipNextWord = null;
+      return;
+    }
+    skipNextWord = null;
+    if (stmtVerb === null) {
+      stmtVerb = word;
+      lookingForRoutine = word === 'CREATE' || word === 'ALTER';
+      if (word === 'BEGIN') {
+        // A bare BEGIN opens an anonymous block (PL/SQL, Db2 SQL PL,
+        // T-SQL) whose `;` belong to it, exactly like a routine body.
+        // `BEGIN;` and `BEGIN TRANSACTION` are transaction control.
+        const nxt = peekWord(wordEnd);
+        if (nxt !== null && !TRANSACTION_BEGIN.has(nxt)) inRoutineDdl = true;
       }
-      case 'line-comment': {
-        if (ch === '\n') { line++; mode = 'code'; }
-        i += 1;
-        continue;
-      }
-      case 'block-comment': {
-        if (ch === '*' && next === '/') { mode = 'code'; i += 2; continue; }
-        if (ch === '\n') line++;
-        i += 1;
-        continue;
-      }
-      case 'single':
-      case 'double': {
-        const q = mode === 'single' ? "'" : '"';
-        if (ch === '\\') { i += 2; continue; } // MySQL-style escape; harmless merge risk elsewhere
-        if (ch === q) {
-          if (next === q) { i += 2; continue; } // '' / "" doubling
-          mode = 'code'; i += 1; continue;
-        }
-        if (ch === '\n') line++;
-        i += 1;
-        continue;
-      }
-      case 'backtick': {
-        if (ch === '`') {
-          if (next === '`') { i += 2; continue; }
-          mode = 'code'; i += 1; continue;
-        }
-        if (ch === '\n') line++;
-        i += 1;
-        continue;
-      }
-      case 'bracket': {
-        if (ch === ']') {
-          if (next === ']') { i += 2; continue; }
-          mode = 'code'; i += 1; continue;
-        }
-        if (ch === '\n') line++;
-        i += 1;
-        continue;
-      }
-      case 'dollar': {
-        if (sql.startsWith(dollarTag, i)) { i += dollarTag.length; mode = 'code'; continue; }
-        if (ch === '\n') line++;
-        i += 1;
-        continue;
+    } else if (lookingForRoutine) {
+      if (ROUTINE_OBJECT.has(word)) {
+        inRoutineDdl = true;
+        lookingForRoutine = false;
+      } else if (NOT_ROUTINE_OBJECT.has(word)) {
+        lookingForRoutine = false;
       }
     }
+    if (!inRoutineDdl) return;
+    if (word === 'BEGIN') {
+      const nxt = peekWord(wordEnd);
+      if (nxt === 'TRAN' || nxt === 'TRANSACTION' || nxt === 'WORK') {
+        // BEGIN TRAN — not a nesting frame.
+      } else if (nxt === 'TRY') {
+        blockStack.push('try');
+        skipNextWord = 'TRY';
+        atProcStmtStart = true;
+      } else if (nxt === 'CATCH') {
+        blockStack.push('catch');
+        skipNextWord = 'CATCH';
+        atProcStmtStart = true;
+      } else {
+        blockStack.push('begin');
+        atProcStmtStart = true;
+      }
+    } else if (word === 'CASE') {
+      blockStack.push('case');
+      atProcStmtStart = false;
+    } else if (word === 'END') {
+      const nxt = peekWord(wordEnd);
+      if (nxt && END_COMPOUND.has(nxt)) {
+        skipNextWord = nxt;
+        // END TRY / END CATCH close the matching BEGIN TRY/CATCH.
+        // END IF / LOOP / … do not pop BEGIN (IF never pushed).
+        if (nxt === 'TRY' || nxt === 'CATCH') {
+          const want = nxt === 'TRY' ? 'try' : 'catch';
+          if (blockStack[blockStack.length - 1] === want) blockStack.pop();
+        }
+        // Compound `END …` is its own statement; a following bare
+        // `END` may close the enclosing `BEGIN`.
+        atProcStmtStart = true;
+      } else if (nxt === 'CASE') {
+        skipNextWord = 'CASE';
+        if (blockStack[blockStack.length - 1] === 'case') blockStack.pop();
+        atProcStmtStart = true;
+      } else if (blockStack[blockStack.length - 1] === 'case') {
+        // CASE *expression* terminator (`… END`, `… END AS x`).
+        blockStack.pop();
+        atProcStmtStart = false;
+      } else if (atProcStmtStart && blockStack[blockStack.length - 1] === 'begin') {
+        // Only a statement-leading `END` closes `BEGIN` — not
+        // `SELECT end`, `AS end`, or `DECLARE end INT`.
+        blockStack.pop();
+        atProcStmtStart = false;
+      } else {
+        atProcStmtStart = false;
+      }
+    } else {
+      atProcStmtStart = false;
+    }
+  };
+
+  for (const token of sqlTokens(sql, SPLIT_TOKENS)) {
+    if (!isTrivia(token)) markCode(token.start);
+    if (token.kind === 'punct' && token.upper === ';') {
+      // Routine bodies (CREATE PROCEDURE … BEGIN … END) contain many `;`
+      // that must not become extra editor cells.
+      if (inRoutineDdl && blockStack.length > 0) atProcStmtStart = true;
+      else flush(token.end, true);
+    } else if (token.kind === 'word' && /[A-Za-z_]/.test(sql[token.start]!)) {
+      onWord(token.start, token.end);
+    }
+    for (let k = token.start; k < token.end; k++) if (sql.charCodeAt(k) === 10) line++;
   }
   flush(len, false);
   return out;
@@ -787,6 +671,15 @@ export function sqlStatementCount(text: string, dialect?: string): number {
 // `executableComments`: MySQL runs `/*!…` comments, so `SELECT 1 /*!INTO OUTFILE …`
 // writes a file. The classifiers must see it; splitting does not use these options.
 const SPLITTER_TOKENS: SqlTokenOptions = { hashComments: true, stringPrefixes: false, executableComments: true };
+
+/**
+ * How `splitSqlOnly` reads SQL. Not `executableComments`: a statement that is
+ * only a `/*!` comment stays dropped, never sent. Backslash escapes in quotes
+ * as MySQL reads them, since a `;` inside such a string must not split. Names
+ * start at a letter or `_`, so `1END` is a number then `END`, and `1$$` a
+ * number then a dollar-quoted body.
+ */
+const SPLIT_TOKENS: SqlTokenOptions = { hashComments: true, stringPrefixes: false, backslashEscapes: true, digitNames: false };
 
 /** First code word of a statement (lowercased), skipping leading comments/whitespace/parens/semicolons. */
 export function firstKeyword(text: string): string | null {

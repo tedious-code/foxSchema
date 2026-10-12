@@ -38,3 +38,14 @@ describe('sqlTokens', () => {
     expect(tokens.map((t) => sql.slice(t.start, t.end)).join('')).toBe(sql);
   });
 });
+
+describe('from an offset', () => {
+  it('starts at the offset given, and lexes nothing before it', () => {
+    const sql = "SELECT 'a;b'; DELETE FROM t";
+    expect([...sqlTokens(sql, {}, sql.indexOf('DELETE'))].filter((t) => t.kind !== 'space').map((t) => t.upper)).toEqual([
+      'DELETE',
+      'FROM',
+      'T',
+    ]);
+  });
+});

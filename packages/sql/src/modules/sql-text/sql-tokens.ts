@@ -248,10 +248,13 @@ function executableOpen(text: string, i: number, tag: string | undefined): strin
 
 const spaceToken = (start: number, end: number): SqlToken => ({ kind: 'space', start, end, upper: '', open: '', close: '' });
 
-/** The tokens of `text`, lexed as they are read: stop early and the rest is never scanned. */
-export function* sqlTokens(text: string, options: SqlTokenOptions = {}): Generator<SqlToken> {
+/**
+ * The tokens of `text` from `from` on, lexed as they are read: stop early and
+ * the rest is never scanned. `from` must be a token boundary.
+ */
+export function* sqlTokens(text: string, options: SqlTokenOptions = {}, from = 0): Generator<SqlToken> {
   let executable = false;
-  for (let i = 0; i < text.length; ) {
+  for (let i = from; i < text.length; ) {
     let token: SqlToken;
     const open = options.executableComments && !executable ? executableOpen(text, i, options.executableCommentTag) : '';
     if (executable && text.startsWith('*/', i)) {

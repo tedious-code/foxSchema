@@ -1062,3 +1062,23 @@ describe('MySQL executable comments are read as the server runs them', () => {
     expect(isWriteStatement("SELECT '/*!INTO OUTFILE x*/'")).toBe(false);
   });
 });
+
+describe('splitting on the shared tokenizer', () => {
+  it('keeps a `;` inside a backslash-escaped string', () => {
+    expect(splitSqlStatements("SELECT 'it\\'s; ok'; SELECT 2").map((s) => s.text)).toEqual(["SELECT 'it\\'s; ok';", 'SELECT 2']);
+  });
+
+  it('opens a dollar-quoted body right after a number, as Postgres does', () => {
+    expect(splitSqlStatements('SELECT 1$$a; b$$; SELECT 2').map((s) => s.text)).toEqual(['SELECT 1$$a; b$$;', 'SELECT 2']);
+    // After a name, `$` belongs to the name.
+    expect(splitSqlStatements('SELECT x$$a; SELECT 2').map((s) => s.text)).toEqual(['SELECT x$$a;', 'SELECT 2']);
+  });
+
+  it('counts a line break escaped with a backslash inside a string', () => {
+    // The old scanner skipped the escaped character uncounted, so the next
+    // statement's lines (and its own endLine) came out one short.
+    const [first, second] = splitSqlStatements("SELECT 'a\\\nb';\nSELECT 2");
+    expect(first).toMatchObject({ startLine: 1, endLine: 2 });
+    expect(second).toMatchObject({ startLine: 3, endLine: 3 });
+  });
+});

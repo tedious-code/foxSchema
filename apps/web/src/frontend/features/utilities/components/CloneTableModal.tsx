@@ -238,11 +238,14 @@ export const CloneTableModal: React.FC<Props> = ({
       schema: conn.schema?.trim() || undefined,
     };
     try {
-      // Stop on first failure; chunk to backend MAX_STATEMENTS.
+      // Stop on first failure; chunk to backend MAX_STATEMENTS. The server
+      // stops too: without it, a failed index rename on the archive still
+      // ran the CREATE of the new live table after it, and "rename the
+      // archive back" then failed because the live name was taken.
       let ran = 0;
       for (let i = 0; i < executable.length; i += EXECUTE_BATCH_SIZE) {
         const batch = executable.slice(i, i + EXECUTE_BATCH_SIZE);
-        const result = await executeSql(ref, batch);
+        const result = await executeSql(ref, batch, undefined, undefined, undefined, { stopOnError: true });
         for (let j = 0; j < result.results.length; j++) {
           const r = result.results[j]!;
           if (r.ok) {

@@ -10,23 +10,34 @@
  * restore brings the database back under a new name, beside the live one.
  */
 import type { BackupCommands, BackupConnection, BackupDialect, BackupRequest } from '../../modules/utilities/backup.types.js';
-import { sqlString } from '../../modules/utilities/backup-helpers.js';
 
 const ident = (name: string) => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ? name : `\`${name.replace(/`/g, '``')}\``);
 
+/**
+ * A ClickHouse string literal. ClickHouse reads a backslash inside one as an
+ * escape, so it is doubled before the quotes are: a disk named `back\ups`
+ * otherwise reached the server as another name, and a trailing backslash
+ * escaped the closing quote.
+ */
+const chString = (value: string) => `'${value.replace(/\\/g, '\\\\').replace(/'/g, "''")}'`;
+
+/** One literal's body as ClickHouse wrote it, read back to its value. */
+const chUnescape = (body: string) => body.replace(/''|\\(.)/g, (_m, escaped?: string) => escaped ?? "'");
+
 /** A backup's name in system.backups, `Disk('backups', 'x.zip')`, read back to its parts. */
 function pickedDisk(name: string | undefined): { disk: string; file: string } | null {
-  const m = name ? /^Disk\('([^']*)',\s*'([^']*)'\)$/.exec(name.trim()) : null;
-  return m ? { disk: m[1]!, file: m[2]! } : null;
+  const literal = "'((?:[^'\\\\]|\\\\.|'')*)'";
+  const m = name ? new RegExp(`^Disk\\(${literal},\\s*${literal}\\)$`).exec(name.trim()) : null;
+  return m ? { disk: chUnescape(m[1]!), file: chUnescape(m[2]!) } : null;
 }
 
 function build(conn: BackupConnection, req: BackupRequest): BackupCommands {
   const disk = req.folder.trim() || 'backups';
   const file = `${req.fileName}${req.compress ? '.zip' : ''}`;
-  const target = `Disk(${sqlString(disk)}, ${sqlString(file)})`;
+  const target = `Disk(${chString(disk)}, ${chString(file)})`;
   // Rebuilt from its parts and quoted again, never pasted from the catalog.
   const picked = pickedDisk(req.restoreFrom);
-  const restoreTarget = picked ? `Disk(${sqlString(picked.disk)}, ${sqlString(picked.file)})` : target;
+  const restoreTarget = picked ? `Disk(${chString(picked.disk)}, ${chString(picked.file)})` : target;
   const db = ident(conn.database);
   const restored = ident(`${conn.database}_restored`);
   const what = req.tables.length > 0 ? req.tables.map((t) => `TABLE ${db}.${ident(t)}`).join(', ') : `DATABASE ${db}`;

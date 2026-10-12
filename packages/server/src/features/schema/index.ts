@@ -7,7 +7,6 @@
 import type { ServerFeatureModule } from '../../platform/feature-module';
 import { createSchemaRoutes } from './schema.routes';
 
-export { probeTableInsight } from './table-insight.service';
 
 export const schemaFeature: ServerFeatureModule = {
   id: 'schema',

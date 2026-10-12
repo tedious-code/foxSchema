@@ -20,29 +20,40 @@ import { splitSqlStatements } from '@foxschema/ui-shared';
 import type { ConnectionRef } from './schemaApi';
 import { executeSql } from './sqlApi';
 
-/** Every statement succeeded, or the joined errors of those that did not. */
+/** Every statement succeeded, or which one failed and what ran around it. */
 export type AccessSqlOutcome = { ok: true } | { ok: false; error: string };
 
 /**
  * Execute a grant/revoke script statement by statement.
  *
- * Statements run in order and are not wrapped in a transaction: most engines
- * auto-commit DDL anyway, so a mid-script failure leaves the earlier grants
- * applied. The caller reports the failure and re-reads the catalog rather than
- * claiming the script was undone.
+ * Statements run in order and stop at the first failure: a script's later
+ * steps assume its earlier ones (USAGE ON SCHEMA before ON ALL TABLES, CREATE
+ * USER before its quota), so running them against a state the script did not
+ * reach only adds errors or half-applied access. Nothing is wrapped in a
+ * transaction — most engines auto-commit DDL anyway — so the statements before
+ * the failure stay applied. The error says so, and the caller re-reads the
+ * catalog rather than claiming the script was undone.
  */
 export async function runAccessSql(
   ref: ConnectionRef,
   sql: string
 ): Promise<AccessSqlOutcome> {
-  const statements = splitSqlStatements(sql)
+  const split = splitSqlStatements(sql)
     .map((s) => s.text.trim())
     .filter(Boolean);
-  const { results } = await executeSql(ref, statements.length ? statements : [sql]);
-  const failed = results.filter((r) => !r.ok);
-  if (failed.length === 0) return { ok: true };
-  return {
-    ok: false,
-    error: failed.map((r) => ('error' in r ? r.error : 'failed')).join(' · '),
-  };
+  const statements = split.length ? split : [sql];
+  const { results } = await executeSql(ref, statements, undefined, undefined, undefined, { stopOnError: true });
+  const failedAt = results.findIndex((r) => !r.ok);
+  if (failedAt === -1 && results.length === statements.length) return { ok: true };
+  if (failedAt === -1) {
+    return { ok: false, error: `Only ${results.length} of ${statements.length} statements ran.` };
+  }
+  const failure = results[failedAt]!;
+  const error = 'error' in failure ? failure.error : 'failed';
+  if (statements.length === 1) return { ok: false, error };
+  const notRun = statements.length - failedAt - 1;
+  const before = failedAt === 0 ? '' : ` The ${failedAt} before it ${failedAt === 1 ? 'was' : 'were'} applied.`;
+  const after = notRun === 0 ? '' : ` The ${notRun} after it did not run.`;
+  const reason = error.trim().replace(/\.$/, '');
+  return { ok: false, error: `Statement ${failedAt + 1} of ${statements.length} failed: ${reason}.${before}${after}` };
 }

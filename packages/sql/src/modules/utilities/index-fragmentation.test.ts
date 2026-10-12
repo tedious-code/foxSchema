@@ -554,6 +554,51 @@ describe('custom SQL safety', () => {
     ).toMatch(/read-only/i);
   });
 
+  it('reads a comment marker inside a string as text, so it cannot hide a write', () => {
+    // The database ignores only the trailing `-- */`; it creates the table or
+    // writes the file. Stripping `/* … */` before looking hid the INTO.
+    expect(isSafeIndexFragmentationCustomSql("SELECT '/*', 1 INTO fox_probe FROM t -- */", 'postgres')).toMatch(
+      /read-only/i
+    );
+    expect(
+      isSafeIndexFragmentationCustomSql("SELECT '/*' AS a INTO OUTFILE '/tmp/fox' FROM t -- */", 'mysql')
+    ).toMatch(/read-only/i);
+    expect(isSafeIndexFragmentationCustomSql('SELECT 1 INTO fox_probe FROM t', 'sqlserver')).toMatch(/read-only/i);
+  });
+
+  it('runs what a fenced block hides: fence lines are only comments to the database', () => {
+    expect(
+      isSafeIndexFragmentationCustomSql('SELECT 1 AS index_name FROM t\n-- @node\nINTO fox_probe\n-- @end', 'postgres')
+    ).toMatch(/read-only/i);
+  });
+
+  it('counts statements as the dialect splits them', () => {
+    // A `;` inside a string is not a separator…
+    expect(isSafeIndexFragmentationCustomSql("SELECT ';' AS index_name, 0 AS fragmentation_percent", 'postgres')).toBe(
+      true
+    );
+    // …and a trailing one is not a second statement.
+    expect(isSafeIndexFragmentationCustomSql('SELECT 1 AS index_name;', 'postgres')).toBe(true);
+    // MySQL reads `\'` as an escaped quote, so the string ends later and the
+    // `;` falls between two statements there.
+    expect(isSafeIndexFragmentationCustomSql("SELECT 'a\\'; DELETE FROM t; -- '", 'mysql')).toMatch(
+      /single statement/i
+    );
+  });
+
+  it('accepts the template it offers for every dialect', () => {
+    for (const d of ['sqlserver', 'azuresql', 'postgres', 'cockroachdb', 'yugabytedb', 'mysql', 'mariadb', 'tidb', 'db2', 'oracle', 'sqlite', 'duckdb', 'clickhouse', 'redshift']) {
+      const template = buildIndexFragmentationCustomTemplate({ dialect: d, schema: 'public', table: 'orders' });
+      expect(isSafeIndexFragmentationCustomSql(template, d), d).toBe(true);
+    }
+  });
+
+  it('keeps the leading comment block the custom templates start with', () => {
+    expect(
+      isSafeIndexFragmentationCustomSql('-- Custom probe\n/* edit the WHERE */\nSELECT 1 AS index_name, 0 AS fragmentation_percent', 'postgres')
+    ).toBe(true);
+  });
+
   it('builds a non-empty custom template per major dialect', () => {
     for (const d of [
       'sqlserver',

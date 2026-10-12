@@ -206,7 +206,7 @@ export async function probeTableFragmentation(opts: {
         },
       };
     }
-    const safe = isSafeIndexFragmentationCustomSql(customSql);
+    const safe = isSafeIndexFragmentationCustomSql(customSql, dialect);
     if (safe !== true) {
       return {
         ok: false,
@@ -248,7 +248,7 @@ export async function probeTableFragmentation(opts: {
   const built = buildIndexFragmentationQuery({ dialect, schema, table });
   if ('error' in built) {
     if (customSql) {
-      const safe = isSafeIndexFragmentationCustomSql(customSql);
+      const safe = isSafeIndexFragmentationCustomSql(customSql, dialect);
       if (safe !== true) {
         return {
           ok: false,
@@ -355,7 +355,7 @@ export async function probeTableFragmentation(opts: {
         },
       };
     }
-    const safe = isSafeIndexFragmentationCustomSql(customSql);
+    const safe = isSafeIndexFragmentationCustomSql(customSql, dialect);
     if (safe !== true) {
       return {
         ok: false,

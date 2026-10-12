@@ -124,7 +124,14 @@ export async function runStatements(
   offset = 0,
   /** Bind parameters per statement, aligned by index. Missing = no params. */
   paramsList: readonly (readonly unknown[])[] = [],
-  seek?: SqlSeek
+  seek?: SqlSeek,
+  /**
+   * Stop at the first failed statement and leave the rest unrun. The results
+   * then end at that failure. A sequence whose later steps assume the earlier
+   * ones (Clone Table renames, then recreates) needs this; the editor runs
+   * every statement and reports each.
+   */
+  stopOnError = false
 ): Promise<StatementResult[]> {
   const schemaName = (schema ?? option.schema)?.trim() || '';
   const optionWithSchema: ConnectionOptions = schemaName
@@ -139,6 +146,7 @@ export async function runStatements(
 
     const results: StatementResult[] = [];
     for (const [index, original] of statements.entries()) {
+      if (stopOnError && results.at(-1)?.ok === false) break;
       const started = Date.now();
       // Name any SELECT expression the user left unaliased. The grid keys its
       // columns off the row object, and Postgres calls every unaliased

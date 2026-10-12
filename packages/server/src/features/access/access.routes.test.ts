@@ -40,34 +40,6 @@ async function serve(permissions: Permission[]) {
   return { server: app, resolveRef };
 }
 
-describe('table insight permissions', () => {
-  it('allows viewers who can run Data Peek queries', async () => {
-    const { server, resolveRef } = await serve(['editor.run']);
-    const res = await server.inject({
-      method: 'POST',
-      url: '/schema/table-insight',
-      payload: { connectionId: 'c1', table: 'orders' },
-    });
-
-    expect(res.statusCode).toBe(400);
-    expect(res.json().code).not.toBe('forbidden');
-    expect(resolveRef).toHaveBeenCalledOnce();
-  });
-
-  it('does not grant SQL Editor insight through Utilities alone', async () => {
-    const { server, resolveRef } = await serve(['utility.access']);
-    const res = await server.inject({
-      method: 'POST',
-      url: '/schema/table-insight',
-      payload: { connectionId: 'c1', table: 'orders' },
-    });
-
-    expect(res.statusCode).toBe(403);
-    expect(res.json()).toMatchObject({ code: 'forbidden', missing: ['editor.run'] });
-    expect(resolveRef).not.toHaveBeenCalled();
-  });
-});
-
 describe('db-access catalog permissions', () => {
   it('allows Access workspace viewers with access.access (not only utility.access)', async () => {
     const { server, resolveRef } = await serve(['access.access']);

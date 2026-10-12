@@ -309,6 +309,20 @@ describe('backups the server recorded', () => {
     );
   });
 
+  it('quotes a ClickHouse disk the way ClickHouse reads a string, backslashes included', () => {
+    // ClickHouse reads `\` as an escape in a string; undoubled, `back\ups`
+    // named another disk and a trailing `\` escaped the closing quote.
+    const c = ok(buildBackupCommands(conn('clickhouse', 'shop'), { folder: "back\\ups'1\\" }, NOW));
+    expect(c.backup).toBe("BACKUP DATABASE shop TO Disk('back\\\\ups''1\\\\', 'shop_20261004_153005.zip');");
+  });
+
+  it('reads a picked ClickHouse backup with escapes back to the same names', () => {
+    // As system.backups writes them: `\'` for a quote, `\\` for a backslash.
+    expect(restoreOf('clickhouse', "Disk('back\\\\ups', 'it\\'s.zip')").restore).toContain(
+      "FROM Disk('back\\\\ups', 'it''s.zip')"
+    );
+  });
+
   it('ignores a pick it cannot read, rather than pasting it into SQL', () => {
     expect(restoreOf('db2', '2026; DROP', 'SAMPLE').restore).not.toContain('TAKEN AT');
     const ch = restoreOf('clickhouse', "Disk('a') ; DROP DATABASE shop");

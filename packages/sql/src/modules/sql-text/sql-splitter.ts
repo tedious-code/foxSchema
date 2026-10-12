@@ -14,8 +14,14 @@
  * Code cells: `-- @js` / `-- @ts` / `-- @node` / `-- @nodets` … `-- @end`
  * fences are opaque (inner `;` do not split) and emit a single statement with
  * the matching kind.
+ *
+ * The classifiers (`sqlStatementCategories`, `isWriteStatement`, …) take the
+ * dialect that will run the text. They read it once per way that dialect can
+ * lex it (`sql-readings.ts`), and a statement needs whatever any of those
+ * readings says it needs. Without a dialect they assume every reading.
  */
 import { isTrivia, sqlTokens, type SqlTokenOptions } from './sql-tokens.js';
+import { canonicalForms, canonicalSql, rememberRead, sqlReadingsFor } from './sql-readings.js';
 
 export type StatementKind = 'sql' | 'js' | 'ts' | 'node' | 'nodets';
 
@@ -709,6 +715,70 @@ export function splitSqlStatements(sql: string): SplitStatement[] {
   return out;
 }
 
+/** One statement as a reading sees it: SQL in canonical form, or a closed code cell. */
+interface ReadStatement {
+  text: string;
+  cell: boolean;
+}
+
+/**
+ * The statements of `text` under each of `dialect`'s readings, one list per
+ * reading that sees them differently. SQL comes back as `canonicalSql`
+ * writes it, so the scanners below read each statement as that reading did:
+ * the database's reading, not this file's.
+ *
+ * Code fences are found first, on the text as written, as
+ * {@link splitSqlStatements} finds them. A closed fence is a code cell. An
+ * unclosed one is SQL whose first line is a comment, and it splits like any
+ * other SQL: read as one statement, `SELECT 1; DROP TABLE t` after an unclosed
+ * `-- @node` was a read.
+ */
+function statementsAsRead(text: string, dialect?: string): readonly ReadStatement[][] {
+  return rememberRead(readStatements, text, dialect, () => readEachWay(text, dialect));
+}
+const readStatements = new Map<string, readonly ReadStatement[][]>();
+
+function readEachWay(text: string, dialect?: string): ReadStatement[][] {
+  const fences = findCodeFences(text);
+  if (fences.length === 0) {
+    return canonicalForms(text, dialect).map((form) => splitSqlOnly(form).map((s) => ({ text: s.text, cell: false })));
+  }
+  const out = new Map<string, ReadStatement[]>();
+  for (const reading of sqlReadingsFor(text, dialect)) {
+    const statements: ReadStatement[] = [];
+    const sql = (gap: string) => {
+      for (const s of splitSqlOnly(canonicalSql(gap, reading))) statements.push({ text: s.text, cell: false });
+    };
+    let cursor = 0;
+    for (const fence of fences) {
+      sql(text.slice(cursor, fence.start));
+      if (fence.closed) statements.push({ text: text.slice(fence.start, fence.end), cell: true });
+      else sql(text.slice(fence.start, fence.end));
+      cursor = fence.end;
+    }
+    sql(text.slice(cursor));
+    const key = JSON.stringify(statements);
+    if (!out.has(key)) out.set(key, statements);
+  }
+  return [...out.values()];
+}
+
+/** True when `test` holds for some reading's statements. */
+function someReading(text: string, dialect: string | undefined, test: (statements: ReadStatement[]) => boolean): boolean {
+  return statementsAsRead(text, dialect).some(test);
+}
+
+/**
+ * The most statements any of `dialect`'s readings finds in `text`. A gate
+ * that prices a write by its one verb needs this to be 1 under every reading,
+ * not only under the one this file would pick.
+ */
+export function sqlStatementCount(text: string, dialect?: string): number {
+  let most = 0;
+  for (const statements of statementsAsRead(text, dialect)) most = Math.max(most, statements.length);
+  return most;
+}
+
 /**
  * How the splitter reads SQL with the shared tokenizer: `#` is always a
  * comment here, and `N'x'` is the word N then a string, as its own scanners
@@ -842,16 +912,12 @@ export function checkStatement(
  * `EXPLAIN ANALYZE …` / `EXPLAIN (ANALYZE, …) …` execute the plan on Postgres
  * (and MySQL 8.0.18+), so those inherit the inner statement's write-ness.
  */
-export function isWriteStatement(text: string): boolean {
+export function isWriteStatement(text: string, dialect?: string): boolean {
   // Closed code fences carry no SQL of their own. An unclosed `-- @node` …
   // payload (or SQL after `-- @end`) is still SQL to the database — the fence
   // lines are ordinary `--` comments — so classify those parts as SQL.
-  const parts = splitSqlStatements(text);
-  if (parts.length === 0) return false;
-  return parts.some((p) => {
-    if (p.kind && p.kind !== 'sql' && p.terminated) return false;
-    return sqlTextIsWrite(p.text);
-  });
+  // A write under any reading of the dialect is a write.
+  return someReading(text, dialect, (statements) => statements.some((s) => !s.cell && sqlTextIsWrite(s.text)));
 }
 
 /** Recursive write check used for nested WITH bodies (no code-cell gate). */
@@ -995,18 +1061,35 @@ const GRANT_KEYWORDS = new Set(['grant', 'revoke', 'deny']);
  *
  * `SELECT … INTO t` reports `ddl`: it creates a table, so it needs schema power
  * even though it starts with SELECT.
+ *
+ * Read the result as the set of permissions to ask for. It lists one entry
+ * per statement as the first reading of `dialect` splits them, then any
+ * category only another reading needs, so its entries do not line up with
+ * the statements once the readings disagree.
  */
-export function sqlStatementCategories(text: string): SqlStatementCategory[] {
+export function sqlStatementCategories(text: string, dialect?: string): SqlStatementCategory[] {
   // Split first so a closed `-- @node` … `-- @end` cell followed by real SQL
   // (or an unclosed fence whose body is SQL) cannot short-circuit to `read`.
   // `-- @node` is a SQL line comment to the database — only a *closed* fence
   // is a code cell whose SQL is submitted later via the bridge.
-  const parts = splitSqlStatements(text);
-  if (parts.length === 0) return ['read'];
-  return parts.map((p) => {
-    if (p.kind && p.kind !== 'sql' && p.terminated) return 'read';
-    return categoryOf(p.text);
-  });
+  const out: SqlStatementCategory[] = [];
+  // Readings mostly differ in a few statements; classify each text once.
+  const known = new Map<string, SqlStatementCategory>();
+  const classify = (sql: string) => {
+    let category = known.get(sql);
+    if (category === undefined) known.set(sql, (category = categoryOf(sql)));
+    return category;
+  };
+  for (const statements of statementsAsRead(text, dialect)) {
+    const categories: SqlStatementCategory[] =
+      statements.length === 0 ? ['read'] : statements.map((s) => (s.cell ? 'read' : classify(s.text)));
+    // One entry per statement from the first reading; any other reading that
+    // sees the text differently adds what it needs on top. A server setting
+    // can pick either reading, so the gate asks for both.
+    if (out.length === 0) out.push(...categories);
+    else for (const category of categories) if (!out.includes(category)) out.push(category);
+  }
+  return out;
 }
 
 /**
@@ -1014,9 +1097,9 @@ export function sqlStatementCategories(text: string): SqlStatementCategory[] {
  * permission gates — a batch can need more than one permission, and "broadest"
  * alone drops the others (`CREATE`+`GRANT` is not just `grant`).
  */
-export function sqlStatementCategory(text: string): SqlStatementCategory {
+export function sqlStatementCategory(text: string, dialect?: string): SqlStatementCategory {
   let worst: SqlStatementCategory = 'read';
-  for (const cat of sqlStatementCategories(text)) worst = widen(worst, cat);
+  for (const cat of sqlStatementCategories(text, dialect)) worst = widen(worst, cat);
   return worst;
 }
 
@@ -1070,25 +1153,34 @@ function widen(a: SqlStatementCategory, b: SqlStatementCategory): SqlStatementCa
  * is a confirmation prompt, where a false positive is an annoyance rather than
  * a hole — but authorization must not hand execution to a verb it doesn't know.
  */
-export function requiresWritePermission(text: string): boolean {
+export function requiresWritePermission(text: string, dialect?: string): boolean {
   // Same classifier as the RBAC buckets — keep one source of truth so a batch,
   // punctuation-prefixed write, or fence-disguised write cannot be "read" here
   // and "dml"/"ddl" there. Closed code cells classify as read; the `sql`
   // bridge gates each statement they submit (see code-cell-query.ts).
-  return sqlStatementCategory(text) !== 'read';
+  return sqlStatementCategory(text, dialect) !== 'read';
 }
 
-/** Leading verb after skipping WITH CTEs (lowercased), or null. */
-export function statementVerb(text: string): string | null {
+/**
+ * Leading verb after skipping WITH CTEs (lowercased), or null. Null too when
+ * the readings of `dialect` disagree on it: a gate that matches the verb
+ * against a claimed action should not have to guess which one runs.
+ */
+export function statementVerb(text: string, dialect?: string): string | null {
   const cell = parseCodeCell(text);
   // Only a closed fence is a code cell; unclosed `-- @node` + SQL should
   // report the SQL verb (fence lines are comments to the database).
   if (cell?.closed) return cell.kind;
+  const verbs = new Set(canonicalForms(text, dialect).map(verbOf));
+  return verbs.size === 1 ? [...verbs][0]! : null;
+}
+
+function verbOf(text: string): string | null {
   const kw = firstKeyword(text);
   if (!kw) return null;
   if (kw === 'explain') {
     const inner = peelExplainAnalyze(text);
-    return inner ? statementVerb(inner) : 'explain';
+    return inner ? verbOf(inner) : 'explain';
   }
   if (kw === 'with') return keywordAfterWithCtes(text);
   return kw;
@@ -1101,13 +1193,8 @@ const MUTATING_DML = new Set(['update', 'delete', 'merge']);
  * data-modifying CTEs that return rows via SELECT).
  * Used by SQL Editor safe mode to warn before data-mutating DML.
  */
-export function isMutatingDmlStatement(text: string): boolean {
-  const parts = splitSqlStatements(text);
-  if (parts.length === 0) return false;
-  return parts.some((p) => {
-    if (p.kind && p.kind !== 'sql' && p.terminated) return false;
-    return sqlTextIsMutatingDml(p.text);
-  });
+export function isMutatingDmlStatement(text: string, dialect?: string): boolean {
+  return someReading(text, dialect, (statements) => statements.some((s) => !s.cell && sqlTextIsMutatingDml(s.text)));
 }
 
 function sqlTextIsMutatingDml(text: string): boolean {
@@ -1139,15 +1226,18 @@ function sqlTextIsMutatingDml(text: string): boolean {
  * `ON DUPLICATE KEY UPDATE`, `INSERT OR REPLACE`), and mixed insert+mutating
  * CTEs still confirm.
  */
-export function isInsertWriteStatement(text: string): boolean {
-  const parts = splitSqlStatements(text);
-  if (parts.length === 0) return false;
+export function isInsertWriteStatement(text: string, dialect?: string): boolean {
+  // It skips a confirmation, so every reading of the dialect has to agree.
+  return !someReading(text, dialect, (statements) => !insertsOnly(statements));
+}
+
+/** True when `statements` write, and every write is a plain INSERT. */
+function insertsOnly(statements: ReadStatement[]): boolean {
   // Multi-statement buffer: every SQL part must be insert-only (or non-write).
   let sawInsert = false;
-  for (const p of parts) {
-    if (p.kind && p.kind !== 'sql' && p.terminated) continue;
-    if (!sqlTextIsWrite(p.text)) continue;
-    if (!sqlTextIsInsertOnlyWrite(p.text)) return false;
+  for (const s of statements) {
+    if (s.cell || !sqlTextIsWrite(s.text)) continue;
+    if (!sqlTextIsInsertOnlyWrite(s.text)) return false;
     sawInsert = true;
   }
   return sawInsert;
@@ -1194,12 +1284,12 @@ const PAGEABLE_VERBS = new Set(['select', 'values']);
  * (plain SELECT / VALUES, including `WITH … AS (…) SELECT …`).
  * Writes, data-modifying CTEs, DDL, SET, SHOW, EXPLAIN, CALL, etc. are not.
  */
-export function isPageableStatement(text: string): boolean {
-  const verb = statementVerb(text);
+export function isPageableStatement(text: string, dialect?: string): boolean {
+  const verb = statementVerb(text, dialect);
   if (verb === null || !PAGEABLE_VERBS.has(verb)) return false;
   // `WITH i AS (INSERT … RETURNING id) SELECT id FROM i` reports verb SELECT
   // but must not be nested for paging (Postgres: modifying WITH must be top-level).
-  return !isWriteStatement(text);
+  return !isWriteStatement(text, dialect);
 }
 
 /**
@@ -1274,22 +1364,17 @@ function skipExplainTrailingOptions(text: string, from: number): string {
 }
 
 /**
- * Heuristic: UPDATE/DELETE with no WHERE clause (full-table mutation risk).
- * Ignores WHERE inside strings/comments only loosely — strips simple quotes.
- * MERGE is excluded (matched via ON, not WHERE).
+ * Heuristic: UPDATE/DELETE with no WHERE clause (full-table mutation risk),
+ * under any reading of `dialect`. A WHERE inside a string or comment does not
+ * count. MERGE is excluded (matched via ON, not WHERE).
  */
-export function dmlLacksWhere(text: string): boolean {
-  const verb = statementVerb(text);
-  if (verb !== 'update' && verb !== 'delete') return false;
-  // Drop quoted literals so a string containing "where" does not count.
-  const stripped = text
-    .replace(/'(?:[^']|'')*'/g, "''")
-    .replace(/"(?:[^"]|"")*"/g, '""')
-    .replace(/`(?:[^`]|``)*`/g, '``')
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/--[^\n]*/g, ' ')
-    .replace(/#[^\n]*/g, ' ');
-  return !/\bwhere\b/i.test(stripped);
+export function dmlLacksWhere(text: string, dialect?: string): boolean {
+  if (parseCodeCell(text)?.closed) return false;
+  // Canonical text has no comments and no string contents left to fake a WHERE.
+  return canonicalForms(text, dialect).some((form) => {
+    const verb = verbOf(form);
+    return (verb === 'update' || verb === 'delete') && !/\bwhere\b/i.test(form);
+  });
 }
 
 /**

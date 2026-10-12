@@ -178,7 +178,7 @@ export async function runStatements(
 
       // Non-SELECT/DDL/utility: never wrap (avoids a failed subquery attempt).
       // Paging requires a wrap — fail closed when offset > 0.
-      if (!isPageableStatement(sql)) {
+      if (!isPageableStatement(sql, dialect)) {
         if (offset > 0) {
           pushErr('Cannot page a non-SELECT statement');
           continue;

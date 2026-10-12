@@ -182,5 +182,10 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
    backup is ever run (from the panel, after confirmation); add `history` when
    the engine records its backups, so the panel can list them and restore one.
    Restores are never run. Commands must not contain a password.
-5. Add a round-trip test in `type-mapping.test.ts` and a generator assertion.
-6. Run `npx vitest run` (repo root) + `cd apps/web && npx tsc --noEmit`.
+5. Say how the engine lexes SQL in `modules/sql-text/sql-readings.ts`: its
+   comments, quotes, escapes and name characters, and every reading a server
+   setting can switch it to. The permission gate classifies each statement
+   under all of them. A dialect missing there gets every reading of every
+   dialect, which is safe but slow.
+6. Add a round-trip test in `type-mapping.test.ts` and a generator assertion.
+7. Run `npx vitest run` (repo root) + `cd apps/web && npx tsc --noEmit`.

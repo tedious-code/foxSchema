@@ -3,7 +3,7 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  */
-import { splitSqlStatements } from '@foxschema/db';
+import { sqlStatementCount } from '@foxschema/db';
 
 /**
  * True when `sql` holds exactly one executable statement.
@@ -22,7 +22,11 @@ import { splitSqlStatements } from '@foxschema/db';
  *
  * Grid CRUD and data-migrate row ops are generated one statement at a time, so
  * this costs a legitimate caller nothing.
+ *
+ * Where a `;` falls depends on the database: inside a string to one reading,
+ * between two statements to another. So the count is the most statements any
+ * reading of `dialect` finds.
  */
-export function isSingleSqlStatement(sql: string): boolean {
-  return splitSqlStatements(sql).filter((part) => part.text.trim()).length <= 1;
+export function isSingleSqlStatement(sql: string, dialect: string): boolean {
+  return sqlStatementCount(sql, dialect) <= 1;
 }

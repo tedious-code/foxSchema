@@ -89,8 +89,9 @@ export function makeCellQueryRunner(
 
     // Fail-closed, same classifier as the /sql/execute gate: an unrecognized
     // verb lands in `ddl` rather than slipping through as a read. Batches are
-    // classified per statement so a leading SELECT cannot hide a write/GRANT.
-    const categories = sqlStatementCategories(sql);
+    // classified per statement so a leading SELECT cannot hide a write/GRANT,
+    // and read as this connection's database reads them.
+    const categories = sqlStatementCategories(sql, resolved.dialect);
     for (const category of categories) {
       if (category === 'read') continue;
       if (!policy.allowWrites) {

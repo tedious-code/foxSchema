@@ -289,6 +289,7 @@ export {
   requiresWritePermission,
   sqlStatementCategory,
   sqlStatementCategories,
+  sqlStatementCount,
   firstKeyword,
   extractTableAliases,
   countReferencedTables,

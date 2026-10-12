@@ -21,13 +21,17 @@ export function routeHandler(router: Router, method: HttpMethod, path: string): 
   return route.handler;
 }
 
-/** A reply that records the status and body a handler sends. */
-export function fakeReply(): {
-  reply: FastifyReply;
-  /** `any`: tests read fields off whatever the route sent. */
-  sent: { status?: number; body?: any };
-} {
-  const sent: { status?: number; body?: any } = {};
+/** What a fake reply recorded. `body` is `any`: tests read fields off whatever the route sent. */
+interface SentReply {
+  status?: number;
+  body?: any;
+  /** Headers by lower-cased name; the last value set wins. */
+  headers: Record<string, string>;
+}
+
+/** A reply that records the status, body and headers a handler sends. */
+export function fakeReply(): { reply: FastifyReply; sent: SentReply } {
+  const sent: SentReply = { headers: {} };
   const reply = {
     status(code: number) {
       sent.status = code;
@@ -41,7 +45,8 @@ export function fakeReply(): {
       sent.body = body;
       return reply;
     },
-    header() {
+    header(name: string, value: unknown) {
+      sent.headers[name.toLowerCase()] = String(value);
       return reply;
     },
   };

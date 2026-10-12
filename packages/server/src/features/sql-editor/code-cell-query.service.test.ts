@@ -119,6 +119,12 @@ describe('code cell bridge permission policy', () => {
     await expect(runnerFor(new Set(), false)('; DELETE FROM t', [])).rejects.toThrow(/Safe mode/);
   });
 
+  it('reads the statement as the connection dialect does', async () => {
+    // PostgreSQL: the backslash is a plain character, so the DROP is outside the string.
+    const dmlOnly = new Set<Permission>(['editor.dml']);
+    await expect(runnerFor(dmlOnly)("SELECT 'a\\'; DROP TABLE t; --'", [])).rejects.toThrow(/editor\.ddl/);
+  });
+
   it('blocks parenthesized PRAGMA assignments', async () => {
     await expect(runnerFor(new Set(), false)('PRAGMA user_version(123)', [])).rejects.toThrow(/Safe mode/);
   });

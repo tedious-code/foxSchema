@@ -4,22 +4,22 @@ import { isSingleSqlStatement } from './single-statement';
 
 describe('isSingleSqlStatement', () => {
   it('accepts the shapes grid CRUD and data migrate actually generate', () => {
-    expect(isSingleSqlStatement('INSERT INTO t (a) VALUES ($1)')).toBe(true);
-    expect(isSingleSqlStatement('UPDATE t SET a = $1 WHERE id = $2')).toBe(true);
-    expect(isSingleSqlStatement('DELETE FROM t WHERE id = $1')).toBe(true);
+    expect(isSingleSqlStatement('INSERT INTO t (a) VALUES ($1)', 'postgres')).toBe(true);
+    expect(isSingleSqlStatement('UPDATE t SET a = $1 WHERE id = $2', 'postgres')).toBe(true);
+    expect(isSingleSqlStatement('DELETE FROM t WHERE id = $1', 'postgres')).toBe(true);
     // A single trailing semicolon is normal, not a second statement.
-    expect(isSingleSqlStatement('DELETE FROM t WHERE id = $1;')).toBe(true);
-    expect(isSingleSqlStatement('DELETE FROM t WHERE id = $1;  \n')).toBe(true);
+    expect(isSingleSqlStatement('DELETE FROM t WHERE id = $1;', 'postgres')).toBe(true);
+    expect(isSingleSqlStatement('DELETE FROM t WHERE id = $1;  \n', 'postgres')).toBe(true);
   });
 
   it('rejects a batch that hides a second verb', () => {
-    expect(isSingleSqlStatement('INSERT INTO t VALUES (1); DELETE FROM users')).toBe(false);
-    expect(isSingleSqlStatement('UPDATE t SET a=1; TRUNCATE TABLE users')).toBe(false);
+    expect(isSingleSqlStatement('INSERT INTO t VALUES (1); DELETE FROM users', 'postgres')).toBe(false);
+    expect(isSingleSqlStatement('UPDATE t SET a=1; TRUNCATE TABLE users', 'postgres')).toBe(false);
   });
 
   it('is not fooled by a semicolon inside a literal or comment', () => {
-    expect(isSingleSqlStatement("INSERT INTO t VALUES ('a;b')")).toBe(true);
-    expect(isSingleSqlStatement('DELETE FROM t WHERE id = 1 -- ; DROP TABLE users')).toBe(true);
+    expect(isSingleSqlStatement("INSERT INTO t VALUES ('a;b')", 'postgres')).toBe(true);
+    expect(isSingleSqlStatement('DELETE FROM t WHERE id = 1 -- ; DROP TABLE users', 'postgres')).toBe(true);
   });
 });
 

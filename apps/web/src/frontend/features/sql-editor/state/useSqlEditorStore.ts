@@ -1039,10 +1039,13 @@ export const useSqlEditorStore = create<SqlEditorState>()(
 
         // Safe mode: confirm on stripped SQL (ignore @set lines; vars may resolve mid-run).
         const strippedForConfirm = rawStatements.map((s) => parseSetDirectives(s).sql);
-        const writeStatements = strippedForConfirm.filter((s) => isWriteStatement(s));
+        // Read each statement as every target's database reads it: a write to
+        // any one of them is a write.
+        const dialects = [...new Set(connections.map((c) => c.dialect))];
+        const writeStatements = strippedForConfirm.filter((s) => dialects.some((d) => isWriteStatement(s, d)));
         // Insert-only writes skip Safe Mode; UPDATE/DELETE/MERGE and DDL still confirm.
-        const confirmWrites = writeStatements.filter((s) => !isInsertWriteStatement(s));
-        const mutatingDml = confirmWrites.filter((s) => isMutatingDmlStatement(s));
+        const confirmWrites = writeStatements.filter((s) => !dialects.every((d) => isInsertWriteStatement(s, d)));
+        const mutatingDml = confirmWrites.filter((s) => dialects.some((d) => isMutatingDmlStatement(s, d)));
         const multiTableStatements = safeMode
           ? collectMultiTableWriteWarnings(strippedForConfirm, multiTableConfirmThreshold)
           : [];

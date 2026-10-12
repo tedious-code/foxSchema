@@ -56,6 +56,15 @@ export function createDataMigrateRoutes(deps: DataMigrateRouteDeps): Router {
         sendError(res, 'invalid_input', 'At most 500 ops per data migrate.');
         return;
       }
+      // The connection first: each op is classified as its database reads it.
+      let resolved;
+      try {
+        resolved = await deps.resolveRef(scopeOf(authed), body);
+      } catch (error: unknown) {
+        sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Invalid connection');
+        return;
+      }
+      const { dialect } = resolved;
       const ops: DataMigrateExecOp[] = [];
       const needed = new Set<Permission>(['editor.dml']);
       for (const raw of body.ops) {
@@ -82,7 +91,7 @@ export function createDataMigrateRoutes(deps: DataMigrateRouteDeps): Router {
         }
         // Fail-closed like /sql/execute: classify the SQL itself so a client cannot
         // label op=insert while sending DELETE/DDL/GRANT and bypass finer permissions.
-        const categories = sqlStatementCategories(o.sql);
+        const categories = sqlStatementCategories(o.sql, dialect);
         if (categories.length === 0) {
           sendError(res, 'invalid_input', 'Could not classify op.sql.');
           return;
@@ -96,11 +105,11 @@ export function createDataMigrateRoutes(deps: DataMigrateRouteDeps): Router {
           }
         }
         // Same batch-smuggling guard as /sql/execute — see isSingleSqlStatement.
-        if (!isSingleSqlStatement(o.sql)) {
+        if (!isSingleSqlStatement(o.sql, dialect)) {
           sendError(res, 'invalid_input', 'Each op.sql must be a single statement.');
           return;
         }
-        const verb = statementVerb(o.sql);
+        const verb = statementVerb(o.sql, dialect);
         if (verb !== o.op) {
           sendError(res, 'invalid_input', `op.sql verb (${verb ?? 'unknown'}) must match op (${o.op}).`);
           return;
@@ -114,14 +123,6 @@ export function createDataMigrateRoutes(deps: DataMigrateRouteDeps): Router {
         });
       }
       if (denyUnless(authed, res, ...needed)) return;
-
-      let resolved;
-      try {
-        resolved = await deps.resolveRef(scopeOf(authed), body);
-      } catch (error: unknown) {
-        sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Invalid connection');
-        return;
-      }
 
       // Include identity on SQL Server / Azure SQL needs the session opened
       // around the ops. See identity-session.ts for why it is derived here

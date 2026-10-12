@@ -97,6 +97,17 @@ export function createEditorRoutes(deps: EditorRouteDeps): Router {
       sendError(res, 'invalid_input', `Every statement must be a non-empty string under ${deps.MAX_STATEMENT_LENGTH} characters.`);
       return;
     }
+    // Resolve the connection before classifying: what a statement does depends
+    // on how its database reads the text (a backslash, a `#`, a `$$` mean
+    // different things to MySQL and PostgreSQL), so the gate needs the dialect.
+    let resolved;
+    try {
+      resolved = await deps.resolveRef(scopeOf(authed), ref);
+    } catch (error: unknown) {
+      sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Invalid connection');
+      return;
+    }
+    const { dialect } = resolved;
     // Scan for writes only once the statements are known to be bounded strings.
     // Fail-closed: anything not provably a read needs `editor.write`, so a verb
     // the classifier doesn't recognize is denied instead of executed.
@@ -107,7 +118,7 @@ export function createEditorRoutes(deps: EditorRouteDeps): Router {
     for (const sql of statements as string[]) {
       // Batches inside one string need every category's permission — not just
       // the "broadest" label (CREATE + GRANT is both ddl and grant).
-      for (const category of sqlStatementCategories(sql)) {
+      for (const category of sqlStatementCategories(sql, dialect)) {
         const permission = CATEGORY_PERMISSION[category];
         if (permission) needed.add(permission);
       }
@@ -124,11 +135,11 @@ export function createEditorRoutes(deps: EditorRouteDeps): Router {
       for (const sql of statements as string[]) {
         // A batch would smuggle a second verb past the per-action permission
         // below — see isSingleSqlStatement.
-        if (!isSingleSqlStatement(sql)) {
+        if (!isSingleSqlStatement(sql, dialect)) {
           sendError(res, 'invalid_input', 'A Data grid write must be a single statement.');
           return;
         }
-        const verb = statementVerb(sql);
+        const verb = statementVerb(sql, dialect);
         if (verb !== datagridAction) {
           sendError(res, 'invalid_input', `datagridAction (${datagridAction}) must match SQL verb (${verb ?? 'unknown'}).`);
           return;
@@ -142,13 +153,6 @@ export function createEditorRoutes(deps: EditorRouteDeps): Router {
     // send a statement whose placeholders have nothing to bind to.
     if (params !== undefined && (!Array.isArray(params) || params.some((p) => !Array.isArray(p)))) {
       sendError(res, 'invalid_input', 'params must be an array of arrays (one per statement).');
-      return;
-    }
-    let resolved;
-    try {
-      resolved = await deps.resolveRef(scopeOf(req as AuthedRequest), ref);
-    } catch (error: unknown) {
-      sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Invalid connection');
       return;
     }
     const parsedSeek = parseSqlSeek(seek);

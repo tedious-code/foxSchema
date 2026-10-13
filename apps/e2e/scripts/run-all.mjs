@@ -161,7 +161,7 @@ const ALWAYS = [
   },
   {
     key: 'workflow',
-    file: 'src/tests/workflow-smoke.test.ts',
+    file: 'src/tests/workflow-smoke.test.ts src/tests/workflow-designer-roundtrip.test.ts',
     label: 'Workflow',
   },
   ...(configured.length

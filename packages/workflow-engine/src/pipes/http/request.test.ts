@@ -257,6 +257,27 @@ describe('shared HTTP request', () => {
     );
   });
 
+  it('sends a query-string API key but reports the URL without it', async () => {
+    // A failed HTTP sink or transform puts `result.url` in the run's error,
+    // which anyone who can open the run reads.
+    const fetches: string[] = [];
+    const result = await executeHttpRequest({
+      request: {
+        url: 'https://api.example.com/orders',
+        method: 'POST',
+        query: [{ key: 'page', value: '2', enabled: true }],
+        auth: { type: 'apiKey', in: 'query', key: 'api_key', value: 'sk-live-123' },
+      },
+      fetch: async (url) => {
+        fetches.push(String(url));
+        return new Response('{"error":"nope"}', { status: 500, headers: { 'content-type': 'application/json' } });
+      },
+    });
+    expect(fetches[0]).toBe('https://api.example.com/orders?page=2&api_key=sk-live-123');
+    expect(result.url).toBe('https://api.example.com/orders?page=2&api_key=REDACTED');
+    expect(result.url).not.toContain('sk-live-123');
+  });
+
   it('reuses cookie sessions and persists them on the credential', async () => {
     const store = new InMemoryCredentialStore(randomBytes(32));
     const credential = await store.create({

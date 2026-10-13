@@ -9,6 +9,13 @@ import { useMemo, useState } from 'react';
 import { Eye, FileText, Plus, X } from 'lucide-react';
 import { api, type ParsePreview } from '../api/engineClient';
 import { compileZodSchema } from '../lib/zodSchema';
+import type {
+  ColumnCheck as EngineColumnCheck,
+  ColumnCheckKind,
+  ColumnType,
+  FixedWidthColumn,
+} from '@foxschema/workflow-engine/definitions';
+import type { KnowsEveryField, SameMembers } from '../lib/engineShapes';
 
 /**
  * Config editor for the delimited file sources (`source.file.csv`,
@@ -46,10 +53,15 @@ const bool = (value: unknown, fallback: boolean): boolean =>
 const strings = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
 
-/** Value types a column can declare — mirrors COLUMN_TYPES in the core. */
+/** Value types a column can declare — the engine's COLUMN_TYPES, checked below. */
 const COLUMN_TYPES = ['string', 'integer', 'number', 'boolean', 'date'] as const;
-/** Suggested regex-check kinds — mirrors COLUMN_CHECK_KINDS in the core. */
+/** Suggested regex-check kinds — the engine's COLUMN_CHECK_KINDS, checked below. */
 const CHECK_KINDS = ['null', 'length', 'format'] as const;
+const _columnTypesMatch: SameMembers<(typeof COLUMN_TYPES)[number], ColumnType> = true;
+const _checkKindsMatch: SameMembers<(typeof CHECK_KINDS)[number], ColumnCheckKind> = true;
+const _checksKnown: KnowsEveryField<ColumnCheck, EngineColumnCheck> = true;
+const _fixedKnown: KnowsEveryField<FixedColumn, FixedWidthColumn> = true;
+void [_columnTypesMatch, _checkKindsMatch, _checksKnown, _fixedKnown];
 
 interface ColumnCheck {
   pattern: string;

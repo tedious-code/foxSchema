@@ -6,7 +6,7 @@
  * Workflow designer — ported from FoxAgent (components/DependenciesDialog.tsx).
  */
 import { GitBranch, Plus, Save, Trash2, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button, Label, Select } from './controls';
 
 export type WorkflowDependency = {
@@ -21,7 +21,6 @@ type PipelineOption = {
 };
 
 interface Props {
-  open: boolean;
   pipelines: PipelineOption[];
   dependencies: WorkflowDependency[];
   onApply: (dependencies: WorkflowDependency[]) => void;
@@ -91,8 +90,8 @@ function PipelineSelect({
   );
 }
 
+/** Mounted only while open, so the draft starts from the current joins each time. */
 export function DependenciesDialog({
-  open,
   pipelines,
   dependencies,
   onApply,
@@ -101,18 +100,11 @@ export function DependenciesDialog({
   const [draft, setDraft] = useState<WorkflowDependency[]>(dependencies);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    setDraft(dependencies);
-    setError(null);
-  }, [open, dependencies]);
-
   const waves = useMemo(
     () => previewWaves(pipelines, draft),
     [pipelines, draft],
   );
 
-  if (!open) return null;
 
   const addRow = () => {
     if (pipelines.length < 2) {

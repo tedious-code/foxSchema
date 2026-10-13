@@ -52,6 +52,7 @@ export interface HttpExecuteResult {
   headers: Record<string, string>;
   /** Parsed JSON when content-type is JSON; otherwise raw text. */
   body: unknown;
+  /** The address requested, safe to report: a query-string API key is redacted. */
   url: string;
   /** Cookies after this response (including newly set). */
   cookies: StoredCookie[];
@@ -289,7 +290,7 @@ async function dispatch(
       ok: response.ok,
       headers,
       body,
-      url,
+      url: reportableUrl(url, request.auth),
       setCookies: collectSetCookies(response.headers),
     };
   } finally {
@@ -429,6 +430,19 @@ function flattenSecrets(
     ...secret,
     ...(accessToken ? { accessToken, bearerToken: accessToken } : {}),
   };
+}
+
+/**
+ * The requested address as it may be shown, with an API key sent in the query
+ * string replaced. A failed HTTP sink or transform reports this URL in its
+ * error, and a run's errors are read by anyone who can open the run — the key
+ * itself stays with whoever holds the credential.
+ */
+function reportableUrl(url: string, auth: HttpRequestDef['auth']): string {
+  if (auth.type !== 'apiKey' || auth.in !== 'query') return url;
+  const shown = new URL(url);
+  if (shown.searchParams.has(auth.key)) shown.searchParams.set(auth.key, 'REDACTED');
+  return shown.toString();
 }
 
 function applyAuth(

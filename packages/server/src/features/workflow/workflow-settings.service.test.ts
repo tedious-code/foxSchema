@@ -62,3 +62,66 @@ describe('probeEngineHealth', () => {
     expect(await service.probeEngineHealth()).toMatchObject({ ok: false, acceptsRuns: false, error: 'HTTP 500' });
   });
 });
+
+describe('getConfig', () => {
+  function counting() {
+    let stored = JSON.stringify({ state: 'enabled', maxParallel: 2 });
+    const get = vi.fn(async () => stored);
+    const appSettings = {
+      get,
+      set: async (_key: string, value: string) => {
+        stored = value;
+      },
+    } as unknown as AppSettingsStore;
+    return { service: new WorkflowSettingsService(appSettings), get };
+  }
+
+  it('reads the store once for a burst of calls, as every proxied engine call asks', async () => {
+    const { service, get } = counting();
+    for (let i = 0; i < 5; i++) await service.getConfig();
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it('sees its own save at once, not after the cache expires', async () => {
+    const { service } = counting();
+    await service.getConfig();
+    await service.putConfig({ state: 'draining' });
+    expect((await service.getConfig()).state).toBe('draining');
+  });
+
+  it('hands out copies, so a caller changing one cannot change the next', async () => {
+    const { service } = counting();
+    const first = await service.getConfig();
+    first.maxParallel = 99;
+    first.sinks.push({ kind: 'json', enabled: true });
+    const second = await service.getConfig();
+    expect(second.maxParallel).toBe(2);
+    expect(second.sinks).toHaveLength(3);
+  });
+});
+
+describe('probeEngineHealth reads the endpoint as the proxy does', () => {
+  it('refuses a non-http endpoint without fetching it', async () => {
+    const appSettings = {
+      get: async () => JSON.stringify({ state: 'enabled', endpoint: 'file:///etc/passwd' }),
+      set: async () => undefined,
+    } as unknown as AppSettingsStore;
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const health = await new WorkflowSettingsService(appSettings).probeEngineHealth();
+    expect(health.ok).toBe(false);
+    expect(health.error).toMatch(/http or https/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('probes the address the proxy forwards to: every trailing slash and the query dropped', async () => {
+    const appSettings = {
+      get: async () => JSON.stringify({ state: 'enabled', endpoint: 'http://engine.test:8081/base//?x=1' }),
+      set: async () => undefined,
+    } as unknown as AppSettingsStore;
+    const fetchMock = vi.fn(async () => Response.json({ ok: true }));
+    vi.stubGlobal('fetch', fetchMock);
+    await new WorkflowSettingsService(appSettings).probeEngineHealth();
+    expect(fetchMock).toHaveBeenCalledWith('http://engine.test:8081/base/health', expect.anything());
+  });
+});

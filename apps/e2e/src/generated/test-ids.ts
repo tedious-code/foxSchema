@@ -3359,8 +3359,12 @@ export const TestIds = {
       workflowSqlPipeTable: (objectType: string | number, name: string | number) => `workflow-sql-pipe-table-${objectType}-${name}`,
     },
     TriggerConfigurationDialog: {
+      /** section · Trigger configuration */
+      workflowTriggerConfig: 'workflow-trigger-config',
       /** button */
       workflowTriggerConfigItem: (id: string | number) => `workflow-trigger-config-item-${id}`,
+      /** span */
+      workflowTriggerConfigNote: 'workflow-trigger-config-note',
       /** input */
       workflowTriggerConfigRetry: 'workflow-trigger-config-retry',
       /** button */
@@ -3407,8 +3411,16 @@ export const TestIds = {
     WorkflowDesigner: {
       /** button · Workflows */
       workflowDesignerBreadcrumbWorkflows: 'workflow-designer-breadcrumb-workflows',
+      /** Input · Workflow id */
+      workflowDesignerId: 'workflow-designer-id',
+      /** Button */
+      workflowDesignerLoad: 'workflow-designer-load',
+      /** Button */
+      workflowDesignerSave: 'workflow-designer-save',
       /** button */
       workflowDesignerSwitchPipeline: (id: string | number) => `workflow-designer-switch-pipeline-${id}`,
+      /** Button */
+      workflowDesignerTriggers: 'workflow-designer-triggers',
     },
     WorkflowsPanel: {
       /** input */
@@ -4971,7 +4983,11 @@ export type TestId =
   | 'view-workflow-btn'
   | 'warning-banner'
   | 'workflow-designer-breadcrumb-workflows'
+  | 'workflow-designer-id'
+  | 'workflow-designer-load'
+  | 'workflow-designer-save'
   | `workflow-designer-switch-pipeline-${string}`
+  | 'workflow-designer-triggers'
   | 'workflow-engine'
   | `workflow-engine-${string}`
   | 'workflow-engine-endpoint'
@@ -5079,7 +5095,9 @@ export type TestId =
   | 'workflow-sql-pipe-browse'
   | `workflow-sql-pipe-table-${string}-${string}`
   | `workflow-tab-${string}`
+  | 'workflow-trigger-config'
   | `workflow-trigger-config-item-${string}`
+  | 'workflow-trigger-config-note'
   | 'workflow-trigger-config-retry'
   | `workflow-trigger-config-section-${string}`
   | `workflow-trigger-config-workflow-${string}`

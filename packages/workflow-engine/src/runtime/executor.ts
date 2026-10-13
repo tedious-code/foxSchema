@@ -240,6 +240,27 @@ export class PipelineExecutor {
       });
   }
 
+  /** Tell each sink the run uses that the run is over (see `SinkPipe.finishRun`). */
+  async finishRun(workflowRunId: string, workflow: { pipelines: PipelineDef[] }): Promise<void> {
+    const seen = new Set<AnyPipe>();
+    for (const pipe of workflow.pipelines.flatMap((pipeline) => pipeline.pipes)) {
+      if (pipe.role !== 'sink') continue;
+      let connector: AnyPipe;
+      try {
+        connector = this.options.registry.get(pipe);
+      } catch {
+        continue; // a type no longer registered has nothing to release
+      }
+      if (seen.has(connector) || connector.role !== 'sink') continue;
+      seen.add(connector);
+      try {
+        await connector.finishRun?.(workflowRunId);
+      } catch {
+        // Releasing state must not turn a finished run into a failed one.
+      }
+    }
+  }
+
   async execute(
     pipeline: PipelineDef,
     execution: PipelineExecutionContext,

@@ -114,6 +114,12 @@ export function RunsPanel({ runs, onRefresh }: { runs: RunRecord[]; onRefresh: (
   const [detail, setDetail] = useState<RunDetail | null>(null);
   const [failure, setFailure] = useState<RunFailureSummary | null>(null);
   const [events, setEvents] = useState<RunEvent[]>([]);
+  // Which run `events` belongs to, and the seq the live stream should follow.
+  // Both are set together when that run's history arrives. Reading a ref
+  // updated in an effect instead subscribed the new run at the previous one's
+  // seq — and, if Live was already on, before this run's history had loaded.
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const [streamAfter, setStreamAfter] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: 'startedAt', desc: true });
@@ -137,10 +143,12 @@ export function RunsPanel({ runs, onRefresh }: { runs: RunRecord[]; onRefresh: (
       setDetail(null);
       setFailure(null);
       setEvents([]);
+      setLoadedFor(null);
       return;
     }
     let cancelled = false;
     setError(null);
+    setLoadedFor(null);
     void (async () => {
       try {
         const [run, eventPage, failureSummary] = await Promise.all([
@@ -151,6 +159,8 @@ export function RunsPanel({ runs, onRefresh }: { runs: RunRecord[]; onRefresh: (
         if (cancelled) return;
         setDetail(run);
         setEvents(eventPage.events);
+        setStreamAfter(eventPage.events.at(-1)?.seq ?? 0);
+        setLoadedFor(selectedId);
         setFailure(failureSummary);
       } catch (err) {
         if (!cancelled) setError((err as Error).message);
@@ -162,11 +172,14 @@ export function RunsPanel({ runs, onRefresh }: { runs: RunRecord[]; onRefresh: (
   }, [selectedId]);
 
   useEffect(() => {
-    if (!selectedId || !live) return;
-    const source = api.streamRunEvents(selectedId, 0);
+    if (!selectedId || !live || loadedFor !== selectedId) return;
+    // Streaming from seq 0 sent every event a second time — sample payloads
+    // included — and checked each against the whole list, O(n²) for a long run.
+    const source = api.streamRunEvents(selectedId, streamAfter);
     source.onmessage = (message) => {
       const event = JSON.parse(message.data) as RunEvent;
-      setEvents((current) => (current.some((row) => row.seq === event.seq) ? current : [...current, event]));
+      // Events arrive in seq order, so one comparison drops a repeat.
+      setEvents((current) => (event.seq > (current.at(-1)?.seq ?? 0) ? [...current, event] : current));
       if (event.type === 'run.status') {
         void api.getRun(selectedId).then(setDetail).catch(() => undefined);
       }
@@ -176,7 +189,7 @@ export function RunsPanel({ runs, onRefresh }: { runs: RunRecord[]; onRefresh: (
     // Left open, an EventSource would reconnect and replay the run from seq 0.
     source.addEventListener(RUN_STREAM_END_EVENT, () => source.close());
     return () => source.close();
-  }, [selectedId, live]);
+  }, [selectedId, live, loadedFor, streamAfter]);
 
   return (
     <div className="runs">

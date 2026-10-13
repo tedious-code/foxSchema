@@ -15,41 +15,27 @@ import type {
   VariableScope,
 } from '@foxschema/workflow-engine/definitions';
 
+/**
+ * The engine's own shapes, type-only — erased from the bundle. Hand-kept copies
+ * of these drifted: `PipeMetadata` lost `sideEffects` and widened `family`, and
+ * `CredentialMeta.kind` became any string, so a kind check stopped type-checking.
+ */
+export type { CredentialMeta, PipeMetadata, PipeProvider } from '@foxschema/workflow-engine/definitions';
+import type { CredentialMeta, PipeMetadata } from '@foxschema/workflow-engine/definitions';
+
 const ENGINE = '/workflow/engine';
 
-export interface CredentialMeta {
-  id: string;
-  name: string;
-  kind: string;
-  source?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface PipeProvider {
-  namespace: string;
-  origin: 'builtin' | 'plugin';
-  package?: string;
-  packageVersion?: string;
-}
-
-export interface PipeMetadata {
-  type: string;
-  name: string;
-  category: string;
-  version: string;
-  role: 'source' | 'transform' | 'sink';
-  inputs: { name: string; type: string }[];
-  outputs: { name: string; type: string }[];
-  configSchema: Record<string, unknown>;
-  simple?: boolean;
-  palette?: 'primary' | 'advanced';
-  /** Capability pack (auth, notify, integration.google, …). */
-  family?: string;
-  tags?: string[];
-  /** The trigger kind a trigger pipe stands for; `*` binds to any kind. */
-  triggerKind?: TriggerKind | '*';
-  provider?: PipeProvider;
+/**
+ * What the engine answers a run request. It can say no without failing the
+ * request: `accepted: false`, with a `reason` — `overlap` (and `runId` is then
+ * the run already going, not a new one), `condition` or `disabled`.
+ */
+export interface RunStartResult {
+  runId?: string;
+  status?: string;
+  accepted?: boolean;
+  reason?: string;
+  detail?: string;
 }
 
 export interface MiddlewareMeta {
@@ -231,7 +217,7 @@ export const api = {
   run(
     id: string,
     options?: { environment?: string; debug?: boolean },
-  ): Promise<{ runId: string; status: string }> {
+  ): Promise<RunStartResult> {
     // No body at all without options: the engine rejects an empty JSON body.
     const body =
       options && (options.environment || options.debug)

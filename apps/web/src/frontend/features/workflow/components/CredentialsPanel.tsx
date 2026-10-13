@@ -9,12 +9,21 @@
 import { KeyRound, Plus, Trash2, X } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { useAuthStore } from '@/platform/authStore';
+import type { CredentialKind, CredentialSource } from '@foxschema/workflow-engine/definitions';
 import { api, type CredentialMeta } from '../api/engineClient';
+import type { SameMembers } from '../lib/engineShapes';
 import { toast } from '../lib/notify';
 import { Badge, Button, Input, Label, Select } from './controls';
 
 const KINDS = ['database', 'http', 'oauth', 'webhook', 'llm', 'email', 'sms'] as const;
 const SOURCES = ['local', 'env', 'gcp', 'aws', 'azure'] as const;
+// A kind or source the engine adds must appear here, or the build fails —
+// rather than compiling and never being offered.
+const _kindsMatch: SameMembers<(typeof KINDS)[number], CredentialKind> = true;
+// `foxschema` is left out on purpose: a linked saved connection is created by
+// linking it in the SQL pipe, never typed in here.
+const _sourcesMatch: SameMembers<(typeof SOURCES)[number], Exclude<CredentialSource, 'foxschema'>> = true;
+void [_kindsMatch, _sourcesMatch];
 
 type Kind = (typeof KINDS)[number];
 type Source = (typeof SOURCES)[number];

@@ -239,6 +239,12 @@ export function workflowRoutes(ctx: AppContext) {
         try {
           const body = req.body as Record<string, unknown>;
           workflow = parseWorkflowInput({ ...body, id: req.params.id });
+          // A save cannot raise a workflow's trust. Imported or proposed stays
+          // so whatever the body says — or leaves out, which parses as
+          // `authored`: opening an import in the designer and saving it
+          // promoted it, the laundering import and extract already refuse.
+          const stored = await ctx.workflows.get(req.params.id);
+          if (stored && stored.origin !== 'authored') workflow = { ...workflow, origin: stored.origin };
           await assertSavable(workflow, ctx);
         } catch (err) {
           return reply.code(400).send({ error: (err as Error).message });
@@ -278,18 +284,16 @@ export function workflowRoutes(ctx: AppContext) {
     );
 
     r.get('/workflows', {}, async () => {
-      const [workflows, summaries, runs] = await Promise.all([
+      const [workflows, summaries] = await Promise.all([
         ctx.workflows.list(),
         ctx.workflows.summaries(),
-        // One query for every run, newest first — cheaper than a per-workflow
-        // lookup, which would be N queries for N workflows.
-        ctx.runs.list(),
       ]);
       const updatedAt = new Map(summaries.map((s) => [s.id, s.updatedAt]));
-      const lastRun = new Map<string, (typeof runs)[number]>();
-      for (const run of runs) {
-        if (!lastRun.has(run.workflowId)) lastRun.set(run.workflowId, run);
-      }
+      // Each workflow's latest run: one seek on (workflow_id, started_at)
+      // apiece. Reading every run to pick these out cost the whole history on
+      // each list — a per-minute cron adds half a million runs a year.
+      const latest = await Promise.all(workflows.map((w) => ctx.runs.list(w.id, { limit: 1 })));
+      const lastRun = new Map(workflows.map((w, index) => [w.id, latest[index]![0]]));
       return workflows.map((w) => {
         const last = lastRun.get(w.id);
         return {
@@ -499,13 +503,27 @@ export function workflowRoutes(ctx: AppContext) {
             .code(409)
             .send({ error: `workflow already exists: ${req.body.id}` });
         }
-        // A copy starts its own history at version 1.
-        const copy = parseWorkflowInput({
-          ...source,
-          id: req.body.id,
-          name: req.body.name ?? `${source.name} copy`,
-          version: 1,
-        });
+        // A copy starts its own history at version 1. A webhook's vanity path
+        // is a global name, so the copy gives its paths up rather than share
+        // them — sharing let the copy answer the original's webhook calls —
+        // and then passes the same checks as any other save.
+        let copy: WorkflowDef;
+        try {
+          copy = parseWorkflowInput({
+            ...source,
+            id: req.body.id,
+            name: req.body.name ?? `${source.name} copy`,
+            version: 1,
+            triggers: source.triggers.map((trigger) => {
+              if (trigger.kind !== 'webhook' || !trigger.path) return trigger;
+              const { path: _taken, ...rest } = trigger;
+              return rest;
+            }),
+          });
+          await assertSavable(copy, ctx);
+        } catch (err) {
+          return reply.code(400).send({ error: describeValidationError(err) });
+        }
         await ctx.workflows.put(copy);
         return reply.code(201).send(copy);
       },

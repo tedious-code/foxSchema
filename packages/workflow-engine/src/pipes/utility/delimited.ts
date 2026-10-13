@@ -342,6 +342,19 @@ export function fieldSplitter(delimiters: string[]): RegExp {
   return new RegExp(alternatives.join('|'));
 }
 
+/**
+ * The splitter for a delimiter list, built once per list. `lineToRecords` runs
+ * for every line of a file and the list is the parsed config's own array, so
+ * this saves a sort, an escape and a `new RegExp` per line. The regex has no
+ * `g` flag, so sharing one instance carries no `lastIndex` state between calls.
+ */
+const splitters = new WeakMap<string[], RegExp>();
+function cachedSplitter(delimiters: string[]): RegExp {
+  let splitter = splitters.get(delimiters);
+  if (!splitter) splitters.set(delimiters, (splitter = fieldSplitter(delimiters)));
+  return splitter;
+}
+
 /** Positional name for a value: the configured field, else `field_N` (1-based). */
 export function fieldName(fields: string[] | undefined, index: number): string {
   return fields?.[index] ?? `field_${index + 1}`;
@@ -356,7 +369,7 @@ export function lineToRecords(
   options: DelimitedLineOptions,
 ): Record<string, string>[] {
   const { recordDelimiter, fields, trim = true, skipEmpty = true } = options;
-  const splitter = fieldSplitter(options.delimiters);
+  const splitter = cachedSplitter(options.delimiters);
   const segments = recordDelimiter ? line.split(recordDelimiter) : [line];
   const records: Record<string, string>[] = [];
 
@@ -457,7 +470,11 @@ export function parseTextRows(
   const { offset = 0, skipEmpty = true, header = 'none' } = options;
   const rules = columnRules(options);
   const compiled = compileColumnRules(rules);
-  const sourceLines = text.split(/\r\n|\n|\r/);
+  // Lines as the run reads them (`readLines`): split on `\n`, a trailing `\r`
+  // dropped, no line after a final newline. Splitting on a bare `\r` too made
+  // a classic-Mac file preview as many rows and then run as one.
+  const sourceLines = text.split('\n').map((line) => line.replace(/\r$/, ''));
+  if (sourceLines[sourceLines.length - 1] === '') sourceLines.pop();
   const records: Record<string, unknown>[] = [];
   const invalid: InvalidRecord[] = [];
   const lines: number[] = [];

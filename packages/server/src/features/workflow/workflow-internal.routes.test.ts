@@ -17,6 +17,7 @@ import {
 } from '@foxschema/workflow-contract';
 import { bindRoutes } from '../../platform/http/fastify-bind';
 import { Router } from '../../platform/http/router';
+import { engineTokenGuard } from '../../platform/guards/engine-token';
 import { createWorkflowInternalRoutes } from './workflow-internal.routes';
 
 const TOKEN = 'a-long-shared-service-token';
@@ -41,12 +42,16 @@ afterEach(async () => {
   app = undefined;
 });
 
-/** Mounted where server.ts mounts it, with a grants stand-in that records lookups. */
+/**
+ * Mounted where the feature registry mounts it — behind the token guard it puts
+ * on every `internal` mount — with a grants stand-in that records lookups.
+ */
 async function serve(token: string | undefined) {
   const lookedUp: string[] = [];
   const root = Router();
   root.use(
     WORKFLOW_INTERNAL_PREFIX,
+    engineTokenGuard(token),
     createWorkflowInternalRoutes(
       {
         resolveForEngine: async (id: string) => {
@@ -54,7 +59,6 @@ async function serve(token: string | undefined) {
           return id === 'granted' ? RESOLVED : undefined;
         },
       },
-      token,
       { getConfig: async () => SAVED_CONFIG },
     ),
   );

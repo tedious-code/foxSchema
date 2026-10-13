@@ -1563,7 +1563,8 @@
 .fox-workflow .trigger-title-icon { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 6px; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
 .fox-workflow .trigger-title h2 { margin: 0; font-size: 14px; }
 .fox-workflow .trigger-title p { margin: 3px 0 0; color: var(--muted); font-size: 9px; }
-.fox-workflow .trigger-dialog-actions { display: flex; gap: 7px; }
+.fox-workflow .trigger-dialog-actions { display: flex; gap: 7px; align-items: center; }
+.fox-workflow .trigger-dialog-note { color: var(--muted); font-size: 10px; }
 .fox-workflow .trigger-dialog-body { display: grid; grid-template-columns: 180px 155px 1fr; height: calc(100% - 62px); }
 .fox-workflow .trigger-list,
 .fox-workflow .trigger-sections { padding: 12px 9px; border-right: 1px solid var(--border-soft); background: color-mix(in srgb, var(--source) 12%, transparent); }

@@ -22,6 +22,8 @@ export type PipeData = {
   concurrency: number;
   retryAttempts: number;
   credentialId: string;
+  /** Not edited on the canvas; kept so a save does not drop it. */
+  timeoutMs?: number;
   inputs: PortInfo[];
   outputs: PortInfo[];
 };

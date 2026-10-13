@@ -5,7 +5,7 @@
  *
  * Workflow engine — moved from FoxAgent (apps/api/src/app.ts).
  */
-import { timingSafeEqual } from 'node:crypto';
+import { secretEquals } from '@foxschema/workflow-engine';
 import rateLimit from '@fastify/rate-limit';
 import { WORKFLOW_ENGINE_TOKEN_ENV } from '@foxschema/workflow-contract';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
@@ -44,13 +44,29 @@ function createServer(): FastifyInstance {
   return app;
 }
 
+/**
+ * Why the engine API must not listen on `host`, or null when it may.
+ *
+ * Without a token the API is open to whoever can reach it — its credentials,
+ * its workflows, and the right to run them. That is a dev setup on loopback;
+ * on any other address it is an open door, so the engine refuses to start.
+ */
+export function openApiListenProblem(host: string, token: string | undefined): string | null {
+  if (token) return null;
+  if (host === 'localhost' || host === '::1' || /^127\./.test(host)) return null;
+  return (
+    `Refusing to listen on ${host} without ${WORKFLOW_ENGINE_TOKEN_ENV}: the engine API would be open to ` +
+    `anyone who can reach it. Set ${WORKFLOW_ENGINE_TOKEN_ENV} (the same value on FoxSchema), or keep HOST on loopback.`
+  );
+}
+
 /** Refuse a request that does not present `token`, compared in constant time. */
 function requireToken(token: string) {
-  const expected = Buffer.from(token);
   return async (req: FastifyRequest, reply: FastifyReply) => {
     const header = req.headers.authorization ?? '';
-    const presented = Buffer.from(header.startsWith('Bearer ') ? header.slice('Bearer '.length) : '');
-    if (presented.length !== expected.length || !timingSafeEqual(presented, expected)) {
+    const presented = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : '';
+    // The engine's one constant-time compare, also used for webhook secrets.
+    if (!secretEquals(presented, token)) {
       return reply.code(401).send({ error: 'unauthorized' });
     }
   };

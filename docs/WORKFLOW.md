@@ -104,7 +104,7 @@ Same four names on the activity rail, workspace tabs, and proxy allowlist
 |------------|----------------|------|
 | `workflow.access` | viewer+ | Open Workflow; list workflows/runs; read pipe catalog |
 | `workflow.design` | editor+ | Designer, variables, credentials list; grant a saved connection |
-| `workflow.run` | editor+ | Start / cancel / resume runs (refused unless engine state is `enabled`) |
+| `workflow.run` | editor+ | Start runs (refused unless engine state is `enabled`). Cancel, resume, and human-gate answers stay off the proxy until a screen calls them |
 | `workflow.admin` | owner+ (not editor) | Engine control plane; create/delete engine credentials |
 
 A viewer who can open Workflow does not see Designer / Variables / Engine chrome

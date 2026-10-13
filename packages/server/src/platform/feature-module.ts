@@ -23,7 +23,7 @@ import type { ConnectionResolver } from './connections/resolve';
  * Who may reach a mount, before any per-route permission check:
  *
  * - `public`: anyone (sign-in, setup, health).
- * - `internal`: no session; the routes check the workflow engine's service token.
+ * - `internal`: no session; the workflow engine's service token, checked for the whole mount.
  * - `user`: a signed-in session (a launch session included).
  * - `registered`: a signed-in account — never a launch link.
  */

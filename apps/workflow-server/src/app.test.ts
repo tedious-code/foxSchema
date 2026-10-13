@@ -7,7 +7,7 @@
  */
 import { createHmac, randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { buildApp, buildIngressApp } from './app.js';
+import { buildApp, buildIngressApp, openApiListenProblem } from './app.js';
 import { createContext, type AppContext } from './context.js';
 
 function testContext(): AppContext {
@@ -701,6 +701,64 @@ describe('run event stream', () => {
   });
 });
 
+describe('run event stream delivery', () => {
+  it('pushes an event as the engine stores it, not on the next poll', async () => {
+    const ctx = testContext();
+    const app = buildApp(ctx, { token: undefined });
+    try {
+      await ctx.runs.create(
+        {
+          id: 'run-live',
+          workflowId: 'wf',
+          workflowVersion: 1,
+          status: 'running',
+          trigger: 'manual',
+          startedAt: new Date().toISOString(),
+          instanceId: 'test',
+        } as never,
+        { id: 'wf', name: 'wf', version: 1, triggers: [], pipelines: [] } as never,
+      );
+      const base = await app.listen({ port: 0, host: '127.0.0.1' });
+      const response = await fetch(`${base}/api/runs/run-live/events/stream`);
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let text = '';
+      const until = async (pattern: RegExp) => {
+        while (!pattern.test(text)) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          text += decoder.decode(value, { stream: true });
+        }
+      };
+
+      const appended = Date.now();
+      await ctx.events.append({
+        workflowRunId: 'run-live',
+        at: new Date().toISOString(),
+        type: 'pipe.status',
+        pipelineId: 'main',
+        pipeId: 'src',
+        data: { status: 'running' },
+      } as never);
+      await until(/"type":"pipe.status"/);
+      // The fallback check runs every 500ms; arriving well inside that means
+      // the stream was woken by the event itself.
+      expect(Date.now() - appended).toBeLessThan(250);
+
+      await ctx.events.append({
+        workflowRunId: 'run-live',
+        at: new Date().toISOString(),
+        type: 'run.status',
+        data: { status: 'succeeded' },
+      } as never);
+      await until(/event: end/);
+      expect(text).toMatch(/"status":"succeeded"[\s\S]*event: end/);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
 describe('ingress listener', () => {
   it('serves trigger ingress and health, and none of the engine API', async () => {
     const ctx = testContext();
@@ -715,6 +773,43 @@ describe('ingress listener', () => {
     } finally {
       await ingress.close();
       ctx.close();
+    }
+  });
+});
+
+describe('where the engine API may listen without a token', () => {
+  it('allows loopback, with or without a token', () => {
+    for (const host of ['127.0.0.1', '127.0.1.1', '::1', 'localhost']) {
+      expect(openApiListenProblem(host, undefined), host).toBeNull();
+    }
+  });
+
+  it('refuses any other address unless a token is set', () => {
+    // 0.0.0.0 is what a container needs — and with no token it handed every
+    // caller on the network the credentials and the right to run workflows.
+    for (const host of ['0.0.0.0', '::', '10.0.0.5', 'engine.internal']) {
+      expect(openApiListenProblem(host, undefined), host).toMatch(/WORKFLOW_ENGINE_TOKEN/);
+      expect(openApiListenProblem(host, 'secret'), host).toBeNull();
+    }
+  });
+});
+
+describe('the engine API behind its service token', () => {
+  it('answers only a caller presenting exactly the token', async () => {
+    const ctx = testContext();
+    const app = buildApp(ctx, { token: 'shared-service-token' });
+    try {
+      const call = (authorization?: string) =>
+        app.inject({ method: 'GET', url: '/api/workflows', headers: authorization ? { authorization } : {} });
+      expect((await call()).statusCode).toBe(401);
+      expect((await call('Bearer wrong')).statusCode).toBe(401);
+      expect((await call('Bearer shared-service-token-and-more')).statusCode).toBe(401);
+      expect((await call('Basic shared-service-token')).statusCode).toBe(401);
+      expect((await call('Bearer shared-service-token')).statusCode).toBe(200);
+      // Health stays open: the proxy probes it before it has anything to send.
+      expect((await app.inject({ method: 'GET', url: '/health' })).statusCode).toBe(200);
+    } finally {
+      await app.close();
     }
   });
 });

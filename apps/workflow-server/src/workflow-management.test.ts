@@ -94,10 +94,14 @@ describe('workflow delete', () => {
     expect(
       (await app.inject({ method: 'GET', url: '/api/workflows/orders' })).statusCode,
     ).toBe(404);
-    // The run still resolves — it carries its own snapshot.
+    // The run still resolves — it carries its own snapshot, which the
+    // connection check reads after the live workflow is gone.
     const stored = await app.inject({ method: 'GET', url: `/api/runs/${runId}` });
     expect(stored.statusCode).toBe(200);
     expect(stored.json().workflowId).toBe('orders');
+    const snapshot = await app.inject({ method: 'GET', url: `/api/runs/${runId}/snapshot` });
+    expect(snapshot.statusCode).toBe(200);
+    expect(snapshot.json().id).toBe('orders');
     await app.close();
   });
 
@@ -222,6 +226,38 @@ describe('workflow duplicate', () => {
       await app.inject({ method: 'GET', url: '/api/workflows/orders' })
     ).json();
     expect(source.version).toBe(2);
+    await app.close();
+  });
+
+  it('gives up the webhook path, so the copy cannot answer the original’s calls', async () => {
+    const { app } = harness();
+    await save(app, 'inbound', {
+      triggers: [
+        {
+          id: 'hook',
+          kind: 'webhook',
+          enabled: true,
+          path: 'typeform/signup',
+          auth: { type: 'none', acknowledgeUnauthenticated: true },
+          onMissingIdempotencyKey: 'fingerprint',
+        },
+      ],
+    });
+
+    const copy = await app.inject({
+      method: 'POST',
+      url: '/api/workflows/inbound/duplicate',
+      payload: { id: 'inbound-copy' },
+    });
+    expect(copy.statusCode, copy.body).toBe(201);
+    expect(copy.json().triggers[0]).toMatchObject({ id: 'hook', kind: 'webhook' });
+    expect(copy.json().triggers[0].path).toBeUndefined();
+
+    // The original keeps its path, and the copy can be saved as it came back.
+    const original = (await app.inject({ method: 'GET', url: '/api/workflows/inbound' })).json();
+    expect(original.triggers[0].path).toBe('typeform/signup');
+    const resave = await app.inject({ method: 'PUT', url: '/api/workflows/inbound-copy', payload: copy.json() });
+    expect(resave.statusCode, resave.body).toBe(200);
     await app.close();
   });
 

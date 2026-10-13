@@ -18,13 +18,12 @@ import {
   Plus,
   RefreshCw,
   RotateCcw,
-  Save,
   ShieldCheck,
   Webhook,
   X,
   Zap,
 } from 'lucide-react';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import type { CredentialMeta, WorkflowSummary } from '../api/engineClient';
 import {
   CRON_EXECUTION_TYPES,
@@ -149,7 +148,6 @@ function SchedulePreview({
 }
 
 interface Props {
-  open: boolean;
   triggers: WorkflowTrigger[];
   credentials: CredentialMeta[];
   /** Saved workflows for parent-trigger allowlists. */
@@ -196,51 +194,25 @@ const TRIGGER_META = {
   },
 } as const;
 
+/**
+ * The sections a trigger kind has a form for. Listed once: a section offered
+ * here with nothing behind it showed a "configure this here" placeholder, and
+ * every new form had to be added to a second, negated list as well.
+ */
 function getSections(kind: WorkflowTrigger['kind']): string[] {
   switch (kind) {
     case 'cron':
-      return [
-        'general',
-        'schedule',
-        'execution',
-        'time zone',
-        'retry config',
-        'input data',
-        'output',
-        'error handling',
-      ];
+      return ['general', 'schedule', 'execution', 'time zone', 'retry config'];
     case 'webhook':
-      return [
-        'general',
-        'request',
-        'request validation',
-        'response',
-        'output',
-        'error handling',
-      ];
+      return ['general', 'request validation'];
     case 'http':
-      return [
-        'general',
-        'api request',
-        'authentication',
-        'headers',
-        'query parameters',
-        'response',
-        'output',
-      ];
+      return ['general', 'authentication'];
     case 'manual':
-      return ['general', 'input parameters', 'output', 'error handling'];
+      return ['general', 'input parameters'];
     case 'poll':
-      return [
-        'general',
-        'api request',
-        'authentication',
-        'polling',
-        'output',
-        'error handling',
-      ];
+      return ['general'];
     case 'parent':
-      return ['general', 'allow from', 'output', 'error handling'];
+      return ['general', 'allow from'];
   }
 }
 
@@ -260,8 +232,12 @@ function getSectionIcon(section: string): ReactNode {
   return <Code2 size={14} />;
 }
 
+/**
+ * Mounted only while open: the selection starts on the trigger asked for, once
+ * per opening. An effect that re-synced it from props reset the section on
+ * every keystroke when `triggers` was among its dependencies.
+ */
 export function TriggerConfigurationDialog({
-  open,
   triggers,
   credentials,
   workflows = [],
@@ -270,7 +246,9 @@ export function TriggerConfigurationDialog({
   onChange,
   onClose,
 }: Props) {
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState(() =>
+    Math.max(0, triggers.findIndex((item) => item.id === focusTriggerId)),
+  );
   const [section, setSection] = useState('general');
   const [addKind, setAddKind] = useState<WorkflowTrigger['kind']>('cron');
   const trigger = triggers[selectedIndex];
@@ -291,21 +269,7 @@ export function TriggerConfigurationDialog({
     [cronTools, cronTrigger?.cron, cronTrigger?.timezone],
   );
 
-  // Honour the focus request once, when the dialog opens. `triggers` is
-  // deliberately not a dependency: it changes on every edit, and re-running
-  // this reset the section to General after each keystroke — and snapped the
-  // selection back to the focused trigger whenever another one was edited.
-  useEffect(() => {
-    if (!open || !focusTriggerId) return;
-    const index = triggers.findIndex((item) => item.id === focusTriggerId);
-    if (index >= 0) {
-      setSelectedIndex(index);
-      setSection('general');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, focusTriggerId]);
 
-  if (!open) return null;
 
   const patch = (next: WorkflowTrigger) => {
     onChange(triggers.map((item, index) => (index === selectedIndex ? next : item)));
@@ -322,7 +286,7 @@ export function TriggerConfigurationDialog({
 
   return (
     <div className="trigger-dialog-backdrop" role="presentation">
-      <section className="trigger-dialog" role="dialog" aria-modal="true" aria-label="Trigger configuration">
+      <section data-testid="workflow-trigger-config" className="trigger-dialog" role="dialog" aria-modal="true" aria-label="Trigger configuration">
         <header className="trigger-dialog-titlebar">
           <div className="trigger-title">
             <span className="trigger-title-icon"><Icon size={19} /></span>
@@ -332,8 +296,9 @@ export function TriggerConfigurationDialog({
             </div>
           </div>
           <div className="trigger-dialog-actions">
-            <Button><Play /> Test trigger</Button>
-            <Button variant="primary"><Save /> Save</Button>
+            {/* Edits apply to the open workflow as they are made; there is no
+                separate save here, and no button pretending to be one. */}
+            <span data-testid="workflow-trigger-config-note" className="trigger-dialog-note">Changes apply as you edit. Save the workflow to keep them.</span>
             <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close">
               <X />
             </Button>
@@ -755,33 +720,6 @@ export function TriggerConfigurationDialog({
                     </div>
                   </div>
                 )}
-
-                {section !== 'general' &&
-                  !(
-                    trigger.kind === 'manual' && section === 'input parameters'
-                  ) &&
-                  !(
-                    trigger.kind === 'cron' &&
-                    [
-                      'schedule',
-                      'execution',
-                      'time zone',
-                      'retry config',
-                    ].includes(section)
-                  ) &&
-                  !(
-                    (trigger.kind === 'http' || trigger.kind === 'webhook') &&
-                    ['authentication', 'request validation'].includes(section)
-                  ) &&
-                  !(trigger.kind === 'parent' && section === 'allow from') && (
-                    <div className="trigger-section-placeholder">
-                      <Code2 size={24} />
-                      <h4>{section} settings</h4>
-                      <p>
-                        Configure this trigger&apos;s {section} behavior here.
-                      </p>
-                    </div>
-                  )}
 
                 <details className="advanced-settings">
                   <summary>Advanced Settings</summary>

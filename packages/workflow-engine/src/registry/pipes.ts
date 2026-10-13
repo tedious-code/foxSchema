@@ -137,6 +137,13 @@ export interface TransformPipe extends PipeBase {
 export interface SinkPipe extends PipeBase {
   role: 'sink';
   write(batch: RecordBatch, context: PipeContext): Promise<void>;
+  /**
+   * The run is over: release anything kept for it. A sink instance serves
+   * every run, so state keyed by run (a file's header already written) would
+   * otherwise grow for as long as the engine runs. Called once the run is
+   * terminal — not when it pauses, since a resumed run writes on.
+   */
+  finishRun?(workflowRunId: string): void | Promise<void>;
 }
 
 export type AnyPipe = SourcePipe | TransformPipe | SinkPipe;

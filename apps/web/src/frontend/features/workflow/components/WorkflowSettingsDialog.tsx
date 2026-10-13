@@ -17,7 +17,7 @@ import {
   Variable,
   X,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import type { MiddlewareMeta } from '../api/engineClient';
 import { useEnvironments, useVariables } from '../api/engineQueries';
 import { JSON_EDITOR_OPTIONS, useJsonEditorTheme } from '../lib/jsonEditorOptions';
@@ -43,7 +43,6 @@ export interface WorkflowSettings {
 }
 
 interface Props {
-  open: boolean;
   /** Current workflow id — used for workflow-scoped variables. */
   workflowId: string;
   settings: WorkflowSettings;
@@ -134,23 +133,31 @@ function SchemaEditor({
  * as the global Variables panel).
  */
 export function WorkflowSettingsDialog({
-  open,
   workflowId,
   settings,
   middlewareCatalog,
   onApply,
   onClose,
 }: Props) {
+  // Mounted only while open, so each draft starts from the applied settings.
+  // A dozen setters in an effect used to reset them, keyed to prop identity.
   const uidRef = useRef(1);
-  const [description, setDescription] = useState('');
-  const [purpose, setPurpose] = useState('');
-  const [tagsText, setTagsText] = useState('');
-  const [expectedResult, setExpectedResult] = useState('');
-  const [inputDraft, setInputDraft] = useState<SchemaDraft>(schemaDraft(undefined));
-  const [outputDraft, setOutputDraft] = useState<SchemaDraft>(schemaDraft(undefined));
-  const [rows, setRows] = useState<MiddlewareRow[]>([]);
+  const [description, setDescription] = useState(settings.description ?? '');
+  const [purpose, setPurpose] = useState(settings.purpose ?? '');
+  const [tagsText, setTagsText] = useState((settings.tags ?? []).join(', '));
+  const [expectedResult, setExpectedResult] = useState(settings.expectedResult ?? '');
+  const [inputDraft, setInputDraft] = useState<SchemaDraft>(() => schemaDraft(settings.inputSchema));
+  const [outputDraft, setOutputDraft] = useState<SchemaDraft>(() => schemaDraft(settings.outputSchema));
+  const [rows, setRows] = useState<MiddlewareRow[]>(() =>
+    settings.middleware.map((ref) => ({
+      uid: uidRef.current++,
+      name: ref.name,
+      configText: Object.keys(ref.config).length === 0 ? '' : JSON.stringify(ref.config, null, 2),
+    })),
+  );
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
   const [addName, setAddName] = useState('');
+  // Empty means "the active environment" — `selectedEnv` falls back to it.
   const [envId, setEnvId] = useState('');
 
   const { environments } = useEnvironments();
@@ -158,39 +165,12 @@ export function WorkflowSettingsDialog({
   const selectedEnv =
     environments.find((environment) => environment.id === envId) ?? activeEnv;
 
-  const { variables: workflowVars, refresh: refreshWorkflowVars } = useVariables(
-    open ? selectedEnv?.id : undefined,
-    { scope: 'workflow', workflowId },
-  );
-  const { variables: globalVars } = useVariables(
-    open ? selectedEnv?.id : undefined,
-    { scope: 'global' },
-  );
+  const { variables: workflowVars, refresh: refreshWorkflowVars } = useVariables(selectedEnv?.id, {
+    scope: 'workflow',
+    workflowId,
+  });
+  const { variables: globalVars } = useVariables(selectedEnv?.id, { scope: 'global' });
 
-  useEffect(() => {
-    if (!open) return;
-    setDescription(settings.description ?? '');
-    setPurpose(settings.purpose ?? '');
-    setTagsText((settings.tags ?? []).join(', '));
-    setExpectedResult(settings.expectedResult ?? '');
-    setInputDraft(schemaDraft(settings.inputSchema));
-    setOutputDraft(schemaDraft(settings.outputSchema));
-    setRows(
-      settings.middleware.map((ref) => ({
-        uid: uidRef.current++,
-        name: ref.name,
-        configText:
-          Object.keys(ref.config).length === 0
-            ? ''
-            : JSON.stringify(ref.config, null, 2),
-      })),
-    );
-    setRowErrors({});
-    setAddName('');
-    setEnvId(activeEnv?.id ?? '');
-  }, [open, settings, activeEnv?.id]);
-
-  if (!open) return null;
 
   const patchRow = (uid: number, patch: Partial<MiddlewareRow>) => {
     setRows((current) =>

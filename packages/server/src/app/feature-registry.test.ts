@@ -50,7 +50,9 @@ describe('composeFeatures', () => {
       feature('lim', [{ prefix: '/api', access: 'user', rateLimited: true }]),
     ]);
     expect(routes.get('GET /api/a/pub')).toHaveLength(0);
-    expect(routes.get('GET /api/b/int')).toHaveLength(0);
+    // The engine's service token, for the whole mount: a route added there cannot forget it.
+    expect(routes.get('GET /api/b/int')).toHaveLength(1);
+    expect(routes.get('GET /api/b/int')![0]).not.toBe(routes.get('GET /api/c/usr')![0]);
     expect(routes.get('GET /api/c/usr')).toHaveLength(1);
     expect(routes.get('GET /api/d/reg')).toHaveLength(2);
     expect(routes.get('GET /api/lim')).toHaveLength(2);

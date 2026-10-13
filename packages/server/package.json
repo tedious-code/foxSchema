@@ -18,15 +18,15 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@fastify/cors": "11.3.0",
-    "@fastify/static": "10.1.5",
+    "@fastify/cors": "11.3.1",
+    "@fastify/static": "10.1.6",
     "@foxschema/db": "*",
     "@foxschema/shared": "*",
     "@foxschema/sql": "*",
     "@foxschema/workflow-contract": "*",
     "fastify": "5.12.5",
-    "isomorphic-git": "1.42.6",
-    "pino": "10.3.1",
+    "isomorphic-git": "1.43.3",
+    "pino": "10.4.0",
     "tsx": "4.23.15"
   }
 }

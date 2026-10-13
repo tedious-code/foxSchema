@@ -87,7 +87,7 @@
     "eslint": "10.12.0",
     "eslint-plugin-react-hooks": "7.1.1",
     "eslint-plugin-security": "4.2.0",
-    "ink": "7.1.1",
+    "ink": "8.0.0",
     "jsdom": "30.1.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",

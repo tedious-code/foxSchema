@@ -15,12 +15,12 @@
     "ibm_db": "4.0.1"
   },
   "peerDependencies": {
-    "@clickhouse/client": "^1.23.1",
+    "@clickhouse/client": "1.24.1",
     "@duckdb/node-api": "^1.5.4-r.1",
     "better-sqlite3": ">=12",
     "ibm_db": "^4.0.1",
     "mongodb": ">=6",
-    "mssql": "^12.7.0",
+    "mssql": "12.7.4",
     "mysql2": "3.24.5",
     "oracledb": "^7.0.1",
     "pg": "8.23.1",

@@ -14,6 +14,7 @@ import type { EngineState } from '@foxschema/workflow-contract';
 import {
   ACTIVE_RUN_STATUSES,
   isHumanInputRequired,
+  isTerminalRunStatus,
   validateWorkflowInput,
 } from '../common/index.js';
 import { evaluateConditions } from './conditions.js';
@@ -58,6 +59,8 @@ export interface PipelineExecutionPort {
       output?: { collect(records: Record<string, unknown>[]): void };
     },
   ): Promise<void>;
+  /** The run is terminal: let its sinks release what they kept for it. */
+  finishRun?(workflowRunId: string, workflow: WorkflowDef): Promise<void>;
 }
 
 export interface WorkflowRunnerOptions {
@@ -123,6 +126,19 @@ export class WorkflowRunner {
   }
 
   async run(workflowRunId: string, signal?: AbortSignal): Promise<void> {
+    try {
+      await this.runOnce(workflowRunId, signal);
+    } finally {
+      // A paused run resumes as the same run, so only a terminal one is over.
+      const run = await this.options.runs.get(workflowRunId).catch(() => undefined);
+      if (run && isTerminalRunStatus(run.status) && this.options.pipelineExecutor.finishRun) {
+        const workflow = await this.options.runs.getSnapshot(workflowRunId).catch(() => undefined);
+        if (workflow) await this.options.pipelineExecutor.finishRun(workflowRunId, workflow).catch(() => undefined);
+      }
+    }
+  }
+
+  private async runOnce(workflowRunId: string, signal?: AbortSignal): Promise<void> {
     const run = await this.options.runs.get(workflowRunId);
     const workflow = await this.options.runs.getSnapshot(workflowRunId);
     if (!run || !workflow) {

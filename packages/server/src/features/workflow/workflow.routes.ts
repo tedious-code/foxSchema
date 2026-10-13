@@ -9,7 +9,14 @@
 import type { FastifyReply } from 'fastify';
 import type { AppRequest, RouteHandler } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
-import { connectionCredentialId, type AdminConfigPut } from '@foxschema/workflow-contract';
+import {
+  ENGINE_STATES,
+  connectionCredentialId,
+  linkedConnectionId,
+  type AdminConfigPut,
+  type LogSinkKind,
+  type OverlapPolicy,
+} from '@foxschema/workflow-contract';
 import { requirePermissions } from '../../platform/authorization/rbac.guard';
 import { sendError } from '../../platform/http/respond';
 import { beginStream, pathOf, streamEnd, streamWrite } from '../../platform/http/reply';
@@ -24,6 +31,30 @@ import {
   WorkflowEngineProxyService,
   type EngineRoute,
 } from './workflow-engine-proxy.service';
+
+const OVERLAP_POLICIES: readonly OverlapPolicy[] = ['skip', 'queue', 'parallel'];
+const SINK_KINDS: readonly LogSinkKind[] = ['events', 'json', 'text'];
+
+/**
+ * What is wrong with a settings change, or null. Every engine pulls these
+ * settings every 30 seconds and refuses the whole refresh on a value it does
+ * not know — so a saved typo stopped every later change from applying, while
+ * the proxy read the same value its own way.
+ */
+function settingsProblem(body: AdminConfigPut): string | null {
+  if (body.state !== undefined && !(ENGINE_STATES as readonly unknown[]).includes(body.state)) {
+    return `state must be one of: ${ENGINE_STATES.join(', ')}`;
+  }
+  if (body.onOverlap !== undefined && !(OVERLAP_POLICIES as readonly unknown[]).includes(body.onOverlap)) {
+    return `onOverlap must be one of: ${OVERLAP_POLICIES.join(', ')}`;
+  }
+  if (body.sinks !== undefined) {
+    if (!Array.isArray(body.sinks)) return 'sinks must be an array';
+    const unknown = body.sinks.find((sink) => !(SINK_KINDS as readonly unknown[]).includes(sink?.kind));
+    if (unknown !== undefined) return `each sink kind must be one of: ${SINK_KINDS.join(', ')}`;
+  }
+  return null;
+}
 
 /** Engine response headers worth passing on. Cookies and hop-by-hop headers are not. */
 const RELAYED_HEADERS = ['content-type', 'content-disposition', 'cache-control'] as const;
@@ -68,8 +99,83 @@ async function relayEventStream(upstream: Response, res: FastifyReply): Promise<
   }
 }
 
-function proxyTo(engine: WorkflowEngineProxyService, route: EngineRoute): RouteHandler {
+/** The saved connections a workflow document reaches: each linked credential it names. */
+function linkedConnectionsIn(document: unknown): string[] {
+  const found = new Set<string>();
+  const visit = (value: unknown, key?: string): void => {
+    if (key === 'credentialId' && typeof value === 'string') {
+      const id = linkedConnectionId(value);
+      if (id) found.add(id);
+    } else if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+    } else if (value && typeof value === 'object') {
+      for (const [name, item] of Object.entries(value)) visit(item, name);
+    }
+  };
+  visit(document);
+  return [...found];
+}
+
+/** An engine resource as JSON, or undefined when it is not there to read. */
+async function engineJson(engine: WorkflowEngineProxyService, path: string): Promise<unknown> {
+  try {
+    const response = await engine.forward({ method: 'GET', path, search: '' });
+    return response.ok ? await response.json() : undefined;
+  } catch (error) {
+    // The forward that follows meets the same outage and reports it.
+    if (error instanceof EngineUnavailableError) return undefined;
+    throw error;
+  }
+}
+
+/** The workflow document a route acts on, by where the route says it is. */
+async function workflowFor(
+  engine: WorkflowEngineProxyService,
+  route: EngineRoute,
+  req: AppRequest,
+): Promise<unknown> {
+  if (route.connections === 'body') return req.body;
+  const id = (req.params as { id?: string }).id ?? '';
+  if (route.connections === 'workflow') return engineJson(engine, `/workflows/${encodeURIComponent(id)}`);
+  // The run's own snapshot, not the workflow as it stands now. Editing or
+  // deleting the live document would otherwise drop the connection and leave
+  // the rows that run already fetched readable.
+  return engineJson(engine, `/runs/${encodeURIComponent(id)}/snapshot`);
+}
+
+function proxyTo(
+  engine: WorkflowEngineProxyService,
+  route: EngineRoute,
+  grants: Pick<WorkflowConnectionGrants, 'notUsableBy'>,
+): RouteHandler {
   return async (req: AppRequest, res: FastifyReply) => {
+    // The engine keeps one install-wide set of workflows, so a saved connection
+    // linked by one workspace would otherwise be usable by every designer.
+    // Saving, running or reading the runs of a workflow takes membership of
+    // the workspace of each connection it uses.
+    if (route.connections) {
+      if (route.startsRun) {
+        // A run the engine would refuse needs no workflow read first.
+        try {
+          await engine.assertAcceptingRuns();
+        } catch (error) {
+          if (!(error instanceof EngineNotAcceptingRunsError)) throw error;
+          sendError(res, 'conflict', error.message);
+          return;
+        }
+      }
+      const used = linkedConnectionsIn(await workflowFor(engine, route, req));
+      const refused = await grants.notUsableBy(actorOf(req).userId!, used);
+      if (refused.length > 0) {
+        sendError(
+          res,
+          'forbidden',
+          'This workflow uses a saved connection from a workspace you are not a member of, so it cannot be saved, run or inspected by you.',
+        );
+        return;
+      }
+    }
+
     // Abort the engine call if the client goes away. This listens on the
     // response: for a request that carries a body, Node emits the request's
     // `close` once that body has been read — before any handler runs — not when
@@ -127,7 +233,7 @@ function proxyTo(engine: WorkflowEngineProxyService, route: EngineRoute): RouteH
 export function createWorkflowRoutes(
   settings = new WorkflowSettingsService(),
   engine = new WorkflowEngineProxyService(settings),
-  grants: Pick<WorkflowConnectionGrants, 'list' | 'grant' | 'revoke'> = new WorkflowConnectionGrants(),
+  grants: Pick<WorkflowConnectionGrants, 'list' | 'grant' | 'revoke' | 'notUsableBy'> = new WorkflowConnectionGrants(),
 ): Router {
   const router = Router();
 
@@ -223,8 +329,9 @@ export function createWorkflowRoutes(
     requirePermissions('workflow.admin'),
     async (req: AppRequest, res: FastifyReply) => {
       const body = { ...((req.body ?? {}) as AdminConfigPut) };
-      if (body.sinks !== undefined && !Array.isArray(body.sinks)) {
-        sendError(res, 'invalid_input', 'sinks must be an array');
+      const problem = settingsProblem(body);
+      if (problem) {
+        sendError(res, 'invalid_input', problem);
         return;
       }
       if (body.endpoint !== undefined) {
@@ -261,7 +368,7 @@ export function createWorkflowRoutes(
     router[method](
       `/engine${route.path}`,
       requirePermissions(route.permission),
-      proxyTo(engine, route),
+      proxyTo(engine, route, grants),
     );
   }
 

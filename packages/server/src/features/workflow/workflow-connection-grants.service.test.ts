@@ -91,3 +91,22 @@ describe('WorkflowConnectionGrants', () => {
     expect(JSON.stringify(listed)).not.toContain('hidden-pw');
   });
 });
+
+describe('who may put a saved connection in a workflow', () => {
+  it('a member of the connection’s workspace, and nobody else', async () => {
+    const { id: alices } = await connections.create(alice, saved('s3cret'));
+    const { id: bobs } = await connections.create(bob, saved('other'));
+    // Granted or not makes no difference: the engine is shared by the install,
+    // so a grant would otherwise lend Alice's connection to Bob's workflows.
+    await grants.grant(alice, alices);
+
+    expect(await grants.notUsableBy(bob.userId, [alices, bobs])).toEqual([alices]);
+    expect(await grants.notUsableBy(alice.userId, [alices, bobs])).toEqual([bobs]);
+    expect(await grants.notUsableBy(alice.userId, [alices])).toEqual([]);
+  });
+
+  it('does not refuse an id no connection has: there is nothing behind it', async () => {
+    expect(await grants.notUsableBy(bob.userId, ['no-such-connection'])).toEqual([]);
+    expect(await grants.notUsableBy(bob.userId, [])).toEqual([]);
+  });
+});

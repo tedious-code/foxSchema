@@ -8,10 +8,25 @@
 import { loadOnce } from '@/shared/lib/loadOnce';
 import { useLoaded } from '@/shared/lib/useLoaded';
 import { useMemo, useState } from 'react';
+import type {
+  HttpBodyField as EngineBodyField,
+  HttpBodyFieldType as EngineBodyFieldType,
+  HttpKv as EngineKv,
+  HttpKvOp as EngineKvOp,
+  HttpRequestDef as EngineRequest,
+  HttpSession as EngineSession,
+  HttpTokenRefresh as EngineTokenRefresh,
+} from '@foxschema/workflow-engine/definitions';
+import type { KnowsEveryField, SameMembers } from '../lib/engineShapes';
 import type { CredentialMeta } from '../api/engineClient';
 import { compileZodSchema } from '../lib/zodSchema';
 
-/** Mirrors `@foxagent/common` HttpRequestDef — kept local so the designer stays UI-only. */
+/**
+ * The editor's own shapes for the engine's HttpRequestDef. Values stay local
+ * (importing them pulls zod into the bundle); each list and shape is checked
+ * against the engine's types below, so a field the engine adds fails the build
+ * instead of being dropped on the next edit.
+ */
 export const HTTP_KV_OPS = [
   'eq',
   'gt',
@@ -94,6 +109,12 @@ export type HttpTokenRefresh = {
   enabled: boolean;
   url: string;
   method: 'POST' | 'PUT';
+  /**
+   * Not edited here, but carried through: dropping them on every edit sent
+   * the engine's default refresh body instead of the one written by hand.
+   */
+  headers?: EngineTokenRefresh['headers'];
+  body?: EngineTokenRefresh['body'];
   accessTokenPath: string;
   refreshTokenPath?: string;
   expiresInPath: string;
@@ -1211,6 +1232,15 @@ function BodySchemaEditor({
 }
 
 /** Normalize pipe/trigger JSON into the editor value (legacy Record headers ok). */
+const _kvOpsMatch: SameMembers<HttpKvOp, EngineKvOp> = true;
+const _bodyFieldTypesMatch: SameMembers<HttpBodyFieldType, EngineBodyFieldType> = true;
+const _kvKnown: KnowsEveryField<HttpKv, EngineKv> = true;
+const _bodyFieldKnown: KnowsEveryField<HttpBodyField, EngineBodyField> = true;
+const _sessionKnown: KnowsEveryField<HttpSession, EngineSession> = true;
+const _tokenRefreshKnown: KnowsEveryField<HttpTokenRefresh, EngineTokenRefresh> = true;
+const _requestKnown: KnowsEveryField<HttpRequestValue, EngineRequest> = true;
+void [_kvOpsMatch, _bodyFieldTypesMatch, _kvKnown, _bodyFieldKnown, _sessionKnown, _tokenRefreshKnown, _requestKnown];
+
 export function toHttpRequestValue(input: unknown): HttpRequestValue {
   if (!input || typeof input !== 'object') return { ...EMPTY_HTTP_REQUEST };
   const raw = input as Record<string, unknown>;
@@ -1360,6 +1390,8 @@ function coerceTokenRefresh(value: unknown): HttpTokenRefresh | undefined {
     enabled: raw.enabled === true,
     url: typeof raw.url === 'string' ? raw.url : DEFAULT_TOKEN_REFRESH.url,
     method: raw.method === 'PUT' ? 'PUT' : 'POST',
+    ...(Array.isArray(raw.headers) ? { headers: raw.headers as EngineTokenRefresh['headers'] } : {}),
+    ...(raw.body && typeof raw.body === 'object' ? { body: raw.body as EngineTokenRefresh['body'] } : {}),
     accessTokenPath:
       typeof raw.accessTokenPath === 'string'
         ? raw.accessTokenPath

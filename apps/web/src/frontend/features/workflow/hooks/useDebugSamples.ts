@@ -175,9 +175,11 @@ export function useDebugSamples(runId: string | null): {
   samples: DebugSample[];
   status: string | null;
   error: string | null;
-  /** Latest pipe error message keyed by `pipelineId::pipeId`. */
-  pipeErrors: Record<string, string>;
-  /** Live per-pipe status/counters, keyed by `pipelineId::pipeId`. */
+  /**
+   * Live per-pipe status/counters and error, keyed by `pipelineId::pipeId`.
+   * The one record of a pipe's error: a second copy was not reset by a new
+   * run, so a fixed re-run kept showing the previous run's failure.
+   */
   pipeStates: Record<string, DebugPipeState>;
   /** Chronological run log built from the event stream. */
   log: DebugLogLine[];
@@ -185,7 +187,6 @@ export function useDebugSamples(runId: string | null): {
   const [samples, setSamples] = useState<DebugSample[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pipeErrors, setPipeErrors] = useState<Record<string, string>>({});
   const [pipeStates, setPipeStates] = useState<Record<string, DebugPipeState>>({});
   const [log, setLog] = useState<DebugLogLine[]>([]);
 
@@ -194,7 +195,6 @@ export function useDebugSamples(runId: string | null): {
       setSamples([]);
       setStatus(null);
       setError(null);
-      setPipeErrors({});
       setPipeStates({});
       setLog([]);
       return;
@@ -221,13 +221,6 @@ export function useDebugSamples(runId: string | null): {
       if (event.pipeId && event.pipelineId) {
         const key = pipeKey(event.pipelineId, event.pipeId);
         setPipeStates((current) => applyPipeEvent(current, key, event));
-        if (
-          event.type === 'pipe.status' &&
-          event.data?.status === 'failed' &&
-          event.message
-        ) {
-          setPipeErrors((current) => ({ ...current, [key]: event.message! }));
-        }
       }
 
       if (!seenLog.has(event.seq)) {
@@ -250,13 +243,6 @@ export function useDebugSamples(runId: string | null): {
       if (cancelled) return;
       setStatus(detail.status);
       setError(detail.error ?? null);
-      const next: Record<string, string> = {};
-      for (const pipe of detail.pipes) {
-        if (pipe.error) {
-          next[pipeKey(pipe.pipelineId, pipe.pipeId)] = pipe.error;
-        }
-      }
-      setPipeErrors((current) => ({ ...current, ...next }));
       // The detail is authoritative for counters — reconcile the
       // event-derived state against it so totals always settle correctly.
       setPipeStates((current) => {
@@ -291,6 +277,8 @@ export function useDebugSamples(runId: string | null): {
     source = api.streamRunEvents(runId, 0);
     source.onmessage = (message) => {
       if (cancelled) return;
+      // The stream is delivering, so the fallback poll is not needed.
+      stopPolling();
       try {
         const event = JSON.parse(message.data) as RunEvent;
         upsert(event);
@@ -310,14 +298,18 @@ export function useDebugSamples(runId: string | null): {
       }
     };
     source.onerror = () => {
-      // The stream is best-effort; the poll below remains the safety net.
+      // The stream dropped (EventSource retries on its own): poll the run
+      // until it delivers again.
+      startPolling();
     };
     // The engine sends `end` once the run has finished and every event is out.
     // Left open, an EventSource would reconnect and replay the run from seq 0.
     source.addEventListener(RUN_STREAM_END_EVENT, () => source?.close());
 
-    // Safety net only: covers a dropped stream or a run that reached a
-    // terminal state before this effect ran.
+    // Safety net only: one read now, for a run that reached a terminal state
+    // before this effect ran, and a poll while the stream is down. Polling
+    // every second for the whole run, stream or not, re-rendered the designer
+    // each second — indefinitely for a run paused at a human gate.
     //
     // A failed request is swallowed on purpose: the API restarting (tsx watch
     // restarts it on every save) or a proxy 502 is expected, and the next tick
@@ -333,8 +325,11 @@ export function useDebugSamples(runId: string | null): {
         },
         () => undefined,
       );
+    function startPolling() {
+      if (pollTimer || cancelled) return;
+      pollTimer = setInterval(() => void poll(), 1000);
+    }
     void poll();
-    pollTimer = setInterval(() => void poll(), 1000);
 
     return () => {
       cancelled = true;
@@ -343,7 +338,7 @@ export function useDebugSamples(runId: string | null): {
     };
   }, [runId]);
 
-  return { samples, status, error, pipeErrors, pipeStates, log };
+  return { samples, status, error, pipeStates, log };
 }
 
 export function samplesForPipe(

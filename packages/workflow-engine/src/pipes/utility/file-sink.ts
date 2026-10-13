@@ -40,6 +40,12 @@ const configSchema = z.object({
   mode: z.enum(['append', 'overwrite']).default('append'),
   /** Line ending. CRLF is what Excel on Windows expects. */
   newline: z.enum(['\n', '\r\n']).default('\n'),
+  /**
+   * Prefix `'` to text a spreadsheet would run as a formula. On by default:
+   * values come from source rows anyone may have typed. Turn off only for a
+   * file no spreadsheet will open.
+   */
+  escapeFormulas: z.boolean().default(true),
 });
 
 export type FileSinkConfig = z.infer<typeof configSchema>;
@@ -56,10 +62,12 @@ export function escapeField(
   value: unknown,
   delimiter: string,
   newline: string,
+  escapeFormulas = true,
 ): string {
   if (value === null || value === undefined) return '';
-  const text =
+  const raw =
     typeof value === 'object' ? JSON.stringify(value) : String(value);
+  const text = escapeFormulas && looksLikeFormula(raw) ? `'${raw}` : raw;
   const mustQuote =
     text.includes(delimiter) ||
     text.includes('"') ||
@@ -69,12 +77,34 @@ export function escapeField(
   return mustQuote ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
+/**
+ * Text Excel, Sheets and LibreOffice would run as a formula: after any leading
+ * space, tab, or line break, it starts with `=`, `+`, `-`, or `@`. Quoting
+ * does not stop that — a quoted `"=HYPERLINK(…)"` still runs — so the cell gets
+ * a leading `'`, which the spreadsheet reads as "this is text". A plain number
+ * such as `-5` or `+1.5e3` is left alone: it is data, and a `'` would turn it
+ * into text.
+ */
+function looksLikeFormula(text: string): boolean {
+  // Spreadsheets skip leading whitespace before deciding a cell is a formula,
+  // so ` =cmd` is the same door as `=cmd`.
+  let start = 0;
+  while (start < text.length && ' \t\r\n'.includes(text[start]!)) start++;
+  const body = text.slice(start);
+  const first = body[0];
+  if (first === '=' || first === '@') return true;
+  if (first !== '+' && first !== '-') return false;
+  // A signed number is data. `Number` reads `-5`, `+1.5e3` and `-.5` as
+  // numbers and `-2+3` or `+cmd|…` as NaN.
+  return !Number.isFinite(Number(body));
+}
+
 export function toRow(
   record: Record<string, unknown>,
   config: FileSinkConfig,
 ): string {
   return config.columns
-    .map((column) => escapeField(record[column], config.delimiter, config.newline))
+    .map((column) => escapeField(record[column], config.delimiter, config.newline, config.escapeFormulas))
     .join(config.delimiter);
 }
 
@@ -102,23 +132,19 @@ export class FileSinkPipe implements SinkPipe {
       sideEffects: true,
       inputs: [{ name: 'in', type: 'records' }],
       outputs: [],
-      configSchema: {
-        type: 'object',
-        required: ['path', 'columns'],
-        properties: {
-          path: { type: 'string', minLength: 1 },
-          columns: { type: 'array', items: { type: 'string' }, minItems: 1 },
-          delimiter: { type: 'string', default: ',' },
-          header: { type: 'boolean', default: true },
-          mode: { type: 'string', enum: ['append', 'overwrite'], default: 'append' },
-          newline: { type: 'string', enum: ['\n', '\r\n'], default: '\n' },
-        },
-      },
+      // The JSON Schema the designer's form reads is derived from the same zod
+      // schema save and run validate with, so the two cannot disagree.
+      configSchema,
     });
   }
 
   validateConfig(config: unknown): void {
     configSchema.parse(config);
+  }
+
+  finishRun(workflowRunId: string): void {
+    const prefix = `${workflowRunId}:`;
+    for (const key of this.started) if (key.startsWith(prefix)) this.started.delete(key);
   }
 
   async write(batch: RecordBatch, context: PipeContext): Promise<void> {
@@ -136,34 +162,25 @@ export class FileSinkPipe implements SinkPipe {
     const body =
       batch.records.map((record) => toRow(record, config)).join(config.newline) +
       config.newline;
+    const header = config.header
+      ? config.columns
+          .map((column) => escapeField(column, config.delimiter, config.newline, config.escapeFormulas))
+          .join(config.delimiter) + config.newline
+      : '';
 
     // Overwrite truncates once per run, not once per batch — otherwise batch
     // two erases batch one and the file only ever holds the last chunk.
     if (first && config.mode === 'overwrite') {
-      const header = config.header
-        ? config.columns
-            .map((column) => escapeField(column, config.delimiter, config.newline))
-            .join(config.delimiter) + config.newline
-        : '';
       // eslint-disable-next-line security/detect-non-literal-fs-filename -- the target path is this sink's own configuration
       await writeFile(config.path, header + body, 'utf8');
       return;
     }
 
-    if (first && config.header && (await isEmpty(config.path))) {
-      // Appending to a file that does not exist yet still needs its header;
-      // appending to one that already has rows must not get a second.
-      // eslint-disable-next-line security/detect-non-literal-fs-filename -- the target path is this sink's own configuration
-      await appendFile(
-        config.path,
-        config.columns
-          .map((column) => escapeField(column, config.delimiter, config.newline))
-          .join(config.delimiter) + config.newline,
-        'utf8',
-      );
-    }
+    // Appending to a file that does not exist yet still needs its header;
+    // appending to one that already has rows must not get a second.
+    const lead = first && header && (await isEmpty(config.path)) ? header : '';
     // eslint-disable-next-line security/detect-non-literal-fs-filename -- the target path is this sink's own configuration
-    await appendFile(config.path, body, 'utf8');
+    await appendFile(config.path, lead + body, 'utf8');
   }
 }
 

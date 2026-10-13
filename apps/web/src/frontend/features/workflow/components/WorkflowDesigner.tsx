@@ -38,7 +38,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuthStore } from '@/platform/authStore';
 import { useUiStore } from '@/platform/uiStore';
 import { toast } from '../lib/notify';
-import { api } from '../api/engineClient';
+import type { PipeDef, PipelineDef, WorkflowDef } from '@foxschema/workflow-engine/definitions';
+import { api, type RunStartResult } from '../api/engineClient';
+import type { KnowsEveryField } from '../lib/engineShapes';
 import {
   useCatalog,
   useCredentials,
@@ -146,8 +148,15 @@ type SavedPipe = {
   concurrency?: number;
   retry?: { attempts?: number };
   credentialId?: string;
+  timeoutMs?: number;
 };
-type SavedWorkflow = {
+/**
+ * Fields of a workflow the designer does not edit. Kept from the document that
+ * was opened and written back on save — dropping them reset an imported
+ * workflow's version, error handler and origin, and renamed it to its id.
+ */
+type CarriedFields = Pick<WorkflowDef, 'version' | 'origin' | 'errorHandler'> & { name?: string };
+type SavedWorkflow = Partial<CarriedFields> & {
   id: string;
   name: string;
   pipelines: Array<{
@@ -168,6 +177,11 @@ type SavedWorkflow = {
   outputSchema?: Record<string, unknown>;
   middleware?: Array<{ name: string; config: Record<string, unknown> }>;
 };
+
+const _pipeKnown: KnowsEveryField<SavedPipe, PipeDef> = true;
+const _pipelineKnown: KnowsEveryField<SavedWorkflow['pipelines'][number], PipelineDef> = true;
+const _workflowKnown: KnowsEveryField<SavedWorkflow, WorkflowDef> = true;
+void [_pipeKnown, _pipelineKnown, _workflowKnown];
 
 function parsePipeConfig(node: PipeNodeType): Record<string, unknown> {
   try {
@@ -192,6 +206,7 @@ function serializePipe(node: PipeNodeType): SavedPipe {
     ...(node.data.credentialId
       ? { credentialId: node.data.credentialId }
       : {}),
+    ...(node.data.timeoutMs !== undefined ? { timeoutMs: node.data.timeoutMs } : {}),
   };
 }
 
@@ -292,6 +307,7 @@ function toPipelineCanvas(
           concurrency: pipe.concurrency ?? 1,
           retryAttempts: pipe.retry?.attempts ?? 3,
           credentialId: pipe.credentialId ?? '',
+          ...(pipe.timeoutMs !== undefined ? { timeoutMs: pipe.timeoutMs } : {}),
           inputs: ports?.inputs ?? [],
           outputs: ports?.outputs ?? [],
         },
@@ -349,6 +365,7 @@ function Designer() {
   const [dependencies, setDependencies] = useState<Dependency[]>([]);
   const [triggers, setTriggers] = useState<WorkflowTrigger[]>(DEFAULT_TRIGGERS);
   const [overlapPolicy, setOverlapPolicy] = useState<OverlapPolicy>('skip');
+  const [carried, setCarried] = useState<Partial<CarriedFields>>({});
   const [triggerSettingsOpen, setTriggerSettingsOpen] = useState(false);
   const [focusTriggerId, setFocusTriggerId] = useState<string | undefined>();
   const [workflowSettingsOpen, setWorkflowSettingsOpen] = useState(false);
@@ -368,7 +385,6 @@ function Designer() {
     samples: debugSamples,
     status: debugRunStatus,
     error: debugRunError,
-    pipeErrors: debugPipeErrors,
     pipeStates: debugPipeStates,
     log: debugLog,
   } = useDebugSamples(debugRunId);
@@ -632,15 +648,16 @@ function Designer() {
 
   const toDocument = useCallback(() => {
     return {
+      ...carried,
       id: workflowId,
-      name: workflowId,
+      name: carried.name || workflowId,
       ...workflowSettings,
       pipelines: pipelineSnapshots().map(serializePipeline),
       dependencies,
       triggers,
       onOverlap: overlapPolicy,
     };
-  }, [dependencies, workflowSettings, workflowId, overlapPolicy, pipelineSnapshots, triggers]);
+  }, [carried, dependencies, workflowSettings, workflowId, overlapPolicy, pipelineSnapshots, triggers]);
 
   const validate = useCallback(async () => {
     setBusy(true);
@@ -712,6 +729,12 @@ function Designer() {
       setDependencies(workflow.dependencies ?? []);
       setTriggers(workflow.triggers ?? DEFAULT_TRIGGERS);
       setOverlapPolicy(workflow.onOverlap ?? 'skip');
+      setCarried({
+        name: workflow.name,
+        ...(workflow.version !== undefined ? { version: workflow.version } : {}),
+        ...(workflow.origin !== undefined ? { origin: workflow.origin } : {}),
+        ...(workflow.errorHandler !== undefined ? { errorHandler: workflow.errorHandler } : {}),
+      });
       setWorkflowSettings(settingsOf(workflow));
       setActivePipelineId(first.id);
       setNodes(canvases.flatMap((pipeline) => pipeline.nodes));
@@ -818,20 +841,17 @@ function Designer() {
    */
   const createWorkflow = useCallback(
     (id: string) => {
-      setWorkflowId(id);
-      setPipelines(DEFAULT_PIPELINES);
-      setActivePipelineId(DEFAULT_PIPELINES[0]!.id);
-      setNodes([]);
-      setEdges([]);
-      setDependencies([]);
-      setTriggers(DEFAULT_TRIGGERS);
-      setOverlapPolicy('skip');
-      setWorkflowSettings({ middleware: [] });
-      setSelectedId(null);
-      setView('designer');
+      // An empty document through the same path as a loaded one, so every
+      // piece of document state is reset — a second list of resets here let
+      // new state carry over from the workflow that was open.
+      applyDocument({
+        id,
+        name: id,
+        pipelines: DEFAULT_PIPELINES.map((pipeline) => ({ ...pipeline, pipes: [] })),
+      });
       toast.success(`New workflow "${id}" — Save to persist it`);
     },
-    [setEdges, setNodes, setView, setWorkflowId],
+    [applyDocument],
   );
 
   const run = useCallback(async () => {
@@ -839,6 +859,12 @@ function Designer() {
     setBusy(true);
     try {
       const res = await api.run(workflowId, { debug: true });
+      if (res.accepted === false || !res.runId) {
+        // The engine said no. An overlap answer names the run already going,
+        // which is not this one, so debugging must not attach to it.
+        toast.error('The run did not start', { description: runRefusal(res) });
+        return;
+      }
       setDebugRunId(res.runId);
       toast.success(`Debug run ${res.runId.slice(0, 8)} started`, {
         description:
@@ -856,31 +882,35 @@ function Designer() {
 
   return (
     <div className="reference-body">
-      <TriggerConfigurationDialog
-        open={triggerSettingsOpen}
-        triggers={triggers}
-        credentials={credentials}
-        workflows={workflowList}
-        currentWorkflowId={workflowId}
-        focusTriggerId={focusTriggerId}
-        onChange={setTriggers}
-        onClose={() => setTriggerSettingsOpen(false)}
-      />
-      <WorkflowSettingsDialog
-        open={workflowSettingsOpen}
-        workflowId={workflowId}
-        settings={workflowSettings}
-        middlewareCatalog={middlewareCatalog}
-        onApply={setWorkflowSettings}
-        onClose={() => setWorkflowSettingsOpen(false)}
-      />
-      <DependenciesDialog
-        open={dependenciesOpen}
-        pipelines={pipelines}
-        dependencies={dependencies}
-        onApply={setDependencies}
-        onClose={() => setDependenciesOpen(false)}
-      />
+      {/* Mounted only while open, so each starts from the current document. */}
+      {triggerSettingsOpen && (
+        <TriggerConfigurationDialog
+          triggers={triggers}
+          credentials={credentials}
+          workflows={workflowList}
+          currentWorkflowId={workflowId}
+          focusTriggerId={focusTriggerId}
+          onChange={setTriggers}
+          onClose={() => setTriggerSettingsOpen(false)}
+        />
+      )}
+      {workflowSettingsOpen && (
+        <WorkflowSettingsDialog
+          workflowId={workflowId}
+          settings={workflowSettings}
+          middlewareCatalog={middlewareCatalog}
+          onApply={setWorkflowSettings}
+          onClose={() => setWorkflowSettingsOpen(false)}
+        />
+      )}
+      {dependenciesOpen && (
+        <DependenciesDialog
+          pipelines={pipelines}
+          dependencies={dependencies}
+          onApply={setDependencies}
+          onClose={() => setDependenciesOpen(false)}
+        />
+      )}
 
       {view === 'designer' && (
         <>
@@ -893,17 +923,19 @@ function Designer() {
               <Input
                 className="workflow-name-input"
                 value={workflowId}
+                data-testid="workflow-designer-id"
                 onChange={(ev) => setWorkflowId(ev.target.value)}
                 title="Workflow id"
                 placeholder="workflow-id"
               />
             </div>
             <div className="workflow-actions">
-              <Button onClick={() => void load()} disabled={busy || !workflowId}>
+              <Button data-testid="workflow-designer-load" onClick={() => void load()} disabled={busy || !workflowId}>
                 <FolderOpen />
                 Load
               </Button>
               <Button
+                data-testid="workflow-designer-save"
                 onClick={() => void save()}
                 disabled={busy || nodes.length === 0 || !canDesign}
                 title={canDesign ? undefined : 'Saving needs the workflow design permission'}
@@ -961,6 +993,7 @@ function Designer() {
             </div>
             <div className="canvas-tools-right">
               <Button
+                data-testid="workflow-designer-triggers"
                 onClick={() => {
                   setFocusTriggerId(undefined);
                   setTriggerSettingsOpen(true);
@@ -1078,7 +1111,7 @@ function Designer() {
                 debugSamples={debugSamples}
                 debugRunStatus={debugRunStatus}
                 debugRunError={
-                  (selected?.data && debugPipeErrors[pipeKey(selected.data.pipelineId, selected.data.pipeId)]) ||
+                  (selected?.data && debugPipeStates[pipeKey(selected.data.pipelineId, selected.data.pipeId)]?.error) ||
                   debugRunError
                 }
                 onRename={renamePipe}
@@ -1117,6 +1150,23 @@ function Designer() {
       </main>
     </div>
   );
+}
+
+/** Why the engine did not start a run, in words the designer can act on. */
+function runRefusal(res: RunStartResult): string {
+  switch (res.reason) {
+    case 'overlap':
+      return (
+        `This workflow is already running${res.runId ? ` (run ${res.runId.slice(0, 8)})` : ''}. ` +
+        'Wait for it to finish, or choose “Queue overlaps” or “Run in parallel” in the toolbar.'
+      );
+    case 'disabled':
+      return 'The workflow engine is not accepting runs. An admin can turn runs on under Engine settings.';
+    case 'condition':
+      return res.detail ?? 'The trigger’s condition did not match, so nothing ran.';
+    default:
+      return res.detail ?? res.reason ?? 'The engine did not accept the run.';
+  }
 }
 
 /**

@@ -74,6 +74,30 @@ export class WorkflowConnectionGrants {
   }
 
   /**
+   * Of `connectionIds`, the saved connections `userId` may not put in a
+   * workflow: ones in a workspace they are not a member of.
+   *
+   * The engine has no owner or workspace of its own — every designer on the
+   * install sees every workflow — so FoxSchema checks this where a workflow
+   * that uses a connection is saved or run. Without it, linking a connection
+   * lent it to every designer on the install, any workspace. An id no
+   * connection has is not refused here: there is nothing behind it to reach.
+   */
+  async notUsableBy(userId: string, connectionIds: readonly string[]): Promise<string[]> {
+    if (connectionIds.length === 0) return [];
+    const store = await getStore();
+    const rows = await store.all<{ id: string }>(
+      `SELECT c.id FROM connections c
+       WHERE c.id IN (${connectionIds.map(() => '?').join(', ')})
+         AND NOT EXISTS (
+           SELECT 1 FROM workspace_members m WHERE m.workspace_id = c.workspace_id AND m.user_id = ?
+         )`,
+      [...connectionIds, userId],
+    );
+    return rows.map((row) => row.id);
+  }
+
+  /**
    * The decrypted connection, when it is granted and its owner still has it.
    * Only the engine's token-guarded route calls this.
    */

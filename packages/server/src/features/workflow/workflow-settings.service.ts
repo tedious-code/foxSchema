@@ -17,6 +17,15 @@ export const WORKFLOW_ENGINE_CONFIG_KEY = 'workflow.engine_config';
 
 const HEALTH_TIMEOUT_MS = 2_000;
 
+/**
+ * How long a read config is reused. Every proxied engine call reads it — the
+ * designer's debug poll once a second — and on a Postgres or MySQL metadata
+ * database each read was a network round trip. Kept short because another
+ * FoxSchema instance sharing that database can change it; a save here
+ * refreshes it at once.
+ */
+const CONFIG_TTL_MS = 2_000;
+
 export function defaultWorkflowEngineConfig(): WorkflowEngineConfig {
   return {
     state: 'disabled',
@@ -33,10 +42,47 @@ export function defaultWorkflowEngineConfig(): WorkflowEngineConfig {
   };
 }
 
+/** The engine could not be reached, or is not configured to be. */
+export class EngineUnavailableError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'EngineUnavailableError';
+  }
+}
+
+/**
+ * Origin and base path of the configured engine, without a trailing slash.
+ *
+ * Only http(s): the endpoint is admin-set, but a `file:` or `data:` URL here
+ * would turn this proxy into a way to read things that are not an engine.
+ */
+export function engineBaseUrl(endpoint: string): string {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    throw new EngineUnavailableError(`Workflow engine endpoint is not a valid URL: ${endpoint}`);
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new EngineUnavailableError(`Workflow engine endpoint must be http or https: ${endpoint}`);
+  }
+  return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
+}
+
 export class WorkflowSettingsService {
+  private cached: { config: WorkflowEngineConfig; at: number } | undefined;
+
   constructor(private appSettings = new AppSettingsStore()) {}
 
+  /** The saved config. A copy each call: callers (putConfig among them) change it. */
   async getConfig(): Promise<WorkflowEngineConfig> {
+    if (!this.cached || Date.now() - this.cached.at >= CONFIG_TTL_MS) {
+      this.cached = { config: await this.readConfig(), at: Date.now() };
+    }
+    return structuredClone(this.cached.config);
+  }
+
+  private async readConfig(): Promise<WorkflowEngineConfig> {
     const raw = await this.appSettings.get(WORKFLOW_ENGINE_CONFIG_KEY);
     if (!raw) return defaultWorkflowEngineConfig();
     try {
@@ -67,12 +113,21 @@ export class WorkflowSettingsService {
     }
     current.workspaceId = current.workspaceId ?? COMMUNITY_WORKSPACE_ID;
     await this.appSettings.set(WORKFLOW_ENGINE_CONFIG_KEY, JSON.stringify(current));
+    this.cached = { config: structuredClone(current), at: Date.now() };
     return current;
   }
 
   async probeEngineHealth(): Promise<WorkflowHealth & { endpoint: string; error?: string }> {
     const config = await this.getConfig();
-    const endpoint = config.endpoint.replace(/\/$/, '');
+    // The address the proxy forwards to, by the same rule (http(s) only, every
+    // trailing slash, no query) — a probe of a differently-normalised URL
+    // could report healthy an engine the proxy cannot reach.
+    let endpoint: string;
+    try {
+      endpoint = engineBaseUrl(config.endpoint);
+    } catch (err: unknown) {
+      return { ok: false, acceptsRuns: false, endpoint: config.endpoint, error: (err as Error).message };
+    }
     const url = `${endpoint}/health`;
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS) });

@@ -165,8 +165,8 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
         </div>
       )}
       <div className="hint">
-        Linking lets workflows use the connection. FoxSchema keeps the password and hands it to the engine for
-        each run.
+        Linking lets workflows use the connection. Only members of its workspace can save, run or inspect a
+        workflow that uses it. FoxSchema keeps the password and hands it to the engine for each run.
       </div>
 
       {connectionId && canBrowse && (

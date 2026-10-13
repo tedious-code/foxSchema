@@ -20,6 +20,7 @@ import { AuthModule } from '../platform/identity/auth.service';
 import { ConnectionStore } from '../platform/connections/connection-store.service';
 import { makeConnectionResolver } from '../platform/connections/resolve';
 import { defaultApiRateLimit } from '../platform/guards/rate-limit';
+import { engineTokenGuard } from '../platform/guards/engine-token';
 import { getLogger } from '../platform/logger/logger';
 import type { FeatureContext, FeatureMount, ServerFeatureModule } from '../platform/feature-module';
 import { systemFeature } from '../features/system';
@@ -95,11 +96,14 @@ export function composeFeatures(features: readonly ServerFeatureModule[], contex
   const registeredOnly = requireRegisteredAccount();
   // One limiter for the whole group: a caller's budget is shared across features.
   const apiLimit = defaultApiRateLimit();
+  // Every internal route returns what only the engine may have (decrypted
+  // connection options among them), so the token belongs to the mount.
+  const engineToken = engineTokenGuard();
 
   const guardsFor = (mount: FeatureMount): Middleware[] => {
     if (mount.access === 'public' || mount.access === 'internal') {
       if (mount.rateLimited) throw new Error(`${mount.prefix}: the API rate limit counts per signed-in caller; public mounts set their own limits.`);
-      return [];
+      return mount.access === 'internal' ? [engineToken] : [];
     }
     const guards: Middleware[] = [session];
     if (mount.access === 'registered') guards.push(registeredOnly);

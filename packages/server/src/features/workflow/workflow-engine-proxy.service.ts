@@ -12,7 +12,10 @@
  */
 import type { Permission } from '@foxschema/shared';
 import { WORKFLOW_ENGINE_TOKEN_ENV } from '@foxschema/workflow-contract';
-import { WorkflowSettingsService } from './workflow-settings.service';
+import { EngineUnavailableError, WorkflowSettingsService, engineBaseUrl } from './workflow-settings.service';
+
+// Defined with the settings that hold the endpoint; re-exported for the routes.
+export { EngineUnavailableError, engineBaseUrl };
 
 export interface EngineRoute {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
@@ -21,6 +24,11 @@ export interface EngineRoute {
   permission: Permission;
   /** Starts engine work, so it is refused while the engine is not accepting runs. */
   startsRun?: true;
+  /**
+   * The workflow whose saved connections the caller must be able to use:
+   * the request body, the stored workflow `:id`, or the workflow of run `:id`.
+   */
+  connections?: 'body' | 'workflow' | 'run';
 }
 
 /**
@@ -45,18 +53,19 @@ export const ENGINE_ROUTES: readonly EngineRoute[] = [
   { method: 'GET', path: '/workflows/:id', permission: 'workflow.access' },
   { method: 'GET', path: '/workflows/:id/export', permission: 'workflow.access' },
   { method: 'GET', path: '/runs', permission: 'workflow.access' },
-  { method: 'GET', path: '/runs/:id', permission: 'workflow.access' },
-  { method: 'GET', path: '/runs/:id/failure', permission: 'workflow.access' },
-  { method: 'GET', path: '/runs/:id/events', permission: 'workflow.access' },
-  { method: 'GET', path: '/runs/:id/events/stream', permission: 'workflow.access' },
-  { method: 'GET', path: '/runs/:id/inputs', permission: 'workflow.access' },
+  // A run's detail and events carry what its connections returned (debug
+  // samples are rows), so they follow the same rule as running it.
+  { method: 'GET', path: '/runs/:id', permission: 'workflow.access', connections: 'run' },
+  { method: 'GET', path: '/runs/:id/failure', permission: 'workflow.access', connections: 'run' },
+  { method: 'GET', path: '/runs/:id/events', permission: 'workflow.access', connections: 'run' },
+  { method: 'GET', path: '/runs/:id/events/stream', permission: 'workflow.access', connections: 'run' },
 
   { method: 'POST', path: '/workflows/validate', permission: 'workflow.design' },
-  { method: 'POST', path: '/workflows/import', permission: 'workflow.design' },
-  { method: 'PUT', path: '/workflows/:id', permission: 'workflow.design' },
+  { method: 'POST', path: '/workflows/import', permission: 'workflow.design', connections: 'body' },
+  { method: 'PUT', path: '/workflows/:id', permission: 'workflow.design', connections: 'body' },
   { method: 'DELETE', path: '/workflows/:id', permission: 'workflow.design' },
-  { method: 'POST', path: '/workflows/:id/duplicate', permission: 'workflow.design' },
-  { method: 'POST', path: '/workflows/:id/extract-pipeline', permission: 'workflow.design' },
+  { method: 'POST', path: '/workflows/:id/duplicate', permission: 'workflow.design', connections: 'workflow' },
+  { method: 'POST', path: '/workflows/:id/extract-pipeline', permission: 'workflow.design', connections: 'workflow' },
   { method: 'POST', path: '/preview/parse', permission: 'workflow.design' },
   { method: 'GET', path: '/environments', permission: 'workflow.design' },
   { method: 'POST', path: '/environments', permission: 'workflow.design' },
@@ -71,19 +80,9 @@ export const ENGINE_ROUTES: readonly EngineRoute[] = [
   { method: 'POST', path: '/credentials', permission: 'workflow.admin' },
   { method: 'DELETE', path: '/credentials/:id', permission: 'workflow.admin' },
 
-  { method: 'POST', path: '/workflows/:id/run', permission: 'workflow.run', startsRun: true },
-  { method: 'POST', path: '/runs/:id/cancel', permission: 'workflow.run' },
-  { method: 'POST', path: '/runs/:id/inputs', permission: 'workflow.run' },
-  { method: 'POST', path: '/runs/:id/resume', permission: 'workflow.run' },
+  { method: 'POST', path: '/workflows/:id/run', permission: 'workflow.run', startsRun: true, connections: 'workflow' },
 ];
 
-/** The engine could not be reached, or is not configured to be. */
-export class EngineUnavailableError extends Error {
-  constructor(message: string, options?: { cause?: unknown }) {
-    super(message, options);
-    this.name = 'EngineUnavailableError';
-  }
-}
 
 /** A request that would start a run arrived while the engine is not `enabled`. */
 export class EngineNotAcceptingRunsError extends Error {
@@ -105,25 +104,6 @@ export interface EngineRequest {
   signal?: AbortSignal;
 }
 
-/**
- * Origin and base path of the configured engine, without a trailing slash.
- *
- * Only http(s): the endpoint is admin-set, but a `file:` or `data:` URL here
- * would turn this proxy into a way to read things that are not an engine.
- */
-export function engineBaseUrl(endpoint: string): string {
-  let url: URL;
-  try {
-    url = new URL(endpoint);
-  } catch {
-    throw new EngineUnavailableError(`Workflow engine endpoint is not a valid URL: ${endpoint}`);
-  }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new EngineUnavailableError(`Workflow engine endpoint must be http or https: ${endpoint}`);
-  }
-  return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
-}
-
 export class WorkflowEngineProxyService {
   constructor(
     private readonly settings: Pick<WorkflowSettingsService, 'getConfig'> = new WorkflowSettingsService(),
@@ -131,6 +111,11 @@ export class WorkflowEngineProxyService {
     /** Shared service token; the engine refuses its API without it once it has one. */
     private readonly token: string | undefined = process.env[WORKFLOW_ENGINE_TOKEN_ENV],
   ) {}
+
+  /** Refuse before any other work when a run could not start anyway. */
+  async assertAcceptingRuns(): Promise<void> {
+    if ((await this.settings.getConfig()).state !== 'enabled') throw new EngineNotAcceptingRunsError();
+  }
 
   async forward(request: EngineRequest): Promise<Response> {
     // One settings read serves both the run gate and the endpoint.

@@ -182,7 +182,16 @@ function makeBatch(
   };
 }
 
-async function* parseCsv(
+/**
+ * CSV rows from text chunks: RFC 4180 quoting (`""` inside quotes is a quote),
+ * `\n` rows with a trailing `\r` dropped, a quote special only at a field's
+ * start. State carries across chunks, so a quote or `\r\n` may straddle one.
+ *
+ * Scans with `indexOf` and takes fields with `slice`: walking every character
+ * and growing each field one at a time cost a loop turn and a string copy
+ * per byte on every CSV run.
+ */
+export async function* parseCsv(
   chunks: AsyncIterable<string | Buffer> | Iterable<string>,
   delimiter: string,
 ): AsyncIterable<string[]> {
@@ -192,33 +201,55 @@ async function* parseCsv(
   let pendingQuote = false;
 
   for await (const chunk of chunks) {
-    for (const char of String(chunk)) {
+    const text = String(chunk);
+    const length = text.length;
+    let at = 0;
+    while (at < length) {
       if (pendingQuote) {
-        if (char === '"') {
+        pendingQuote = false;
+        if (text[at] === '"') {
+          // `""` inside a quoted field: one literal quote, still quoted.
           field += '"';
-          pendingQuote = false;
+          at++;
           continue;
         }
         quoted = false;
-        pendingQuote = false;
       }
       if (quoted) {
-        if (char === '"') pendingQuote = true;
-        else field += char;
+        const close = text.indexOf('"', at);
+        if (close === -1) {
+          field += text.slice(at);
+          break;
+        }
+        field += text.slice(at, close);
+        pendingQuote = true;
+        at = close + 1;
         continue;
       }
+      const char = text[at];
       if (char === '"' && field.length === 0) {
         quoted = true;
+        at++;
       } else if (char === delimiter) {
         row.push(field);
         field = '';
+        at++;
       } else if (char === '\n') {
         row.push(field.replace(/\r$/, ''));
         yield row;
         field = '';
         row = [];
+        at++;
       } else {
-        field += char;
+        // Plain text up to the next delimiter or newline. The field is not
+        // empty once this char is in it, so a quote inside the run is literal.
+        const nextDelimiter = text.indexOf(delimiter, at + 1);
+        const nextNewline = text.indexOf('\n', at + 1);
+        let end = length;
+        if (nextDelimiter !== -1) end = nextDelimiter;
+        if (nextNewline !== -1 && nextNewline < end) end = nextNewline;
+        field += text.slice(at, end);
+        at = end;
       }
     }
   }

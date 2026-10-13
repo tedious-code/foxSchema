@@ -9,7 +9,7 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from '../zod-provider.js';
 import { z } from 'zod';
 import { RUN_STREAM_END_EVENT } from '@foxschema/workflow-contract';
-import { isTerminalRunStatus, redactAnswer, type HumanInputField } from '@foxschema/workflow-engine';
+import { applyPredicate, isTerminalRunStatus, redactAnswer, type HumanInputField } from '@foxschema/workflow-engine';
 import { assertNoWorkflowCycles } from '@foxschema/workflow-engine';
 import type { AppContext } from '../context.js';
 import { buildRunFailureSummary } from '../run-failure.js';
@@ -30,6 +30,8 @@ export function runRoutes(ctx: AppContext) {
      * closed the database underneath it.
      */
     const openStreams = new Set<() => void>();
+    /** How often a quiet stream checks for what no in-process event announced. */
+    const STREAM_FALLBACK_MS = 500;
     app.addHook('onClose', async () => {
       for (const stop of [...openStreams]) stop();
     });
@@ -104,6 +106,22 @@ export function runRoutes(ctx: AppContext) {
           ctx.runs.listPipes(run.id),
         ]);
         return { ...run, pipelines, pipes };
+      },
+    );
+
+    /**
+     * The workflow this run executed. It is not the live document: a later edit
+     * or delete leaves the snapshot, and that is what the run's rows came from.
+     * FoxSchema reads it to decide who may see those rows. Kept off the run
+     * record itself — a list of runs must not carry every definition.
+     */
+    r.get(
+      '/runs/:id/snapshot',
+      { schema: { params: z.object({ id: z.string() }) } },
+      async (req, reply) => {
+        const snapshot = await ctx.runs.getSnapshot(req.params.id);
+        if (!snapshot) return reply.code(404).send({ error: 'not found' });
+        return snapshot;
       },
     );
 
@@ -187,10 +205,21 @@ export function runRoutes(ctx: AppContext) {
         let after = req.query.after;
         let closed = false;
         let writing = false;
+        // An event arrived while a flush was running; flush again after it.
+        let pending = false;
         let timer: ReturnType<typeof setInterval> | undefined;
+        // Woken by the engine as each event of this run is stored, rather than
+        // reading the store ten times a second for every open stream — those
+        // reads are synchronous SQLite on the loop that also executes runs.
+        const unsubscribe = ctx.onEvent((event) => {
+          if (event.workflowRunId !== req.params.id) return;
+          if (writing) pending = true;
+          else void write().catch(() => undefined);
+        });
         const stop = () => {
           closed = true;
           clearInterval(timer);
+          unsubscribe();
           openStreams.delete(stop);
         };
         openStreams.add(stop);
@@ -223,7 +252,7 @@ export function runRoutes(ctx: AppContext) {
               // runs. The run record is read on the first quiet tick and about
               // once a second after, for a client that subscribed past the
               // run's final event.
-              if (idleTicks++ % 10 !== 0) return;
+              if (idleTicks++ % 2 !== 0) return;
               const run = await ctx.runs.get(req.params.id);
               if (closed || (run && !isTerminalRunStatus(run.status))) return;
               await flush(); // anything appended between the two reads
@@ -235,16 +264,20 @@ export function runRoutes(ctx: AppContext) {
             reply.raw.end();
           } finally {
             writing = false;
+            if (pending && !closed) {
+              pending = false;
+              void write().catch(() => undefined);
+            }
           }
         };
         await write();
         if (closed) return;
-        // Poll cadence is the floor on how fast the designer sees progress.
-        // The query is a single indexed range scan (~1ms), so 100ms buys a
-        // responsive execution panel at negligible cost.
+        // The fallback for what no in-process event announces: a run another
+        // process executes (a worker), and the run record for a client that
+        // subscribed after the run's last event.
         timer = setInterval(() => {
           void write().catch(() => undefined);
-        }, 100);
+        }, STREAM_FALLBACK_MS);
         // An open SSE stream must not keep the process alive on its own — the
         // client socket already does that, and this poller would otherwise
         // outlive shutdown and block exit.
@@ -393,13 +426,10 @@ function validateAnswer(
       problems.push(`${field.key} must be true or false`);
       continue;
     }
-    if (field.pattern) {
-      // Anchored: an unanchored `\d{6}` would accept a 6-digit substring of
-      // something much longer, which for an OTP is exactly wrong.
-      const anchored = new RegExp(`^(?:${field.pattern})$`);
-      if (!anchored.test(String(value))) {
-        problems.push(`${field.key} does not match the expected format`);
-      }
+    // Anchored, by the shared `matches` rule: an unanchored `\d{6}` would
+    // accept a 6-digit substring of something longer — wrong for an OTP.
+    if (field.pattern && !applyPredicate('matches', value, field.pattern)) {
+      problems.push(`${field.key} does not match the expected format`);
     }
   }
   const known = new Set(fields.map((field) => field.key));

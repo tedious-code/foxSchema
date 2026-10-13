@@ -5,11 +5,14 @@
  *
  * Workflow engine — moved from FoxAgent (apps/api/src/workflow-origin.test.ts).
  */
+import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { parseWorkflowInput } from '@foxschema/workflow-engine';
 import { buildWorkflowPackage, importWorkflowPackage } from './workflow-package.js';
 import { proposeWorkflow } from './workflow-propose.js';
 import { extractPipeline } from './workflow-extract.js';
+import { buildApp } from './app.js';
+import { createContext } from './context.js';
 
 /**
  * Where a workflow came from.
@@ -119,5 +122,37 @@ describe('workflow origin', () => {
     const imported = importWorkflowPackage({ package: pkg });
 
     expect(parseWorkflowInput(imported as never).origin).toBe('imported');
+  });
+});
+
+describe('saving over a workflow', () => {
+  it('cannot raise an imported workflow to authored', async () => {
+    const ctx = createContext({ databasePath: ':memory:', encryptionKey: randomBytes(32) });
+    const app = buildApp(ctx, { token: undefined });
+    try {
+      await ctx.workflows.put(parseWorkflowInput({ ...AUTHORED, origin: 'imported' } as never));
+
+      // What the designer sent: the document without `origin`, which parses
+      // as `authored`. And what a crafted request could send.
+      for (const body of [{ ...AUTHORED }, { ...AUTHORED, origin: 'authored' }]) {
+        const res = await app.inject({ method: 'PUT', url: '/api/workflows/wf', payload: body });
+        expect(res.statusCode, res.body).toBe(200);
+        expect(res.json().origin).toBe('imported');
+        expect((await ctx.workflows.get('wf'))!.origin).toBe('imported');
+      }
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('leaves an authored workflow authored', async () => {
+    const ctx = createContext({ databasePath: ':memory:', encryptionKey: randomBytes(32) });
+    const app = buildApp(ctx, { token: undefined });
+    try {
+      const res = await app.inject({ method: 'PUT', url: '/api/workflows/wf', payload: AUTHORED });
+      expect(res.json().origin).toBe('authored');
+    } finally {
+      await app.close();
+    }
   });
 });

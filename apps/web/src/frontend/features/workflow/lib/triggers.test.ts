@@ -131,13 +131,16 @@ describe('trigger credentials', () => {
 });
 
 describe('credentialsForTrigger', () => {
-  const credentials: CredentialMeta[] = [
-    'webhook',
-    'http',
-    'oauth',
-    'database',
-    'llm',
-  ].map((kind) => ({ id: `cred-${kind}`, name: kind, kind }));
+  const credentials: CredentialMeta[] = (
+    ['webhook', 'http', 'oauth', 'database', 'llm'] as const
+  ).map((kind) => ({
+    id: `cred-${kind}`,
+    name: kind,
+    kind,
+    source: 'local',
+    createdAt: '2026-10-12T00:00:00Z',
+    updatedAt: '2026-10-12T00:00:00Z',
+  }));
 
   it('offers a webhook only webhook secrets', () => {
     expect(credentialsForTrigger('webhook', credentials).map((c) => c.kind)).toEqual(

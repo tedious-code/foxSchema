@@ -61,6 +61,7 @@ async function serve(permissions: Permission[], engineStatus = 201) {
       return CONNECTION.name;
     },
     revoke: async (_user: string, id: string) => granted.delete(id),
+    notUsableBy: async () => [],
   };
 
   const root = Router();

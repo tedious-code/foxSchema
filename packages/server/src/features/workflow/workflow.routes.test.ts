@@ -36,6 +36,8 @@ async function serve(
     state?: WorkflowEngineConfig['state'];
     respond?: (call: Call) => Response | Promise<Response>;
     listen?: boolean;
+    /** Saved connections in a workspace this caller is not a member of. */
+    foreignConnections?: string[];
   } = {},
 ) {
   const calls: Call[] = [];
@@ -65,7 +67,13 @@ async function serve(
   const root = Router();
   root.use(
     '/api/workflow',
-    createWorkflowRoutes(settings, new WorkflowEngineProxyService(settings, fetchImpl)),
+    createWorkflowRoutes(settings, new WorkflowEngineProxyService(settings, fetchImpl), {
+      list: async () => [],
+      grant: async () => undefined,
+      revoke: async () => false,
+      notUsableBy: async (_userId: string, ids: readonly string[]) =>
+        ids.filter((id) => (options.foreignConnections ?? []).includes(id)),
+    }),
   );
 
   // Destroy sockets on close rather than wait for them. A client that aborts
@@ -132,9 +140,13 @@ describe('engine proxy — what is forwarded', () => {
     const res = await server.inject({ method: 'GET', url: '/api/workflow/engine/runs/r1/events?after=5' });
 
     expect(res.statusCode).toBe(200);
-    expect(calls).toHaveLength(1);
-    expect(calls[0]!.url).toBe(`${ENGINE}/api/runs/r1/events?after=5`);
-    expect(calls[0]!.init.method).toBe('GET');
+    // First the run's snapshot, read to check the connections it used (this
+    // stand-in names none), then the relayed read itself.
+    expect(calls.map((call) => call.url)).toEqual([
+      `${ENGINE}/api/runs/r1/snapshot`,
+      `${ENGINE}/api/runs/r1/events?after=5`,
+    ]);
+    expect(calls[1]!.init.method).toBe('GET');
   });
 
   it("forwards an edit's JSON body and nothing of the caller's session", async () => {
@@ -156,8 +168,8 @@ describe('engine proxy — what is forwarded', () => {
   });
 
   it('sends no content type on a bodyless POST, which the engine would reject', async () => {
-    const { server, calls } = await serve(['workflow.run']);
-    await server.inject({ method: 'POST', url: '/api/workflow/engine/runs/r1/resume' });
+    const { server, calls } = await serve(['workflow.design']);
+    await server.inject({ method: 'POST', url: '/api/workflow/engine/environments/e1/activate' });
 
     expect(calls).toHaveLength(1);
     expect(calls[0]!.init.body).toBeUndefined();
@@ -184,8 +196,9 @@ describe('engine proxy — what is forwarded', () => {
     const released = new Promise<void>((resolve) => (release = resolve));
     const { server } = await serve(['workflow.access'], {
       listen: true,
-      respond: () =>
-        new Response(
+      // The run itself is read first (JSON), to check its workflow's connections.
+      respond: (call) =>
+        !call.url.includes('/events/stream') ? Response.json({ id: 'r1' }) : new Response(
           new ReadableStream<Uint8Array>({
             start(controller) {
               controller.enqueue(encoder.encode('data: {"seq":1}\n\n'));
@@ -255,6 +268,8 @@ describe('engine proxy — what is forwarded', () => {
     const { server } = await serve(['workflow.access'], {
       listen: true,
       respond: (call) => {
+        // The run itself is read first (JSON), to check its workflow's connections.
+        if (!call.url.includes('/events/stream')) return Response.json({ id: 'r1' });
         engineSignal = call.init.signal ?? undefined;
         return new Response(
           new ReadableStream<Uint8Array>({
@@ -351,9 +366,9 @@ describe('engine proxy — engine state', () => {
     }
   });
 
-  it('still lets a run be steered while draining — only new runs stop', async () => {
-    const { server, calls } = await serve(['workflow.run'], { state: 'draining' });
-    const res = await server.inject({ method: 'POST', url: '/api/workflow/engine/runs/r1/resume' });
+  it('still lets other engine calls through while draining — only new runs stop', async () => {
+    const { server, calls } = await serve(['workflow.design'], { state: 'draining' });
+    const res = await server.inject({ method: 'POST', url: '/api/workflow/engine/environments/e1/activate' });
 
     expect(res.statusCode).toBe(200);
     expect(calls).toHaveLength(1);
@@ -410,5 +425,127 @@ describe('PUT /api/workflow/settings — engine endpoint', () => {
 
     expect(res.statusCode).toBe(403);
     expect(puts).toEqual([]);
+  });
+});
+
+describe('PUT /api/workflow/settings — values the engines understand', () => {
+  const put = (server: FastifyInstance, payload: unknown) =>
+    server.inject({ method: 'PUT', url: '/api/workflow/settings', payload: payload as object });
+
+  // Every engine refuses a whole settings refresh on a value it does not know,
+  // so one saved typo stopped every later change from reaching them.
+  it.each([
+    ['an unknown state', { state: 'paused' }],
+    ['an unknown overlap policy', { onOverlap: 'replace' }],
+    ['an unknown sink kind', { sinks: [{ kind: 'syslog', enabled: true }] }],
+    ['sinks that are not an array', { sinks: 'json' }],
+  ])('refuses %s and saves nothing', async (_label, payload) => {
+    const { server, puts } = await serve(ALL_WORKFLOW);
+    const res = await put(server, payload);
+
+    expect(res.statusCode).toBe(400);
+    expect(puts).toEqual([]);
+  });
+
+  it('saves every known value', async () => {
+    const { server, puts } = await serve(ALL_WORKFLOW);
+    const body = { state: 'draining', onOverlap: 'queue', sinks: [{ kind: 'events', enabled: true }] };
+    const res = await put(server, body);
+
+    expect(res.statusCode).toBe(200);
+    expect(puts).toEqual([body]);
+  });
+});
+
+describe('engine proxy — only what a screen calls', () => {
+  // Answering a run's human-gate questions, cancelling and resuming have no
+  // screen yet. Session-authenticated paths to them were reachable anyway,
+  // and every permission review had to reason about them.
+  it.each([
+    ['GET', '/api/workflow/engine/runs/r1/inputs'],
+    ['POST', '/api/workflow/engine/runs/r1/inputs'],
+    ['POST', '/api/workflow/engine/runs/r1/cancel'],
+    ['POST', '/api/workflow/engine/runs/r1/resume'],
+  ] as const)('has no route for %s %s', async (method, url) => {
+    const { server, calls } = await serve(['workflow.access', 'workflow.design', 'workflow.run', 'workflow.admin']);
+    const res = await server.inject({ method, url });
+    expect(res.statusCode).toBe(404);
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe('engine proxy — saved connections stay with their workspace', () => {
+  // The engine keeps one install-wide set of workflows. A connection linked by
+  // workspace A was otherwise usable by every designer: save a workflow naming
+  // its credential, run it, and read A's database with A's saved password.
+  const usesForeign = {
+    id: 'wf-1',
+    pipelines: [{ id: 'main', pipes: [{ id: 'q', type: 'source.db.sql', credentialId: 'foxschema-conn-a', config: {} }] }],
+  };
+  const engineWith = (workflow: unknown) => (call: Call) => {
+    const path = new URL(call.url).pathname;
+    if (call.init.method === 'GET' && path === '/api/workflows/wf-1') return Response.json(workflow);
+    // What the run executed, which outlives an edit or delete of the live workflow.
+    if (call.init.method === 'GET' && path === '/api/runs/r1/snapshot') return Response.json(workflow);
+    return Response.json({ ok: true });
+  };
+  const all = ['workflow.access', 'workflow.design', 'workflow.run'] as Permission[];
+
+  it('refuses to save a workflow that uses another workspace’s connection', async () => {
+    const { server, calls } = await serve(all, { foreignConnections: ['conn-a'] });
+    const res = await server.inject({ method: 'PUT', url: '/api/workflow/engine/workflows/wf-1', payload: usesForeign });
+    expect(res.statusCode).toBe(403);
+    expect(calls).toHaveLength(0);
+  });
+
+  it.each([
+    ['run', 'POST', '/api/workflow/engine/workflows/wf-1/run'],
+    ['duplicate', 'POST', '/api/workflow/engine/workflows/wf-1/duplicate'],
+    ['read a run of', 'GET', '/api/workflow/engine/runs/r1/events'],
+  ] as const)('refuses to %s it, after reading it from the engine', async (_label, method, url) => {
+    const { server, calls } = await serve(all, { foreignConnections: ['conn-a'], respond: engineWith(usesForeign) });
+    const res = await server.inject({ method, url, payload: method === 'POST' ? {} : undefined });
+    expect(res.statusCode).toBe(403);
+    // Only the reads the check made reached the engine — never the action.
+    expect(calls.every((call) => call.init.method === 'GET')).toBe(true);
+    expect(calls.map((call) => new URL(call.url).pathname)).not.toContain(url.replace('/api/workflow/engine', '/api'));
+  });
+
+  it('still refuses the run after the live workflow drops the connection', async () => {
+    const stripped = {
+      id: 'wf-1',
+      pipelines: [{ id: 'main', pipes: [{ id: 'h', type: 'source.http', config: {} }] }],
+    };
+    const { server, calls } = await serve(all, {
+      foreignConnections: ['conn-a'],
+      respond: (call) => {
+        const path = new URL(call.url).pathname;
+        if (path === '/api/workflows/wf-1') return Response.json(stripped);
+        if (path === '/api/runs/r1/snapshot') return Response.json(usesForeign);
+        return Response.json({ ok: true });
+      },
+    });
+    const res = await server.inject({ method: 'GET', url: '/api/workflow/engine/runs/r1/events' });
+    expect(res.statusCode).toBe(403);
+    expect(calls.map((call) => new URL(call.url).pathname)).toEqual(['/api/runs/r1/snapshot']);
+  });
+
+  it('lets a member of the connection’s workspace through', async () => {
+    const { server, calls } = await serve(all, { respond: engineWith(usesForeign) });
+    const saved = await server.inject({ method: 'PUT', url: '/api/workflow/engine/workflows/wf-1', payload: usesForeign });
+    expect(saved.statusCode).toBe(200);
+    const ran = await server.inject({ method: 'POST', url: '/api/workflow/engine/workflows/wf-1/run' });
+    expect(ran.statusCode).toBe(200);
+    expect(calls.filter((call) => call.init.method !== 'GET').map((call) => call.init.method)).toEqual(['PUT', 'POST']);
+  });
+
+  it('checks nothing for a workflow that uses no saved connection', async () => {
+    const { server } = await serve(all, { foreignConnections: ['conn-a'] });
+    const res = await server.inject({
+      method: 'PUT',
+      url: '/api/workflow/engine/workflows/wf-2',
+      payload: { id: 'wf-2', pipelines: [{ id: 'main', pipes: [{ id: 'h', type: 'source.http', credentialId: 'api-key-1' }] }] },
+    });
+    expect(res.statusCode).toBe(200);
   });
 });

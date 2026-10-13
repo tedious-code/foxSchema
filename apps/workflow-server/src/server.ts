@@ -12,7 +12,8 @@
  * itself never carries webhook traffic.
  */
 import type { FastifyInstance } from 'fastify';
-import { buildApp, buildIngressApp } from './app.js';
+import { WORKFLOW_ENGINE_TOKEN_ENV } from '@foxschema/workflow-contract';
+import { buildApp, buildIngressApp, openApiListenProblem } from './app.js';
 import { createContext } from './context.js';
 import { attachEngineSettings } from './engine-settings.js';
 
@@ -22,6 +23,12 @@ const ingressPort = process.env.INGRESS_PORT ? Number(process.env.INGRESS_PORT) 
 const ingressHost = process.env.INGRESS_HOST ?? '127.0.0.1';
 /** Hard cap on graceful shutdown; tsx watch SIGKILLs at 5s. */
 const SHUTDOWN_TIMEOUT_MS = Number(process.env.FOXFLOW_SHUTDOWN_TIMEOUT_MS ?? 3000);
+
+const openApi = openApiListenProblem(host, process.env[WORKFLOW_ENGINE_TOKEN_ENV]);
+if (openApi) {
+  console.error(openApi);
+  process.exit(1);
+}
 
 const ctx = createContext();
 const detachSettings = attachEngineSettings(ctx);

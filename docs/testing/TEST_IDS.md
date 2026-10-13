@@ -1778,7 +1778,9 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
   - `workflow-sql-pipe-browse` · button
   - `workflow-sql-pipe-table-{objectType}-{name}` · button
 - **TriggerConfigurationDialog** · `features/workflow/components/TriggerConfigurationDialog.tsx`
+  - `workflow-trigger-config` · section · Trigger configuration
   - `workflow-trigger-config-item-{id}` · button
+  - `workflow-trigger-config-note` · span
   - `workflow-trigger-config-retry` · input
   - `workflow-trigger-config-section-{item}` · button
   - `workflow-trigger-config-workflow-{id}` · input
@@ -1802,7 +1804,11 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
   - `workflow-variables-environment-{id}` · button
 - **WorkflowDesigner** · `features/workflow/components/WorkflowDesigner.tsx`
   - `workflow-designer-breadcrumb-workflows` · button · Workflows
+  - `workflow-designer-id` · Input · Workflow id
+  - `workflow-designer-load` · Button
+  - `workflow-designer-save` · Button
   - `workflow-designer-switch-pipeline-{id}` · button
+  - `workflow-designer-triggers` · Button
 - **WorkflowsPanel** · `features/workflow/components/WorkflowsPanel.tsx`
   - `workflow-list-file` · input
   - `workflow-list-open-in-designer-{id}` · button · Open in designer

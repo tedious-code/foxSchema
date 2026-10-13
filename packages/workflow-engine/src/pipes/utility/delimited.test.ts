@@ -1252,3 +1252,16 @@ describe('TextSourcePipe', () => {
     ]);
   });
 });
+
+describe('preview lines match the run', () => {
+  it('splits lines exactly as readLines does', async () => {
+    const { parseTextRows } = await import('./delimited.js');
+    const { readLines } = await import('./text.js');
+    for (const text of ['a|1\r\nb|2\n', 'a|1\rb|2\n', 'a|1\n\nb|2', 'x', '', 'a|1\n\n']) {
+      const run: string[] = [];
+      for await (const line of readLines([text] as unknown as AsyncIterable<string>)) run.push(line);
+      const preview = parseTextRows(text, { delimiters: ['|'], skipEmpty: false, fields: ['k', 'v'] });
+      expect(preview.lines.length, JSON.stringify(text)).toBe(run.length);
+    }
+  });
+});

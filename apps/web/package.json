@@ -46,7 +46,7 @@
     "monaco-editor": "0.57.0",
     "mssql": "12.7.2",
     "mysql2": "3.24.5",
-    "oracledb": "7.0.1",
+    "oracledb": "26.0.0",
     "pg": "8.23.1",
     "pino": "10.3.1",
     "prettier": "3.9.9",

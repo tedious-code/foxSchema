@@ -154,7 +154,7 @@ export const AccessGrantsStage: React.FC<{
   return (
     <div className="space-y-3" data-testid="access-grants-stage">
       <p className="text-[11px] text-slate-500">
-        Fox Schema generates GRANT/REVOKE SQL — it does not apply it.
+        Fox Schema writes the GRANT/REVOKE SQL. Apply on the confirmation runs it on this connection.
       </p>
 
       <div className="flex flex-wrap items-center gap-1.5" data-testid="access-grants-presets">
@@ -269,7 +269,7 @@ export const AccessGrantsStage: React.FC<{
               : `Nothing to change: the grid matches what ${principal.name} holds now. Tick a box to grant it, untick one to revoke it.`)}
         </pre>
         <p className="mt-2 text-[10px] text-slate-500">
-          Fox Schema does not apply this SQL. The database stays the source of truth.
+          Open in SQL Editor shows the script first. Apply there runs it; Copy does not.
         </p>
       </div>
       {/*

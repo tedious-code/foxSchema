@@ -249,6 +249,33 @@ export const api = {
     return request(`/runs/${encodeURIComponent(id)}/events?after=${after}`);
   },
 
+  cancelRun(id: string): Promise<{ runId: string; status: string }> {
+    return request(`/runs/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
+  },
+
+  resumeRun(id: string): Promise<{ runId: string; status: string }> {
+    return request(`/runs/${encodeURIComponent(id)}/resume`, { method: 'POST' });
+  },
+
+  getRunInputs(id: string): Promise<{
+    runId: string;
+    status: string;
+    pending: Array<{
+      key: string;
+      prompt: string;
+      fields: Array<{ key: string; label: string; type: string; optional?: boolean; help?: string }>;
+    }>;
+  }> {
+    return request(`/runs/${encodeURIComponent(id)}/inputs`);
+  },
+
+  answerRunInput(
+    id: string,
+    body: { key: string; values: Record<string, unknown> },
+  ): Promise<{ runId: string; status: string }> {
+    return request(`/runs/${encodeURIComponent(id)}/inputs`, { method: 'POST', body });
+  },
+
   streamRunEvents(id: string, after = 0): EventSource {
     return new EventSource(
       `${getApiBase()}${ENGINE}/runs/${encodeURIComponent(id)}/events/stream?after=${after}`,

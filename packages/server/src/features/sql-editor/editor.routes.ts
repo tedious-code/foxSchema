@@ -74,7 +74,7 @@ export function createEditorRoutes(deps: EditorRouteDeps): Router {
   // called next(), so the request hung with no error and no response.
   const writeIdempotency = idempotency();
   router.post('/sql/execute', sqlExecuteLimiter, writeIdempotency, async (req: AppRequest, res: FastifyReply) => {
-    const { statements, maxRows, offset, params, datagridAction, seek, stopOnError, ...ref } = req.body as ConnectionRef & {
+    const { statements, maxRows, offset, params, datagridAction, seek, stopOnError, transaction, ...ref } = req.body as ConnectionRef & {
       statements?: unknown;
       maxRows?: unknown;
       offset?: unknown;
@@ -82,6 +82,8 @@ export function createEditorRoutes(deps: EditorRouteDeps): Router {
       seek?: unknown;
       /** Leave the statements after a failure unrun (results end at it). */
       stopOnError?: unknown;
+      /** Wrap the batch in one transaction and roll it back on the first failure. */
+      transaction?: unknown;
       /** Data Peek / query-result grid CRUD — requires editor.datagrid.*. */
       datagridAction?: unknown;
     };
@@ -174,7 +176,8 @@ export function createEditorRoutes(deps: EditorRouteDeps): Router {
         clampOffset(offset),
         (params as unknown[][] | undefined) ?? [],
         parsedSeek.value,
-        stopOnError === true
+        stopOnError === true,
+        transaction === true
       );
       res.send({ results });
     } catch (error: unknown) {

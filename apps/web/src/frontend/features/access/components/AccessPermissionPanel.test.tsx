@@ -186,6 +186,46 @@ describe('AccessPermissionPanel — one session', () => {
     expect(runAccessSql).not.toHaveBeenCalled();
   });
 
+  it('applies GRANT SQL only from the confirmation', async () => {
+    runAccessSql.mockResolvedValue({ ok: true });
+    await grantsStageFor('alice');
+    fireEvent.click(await screen.findByTestId('access-grants-preset-read-write'));
+    fireEvent.click(await screen.findByTestId('access-grants-open-sql'));
+    fireEvent.click(await screen.findByTestId('access-permission-apply'));
+    await waitFor(() => expect(runAccessSql).toHaveBeenCalledWith({ connectionId: 'c1' }, expect.stringMatching(/GRANT/i)));
+    await waitFor(() => expect(screen.queryByTestId('access-permission-confirm')).toBeNull());
+    await waitFor(() => expect(fetchDbAccess.mock.calls.length).toBeGreaterThan(1));
+  });
+
+  it('keeps the confirmation open when apply fails', async () => {
+    runAccessSql.mockResolvedValue({ ok: false, error: 'role "r" does not exist' });
+    await grantsStageFor('alice');
+    const loads = fetchDbAccess.mock.calls.length;
+    fireEvent.click(await screen.findByTestId('access-grants-preset-read-write'));
+    fireEvent.click(await screen.findByTestId('access-grants-open-sql'));
+    fireEvent.click(await screen.findByTestId('access-permission-apply'));
+    await waitFor(() => expect(screen.getByTestId('access-permission-error').textContent).toMatch(/role "r" does not exist/));
+    expect(screen.getByTestId('access-permission-confirm')).toBeTruthy();
+    expect(fetchDbAccess.mock.calls.length).toBe(loads);
+  });
+
+  it('hides Apply without the Grant privileges permission', async () => {
+    useAuthStore.setState({
+      user: {
+        id: 'editor',
+        email: 'editor@example.com',
+        onboardingCompleted: true,
+        role: 'editor',
+        permissions: [...DEFAULT_ROLE_PERMISSIONS.editor],
+      },
+    });
+    await grantsStageFor('alice');
+    fireEvent.click(await screen.findByTestId('access-grants-preset-read-write'));
+    fireEvent.click(await screen.findByTestId('access-grants-open-sql'));
+    expect(await screen.findByTestId('access-permission-confirm')).toBeTruthy();
+    expect(screen.queryByTestId('access-permission-apply')).toBeNull();
+  });
+
   it('opens generated SQL in the SQL Editor without executing', async () => {
     await grantsStageFor('alice');
 

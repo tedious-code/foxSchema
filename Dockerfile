@@ -57,6 +57,9 @@ RUN useradd --system --create-home --uid 10001 fox
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages ./packages
 COPY --from=build /app/apps/web ./apps/web
+# The workflow engine is a second process in the same image. Compose starts it
+# only with `--profile workflow`; the default command stays the Fox Schema app.
+COPY --from=build /app/apps/workflow-server ./apps/workflow-server
 COPY --from=build /app/package.json ./package.json
 # The licences of the packages baked into this image travel with it — MIT,
 # BSD and ISC all require their notice to accompany the code.

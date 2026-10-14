@@ -26,10 +26,17 @@ const HEALTH_TIMEOUT_MS = 2_000;
  */
 const CONFIG_TTL_MS = 2_000;
 
+/** Unsaved default. A saved endpoint always wins; this only fills a blank config. */
+function defaultEngineEndpoint(): string {
+  const fromEnv = process.env.WORKFLOW_ENGINE_ENDPOINT?.trim();
+  if (fromEnv && /^https?:\/\//i.test(fromEnv)) return fromEnv;
+  return 'http://127.0.0.1:8081';
+}
+
 export function defaultWorkflowEngineConfig(): WorkflowEngineConfig {
   return {
     state: 'disabled',
-    endpoint: 'http://127.0.0.1:8081',
+    endpoint: defaultEngineEndpoint(),
     maxParallel: 4,
     onOverlap: 'skip',
     processes: [],

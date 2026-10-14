@@ -707,6 +707,9 @@
   justify-content: space-between;
   gap: 8px;
 }
+.fox-workflow .run-steering { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.fox-workflow .run-answer { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.fox-workflow .run-answer .field { display: flex; flex-direction: column; gap: 4px; }
 .fox-workflow .run-detail h3, .fox-workflow .run-detail h4 { margin: 0 0 8px; }
 .fox-workflow .run-detail ul { margin: 0 0 12px; padding-left: 18px; }
 .fox-workflow .event-log {

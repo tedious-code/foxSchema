@@ -158,13 +158,15 @@ describe('engine proxy — what is forwarded', () => {
       payload: { id: 'wf-1', pipelines: [] },
     });
 
-    expect(calls).toHaveLength(1);
-    expect(calls[0]!.init.method).toBe('PUT');
-    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ id: 'wf-1', pipelines: [] });
+    // The stored workflow is read first, so a save cannot drop a connection the
+    // caller cannot use. The edit itself is the PUT.
+    expect(calls.map((call) => call.init.method)).toEqual(['GET', 'PUT']);
+    const put = calls[1]!;
+    expect(JSON.parse(String(put.init.body))).toEqual({ id: 'wf-1', pipelines: [] });
     // The FoxSchema session must never travel to another process.
-    expect(headersOf(calls[0]!).get('cookie')).toBeNull();
-    expect(headersOf(calls[0]!).get('authorization')).toBeNull();
-    expect(headersOf(calls[0]!).get('content-type')).toBe('application/json');
+    expect(headersOf(put).get('cookie')).toBeNull();
+    expect(headersOf(put).get('authorization')).toBeNull();
+    expect(headersOf(put).get('content-type')).toBe('application/json');
   });
 
   it('sends no content type on a bodyless POST, which the engine would reject', async () => {
@@ -234,6 +236,9 @@ describe('engine proxy — what is forwarded', () => {
     const { server } = await serve(['workflow.design'], {
       listen: true,
       respond: (call) => {
+        // The membership read of the stored workflow answers at once. The edit
+        // is the call that must stay open until the client leaves.
+        if (call.init.method === 'GET') return Response.json({ id: 'wf-1', pipelines: [] });
         engineSignal = call.init.signal ?? undefined;
         abortedOnArrival = engineSignal?.aborted;
         arrived();
@@ -457,20 +462,50 @@ describe('PUT /api/workflow/settings — values the engines understand', () => {
   });
 });
 
-describe('engine proxy — only what a screen calls', () => {
-  // Answering a run's human-gate questions, cancelling and resuming have no
-  // screen yet. Session-authenticated paths to them were reachable anyway,
-  // and every permission review had to reason about them.
+describe('engine proxy — steering a run', () => {
+  // The Runs panel cancels, resumes, and answers a human gate. Each one is
+  // held to the connections in the run's snapshot.
   it.each([
     ['GET', '/api/workflow/engine/runs/r1/inputs'],
     ['POST', '/api/workflow/engine/runs/r1/inputs'],
     ['POST', '/api/workflow/engine/runs/r1/cancel'],
     ['POST', '/api/workflow/engine/runs/r1/resume'],
-  ] as const)('has no route for %s %s', async (method, url) => {
-    const { server, calls } = await serve(['workflow.access', 'workflow.design', 'workflow.run', 'workflow.admin']);
-    const res = await server.inject({ method, url });
-    expect(res.statusCode).toBe(404);
-    expect(calls).toHaveLength(0);
+  ] as const)('forwards %s %s after reading the snapshot', async (method, url) => {
+    const { server, calls } = await serve(['workflow.run']);
+    const answering = method === 'POST' && url.endsWith('/inputs');
+    const res = await server.inject({
+      method,
+      url,
+      ...(answering ? { payload: { key: 'q', values: { a: 1 } } } : {}),
+    });
+    expect(res.statusCode).toBe(200);
+    const enginePath = url.replace('/api/workflow/engine', '/api');
+    expect(calls.map((call) => `${call.init.method ?? 'GET'} ${new URL(call.url).pathname}`)).toEqual([
+      'GET /api/runs/r1/snapshot',
+      `${method} ${enginePath}`,
+    ]);
+    if (method === 'POST' && !answering) {
+      expect(calls[1]!.init.body).toBeUndefined();
+      expect(headersOf(calls[1]!).get('content-type')).toBeNull();
+    }
+  });
+
+  it('refuses to steer a run whose snapshot uses a foreign connection', async () => {
+    const snapshot = {
+      id: 'wf-1',
+      pipelines: [{ id: 'main', pipes: [{ id: 'q', type: 'source.db.sql', credentialId: 'foxschema-conn-a', config: {} }] }],
+    };
+    const { server, calls } = await serve(['workflow.run'], {
+      foreignConnections: ['conn-a'],
+      respond: (call) => {
+        const path = new URL(call.url).pathname;
+        if (call.init.method === 'GET' && path === '/api/runs/r1/snapshot') return Response.json(snapshot);
+        return Response.json({ ok: true });
+      },
+    });
+    const res = await server.inject({ method: 'POST', url: '/api/workflow/engine/runs/r1/cancel' });
+    expect(res.statusCode).toBe(403);
+    expect(calls.map((call) => new URL(call.url).pathname)).toEqual(['/api/runs/r1/snapshot']);
   });
 });
 
@@ -528,6 +563,26 @@ describe('engine proxy — saved connections stay with their workspace', () => {
     const res = await server.inject({ method: 'GET', url: '/api/workflow/engine/runs/r1/events' });
     expect(res.statusCode).toBe(403);
     expect(calls.map((call) => new URL(call.url).pathname)).toEqual(['/api/runs/r1/snapshot']);
+  });
+
+  it('refuses to replace or delete a workflow that already uses the connection', async () => {
+    const stripped = {
+      id: 'wf-1',
+      pipelines: [{ id: 'main', pipes: [{ id: 'h', type: 'source.http', config: {} }] }],
+    };
+    const { server, calls } = await serve(all, { foreignConnections: ['conn-a'], respond: engineWith(usesForeign) });
+    const saved = await server.inject({ method: 'PUT', url: '/api/workflow/engine/workflows/wf-1', payload: stripped });
+    expect(saved.statusCode).toBe(403);
+    const deleted = await server.inject({ method: 'DELETE', url: '/api/workflow/engine/workflows/wf-1' });
+    expect(deleted.statusCode).toBe(403);
+    expect(calls.every((call) => call.init.method === 'GET')).toBe(true);
+  });
+
+  it('deletes a workflow the caller may use', async () => {
+    const { server, calls } = await serve(all, { respond: engineWith(usesForeign) });
+    const res = await server.inject({ method: 'DELETE', url: '/api/workflow/engine/workflows/wf-1' });
+    expect(res.statusCode).toBe(200);
+    expect(calls.filter((call) => call.init.method !== 'GET').map((call) => call.init.method)).toEqual(['DELETE']);
   });
 
   it('lets a member of the connection’s workspace through', async () => {

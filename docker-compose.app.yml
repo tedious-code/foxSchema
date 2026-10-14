@@ -9,6 +9,12 @@
 #
 # Optional: set APP_ENCRYPTION_KEY in .env to pin the key yourself.
 # Open http://localhost:${PORT}  (default 3210). See docs/DEPLOYMENT.md.
+#
+# Workflow engine (opt-in — it needs its own token and encryption key, and a
+# local image that contains apps/workflow-server):
+#   WORKFLOW_ENGINE_ENDPOINT=http://workflow:8081 \
+#   WORKFLOW_ENGINE_TOKEN=… FOXFLOW_ENCRYPTION_KEY=… \
+#   docker compose -f docker-compose.app.yml --profile workflow up -d --build
 
 services:
   fox:
@@ -35,9 +41,38 @@ services:
       APP_KEY_SCHEME: ${APP_KEY_SCHEME:-v1}
       LOCAL_SINGLE_USER: ${LOCAL_SINGLE_USER:-true}
       NODE_ENV: production
+      # Unsaved engine default. A value saved in Workflow settings still wins.
+      WORKFLOW_ENGINE_ENDPOINT: ${WORKFLOW_ENGINE_ENDPOINT:-}
+      WORKFLOW_ENGINE_TOKEN: ${WORKFLOW_ENGINE_TOKEN:-}
     volumes:
       - fox_data:/data
     restart: unless-stopped
 
+  workflow:
+    profiles: ['workflow']
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        WITH_DB2: 'true'
+    image: ${FOX_IMAGE:-5nickels/foxschema:latest}
+    platform: linux/amd64
+    command: ['node_modules/.bin/tsx', 'apps/workflow-server/src/server.ts']
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8081
+      WORKFLOW_ENGINE_TOKEN: ${WORKFLOW_ENGINE_TOKEN:-}
+      FOXFLOW_ENCRYPTION_KEY: ${FOXFLOW_ENCRYPTION_KEY:-}
+      FOXSCHEMA_URL: http://fox:${API_PORT:-3210}
+      FOXFLOW_DB_PATH: /data/workflow-engine.sqlite
+      FOXFLOW_FILES_DIR: /data/workflow-files
+      WORKFLOW_LOG_DIR: /data/workflow-logs
+    volumes:
+      - workflow_data:/data
+    depends_on:
+      - fox
+    restart: unless-stopped
+
 volumes:
   fox_data:
+  workflow_data:

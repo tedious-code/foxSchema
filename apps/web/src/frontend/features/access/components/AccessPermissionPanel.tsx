@@ -5,9 +5,9 @@
  *
  * Access → Permission: one session on the cached GRANT catalog.
  *
- * Principal tree + Account | Grants | Effective. Access workspace is
- * generate-only — confirm copies SQL or opens the SQL Editor; it never
- * executes GRANT/REVOKE (Database Access still does).
+ * Principal tree + Account | Grants | Effective. Confirm can copy the SQL,
+ * open it in the SQL Editor, or apply it on this connection after that
+ * confirmation. Apply needs editor.grant.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -30,6 +30,7 @@ import {
   type DbPrivilege,
 } from '@foxschema/ui-shared';
 import { fetchDbAccess } from '@/shared/api/schemaApi';
+import { runAccessSql } from '@/shared/api/accessSql';
 import { useSyncStore } from '@/features/compare';
 import { AccessGrantsStage } from './AccessGrantsStage';
 import { useSqlEditorStore } from '@/features/sql-editor/state';
@@ -83,6 +84,7 @@ export const AccessPermissionPanel: React.FC<{
   const [status, setStatus] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<DbAccessConfirmRequest | null>(null);
   const [copied, setCopied] = useState(false);
+  const [applying, setApplying] = useState(false);
   const [stage, setStage] = useState<PermissionStage>('grants');
   const [filter, setFilter] = useState('');
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
@@ -167,6 +169,29 @@ export const AccessPermissionPanel: React.FC<{
     // Load when connection changes; principalName is only used to preserve selection.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: connection-driven reload
   }, [connectionId]);
+
+  const applyConfirmSql = async () => {
+    if (!confirm || !connectionId || !canGrant || applying) return;
+    setApplying(true);
+    setError(null);
+    try {
+      const outcome = await runAccessSql(
+        { connectionId, password: sessionPasswords[connectionId] || undefined },
+        confirm.sql
+      );
+      if (!outcome.ok) {
+        setError(outcome.error);
+        return;
+      }
+      setStatus('Applied on this connection.');
+      setConfirm(null);
+      await load({ force: true });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setApplying(false);
+    }
+  };
 
   const copyConfirmSql = async () => {
     if (!confirm) return;
@@ -530,7 +555,9 @@ export const AccessPermissionPanel: React.FC<{
             >
               <h3 className="text-sm font-bold text-slate-100 mb-2">{confirm.title}</h3>
               <p className="text-[11px] text-slate-500 mb-2">
-                Access does not execute this SQL. Copy it, or open it in the SQL Editor.
+                {canGrant
+                  ? 'Apply runs this SQL on the connection. Copy and Open in SQL Editor leave the database unchanged.'
+                  : 'Copy this SQL, or open it in the SQL Editor. Applying it needs the Grant privileges permission.'}
               </p>
               <pre className="text-[11px] font-mono text-slate-300 bg-slate-950 border border-slate-800 rounded px-2 py-2 mb-4 overflow-x-auto whitespace-pre-wrap">
                 {confirm.sql}
@@ -552,6 +579,17 @@ export const AccessPermissionPanel: React.FC<{
                   <FileCode2 className="w-3.5 h-3.5" />
                   Open in SQL Editor
                 </button>
+                {canGrant && (
+                  <button
+                    type="button"
+                    data-testid="access-permission-apply"
+                    disabled={applying}
+                    onClick={() => void applyConfirmSql()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md border border-emerald-500/50 bg-emerald-500/20 text-emerald-50 disabled:opacity-50"
+                  >
+                    {applying ? 'Applying…' : 'Apply'}
+                  </button>
+                )}
                 <button
                   type="button"
                   data-testid="access-permission-confirm-run"

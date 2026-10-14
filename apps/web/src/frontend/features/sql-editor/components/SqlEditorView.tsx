@@ -142,6 +142,8 @@ export const SqlEditorView: React.FC = () => {
   const sharedConnectionIds = useSqlEditorStore((s) => s.sharedConnectionIds);
   const safeMode = useSqlEditorStore((s) => s.safeMode);
   const setSafeMode = useSqlEditorStore((s) => s.setSafeMode);
+  const oneTransaction = useSqlEditorStore((s) => s.oneTransaction);
+  const setOneTransaction = useSqlEditorStore((s) => s.setOneTransaction);
   const multiTableConfirmThreshold = useSqlEditorStore((s) => s.multiTableConfirmThreshold);
   const setMultiTableConfirmThreshold = useSqlEditorStore((s) => s.setMultiTableConfirmThreshold);
 
@@ -853,6 +855,20 @@ export const SqlEditorView: React.FC = () => {
               strokeWidth={SQL_ICON_STROKE}
             />
             <span className={safeMode ? 'text-rose-300' : 'text-slate-500'}>Safe mode</span>
+          </label>
+
+          <label
+            className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded px-1 py-0.5 text-[10px] font-semibold ml-1 cursor-pointer select-none transition hover:bg-slate-800/60"
+            title="Run every SQL statement in one transaction per destination. A failure rolls the batch back. Code cells and @set stay statement by statement."
+          >
+            <input
+              type="checkbox"
+              data-testid="sql-one-transaction"
+              checked={oneTransaction}
+              onChange={(e) => setOneTransaction(e.target.checked)}
+              className="w-3.5 h-3.5 accent-cyan-500 cursor-pointer"
+            />
+            <span className={oneTransaction ? 'text-cyan-300' : 'text-slate-500'}>One transaction</span>
           </label>
 
           <label className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[10px] font-semibold text-slate-500 ml-1" title="Rows fetched per page (Next/Prev use this size)">

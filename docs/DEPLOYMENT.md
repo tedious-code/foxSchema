@@ -155,9 +155,24 @@ its engine proxy, and the engine calls FoxSchema back to resolve saved
 connections a user linked to workflows and to read the engine settings saved in
 the admin screen. Both directions authenticate with one shared token.
 
+The published app does not start the engine. Opt in with the compose profile
+(the image must be built locally so it contains `apps/workflow-server`):
+
+```bash
+WORKFLOW_ENGINE_ENDPOINT=http://workflow:8081 \
+WORKFLOW_ENGINE_TOKEN="$(openssl rand -hex 32)" \
+FOXFLOW_ENCRYPTION_KEY="$(openssl rand -hex 32)" \
+docker compose -f docker-compose.app.yml --profile workflow up -d --build
+```
+
+`WORKFLOW_ENGINE_ENDPOINT` is the unsaved default only. An endpoint saved in
+Workflow settings still wins. Leave the profile off and the app runs as Fox
+Schema alone.
+
 | Variable | Set on | Default | Purpose |
 |----------|--------|---------|---------|
-| `WORKFLOW_ENGINE_TOKEN` | both | — | Shared service token. Set the **same** long random value on FoxSchema and the engine. Without it the engine API is open (loopback dev only) and saved connections cannot be used by workflows. |
+| `WORKFLOW_ENGINE_TOKEN` | both | — | Shared service token. Set the **same** long random value on FoxSchema and the engine. Without it the engine API is open (loopback dev only) and saved connections cannot be used by workflows. Listening off loopback (the compose profile sets `HOST=0.0.0.0`) is refused without it. |
+| `WORKFLOW_ENGINE_ENDPOINT` | FoxSchema | `http://127.0.0.1:8081` | Unsaved engine URL. A saved Workflow setting overrides it. The compose profile uses `http://workflow:8081`. |
 | `FOXSCHEMA_URL` | engine | `http://127.0.0.1:3210` | Where the engine reaches FoxSchema's API. |
 | `PORT` / `HOST` | engine | `8081` / `127.0.0.1` | The engine API. Keep it on a private interface. |
 | `INGRESS_PORT` / `INGRESS_HOST` | engine | unset / `127.0.0.1` | Webhook and API-endpoint ingress on a listener of its own, serving only `/api/hooks/*` and `/api/triggers/*`. Put this one behind your public reverse proxy; webhook traffic then never touches FoxSchema or the engine API. |

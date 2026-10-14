@@ -26,9 +26,10 @@ export interface EngineRoute {
   startsRun?: true;
   /**
    * The workflow whose saved connections the caller must be able to use:
-   * the request body, the stored workflow `:id`, or the workflow of run `:id`.
+   * the request body, the stored workflow `:id`, both (a save must not drop a
+   * connection the caller cannot use), or the snapshot of run `:id`.
    */
-  connections?: 'body' | 'workflow' | 'run';
+  connections?: 'body' | 'workflow' | 'body-and-stored' | 'run';
 }
 
 /**
@@ -62,8 +63,8 @@ export const ENGINE_ROUTES: readonly EngineRoute[] = [
 
   { method: 'POST', path: '/workflows/validate', permission: 'workflow.design' },
   { method: 'POST', path: '/workflows/import', permission: 'workflow.design', connections: 'body' },
-  { method: 'PUT', path: '/workflows/:id', permission: 'workflow.design', connections: 'body' },
-  { method: 'DELETE', path: '/workflows/:id', permission: 'workflow.design' },
+  { method: 'PUT', path: '/workflows/:id', permission: 'workflow.design', connections: 'body-and-stored' },
+  { method: 'DELETE', path: '/workflows/:id', permission: 'workflow.design', connections: 'workflow' },
   { method: 'POST', path: '/workflows/:id/duplicate', permission: 'workflow.design', connections: 'workflow' },
   { method: 'POST', path: '/workflows/:id/extract-pipeline', permission: 'workflow.design', connections: 'workflow' },
   { method: 'POST', path: '/preview/parse', permission: 'workflow.design' },
@@ -81,6 +82,11 @@ export const ENGINE_ROUTES: readonly EngineRoute[] = [
   { method: 'DELETE', path: '/credentials/:id', permission: 'workflow.admin' },
 
   { method: 'POST', path: '/workflows/:id/run', permission: 'workflow.run', startsRun: true, connections: 'workflow' },
+  // Steering a run that is already going. The Runs panel calls these.
+  { method: 'POST', path: '/runs/:id/cancel', permission: 'workflow.run', connections: 'run' },
+  { method: 'POST', path: '/runs/:id/resume', permission: 'workflow.run', connections: 'run' },
+  { method: 'GET', path: '/runs/:id/inputs', permission: 'workflow.run', connections: 'run' },
+  { method: 'POST', path: '/runs/:id/inputs', permission: 'workflow.run', connections: 'run' },
 ];
 
 

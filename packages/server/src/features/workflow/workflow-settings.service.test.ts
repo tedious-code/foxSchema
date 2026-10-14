@@ -8,7 +8,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { WorkflowEngineConfig } from '@foxschema/workflow-contract';
 import type { AppSettingsStore } from '../../platform/settings/app-settings.service';
-import { WorkflowSettingsService } from './workflow-settings.service';
+import { WorkflowSettingsService, defaultWorkflowEngineConfig } from './workflow-settings.service';
 
 function serviceWith(state: WorkflowEngineConfig['state'], respond: () => Response) {
   const stored = JSON.stringify({ state, endpoint: 'http://engine.test:8081/' });
@@ -60,6 +60,34 @@ describe('probeEngineHealth', () => {
     const { service } = serviceWith('enabled', () => new Response('boom', { status: 500 }));
 
     expect(await service.probeEngineHealth()).toMatchObject({ ok: false, acceptsRuns: false, error: 'HTTP 500' });
+  });
+});
+
+describe('defaultWorkflowEngineConfig', () => {
+  const previous = process.env.WORKFLOW_ENGINE_ENDPOINT;
+
+  afterEach(() => {
+    if (previous === undefined) delete process.env.WORKFLOW_ENGINE_ENDPOINT;
+    else process.env.WORKFLOW_ENGINE_ENDPOINT = previous;
+  });
+
+  it('keeps a saved endpoint ahead of WORKFLOW_ENGINE_ENDPOINT', async () => {
+    process.env.WORKFLOW_ENGINE_ENDPOINT = 'http://workflow:8081';
+    const saved = {
+      get: async () => JSON.stringify({ endpoint: 'http://saved.example:9' }),
+      set: async () => undefined,
+    } as unknown as AppSettingsStore;
+    expect((await new WorkflowSettingsService(saved).getConfig()).endpoint).toBe('http://saved.example:9');
+
+    const blank = { get: async () => null, set: async () => undefined } as unknown as AppSettingsStore;
+    expect((await new WorkflowSettingsService(blank).getConfig()).endpoint).toBe('http://workflow:8081');
+  });
+
+  it('uses WORKFLOW_ENGINE_ENDPOINT only when it is an http(s) URL', () => {
+    process.env.WORKFLOW_ENGINE_ENDPOINT = 'http://workflow:8081';
+    expect(defaultWorkflowEngineConfig().endpoint).toBe('http://workflow:8081');
+    process.env.WORKFLOW_ENGINE_ENDPOINT = 'file:///tmp/nope';
+    expect(defaultWorkflowEngineConfig().endpoint).toBe('http://127.0.0.1:8081');
   });
 });
 

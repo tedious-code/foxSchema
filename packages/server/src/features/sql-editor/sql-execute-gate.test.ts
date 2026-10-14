@@ -101,16 +101,20 @@ describe('POST /sql/execute reads a code fence as the database does', () => {
   });
 });
 
-describe('POST /sql/execute stopOnError', () => {
-  // runStatements' last argument: stop at the first failure.
-  const stopArg = () => vi.mocked(runStatements).mock.calls[0]!.at(-1);
+describe('POST /sql/execute stopOnError and transaction', () => {
+  // 0 dialect, 1 option, 2 statements, 3 maxRows, 4 schema, 5 offset,
+  // 6 params, 7 seek, 8 stopOnError, 9 transaction.
+  const flags = () => {
+    const call = vi.mocked(runStatements).mock.calls[0]!;
+    return { stopOnError: call[8], transaction: call[9] };
+  };
 
-  it('passes it to the statement loop only when it is true', async () => {
-    await execute('postgres', ['editor.run'], { statements: ['SELECT 1'], stopOnError: true });
-    expect(stopArg()).toBe(true);
+  it('passes each flag only when it is boolean true', async () => {
+    await execute('postgres', ['editor.run'], { statements: ['SELECT 1'], stopOnError: true, transaction: true });
+    expect(flags()).toEqual({ stopOnError: true, transaction: true });
     await execute('postgres', ['editor.run'], { statements: ['SELECT 1'] });
-    expect(stopArg()).toBe(false);
-    await execute('postgres', ['editor.run'], { statements: ['SELECT 1'], stopOnError: 'yes' });
-    expect(stopArg()).toBe(false);
+    expect(flags()).toEqual({ stopOnError: false, transaction: false });
+    await execute('postgres', ['editor.run'], { statements: ['SELECT 1'], stopOnError: 'yes', transaction: 'yes' });
+    expect(flags()).toEqual({ stopOnError: false, transaction: false });
   });
 });

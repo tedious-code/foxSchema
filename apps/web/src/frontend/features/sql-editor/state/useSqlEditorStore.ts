@@ -369,6 +369,12 @@ interface SqlEditorState {
    */
   safeMode: boolean;
   /**
+   * When true, a multi-statement SQL run is one transaction per destination.
+   * A failure rolls the batch back. Code cells and `@set` stay on the
+   * statement-by-statement path.
+   */
+  oneTransaction: boolean;
+  /**
    * Prompt when a *write* statement references this many (or more) tables.
    * SELECT / JOIN reads skip this check. Suggests wrapping related writes in a
    * transaction. `0` disables the check.
@@ -400,6 +406,7 @@ interface SqlEditorState {
   ensureConnectionSelected: (id: string) => void;
   setShareDestinations: (share: boolean) => void;
   setSafeMode: (on: boolean) => void;
+  setOneTransaction: (on: boolean) => void;
   setMultiTableConfirmThreshold: (n: number) => void;
   openRecentQuery: (id: string) => void;
   clearRecentQueries: () => void;
@@ -563,6 +570,7 @@ export const useSqlEditorStore = create<SqlEditorState>()(
       pendingPassword: null,
       maxRows: 200,
       safeMode: true,
+      oneTransaction: false,
       multiTableConfirmThreshold: 3,
       shareDestinations: true,
       sharedConnectionIds: [],
@@ -792,6 +800,8 @@ export const useSqlEditorStore = create<SqlEditorState>()(
       setMaxRows: (n) => set({ maxRows: Math.min(5000, Math.max(1, Math.floor(n) || 200)) }),
 
       setSafeMode: (on) => set({ safeMode: on }),
+
+      setOneTransaction: (on) => set({ oneTransaction: on }),
 
       setMultiTableConfirmThreshold: (n) =>
         set({
@@ -1232,7 +1242,92 @@ export const useSqlEditorStore = create<SqlEditorState>()(
           }
         };
 
-        for (let si = 0; si < rawStatements.length; si++) {
+        const wantsTransaction = get().oneTransaction && rawStatements.length > 1;
+        const transactionBlocked = rawStatements.some(
+          (statement) => detectCodeCell(statement) || parseSetDirectives(statement).directives.length > 0
+        );
+        if (wantsTransaction && transactionBlocked) {
+          appendWarning(
+            'One transaction applies to plain SQL. This run has a code cell or an @set, so each statement runs on its own.'
+          );
+        }
+        const asOneTransaction = wantsTransaction && !transactionBlocked;
+        if (asOneTransaction) {
+          type Prep = { ok: true; sql: string } | { ok: false; error: string };
+          const prepared: Array<Map<string, Prep>> = [];
+          for (let si = 0; si < rawStatements.length && !aborted; si++) {
+            const raw = rawStatements[si]!;
+            const byConn = new Map<string, Prep>();
+            for (const c of connections) {
+              const preparedStmt = prepareStatement(raw, resolveVariablesForConnection(runVariables, c.id));
+              byConn.set(
+                c.id,
+                preparedStmt.ok ? { ok: true, sql: preparedStmt.sql } : { ok: false, error: preparedStmt.error }
+              );
+            }
+            const firstOk = [...byConn.values()].find((prep) => prep.ok);
+            if (!firstOk) {
+              const firstErr = [...byConn.values()].find((prep) => !prep.ok);
+              aborted = firstErr && !firstErr.ok ? firstErr.error : 'Variable substitution failed';
+              break;
+            }
+            ranDisplay.push(firstOk.sql);
+            ranIndexDisplay.push(sourceIndices?.[si] ?? si);
+            prepared.push(byConn);
+          }
+          setRanStatements([...ranDisplay], [...ranIndexDisplay]);
+          if (!aborted) {
+            await Promise.allSettled(
+              connections.map(async (c) => {
+                const sqls: string[] = [];
+                for (const byConn of prepared) {
+                  const prep = byConn.get(c.id);
+                  if (!prep?.ok) {
+                    const error = prep && !prep.ok ? prep.error : 'Variable substitution failed';
+                    resultsByConn.set(c.id, [{ ok: false, error, durationMs: 0 }]);
+                    patchRun(c.id, { status: 'error', error, results: resultsByConn.get(c.id) });
+                    return;
+                  }
+                  sqls.push(prep.sql);
+                }
+                try {
+                  const { results } = await executeSql(
+                    { connectionId: c.id, password: sessionPasswordFor(c.id, sessionPasswords) },
+                    sqls,
+                    maxRows,
+                    0,
+                    undefined,
+                    { transaction: true, stopOnError: true }
+                  );
+                  const list = [...results];
+                  while (list.length < sqls.length) {
+                    list.push({ ok: false, error: 'Not run — the transaction rolled back.', durationMs: 0 });
+                  }
+                  resultsByConn.set(c.id, list);
+                  sqls.forEach((sql, index) => setPageSql(c.id, index, isPageableStatement(sql) ? sql : ''));
+                  const failed = list.find((result) => !result.ok);
+                  patchRun(c.id, {
+                    status: failed ? 'error' : 'done',
+                    results: list,
+                    error: failed && !failed.ok ? failed.error : undefined,
+                  });
+                } catch (error: unknown) {
+                  const msg = error instanceof Error ? error.message : String(error);
+                  resultsByConn.set(c.id, [{ ok: false, error: msg, durationMs: 0 }]);
+                  patchRun(c.id, { status: 'error', error: msg, results: resultsByConn.get(c.id) });
+                }
+              })
+            );
+          } else {
+            for (const c of connections) {
+              const list = [{ ok: false as const, error: aborted, durationMs: 0 }];
+              resultsByConn.set(c.id, list);
+              patchRun(c.id, { status: 'error', error: aborted, results: list });
+            }
+          }
+        }
+
+        for (let si = asOneTransaction ? rawStatements.length : 0; si < rawStatements.length; si++) {
           const raw = rawStatements[si]!;
 
           if (detectCodeCell(raw)) {

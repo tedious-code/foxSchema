@@ -16,7 +16,7 @@ import {
   type RunFailureSummary,
   type RunRecord,
 } from '../api/engineClient';
-import { Button } from './controls';
+import { Button, Input } from './controls';
 
 type SortKey = 'workflowId' | 'workflowVersion' | 'status' | 'trigger' | 'startedAt';
 
@@ -120,6 +120,7 @@ export function RunsPanel({ runs, onRefresh }: { runs: RunRecord[]; onRefresh: (
   // seq — and, if Live was already on, before this run's history had loaded.
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [streamAfter, setStreamAfter] = useState(0);
+  const [reloadTick, setReloadTick] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: 'startedAt', desc: true });
@@ -169,7 +170,7 @@ export function RunsPanel({ runs, onRefresh }: { runs: RunRecord[]; onRefresh: (
     return () => {
       cancelled = true;
     };
-  }, [selectedId]);
+  }, [selectedId, reloadTick]);
 
   useEffect(() => {
     if (!selectedId || !live || loadedFor !== selectedId) return;
@@ -256,6 +257,11 @@ export function RunsPanel({ runs, onRefresh }: { runs: RunRecord[]; onRefresh: (
                     Status <span className={`status-pill ${detail.status}`}>{detail.status}</span>
                     {detail.error ? ` — ${detail.error}` : ''}
                   </p>
+                  <RunSteering
+                    runId={selectedId}
+                    status={detail.status}
+                    onChanged={() => setReloadTick((n) => n + 1)}
+                  />
                   <h4>Timeline</h4>
                   <ul>
                     {detail.pipelines.map((pipeline) => (
@@ -280,6 +286,119 @@ export function RunsPanel({ runs, onRefresh }: { runs: RunRecord[]; onRefresh: (
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+type PendingQuestion = {
+  key: string;
+  prompt: string;
+  fields: Array<{ key: string; label: string; type: string; optional?: boolean; help?: string }>;
+};
+
+/** Cancel a live run, or answer a paused human gate and let it continue. */
+function RunSteering({
+  runId,
+  status,
+  onChanged,
+}: {
+  runId: string;
+  status: string;
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const [pending, setPending] = useState<PendingQuestion[] | null>(null);
+  const [values, setValues] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (status !== 'paused') {
+      setPending(null);
+      return;
+    }
+    let cancel = false;
+    void api
+      .getRunInputs(runId)
+      .then((page) => {
+        if (!cancel) setPending(page.pending);
+      })
+      .catch((err: unknown) => {
+        if (!cancel) setNote(err instanceof Error ? err.message : 'The waiting question could not be loaded.');
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [runId, status]);
+
+  const act = async (work: () => Promise<unknown>) => {
+    setBusy(true);
+    setNote(null);
+    try {
+      await work();
+      onChanged();
+    } catch (err) {
+      setNote(err instanceof Error ? err.message : 'The run could not be updated.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const question = pending?.[0];
+  const live = status === 'queued' || status === 'running';
+  if (!live && status !== 'paused') return null;
+
+  return (
+    <div className="run-steering">
+      {live && (
+        <Button variant="danger" size="sm" disabled={busy} data-testid="workflow-run-cancel" onClick={() => void act(() => api.cancelRun(runId))}>
+          Cancel run
+        </Button>
+      )}
+      {status === 'paused' && question && (
+        <form
+          className="run-answer"
+          onSubmit={(ev) => {
+            ev.preventDefault();
+            const parsed: Record<string, unknown> = {};
+            for (const field of question.fields) {
+              const raw = values[field.key] ?? '';
+              if (field.type === 'boolean') parsed[field.key] = raw === 'true';
+              else if (field.type === 'number' && raw !== '') parsed[field.key] = Number(raw);
+              else parsed[field.key] = raw;
+            }
+            void act(() => api.answerRunInput(runId, { key: question.key, values: parsed }));
+          }}
+        >
+          <p>{question.prompt}</p>
+          {question.fields.map((field) => (
+            <label key={field.key} className="field">
+              <span>{field.label}</span>
+              {field.type === 'boolean' ? (
+                <input
+                  type="checkbox"
+                  checked={values[field.key] === 'true'}
+                  onChange={(ev) => setValues((current) => ({ ...current, [field.key]: ev.target.checked ? 'true' : 'false' }))}
+                />
+              ) : (
+                <Input
+                  type={field.type === 'password' ? 'password' : field.type === 'number' ? 'number' : 'text'}
+                  value={values[field.key] ?? ''}
+                  required={!field.optional}
+                  onChange={(ev) => setValues((current) => ({ ...current, [field.key]: ev.target.value }))}
+                />
+              )}
+              {field.help && <span className="hint">{field.help}</span>}
+            </label>
+          ))}
+          <Button type="submit" variant="primary" size="sm" disabled={busy} data-testid="workflow-run-answer">
+            Send answer
+          </Button>
+          <Button variant="ghost" size="sm" disabled={busy} data-testid="workflow-run-resume" onClick={() => void act(() => api.resumeRun(runId))}>
+            Resume
+          </Button>
+        </form>
+      )}
+      {note && <div className="field-error">{note}</div>}
     </div>
   );
 }

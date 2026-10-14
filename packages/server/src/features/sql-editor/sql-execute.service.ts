@@ -131,22 +131,35 @@ export async function runStatements(
    * ones (Clone Table renames, then recreates) needs this; the editor runs
    * every statement and reports each.
    */
-  stopOnError = false
+  stopOnError = false,
+  /**
+   * BEGIN before the first statement and COMMIT only when every one succeeds.
+   * A failure rolls the whole batch back and leaves later statements unrun.
+   * Engines that auto-commit DDL still report each statement; the rollback is
+   * best-effort there.
+   */
+  transaction = false
 ): Promise<StatementResult[]> {
   const schemaName = (schema ?? option.schema)?.trim() || '';
   const optionWithSchema: ConnectionOptions = schemaName
     ? { ...option, schema: schemaName }
     : option;
 
+  const adapter = getAdapter(dialect);
   const connection = await ConnectionFactory.create(dialect, optionWithSchema);
+  let inTransaction = false;
   try {
     if (schemaName) {
-      await getAdapter(dialect).setCurrentSchema(connection, schemaName);
+      await adapter.setCurrentSchema(connection, schemaName);
+    }
+    if (transaction) {
+      await adapter.beginTransaction(connection);
+      inTransaction = true;
     }
 
     const results: StatementResult[] = [];
     for (const [index, original] of statements.entries()) {
-      if (stopOnError && results.at(-1)?.ok === false) break;
+      if ((stopOnError || transaction) && results.at(-1)?.ok === false) break;
       const started = Date.now();
       // Name any SELECT expression the user left unaliased. The grid keys its
       // columns off the row object, and Postgres calls every unaliased
@@ -244,7 +257,15 @@ export async function runStatements(
         pushErr(`Paging failed: ${wrapMsg}\nWrapped SQL: ${preview}`);
       }
     }
+    if (inTransaction) {
+      if (results.some((result) => !result.ok)) await adapter.rollbackTransaction(connection);
+      else await adapter.commitTransaction(connection);
+      inTransaction = false;
+    }
     return results;
+  } catch (error) {
+    if (inTransaction) await adapter.rollbackTransaction(connection).catch(() => undefined);
+    throw error;
   } finally {
     await ConnectionFactory.close(dialect, connection);
   }

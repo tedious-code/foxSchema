@@ -126,6 +126,58 @@ describe('runStatements against a real SQLite file', () => {
     expect(await created()).toMatchObject({ ok: true, rowCount: 1 });
   });
 
+  it('rolls a transaction back when a later statement fails, and commits when all succeed', async () => {
+    const rolled = await runStatements(
+      'sqlite',
+      { connectionString: dbPath },
+      [
+        'CREATE TABLE tx_keep (x INTEGER);',
+        'INSERT INTO tx_keep VALUES (1);',
+        'INSERT INTO tx_missing VALUES (1);',
+        'CREATE TABLE tx_after (x INTEGER);',
+      ],
+      10,
+      undefined,
+      0,
+      [],
+      undefined,
+      false,
+      true
+    );
+    expect(rolled).toHaveLength(3);
+    expect(rolled.map((result) => result.ok)).toEqual([true, true, false]);
+    const gone = await runStatements(
+      'sqlite',
+      { connectionString: dbPath },
+      ["SELECT name FROM sqlite_master WHERE name = 'tx_keep';"],
+      10
+    );
+    expect(gone[0]).toMatchObject({ ok: true, rowCount: 0 });
+    const after = await runStatements(
+      'sqlite',
+      { connectionString: dbPath },
+      ["SELECT name FROM sqlite_master WHERE name = 'tx_after';"],
+      10
+    );
+    expect(after[0]).toMatchObject({ ok: true, rowCount: 0 });
+
+    const kept = await runStatements(
+      'sqlite',
+      { connectionString: dbPath },
+      ['CREATE TABLE tx_ok (x INTEGER);', 'INSERT INTO tx_ok VALUES (1);'],
+      10,
+      undefined,
+      0,
+      [],
+      undefined,
+      false,
+      true
+    );
+    expect(kept.map((result) => result.ok)).toEqual([true, true]);
+    const rows = await runStatements('sqlite', { connectionString: dbPath }, ['SELECT x FROM tx_ok;'], 10);
+    expect(rows[0]).toMatchObject({ ok: true, rows: [[1]] });
+  });
+
   it('applies the row cap with the truncated flag', async () => {
     const results = await runStatements('sqlite', { connectionString: dbPath }, ['SELECT * FROM t;'], 2);
     expect(results[0]).toMatchObject({ ok: true, rowCount: 2, truncated: true, hasNext: true });

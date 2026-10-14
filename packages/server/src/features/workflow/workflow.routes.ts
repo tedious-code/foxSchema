@@ -128,19 +128,29 @@ async function engineJson(engine: WorkflowEngineProxyService, path: string): Pro
   }
 }
 
-/** The workflow document a route acts on, by where the route says it is. */
-async function workflowFor(
+/** The documents whose saved connections this route must be allowed to use. */
+async function workflowsFor(
   engine: WorkflowEngineProxyService,
   route: EngineRoute,
   req: AppRequest,
-): Promise<unknown> {
-  if (route.connections === 'body') return req.body;
+): Promise<unknown[]> {
   const id = (req.params as { id?: string }).id ?? '';
-  if (route.connections === 'workflow') return engineJson(engine, `/workflows/${encodeURIComponent(id)}`);
+  if (route.connections === 'body') return [req.body];
+  if (route.connections === 'body-and-stored') {
+    // The body is checked by the caller before this fetch, so a save that
+    // already names a foreign connection never reaches the engine.
+    const stored = await engineJson(engine, `/workflows/${encodeURIComponent(id)}`);
+    return stored ? [req.body, stored] : [req.body];
+  }
+  if (route.connections === 'workflow') {
+    const stored = await engineJson(engine, `/workflows/${encodeURIComponent(id)}`);
+    return stored ? [stored] : [];
+  }
   // The run's own snapshot, not the workflow as it stands now. Editing or
   // deleting the live document would otherwise drop the connection and leave
   // the rows that run already fetched readable.
-  return engineJson(engine, `/runs/${encodeURIComponent(id)}/snapshot`);
+  const snapshot = await engineJson(engine, `/runs/${encodeURIComponent(id)}/snapshot`);
+  return snapshot ? [snapshot] : [];
 }
 
 function proxyTo(
@@ -164,8 +174,28 @@ function proxyTo(
           return;
         }
       }
-      const used = linkedConnectionsIn(await workflowFor(engine, route, req));
-      const refused = await grants.notUsableBy(actorOf(req).userId!, used);
+      const userId = actorOf(req).userId!;
+      // A save that names a foreign connection is refused before the stored
+      // document is read. Replacing that document is a second check: dropping
+      // the connection in the body must not unlock a workflow the caller
+      // cannot use, or let them delete it.
+      if (route.connections === 'body' || route.connections === 'body-and-stored') {
+        const refusedBody = await grants.notUsableBy(userId, linkedConnectionsIn(req.body));
+        if (refusedBody.length > 0) {
+          sendError(
+            res,
+            'forbidden',
+            'This workflow uses a saved connection from a workspace you are not a member of, so it cannot be saved, run or inspected by you.',
+          );
+          return;
+        }
+      }
+      const documents =
+        route.connections === 'body'
+          ? []
+          : await workflowsFor(engine, route, req);
+      const used = [...new Set(documents.flatMap((document) => linkedConnectionsIn(document)))];
+      const refused = await grants.notUsableBy(userId, used);
       if (refused.length > 0) {
         sendError(
           res,

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * The workspaces feature's public API: the workspace calls Admin makes, and
- * loaders for the profile menu's workspace section and the settings dialog it
- * opens, which load with the menu rather than with the app.
+ * loaders for the rail's workspace menu and the settings dialog it opens,
+ * which load with the menu rather than with the app.
  */
 export {
   apiAdminListWorkspaces,
@@ -15,6 +15,7 @@ export {
   type AdminWorkspaceRow,
 } from './api/workspacesApi';
 
+export { WorkspaceRailButton } from './components/WorkspaceRailButton';
 export const loadWorkspaceMenu = () => import('./components/WorkspaceMenu').then((m) => ({ default: m.WorkspaceMenu }));
 export const loadWorkspaceSettingsDialog = () =>
   import('./components/WorkspaceSettingsDialog').then((m) => ({ default: m.WorkspaceSettingsDialog }));

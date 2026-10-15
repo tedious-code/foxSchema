@@ -44,6 +44,7 @@ describe('ActivityRail', () => {
     expect(screen.getByTestId('sync-pane-history-btn')).toBeTruthy();
     expect(screen.getByTestId('credentials-btn')).toBeTruthy();
     expect(screen.getByTestId('history-btn')).toBeTruthy();
+    expect(screen.getByTestId('workspace-rail-btn')).toBeTruthy();
     expect(screen.getByTestId('profile-menu-trigger')).toBeTruthy();
     fireEvent.click(screen.getByTestId('view-workflow-btn'));
     expect(useUiStore.getState().activeView).toBe('workflow');

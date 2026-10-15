@@ -725,7 +725,7 @@ export const TestIds = {
       homeOpenBtn: 'home-open-btn',
       /** button · Preferences */
       viewSettingsBtn: 'view-settings-btn',
-      /** nav · Workspace */
+      /** nav · Main */
       workspaceSwitcher: 'workspace-switcher',
     },
     BackendOfflineBanner: {
@@ -3492,6 +3492,14 @@ export const TestIds = {
       /** button · Workspace settings */
       workspaceMenuSettings: 'workspace-menu-settings',
     },
+    WorkspaceRailButton: {
+      /** button */
+      workspaceRailBtn: 'workspace-rail-btn',
+      /** span */
+      workspaceRailInvites: 'workspace-rail-invites',
+      /** div */
+      workspaceRailMenu: 'workspace-rail-menu',
+    },
     WorkspaceSettingsDialog: {
       /** li */
       workspaceInvite: (id: string | number) => `workspace-invite-${id}`,
@@ -5171,6 +5179,9 @@ export type TestId =
   | 'workspace-menu-public-empty'
   | `workspace-menu-public-join-${string}`
   | 'workspace-menu-settings'
+  | 'workspace-rail-btn'
+  | 'workspace-rail-invites'
+  | 'workspace-rail-menu'
   | 'workspace-settings'
   | 'workspace-settings-archive'
   | 'workspace-settings-close'

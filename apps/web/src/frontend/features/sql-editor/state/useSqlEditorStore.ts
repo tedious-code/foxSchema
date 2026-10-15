@@ -85,7 +85,7 @@ import {
 import { connectionNeedsSecret } from '@/shared/lib/provider-settings';
 import { useSyncStore } from '@/features/compare';
 import { SQL_EDITOR_PERSIST_KEY, SQL_EDITOR_PERSIST_VERSION, useRecentQueries } from './recentQueries';
-import { deferredLocalStorage } from '@/shared/lib/deferredLocalStorage';
+import { workspaceEditorStorage } from '@/shared/lib/editorWorkspaceStorage';
 import type { SchemaCacheEntry } from '@/features/sql-editor/lib/sqlEditorBridge';
 import {
   getCaretOffset,
@@ -2405,7 +2405,9 @@ export const useSqlEditorStore = create<SqlEditorState>()(
       version: SQL_EDITOR_PERSIST_VERSION,
       // Written 400 ms after the last change (and when the page is hidden),
       // not on every keystroke: the snapshot is 90 kB to 1 MB.
-      storage: deferredLocalStorage(),
+      // The name stays stable for migrations; the storage key adds the active
+      // workspace, so one workspace's scripts do not load in another.
+      storage: workspaceEditorStorage(),
       // Persist tabs + destinations mode + bookmarks + recent + variables. Never passwords/results.
       // Secret variable payloads are stripped (session-only values).
       partialize: (state) => {

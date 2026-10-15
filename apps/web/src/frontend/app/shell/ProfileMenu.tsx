@@ -11,14 +11,9 @@ import { maybeToastUpdateAvailable } from '@/app/shell/updateToast';
 import { MountWhenOpened } from '@/shared/components/MountWhenOpened';
 import { loadAdminAccessPanel } from '@/features/admin';
 import { loadFeedbackDialog } from '@/features/feedback';
-import { loadWorkspaceMenu, loadWorkspaceSettingsDialog } from '@/features/workspaces';
 
 // Admins only, and only on a click: loaded on the first open.
 const AdminAccessPanel = lazy(loadAdminAccessPanel);
-
-// The workspace section loads with the menu, not with the app.
-const WorkspaceMenu = lazy(loadWorkspaceMenu);
-const WorkspaceSettingsDialog = lazy(loadWorkspaceSettingsDialog);
 
 // Only on a click, like the admin panel: nobody pays for it on first load.
 const FeedbackDialog = lazy(loadFeedbackDialog);
@@ -31,8 +26,6 @@ export function ProfileMenu(): React.ReactElement | null {
   const [open, setOpen] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
-  /** The workspace whose settings are open, if any. */
-  const [workspaceSettingsId, setWorkspaceSettingsId] = useState<string | null>(null);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   // Beside the avatar, not below it: the avatar sits at the foot of the left
@@ -86,17 +79,6 @@ export function ProfileMenu(): React.ReactElement | null {
               Role: {user.role}
             </p>
           </div>
-
-          {!launch && (
-            <MountWhenOpened open={open}>
-              <WorkspaceMenu
-                onOpenSettings={(id) => {
-                  setWorkspaceSettingsId(id);
-                  setOpen(false);
-                }}
-              />
-            </MountWhenOpened>
-          )}
 
           {updateAvailable && (
             <a
@@ -227,12 +209,6 @@ export function ProfileMenu(): React.ReactElement | null {
 
       <MountWhenOpened open={showFeedback}>
         <FeedbackDialog open={showFeedback} onClose={() => setShowFeedback(false)} version={update?.current ?? null} />
-      </MountWhenOpened>
-
-      <MountWhenOpened open={workspaceSettingsId !== null}>
-        {workspaceSettingsId && (
-          <WorkspaceSettingsDialog workspaceId={workspaceSettingsId} onClose={() => setWorkspaceSettingsId(null)} />
-        )}
       </MountWhenOpened>
 
       <MountWhenOpened open={showAdmin}>

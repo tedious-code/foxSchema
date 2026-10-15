@@ -8,15 +8,17 @@
  * store on the click.
  */
 import { create } from 'zustand';
+import { editorStorageKey, SQL_EDITOR_PERSIST_KEY } from '@/shared/lib/editorWorkspaceStorage';
 import type { RecentQuery } from './useSqlEditorStore';
 
+export { SQL_EDITOR_PERSIST_KEY };
+
 /** Where and in which shape the editor store saves itself (its `persist` options). */
-export const SQL_EDITOR_PERSIST_KEY = 'foxschema-sql-editor';
 export const SQL_EDITOR_PERSIST_VERSION = 8;
 
 function savedRecentQueries(): RecentQuery[] {
   try {
-    const raw = localStorage.getItem(SQL_EDITOR_PERSIST_KEY);
+    const raw = localStorage.getItem(editorStorageKey());
     const saved = raw ? (JSON.parse(raw) as { version?: number; state?: { recentQueries?: unknown } }) : null;
     // An older snapshot is migrated by the editor store when it loads.
     if (saved?.version !== SQL_EDITOR_PERSIST_VERSION) return [];

@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **987** buttons, text boxes, selects and textareas.
+Every control has a test ID: **988** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -384,7 +384,7 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
   - `history-btn` · button · Applies
   - `home-open-btn` · button · Home
   - `view-settings-btn` · button · Preferences
-  - `workspace-switcher` · nav · Workspace
+  - `workspace-switcher` · nav · Main
 - **BackendOfflineBanner** · `app/shell/BackendOfflineBanner.tsx`
   - `backend-offline-banner` · div
   - `backend-offline-retry` · button · Retry now
@@ -1846,6 +1846,10 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
   - `workspace-menu-public-empty` · p
   - `workspace-menu-public-join-{id}` · button · Join
   - `workspace-menu-settings` · button · Workspace settings
+- **WorkspaceRailButton** · `features/workspaces/components/WorkspaceRailButton.tsx`
+  - `workspace-rail-btn` · button
+  - `workspace-rail-invites` · span
+  - `workspace-rail-menu` · div
 - **WorkspaceSettingsDialog** · `features/workspaces/components/WorkspaceSettingsDialog.tsx`
   - `workspace-invite-{id}` · li
   - `workspace-invite-email` · input · teammate@company.com

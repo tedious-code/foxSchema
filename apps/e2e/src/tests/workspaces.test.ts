@@ -39,10 +39,10 @@ async function api(method: string, path: string, body?: unknown, cookie = admin)
   return { status: res.status, json: (await res.json().catch(() => null)) as any };
 }
 
-async function openMenu(): Promise<void> {
-  await driver.goto(BASE_URL);
-  await clickWhen(driver, byTestId('profile-menu-trigger'));
-  await waitFor(driver, byTestId('workspace-menu'), 15_000);
+async function openMenu(page: Page = driver): Promise<void> {
+  if (page === driver) await page.goto(BASE_URL);
+  await clickWhen(page, byTestId('workspace-rail-btn'));
+  await waitFor(page, byTestId('workspace-menu'), 15_000);
 }
 
 beforeAll(async () => {
@@ -65,7 +65,7 @@ afterAll(async () => {
 });
 
 describe('workspaces', () => {
-  it('the profile menu shows the account’s own workspace as current', async () => {
+  it('the rail shows the account’s own workspace as current', async () => {
     await openMenu();
     expect(await driver.locator(byTestId(`workspace-menu-item-${personalId}`)).getAttribute('aria-current')).toBe('true');
   });
@@ -172,7 +172,7 @@ describe('workspaces', () => {
     await guest.waitForSelector(`${byTestId('onboarding-skip')}, ${byTestId('profile-menu-trigger')}`, { timeout: 30_000 });
     const skip = guest.locator(byTestId('onboarding-skip'));
     if (await skip.count()) await skip.click();
-    await clickWhen(guest, byTestId('profile-menu-trigger'));
+    await clickWhen(guest, byTestId('workspace-rail-btn'));
     const inviteRow = guest.locator(`${byTestId('workspace-menu-invites')} [data-testid^="workspace-menu-invite-accept-"]`);
     await inviteRow.waitFor({ timeout: 15_000 });
     await saveScreenshot(guest, 'workspaces-invite-received');
@@ -243,7 +243,7 @@ describe('workspaces', () => {
     await walker.waitForSelector(`${byTestId('onboarding-skip')}, ${byTestId('profile-menu-trigger')}`, { timeout: 30_000 });
     const skip = walker.locator(byTestId('onboarding-skip'));
     if (await skip.count()) await skip.click();
-    await clickWhen(walker, byTestId('profile-menu-trigger'));
+    await clickWhen(walker, byTestId('workspace-rail-btn'));
     await clickWhen(walker, byTestId('workspace-menu-browse'));
     await waitFor(walker, byTestId(`workspace-menu-public-${teamId}`), 10_000);
     await saveScreenshot(walker, 'workspaces-public-browse');

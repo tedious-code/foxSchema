@@ -9,6 +9,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Check, Compass, Layers, Plus, Settings2 } from 'lucide-react';
+import { prepareWorkspaceSwitch } from '@/shared/lib/editorWorkspaceStorage';
 import {
   apiAcceptInvite,
   apiCreateWorkspace,
@@ -60,12 +61,23 @@ export const WorkspaceMenu: React.FC<{
 
   const current = list.workspaces.find((w) => w.id === list.currentId);
 
+  /** Select `id` and reload. The editor blob is pointed at `id` only if select succeeds. */
+  const enter = async (id: string) => {
+    const undo = prepareWorkspaceSwitch(list.currentId, id);
+    try {
+      await apiSelectWorkspace(id);
+      reload();
+    } catch (e: unknown) {
+      undo();
+      throw e;
+    }
+  };
+
   const switchTo = async (id: string) => {
     if (id === list.currentId) return;
     setBusy(true);
     try {
-      await apiSelectWorkspace(id);
-      reload();
+      await enter(id);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Could not switch workspace');
       setBusy(false);
@@ -78,8 +90,7 @@ export const WorkspaceMenu: React.FC<{
     setError(null);
     try {
       if (accept) {
-        await apiSelectWorkspace(await apiAcceptInvite(invite.id));
-        reload();
+        await enter(await apiAcceptInvite(invite.id));
         return;
       }
       await apiDeclineInvite(invite.id);
@@ -104,8 +115,7 @@ export const WorkspaceMenu: React.FC<{
     setError(null);
     try {
       await apiJoinWorkspace(id);
-      await apiSelectWorkspace(id);
-      reload();
+      await enter(id);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Could not join');
       setBusy(false);
@@ -118,8 +128,7 @@ export const WorkspaceMenu: React.FC<{
     setError(null);
     try {
       const ws = await apiCreateWorkspace(name);
-      await apiSelectWorkspace(ws.id);
-      reload();
+      await enter(ws.id);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not create the workspace');
       setBusy(false);

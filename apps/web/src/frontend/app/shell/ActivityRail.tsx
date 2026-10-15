@@ -3,11 +3,12 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * Left activity rail: one workspace at a time. Its main buttons come from the
- * view registry (`app/features/featureRegistry.ts`), whose labels and RBAC
- * come from COMMUNITY_NAV in `@foxschema/shared`, so the shell and the
- * permission catalog stay aligned. Credentials, Applies, and the account menu
- * live here so the Compare toolbar keeps horizontal room.
+ * Left activity rail. Its main buttons come from the view registry
+ * (`app/features/featureRegistry.ts`), whose labels and RBAC come from
+ * COMMUNITY_NAV in `@foxschema/shared`, so the shell and the permission
+ * catalog stay aligned. The workspace button under the mark is the one
+ * workspace this account is acting in. Credentials, Applies, and the account
+ * menu live here so the Compare toolbar keeps horizontal room.
  */
 import React, { lazy, useState } from 'react';
 import { History, KeyRound, Settings } from 'lucide-react';
@@ -17,6 +18,7 @@ import { prefetchView, railItems } from '@/app/features/featureRegistry';
 import { MountWhenOpened } from '@/shared/components/MountWhenOpened';
 import { FoxLogo } from '@/shared/components/FoxLogo';
 import { ProfileMenu } from './ProfileMenu';
+import { WorkspaceRailButton } from '@/features/workspaces';
 import { loadCredentialManager } from '@/features/connections';
 import { loadMigrationHistory } from '@/features/migrations';
 
@@ -40,7 +42,7 @@ export function ActivityRail(): React.ReactElement | null {
     <>
       <nav
         data-testid="workspace-switcher"
-        aria-label="Workspace"
+        aria-label="Main"
         className="flex w-14 shrink-0 flex-col items-center gap-1 border-r border-slate-800 bg-slate-900/90 py-2"
       >
         <button
@@ -58,6 +60,7 @@ export function ActivityRail(): React.ReactElement | null {
         >
           <FoxLogo size={28} />
         </button>
+        <WorkspaceRailButton />
         {visible.map((item) => {
           const on = activeView === item.view;
           return (

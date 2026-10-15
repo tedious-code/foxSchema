@@ -44,6 +44,8 @@ interface CommonProps {
   placeholder?: string;
   /** Prefix for the trigger, filter and backdrop test ids. */
   testId?: string;
+  /** Accessible name when the summary is not enough on its own. */
+  ariaLabel?: string;
   /** A leading cell per row, such as a destination's group number. */
   renderLead?: (option: FilterPickerOption) => React.ReactNode;
 }
@@ -141,6 +143,7 @@ export function FilterPicker(props: FilterPickerProps): React.ReactElement {
     triggerClassName = TRIGGER,
     placeholder = 'Filter…',
     testId,
+    ariaLabel,
     renderLead,
   } = props;
   const [open, setOpen] = useState(false);
@@ -242,6 +245,7 @@ export function FilterPicker(props: FilterPickerProps): React.ReactElement {
         type="button"
         title={title}
         disabled={disabled}
+        aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
         data-testid={part('trigger')}

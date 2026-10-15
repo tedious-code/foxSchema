@@ -25,6 +25,21 @@ let registered = false;
 /** Rebuilt when schemaCache revision changes. */
 let cachedTries: SchemaTrieBundle | null = null;
 
+function objectTypeOf(
+  schemas: ReturnType<typeof getCompletionContext>['schemas'],
+  name: string
+): string | undefined {
+  const key = name.toLowerCase();
+  for (const src of schemas) {
+    for (const table of src.tables) {
+      const full = table.name.toLowerCase();
+      const bare = full.includes('.') ? full.slice(full.lastIndexOf('.') + 1) : full;
+      if (full === key || bare === key) return table.objectType;
+    }
+  }
+  return undefined;
+}
+
 function triesFor(schemas: ReturnType<typeof getCompletionContext>['schemas']): SchemaTrieBundle {
   const rev = schemaRevision(schemas);
   if (cachedTries && cachedTries.revision === rev) return cachedTries;
@@ -271,6 +286,18 @@ export function ensureSqlCompletions(monaco: typeof Monaco): void {
             return {
               suggestions: names.map((name) => {
                 const bare = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1) : name;
+                const kind = objectTypeOf(schemas, name);
+                if (kind === 'FUNCTION' || kind === 'PROCEDURE') {
+                  return {
+                    label: name,
+                    kind: monaco.languages.CompletionItemKind.Function,
+                    insertText: `${name}()`,
+                    filterText: name,
+                    detail: `${kind.toLowerCase()} · ${dot[1]!}`,
+                    sortText: `1_${name}`,
+                    range: colRange,
+                  };
+                }
                 if (fromTablePos) {
                   const alias = suggestTableAlias(bare, takenAliases);
                   takenAliases.add(alias);

@@ -109,6 +109,22 @@ describe('schema. lists the tables in that schema', () => {
     expect(orders?.detail).toBe('table · demo_a');
   });
 
+  it('lists a function without inventing a table alias', () => {
+    context([
+      {
+        ...demoA,
+        tables: [
+          ...demoA.tables,
+          { name: 'tax_total', objectType: 'FUNCTION', columns: [], parameters: [] },
+        ] as never,
+      },
+    ]);
+    const fn = complete('SELECT * FROM demo_a.').find((s) => s.insertText.startsWith('tax_total'));
+    expect(fn?.insertText).toBe('tax_total()');
+    expect(fn?.detail).toMatch(/^function · demo_a/);
+    expect(fn?.insertText).not.toMatch(/tax_total \w+$/);
+  });
+
   it('gives each FROM table a unique alias when several are listed', () => {
     const items = complete('SELECT * FROM demo_a.');
     const aliases = items.map((s) => s.insertText.split(/\s+/)[1]).filter(Boolean);

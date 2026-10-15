@@ -790,12 +790,33 @@ describe('defrag statements the engines actually accept', () => {
     // Db2 has no single-index REORG. And REORG is a command, not SQL, so over a
     // driver connection it must be wrapped in SYSPROC.ADMIN_CMD (otherwise
     // SQL0104N, "expected tokens may include: JOIN").
-    const [stmt, note] = defrag('db2', 'DEMO_A', 'ORDERS', 'IDX_ORDERS_CUST');
+    const [stmt, stats, note] = defrag('db2', 'DEMO_A', 'ORDERS', 'IDX_ORDERS_CUST');
     expect(stmt).toBe(
       `CALL SYSPROC.ADMIN_CMD('REORG INDEXES ALL FOR TABLE "DEMO_A"."ORDERS"');`
     );
+    // The % on screen is SYSCAT.INDEXES. REORG leaves it stale; RUNSTATS is
+    // what makes a refresh show the result.
+    expect(stats).toBe(
+      `CALL SYSPROC.ADMIN_CMD('RUNSTATS ON TABLE "DEMO_A"."ORDERS" AND INDEXES ALL');`
+    );
     // The reader has to know one index was not the unit of work.
     expect(note).toMatch(/no single-index REORG/i);
+  });
+
+  it('Db2 folds a typed schema to the uppercase name the catalog stores', () => {
+    // Live server: quoting the typed case (`"demo_a"."ORDERS"`, `"App"."ORDERS"`)
+    // returns SQL2211N. The probe had already found the table as DEMO_A / APP.
+    const [lower] = defrag('db2', 'demo_a', 'orders', 'IDX');
+    expect(lower).toBe(
+      `CALL SYSPROC.ADMIN_CMD('REORG INDEXES ALL FOR TABLE "DEMO_A"."ORDERS"');`
+    );
+    const [mixedSchema] = defrag('db2', 'App', 'ORDERS', 'IDX');
+    expect(mixedSchema).toBe(
+      `CALL SYSPROC.ADMIN_CMD('REORG INDEXES ALL FOR TABLE "APP"."ORDERS"');`
+    );
+    // A mixed-case table name is a delimited identifier from SYSCAT.
+    const [mixed] = defrag('db2', 'DEMO_A', 'MyTable', 'IDX');
+    expect(mixed).toContain('"DEMO_A"."MyTable"');
   });
 
   it('Db2 doubles a quote inside the ADMIN_CMD literal', () => {

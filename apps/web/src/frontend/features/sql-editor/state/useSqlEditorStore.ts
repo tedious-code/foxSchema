@@ -307,6 +307,11 @@ export interface PendingPasswordPrompt {
   connectionIds?: string[];
   /** When set, resume runs only these statement indices (per-cell Play). */
   statementIndices?: number[];
+  /**
+   * After the password, check this connection and uncheck the others.
+   * The schema browser sets it so the query follows the tables on screen.
+   */
+  onlyThisDestination?: boolean;
 }
 
 export interface ReadonlyWriteTarget {
@@ -404,6 +409,12 @@ interface SqlEditorState {
    * May open the session-password prompt when the credential has no stored password.
    */
   ensureConnectionSelected: (id: string) => void;
+  /**
+   * Check exactly this destination. The schema browser uses it so the query
+   * runs on the connection whose tables you are looking at. Check more
+   * destinations afterwards to run the same SQL on several.
+   */
+  selectOnlyConnection: (id: string) => void;
   setShareDestinations: (share: boolean) => void;
   setSafeMode: (on: boolean) => void;
   setOneTransaction: (on: boolean) => void;
@@ -685,6 +696,32 @@ export const useSqlEditorStore = create<SqlEditorState>()(
         void get().ensureSchema(id);
       },
 
+      selectOnlyConnection: (id) => {
+        const { tabs, activeTabId, sessionPasswords, shareDestinations } = get();
+        const tab = tabs.find((t) => t.id === activeTabId);
+        if (!tab || !id) return;
+        const conn = useSyncStore.getState().connections.find((c) => c.id === id);
+        if (
+          conn &&
+          !conn.hasPassword &&
+          connectionNeedsSecret(conn.dialect, conn.authMethod) &&
+          !sessionPasswordFor(id, sessionPasswords)
+        ) {
+          set({
+            pendingPassword: {
+              id,
+              name: conn.name || conn.dialect,
+              resumeExecute: false,
+              onlyThisDestination: true,
+            },
+          });
+          return;
+        }
+        set(destinationIdsPatch(shareDestinations, tabs, activeTabId, [id]));
+        void get().ensureSchema(id);
+        void get().ensureSchema(id, { scope: SCHEMA_ROUTINE_SCOPE });
+      },
+
       toggleStatement: (index) => {
         const { tabs, activeTabId } = get();
         set({
@@ -767,9 +804,11 @@ export const useSqlEditorStore = create<SqlEditorState>()(
         const current = shareDestinations
           ? sharedConnectionIds
           : (tabs.find((t) => t.id === activeTabId)?.selectedConnectionIds ?? []);
-        const destPatch = current.includes(id)
-          ? {}
-          : destinationIdsPatch(shareDestinations, tabs, activeTabId, [...current, id]);
+        const destPatch = pendingPassword.onlyThisDestination
+          ? destinationIdsPatch(shareDestinations, tabs, activeTabId, [id])
+          : current.includes(id)
+            ? {}
+            : destinationIdsPatch(shareDestinations, tabs, activeTabId, [...current, id]);
 
         setSessionPassword(id, trimmed);
         set({
@@ -792,6 +831,9 @@ export const useSqlEditorStore = create<SqlEditorState>()(
           });
         } else {
           void get().ensureSchema(id, { force: true });
+          if (pendingPassword.onlyThisDestination) {
+            void get().ensureSchema(id, { scope: SCHEMA_ROUTINE_SCOPE });
+          }
         }
       },
 

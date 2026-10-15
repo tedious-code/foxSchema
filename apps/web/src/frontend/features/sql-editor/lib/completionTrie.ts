@@ -124,10 +124,20 @@ export function buildSchemaTries(
     if (schemaKey && !tablesBySchema.has(schemaKey)) tablesBySchema.set(schemaKey, createTrie());
     for (const t of src.tables) {
       const ot = t.objectType;
-      if (ot && ot !== 'TABLE' && ot !== 'VIEW' && ot !== 'MQT') continue;
-      trieInsert(tables, t.name);
+      if (ot && ot !== 'TABLE' && ot !== 'VIEW' && ot !== 'MQT' && ot !== 'FUNCTION' && ot !== 'PROCEDURE') {
+        continue;
+      }
       const lower = t.name.toLowerCase();
       const bare = lower.includes('.') ? lower.slice(lower.lastIndexOf('.') + 1) : lower;
+      // Routines belong in `schema.` suggestions. They are not tables: putting
+      // them on the table trie made Ctrl+Space invent an alias for a function.
+      if (ot === 'FUNCTION' || ot === 'PROCEDURE') {
+        const routineDot = t.name.lastIndexOf('.');
+        if (routineDot > 0) intoSchema(t.name.slice(0, routineDot), t.name.slice(routineDot + 1));
+        else intoSchema(src.schema, t.name);
+        continue;
+      }
+      trieInsert(tables, t.name);
       // Two ways a table belongs to a schema: the connection loaded it from
       // there (names come back bare), or the name itself is qualified. They
       // are alternatives, not both — indexing a qualified name under the

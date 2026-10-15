@@ -20,7 +20,7 @@ import {
   History,
 } from 'lucide-react';
 import { useSyncStore } from '@/features/compare';
-import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
+import { SCHEMA_ROUTINE_SCOPE, useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { useAuthStore } from '@/platform/authStore';
 import { splitSqlStatements, type SplitStatement } from '@/shared/lib/sql-splitter';
 import { formatEditorSql } from '@/shared/utils/formatSql';
@@ -224,6 +224,10 @@ export const SqlEditorView: React.FC = () => {
           if (entry?.status !== 'ready' || !entry.tables) {
             if (entry?.status !== 'loading') void state.ensureSchema(id);
             return null;
+          }
+          const loaded = new Set(entry.scope ?? []);
+          if (!SCHEMA_ROUTINE_SCOPE.every((type) => loaded.has(type))) {
+            void state.ensureSchema(id, { scope: SCHEMA_ROUTINE_SCOPE });
           }
           return {
             connectionId: id,

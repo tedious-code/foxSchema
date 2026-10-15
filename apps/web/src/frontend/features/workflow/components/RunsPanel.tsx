@@ -376,6 +376,7 @@ function RunSteering({
               {field.type === 'boolean' ? (
                 <input
                   type="checkbox"
+                  data-testid={`workflow-run-answer-${field.key}`}
                   checked={values[field.key] === 'true'}
                   onChange={(ev) => setValues((current) => ({ ...current, [field.key]: ev.target.checked ? 'true' : 'false' }))}
                 />

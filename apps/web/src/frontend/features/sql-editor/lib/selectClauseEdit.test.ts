@@ -156,6 +156,13 @@ describe('selectClauseEdit', () => {
     expect(again.alias).toBe(empty.alias);
   });
 
+  it('starts a new SELECT when the previous statement is finished', () => {
+    const next = addTableWithAliasToFrom('SELECT * FROM DEMO_A.CATEGORIES cat;', 'COUPONS');
+    expect(next.added).toBe(true);
+    expect(next.sql).toBe('SELECT * FROM DEMO_A.CATEGORIES cat;\nSELECT *\nFROM COUPONS cou');
+    expect(next.sql).not.toContain('cat;,');
+  });
+
   it('ensureTableHasAlias upgrades bare FROM and rewrites SELECT quals', () => {
     const { sql, alias, changed } = ensureTableHasAlias(
       'SELECT orders.created_at, orders.customer_id from orders',

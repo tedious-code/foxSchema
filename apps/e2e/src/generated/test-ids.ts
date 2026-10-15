@@ -49,6 +49,8 @@ export const TestIds = {
       accessPermissionAllowAll: 'access-permission-allow-all',
       /** li */
       accessPermissionAlteration: (a: string | number) => `access-permission-alteration-${a}`,
+      /** button */
+      accessPermissionApply: 'access-permission-apply',
       /** button · Cancel */
       accessPermissionCancel: 'access-permission-cancel',
       /** div */
@@ -2315,6 +2317,8 @@ export const TestIds = {
       sqlMaxRows: 'sql-max-rows',
       /** input */
       sqlMultiTableThreshold: 'sql-multi-table-threshold',
+      /** input */
+      sqlOneTransaction: 'sql-one-transaction',
       /** button · Refresh */
       sqlRefreshBtn: 'sql-refresh-btn',
       /** button */
@@ -2366,12 +2370,6 @@ export const TestIds = {
       /** button · From */
       sqlExplorerFrom: (name: string | number) => `sql-explorer-from-${name}`,
       /** button */
-      sqlExplorerIndex: (name: string | number, name2: string | number) => `sql-explorer-index-${name}-${name2}`,
-      /** div */
-      sqlExplorerIndexes: (name: string | number) => `sql-explorer-indexes-${name}`,
-      /** button · Indexes ( ) */
-      sqlExplorerIndexesToggle: (name: string | number) => `sql-explorer-indexes-toggle-${name}`,
-      /** button */
       sqlExplorerObject: (name: string | number) => `sql-explorer-object-${name}`,
       /** button */
       sqlExplorerParamInsert: (name: string | number, name2: string | number) => `sql-explorer-param-insert-${name}-${name2}`,
@@ -2391,8 +2389,18 @@ export const TestIds = {
       sqlOpenObjectSourceBtn: 'sql-open-object-source-btn',
       /** button · Reload schema */
       sqlReloadSchema: 'sql-reload-schema',
-      /** select · Schema connection */
-      sqlSchemaConnection: 'sql-schema-connection',
+      /** div · Sets Destinations to this connection. Check more destinations to run the same SQL on several. */
+      sqlSchemaConnectionBackdrop: 'sql-schema-connection-backdrop',
+      /** button · Sets Destinations to this connection. Check more destinations to run the same SQL on several. */
+      sqlSchemaConnectionClear: 'sql-schema-connection-clear',
+      /** input · Sets Destinations to this connection. Check more destinations to run the same SQL on several. */
+      sqlSchemaConnectionFilter: 'sql-schema-connection-filter',
+      /** div · Sets Destinations to this connection. Check more destinations to run the same SQL on several. */
+      sqlSchemaConnectionGroup: (group: string | number) => `sql-schema-connection-group-${group}`,
+      /** input · Sets Destinations to this connection. Check more destinations to run the same SQL on several. */
+      sqlSchemaConnectionOption: (id: string | number) => `sql-schema-connection-option-${id}`,
+      /** button · Sets Destinations to this connection. Check more destinations to run the same SQL on several. */
+      sqlSchemaConnectionTrigger: 'sql-schema-connection-trigger',
       /** div */
       sqlSchemaEmpty: 'sql-schema-empty',
       /** div */
@@ -3337,6 +3345,14 @@ export const TestIds = {
       workflowPaletteShowAdvanced: 'workflow-palette-show-advanced',
     },
     RunsPanel: {
+      /** Button */
+      workflowRunAnswer: 'workflow-run-answer',
+      /** input */
+      workflowRunAnswerForKey: (key: string | number) => `workflow-run-answer-${key}`,
+      /** Button */
+      workflowRunCancel: 'workflow-run-cancel',
+      /** Button */
+      workflowRunResume: 'workflow-run-resume',
       /** input */
       workflowRunsLive: 'workflow-runs-live',
     },
@@ -3554,6 +3570,7 @@ export type TestId =
   | 'access-permission-account-name'
   | 'access-permission-allow-all'
   | `access-permission-alteration-${string}`
+  | 'access-permission-apply'
   | 'access-permission-cancel'
   | 'access-permission-confirm'
   | 'access-permission-confirm-run'
@@ -4621,9 +4638,6 @@ export type TestId =
   | `sql-explorer-col-select-${string}-${string}`
   | `sql-explorer-columns-toggle-${string}`
   | `sql-explorer-from-${string}`
-  | `sql-explorer-index-${string}-${string}`
-  | `sql-explorer-indexes-${string}`
-  | `sql-explorer-indexes-toggle-${string}`
   | `sql-explorer-object-${string}`
   | `sql-explorer-param-insert-${string}-${string}`
   | `sql-explorer-table-stats-${string}`
@@ -4680,6 +4694,7 @@ export type TestId =
   | 'sql-multi-table-threshold'
   | 'sql-new-table'
   | 'sql-new-table-empty'
+  | 'sql-one-transaction'
   | 'sql-open-blueprint'
   | 'sql-open-object-source'
   | 'sql-open-object-source-btn'
@@ -4762,7 +4777,12 @@ export type TestId =
   | 'sql-safe-no-where-ack'
   | 'sql-safe-no-where-ack-check'
   | 'sql-safe-no-where-warn'
-  | 'sql-schema-connection'
+  | 'sql-schema-connection-backdrop'
+  | 'sql-schema-connection-clear'
+  | 'sql-schema-connection-filter'
+  | `sql-schema-connection-group-${string}`
+  | `sql-schema-connection-option-${string}`
+  | 'sql-schema-connection-trigger'
   | 'sql-schema-empty'
   | 'sql-schema-explorer'
   | `sql-schema-group-${string}`
@@ -5058,6 +5078,10 @@ export type TestId =
   | 'workflow-palette-search-pipes'
   | 'workflow-palette-show-advanced'
   | `workflow-process-${string}`
+  | 'workflow-run-answer'
+  | `workflow-run-answer-${string}`
+  | 'workflow-run-cancel'
+  | 'workflow-run-resume'
   | 'workflow-runs-live'
   | `workflow-sink-${string}`
   | 'workflow-source-add-column'

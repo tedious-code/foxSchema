@@ -287,10 +287,38 @@ describe('runStatements against a real SQLite file', () => {
     }
   });
 
-  it('fails closed at offset 0 when page wrap fails (no raw fallback)', async () => {
+  it('reports the statement error when a LIMIT 1 probe fails', async () => {
     const spy = vi
       .spyOn(ConnectionFactory, 'executeOnConnection')
-      .mockRejectedValueOnce(new Error('wrap boom'));
+      .mockRejectedValueOnce(new Error('wrap boom'))
+      .mockRejectedValueOnce(new Error("no such table: COUPONS"));
+    try {
+      const results = await runStatements(
+        'sqlite',
+        { connectionString: dbPath },
+        ['SELECT * FROM COUPONS cou'],
+        1,
+        undefined,
+        0
+      );
+      expect(results[0]).toMatchObject({ ok: false });
+      if (!results[0]!.ok) {
+        expect(results[0].error).toBe('no such table: COUPONS');
+        expect(results[0].error).not.toMatch(/Paging failed/i);
+      }
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(String(spy.mock.calls[0]![2])).toContain('fox_page');
+      expect(String(spy.mock.calls[1]![2])).toBe('SELECT * FROM COUPONS cou LIMIT 1');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('keeps the paging error when the statement itself runs', async () => {
+    const spy = vi
+      .spyOn(ConnectionFactory, 'executeOnConnection')
+      .mockRejectedValueOnce(new Error('wrap boom'))
+      .mockResolvedValueOnce([{ id: 1 }]);
     try {
       const results = await runStatements(
         'sqlite',
@@ -305,7 +333,9 @@ describe('runStatements against a real SQLite file', () => {
         expect(results[0].error).toMatch(/Paging failed/i);
         expect(results[0].error).toMatch(/wrap boom/);
       }
-      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(String(spy.mock.calls[1]![2])).toContain('LIMIT 1');
+      expect(String(spy.mock.calls[1]![2])).not.toContain('fox_page');
     } finally {
       spy.mockRestore();
     }

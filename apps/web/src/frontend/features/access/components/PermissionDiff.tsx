@@ -233,10 +233,16 @@ export const PermissionDiff: React.FC<{
       <div className="w-[46%] min-w-[380px] overflow-y-auto border-r border-slate-800 p-5 flex flex-col gap-4">
         <div>
           <h2 className="text-sm font-bold text-slate-100">Permission Diff</h2>
-          <p className="text-[11px] text-slate-500 mt-0.5">
-            Define the access you want, load the live catalog, and copy reconciliation SQL for
-            gaps. Fox Schema never applies it.
-          </p>
+          <ol className="text-[11px] text-slate-400 mt-1.5 list-decimal pl-4 flex flex-col gap-0.5">
+            <li>Choose the database, then the user or role.</li>
+            <li>Load catalog — that reads the privileges this database already granted.</li>
+            <li>Add the access you want (schema, table, and privilege).</li>
+            <li>
+              The right side marks each line match, missing, or extra, and builds the GRANT and
+              REVOKE statements.
+            </li>
+            <li>Copy SQL and review it. This tab does not run it. To apply a grant, use the Permissions tab.</li>
+          </ol>
         </div>
 
         <div className={lockedConnectionId !== undefined ? 'sr-only' : undefined}>
@@ -355,7 +361,7 @@ export const PermissionDiff: React.FC<{
           {!principalName.trim() ? (
             <EmptyState
               title="Choose a principal"
-              body="Enter a principal and define desired access."
+              body="Pick a database, type a user or role, then Load catalog. This tab compares what you want with what the database already granted, and copies the SQL. It does not run it — Apply is on the Permissions tab."
             />
           ) : !diff ? (
             // Two different situations used to read identically. A catalog that
@@ -369,7 +375,7 @@ export const PermissionDiff: React.FC<{
               body={
                 catalogReady
                   ? 'The catalog loaded, but this database reported no privileges to compare against. Anything you ask for below will show as missing.'
-                  : 'Load the catalog to compare desired vs live privileges.'
+                  : 'Click Load catalog. Then add the grants you want. Match means the database already has it, missing means the SQL will GRANT it, extra means the SQL will REVOKE it. Copy SQL when you are ready. Apply lives on the Permissions tab.'
               }
             />
           ) : (

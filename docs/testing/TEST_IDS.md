@@ -33,6 +33,7 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
   - `access-permission-account-name` · dd
   - `access-permission-allow-all` · p
   - `access-permission-alteration-{a}` · li
+  - `access-permission-apply` · button
   - `access-permission-cancel` · button · Cancel
   - `access-permission-confirm` · div
   - `access-permission-confirm-run` · button
@@ -1238,6 +1239,7 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
   - `sql-layout-side-by-side` · button · Side by side (per statement) — compare cell values across servers
   - `sql-max-rows` · input
   - `sql-multi-table-threshold` · input
+  - `sql-one-transaction` · input
   - `sql-refresh-btn` · button · Refresh
   - `sql-run-btn` · button
   - `sql-runs-drawer-btn` · button · Recent runs
@@ -1263,9 +1265,6 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
   - `sql-explorer-col-select-{name}-{name2}` · button · Sel
   - `sql-explorer-columns-toggle-{name}` · button · Columns ( )
   - `sql-explorer-from-{name}` · button · From
-  - `sql-explorer-index-{name}-{name2}` · button
-  - `sql-explorer-indexes-{name}` · div
-  - `sql-explorer-indexes-toggle-{name}` · button · Indexes ( )
   - `sql-explorer-object-{name}` · button
   - `sql-explorer-param-insert-{name}-{name2}` · button
   - `sql-explorer-table-stats-{name}` · span
@@ -1276,7 +1275,12 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
   - `sql-open-object-source` · button
   - `sql-open-object-source-btn` · button · Open source script in the editor (view only)
   - `sql-reload-schema` · button · Reload schema
-  - `sql-schema-connection` · select · Schema connection
+  - `sql-schema-connection-backdrop` · div in FilterPicker · Sets Destinations to this connection. Check more destinations to run the same SQL on several.
+  - `sql-schema-connection-clear` · button in FilterPicker · Sets Destinations to this connection. Check more destinations to run the same SQL on several.
+  - `sql-schema-connection-filter` · input in FilterPicker · Sets Destinations to this connection. Check more destinations to run the same SQL on several.
+  - `sql-schema-connection-group-{group}` · div in FilterPicker · Sets Destinations to this connection. Check more destinations to run the same SQL on several.
+  - `sql-schema-connection-option-{id}` · input in FilterPicker · Sets Destinations to this connection. Check more destinations to run the same SQL on several.
+  - `sql-schema-connection-trigger` · button in FilterPicker · Sets Destinations to this connection. Check more destinations to run the same SQL on several.
   - `sql-schema-empty` · div
   - `sql-schema-explorer` · div
   - `sql-schema-group-{type}` · div
@@ -1767,6 +1771,10 @@ Every control has a test ID: **987** buttons, text boxes, selects and textareas.
   - `workflow-palette-search-pipes` · input · Search pipes
   - `workflow-palette-show-advanced` · input
 - **RunsPanel** · `features/workflow/components/RunsPanel.tsx`
+  - `workflow-run-answer` · Button
+  - `workflow-run-answer-{key}` · input
+  - `workflow-run-cancel` · Button
+  - `workflow-run-resume` · Button
   - `workflow-runs-live` · input
 - **SqlPipeEditor** · `features/workflow/components/SqlPipeEditor.tsx`
   - `sql-pipe-connection-backdrop` · div in FilterPicker · Filter by name, dialect, host…

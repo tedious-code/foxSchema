@@ -399,6 +399,15 @@ export function addTableWithAliasToFrom(
   const nextAlias = alias || suggestTableAlias(bare, sql);
   const fragment = `${tableIdent} ${nextAlias}`;
   const trimmed = sql.trim();
+  // A finished statement stays finished. Clicking another table starts the
+  // next SELECT instead of writing `… cat;, other o` into the one already done.
+  if (trimmed.endsWith(';')) {
+    return {
+      sql: `${trimmed}\nSELECT *\nFROM ${fragment}`,
+      alias: nextAlias,
+      added: true,
+    };
+  }
   if (!trimmed) {
     return { sql: `SELECT *\nFROM ${fragment}`, alias: nextAlias, added: true };
   }

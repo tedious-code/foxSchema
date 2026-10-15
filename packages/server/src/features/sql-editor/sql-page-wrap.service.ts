@@ -120,6 +120,37 @@ export function hasTopLevelOrderBy(sql: string): boolean {
  * Best-effort page wrap. Dialects without OFFSET still get a subquery + LIMIT
  * when offset is 0; non-zero offset uses the closest dialect syntax.
  */
+const LIMIT_ONE_DIALECTS = new Set([
+  'mysql',
+  'mariadb',
+  'tidb',
+  'postgres',
+  'postgresql',
+  'sqlite',
+  'duckdb',
+  'clickhouse',
+  'cockroach',
+  'cockroachdb',
+  'yugabyte',
+  'yugabytedb',
+  'redshift',
+]);
+
+/**
+ * The reader's statement with `LIMIT 1`, for dialects that accept it.
+ *
+ * Used only after a page wrap fails. A missing table then comes back as the
+ * statement they wrote, instead of as a failure of `SELECT * FROM (…) AS fox_page`.
+ * Statements that already limit themselves are probed as written.
+ */
+export function syntaxProbeSql(sql: string, dialect: string): string | null {
+  if (!LIMIT_ONE_DIALECTS.has(dialect.toLowerCase())) return null;
+  const trimmed = sql.trim().replace(/;+\s*$/, '');
+  if (!trimmed) return null;
+  if (/\blimit\b/i.test(trimmed)) return trimmed;
+  return `${trimmed} LIMIT 1`;
+}
+
 export function wrapSqlForPage(
   sql: string,
   dialect: string,

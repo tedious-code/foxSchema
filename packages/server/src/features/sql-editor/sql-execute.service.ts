@@ -1,6 +1,6 @@
 import { ConnectionFactory, getAdapter, type ConnectionOptions } from '@foxschema/db';
 import { autoAliasSelectColumns, errorMessage } from '@foxschema/sql';
-import { isPageableStatement, trimPageProbe, wrapSqlForPage, wrapSqlForSeek, type SqlSeek } from './sql-page-wrap.service';
+import { isPageableStatement, syntaxProbeSql, trimPageProbe, wrapSqlForPage, wrapSqlForSeek, type SqlSeek } from './sql-page-wrap.service';
 
 /**
  * Helpers behind POST /api/sql/execute (SQL Editor). One request = one
@@ -250,6 +250,28 @@ export async function runStatements(
         });
       } catch (error: unknown) {
         const wrapMsg = errorMessage(error);
+        // A missing table fails inside the page wrapper (`SELECT * FROM (…) AS
+        // fox_page`). Probe the statement itself with LIMIT 1 so the error is
+        // the one the reader can act on. The probe runs only after the wrap
+        // fails, and only at the first page — a successful SELECT is unchanged.
+        const probe = !seek && offset === 0 ? syntaxProbeSql(sql, dialect) : null;
+        if (probe) {
+          try {
+            const positional = ConnectionFactory.executePositional(dialect, connection, probe, params);
+            if (positional) await positional;
+            else {
+              await ConnectionFactory.executeOnConnection<Record<string, unknown>>(
+                dialect,
+                connection,
+                probe,
+                params
+              );
+            }
+          } catch (probeError: unknown) {
+            pushErr(errorMessage(probeError));
+            continue;
+          }
+        }
         // Fail closed for all pageable statements: raw fallback can materialize
         // an unbounded result set before shapeRows truncates, and ignores OFFSET.
         // Include the wrapped SQL so DB2 alias / dialect issues are diagnosable.

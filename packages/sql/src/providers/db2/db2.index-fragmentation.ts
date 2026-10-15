@@ -12,6 +12,25 @@ import {
   type IndexFragmentationDialect,
 } from '../../modules/utilities/index-fragmentation.types.js';
 
+/**
+ * Qualified table for a REORG/RUNSTATS command.
+ *
+ * Schema is always folded: the connection field is what the user typed, and
+ * schema browse looks that name up with `toUpperCase()`. A table name that is
+ * already one case is folded the same way. Mixed case is kept, because that
+ * is how a delimited name comes back from SYSCAT.
+ */
+function db2ReorgTarget(schema: string, table: string): string {
+  const quote = (name: string, fold: boolean) => {
+    const trimmed = name.trim();
+    const singleCase = trimmed === trimmed.toLowerCase() || trimmed === trimmed.toUpperCase();
+    const raw = fold || singleCase ? trimmed.toUpperCase() : trimmed;
+    return '"' + raw.replace(/"/g, '""') + '"';
+  };
+  const qualified = schema.trim() ? `${quote(schema, true)}.${quote(table, false)}` : quote(table, false);
+  return qualified.replace(/'/g, "''");
+}
+
 const PROBE_SQL = `
 SELECT
   INDNAME AS index_name,
@@ -54,7 +73,7 @@ export const db2IndexFragmentation: IndexFragmentationDialect = {
     return [];
   },
   defragSql(target) {
-    // Two things make Db2 unlike every other dialect here, both verified
+    // Three things make Db2 unlike every other dialect here, each verified
     // against a live server:
     //
     // 1. It cannot reorganise a single index. `REORG INDEX <name>` returns
@@ -64,12 +83,22 @@ export const db2IndexFragmentation: IndexFragmentationDialect = {
     // 2. REORG is a command, not SQL. Sent over a driver connection it is
     //    rejected by the statement parser (SQL0104N, "expected tokens may
     //    include: JOIN"). It has to be handed to SYSPROC.ADMIN_CMD.
+    // 3. Unquoted names are stored in uppercase. Schema browse and the
+    //    fragmentation probe already look them up that way, but quoting the
+    //    typed case (`"demo_a"."ORDERS"`, `"App"."ORDERS"`) makes REORG answer
+    //    SQL2211N "The specified table does not exist" for a table the probe
+    //    just listed. Fold the schema, and a single-case table name, before
+    //    quoting. A mixed-case table name came back from the catalog as a
+    //    delimited identifier and must keep that case.
     //
-    // The table name is embedded in a string literal, so any single quote in
-    // an identifier has to be doubled or it would end the literal early.
-    const literal = quoteIndexTarget(target).table.replace(/'/g, "''");
+    // The name is embedded in a string literal, so any single quote in an
+    // identifier has to be doubled or it would end the literal early.
+    // RUNSTATS follows because the percentage on this screen is read from
+    // SYSCAT.INDEXES, which REORG does not update by itself.
+    const literal = db2ReorgTarget(target.schema, target.table);
     return [
       `CALL SYSPROC.ADMIN_CMD('REORG INDEXES ALL FOR TABLE ${literal}');`,
+      `CALL SYSPROC.ADMIN_CMD('RUNSTATS ON TABLE ${literal} AND INDEXES ALL');`,
       `-- Db2 has no single-index REORG: this reorganises every index on ${target.table}.`,
     ];
   },

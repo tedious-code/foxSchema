@@ -4,13 +4,13 @@ import {
   ChevronRight,
   Columns3,
   FileCode2,
-  Hash,
   Loader2,
   Plus,
   RefreshCw,
 } from 'lucide-react';
 import { useSyncStore } from '@/features/compare';
 import { SCHEMA_ROUTINE_SCOPE, useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
+import { connectionPickerOption, FilterPicker } from '@/shared/components/FilterPicker';
 import { quoteIdentifierIfNeeded } from '@foxschema/ui-shared';
 import { getProviderSettings } from '@/shared/lib/provider-settings';
 import { TYPE_META } from '@/features/schema-diff';
@@ -37,7 +37,6 @@ import {
   formatRowCount,
   groupObjectSizes,
   indexTableSizeGroups,
-  lookupIndexSizeRow,
   type TableSizeGroup,
 } from '@foxschema/ui-shared';
 
@@ -89,9 +88,11 @@ function writeStoredExplorerId(id: string): void {
  * VIEW / PROCEDURE / FUNCTION: click opens the source script in the editor
  * (view-only — no edit form in this version); trailing Source also opens it.
  *
- * The connection dropdown stays in sync with Destination servers: picking a
- * schema credential checks it as a destination, and changing destinations
- * moves the explorer onto a checked credential when needed.
+ * Picking a connection here checks that one destination and unchecks the
+ * others, so a table you insert runs on the database you are browsing. Check
+ * more destinations afterwards to run the same SQL on several. Changing
+ * destinations moves the explorer onto a checked credential when the current
+ * one is no longer checked.
  */
 export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function SqlSchemaExplorer(
   _props,
@@ -106,7 +107,7 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
   const openDataPeek = useSqlEditorStore((s) => s.openDataPeek);
   const shareDestinations = useSqlEditorStore((s) => s.shareDestinations);
   const sharedConnectionIds = useSqlEditorStore((s) => s.sharedConnectionIds);
-  const ensureConnectionSelected = useSqlEditorStore((s) => s.ensureConnectionSelected);
+  const selectOnlyConnection = useSqlEditorStore((s) => s.selectOnlyConnection);
   const pendingPasswordId = useSqlEditorStore((s) => s.pendingPassword?.id);
   const setSql = useSqlEditorStore((s) => s.setSql);
   const sessionPasswords = useSqlEditorStore((s) => s.sessionPasswords);
@@ -138,7 +139,7 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
   const selectExplorerId = (id: string) => {
     setExplorerId(id);
     writeStoredExplorerId(id);
-    if (id) ensureConnectionSelected(id);
+    if (id) selectOnlyConnection(id);
   };
 
   const openCreateTable = () => {
@@ -194,6 +195,7 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
   useEffect(() => {
     if (!explorerId) return;
     void ensureSchema(explorerId);
+    void ensureSchema(explorerId, { scope: SCHEMA_ROUTINE_SCOPE });
   }, [explorerId, ensureSchema]);
 
   const entry = explorerId ? schemaCache[explorerId] : undefined;
@@ -266,20 +268,24 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
       ) : (
         <>
           <div className="flex items-center gap-1">
-            <select
-              value={explorerId}
-              onChange={(e) => selectExplorerId(e.target.value)}
-              className="flex-1 min-w-0 bg-slate-950/80 border border-slate-700 rounded-md px-2 py-1 text-[12px] font-semibold text-slate-200 outline-none accent-focus"
-              aria-label="Schema connection"
-              data-testid="sql-schema-connection"
-              title="Schema for this connection — stays in sync with Destination servers"
-            >
-              {connections.map((c) => (
-                <option key={c.id} value={c.id}>
-                  [{c.dialect}] {c.name || '(unnamed)'}
-                </option>
-              ))}
-            </select>
+            <FilterPicker
+              mode="single"
+              className="flex-1 min-w-0"
+              testId="sql-schema-connection"
+              ariaLabel="Schema connection"
+              selectedId={explorerId || null}
+              onSelect={(id) => {
+                if (id) selectExplorerId(id);
+              }}
+              options={connections.map((c) => connectionPickerOption(c))}
+              summary={
+                conn
+                  ? `[${conn.dialect}] ${conn.name || '(unnamed)'}`
+                  : 'Choose a connection'
+              }
+              placeholder="Filter connections…"
+              title="Sets Destinations to this connection. Check more destinations to run the same SQL on several."
+            />
             <button
               type="button"
               title="Create new table (opens table blueprint)"
@@ -389,6 +395,7 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
                             })
                           }
                           dialect={conn?.dialect ?? 'sql'}
+                          schema={conn?.schema}
                           sizeGroup={sizeOf(t.name, conn?.schema)}
                           onOpenBlueprint={
                             t.objectType === 'TABLE' || t.objectType === 'MQT'
@@ -442,6 +449,8 @@ const ObjectNode: React.FC<{
   open: boolean;
   onToggle: () => void;
   dialect: string;
+  /** Connection schema, so an inserted table is `schema.table` and runs on this database. */
+  schema?: string;
   sizeGroup?: TableSizeGroup;
   onOpenBlueprint?: () => void;
   /** Data peek is only meaningful for row-bearing objects (not routines). */
@@ -453,6 +462,7 @@ const ObjectNode: React.FC<{
   open,
   onToggle,
   dialect,
+  schema,
   sizeGroup,
   onOpenBlueprint,
   onOpenSource,
@@ -461,24 +471,27 @@ const ObjectNode: React.FC<{
 }) => {
   const meta = TYPE_META[table.objectType] ?? TYPE_META.TABLE;
   const insertName = quoteIdentifierIfNeeded(table.name, dialect);
+  const schemaName = schema?.trim();
+  const qualifiedName =
+    schemaName && !table.name.includes('.')
+      ? `${quoteIdentifierIfNeeded(schemaName, dialect)}.${insertName}`
+      : insertName;
   const isRoutine = table.objectType === 'PROCEDURE' || table.objectType === 'FUNCTION';
   const params = isRoutine ? filterCallParameters(table.parameters ?? []) : [];
   const columns = !isRoutine
     ? (table.columns ?? []).map((c) => ({ name: c.name, detail: c.type }))
     : [];
-  const indexes = !isRoutine ? (table.indices ?? []) : [];
   const opensSource = Boolean(onOpenSource);
   const [openCols, setOpenCols] = useState(true);
-  const [openIdx, setOpenIdx] = useState(true);
 
   const insertObject = () => {
     if (isRoutine) {
-      insertAtCursor(routineInsertText(insertName, table.objectType, params));
+      insertAtCursor(routineInsertText(qualifiedName, table.objectType, params));
       return;
     }
     // Tables/views: add into FROM with an auto alias (e.g. users u).
-    const ok = mutateSql((sql) => addTableWithAliasToFrom(sql, insertName).sql);
-    if (!ok) insertAtCursor(`${insertName} `);
+    const ok = mutateSql((sql) => addTableWithAliasToFrom(sql, qualifiedName).sql);
+    if (!ok) insertAtCursor(`${qualifiedName} `);
   };
 
   const onNameClick = (e: React.MouseEvent) => {
@@ -492,7 +505,7 @@ const ObjectNode: React.FC<{
       onOpenSource();
       return;
     }
-    // Click the table name to expand columns + indexes (insert is the From button).
+    // Click the table name to expand columns (insert is the From button).
     onToggle();
   };
 
@@ -556,8 +569,8 @@ const ObjectNode: React.FC<{
               : isRoutine
                 ? `Insert ${table.name}(${params.map((p) => `${p.mode} ${p.name}`).join(', ')})`
                 : canPeek
-                  ? `Expand to show columns and indexes — ${peekModifierLabel()}-click to peek at its data`
-                  : `Expand to show columns and indexes`
+                  ? `Expand to show columns — ${peekModifierLabel()}-click to peek at its data`
+                  : `Expand to show columns`
           }
           onClick={onNameClick}
           className="flex-1 flex items-center gap-1.5 min-w-[7rem] text-left text-[13px] font-semibold text-slate-200 hover:text-cyan-300 py-1"
@@ -566,11 +579,6 @@ const ObjectNode: React.FC<{
           <span className="flex flex-col min-w-0 flex-1">
             <span className="flex items-center gap-1.5 min-w-0">
               <span className="truncate font-mono font-bold">{table.name}</span>
-              {!isRoutine && indexes.length > 0 && (
-                <span className="shrink-0 text-[10px] font-mono font-medium text-slate-500">
-                  {indexes.length} idx
-                </span>
-              )}
               {isRoutine && params.length > 0 && (
                 <span className="shrink-0 text-[11px] font-mono font-medium text-slate-500 truncate max-w-[40%]">
                   ({params.length})
@@ -582,8 +590,7 @@ const ObjectNode: React.FC<{
                 className="text-[10px] font-mono font-medium text-slate-500 truncate"
                 data-testid={`sql-explorer-table-stats-${table.name}`}
               >
-                {formatRowCount(sizeGroup.rowCount)} rows · {formatBytes(sizeGroup.dataBytes)} data ·{' '}
-                {formatBytes(sizeGroup.indexBytes)} idx
+                {formatRowCount(sizeGroup.rowCount)} rows · {formatBytes(sizeGroup.dataBytes)} data
               </span>
             )}
           </span>
@@ -616,7 +623,7 @@ const ObjectNode: React.FC<{
               className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold text-violet-200 bg-violet-950/60 border border-violet-600/50 hover:bg-violet-900/70 transition whitespace-nowrap"
             >
               <Columns3 className="w-3 h-3" strokeWidth={SQL_ICON_STROKE} />
-              Edit table
+              Edit
             </button>
           )}
           {opensSource && (
@@ -707,61 +714,6 @@ const ObjectNode: React.FC<{
               </li>
             ))}
             </ul>
-          )}
-        </div>
-      )}
-      {open && !isRoutine && indexes.length > 0 && (
-        <div className="ml-6 mb-1" data-testid={`sql-explorer-indexes-${table.name}`}>
-          <button data-testid={`sql-explorer-indexes-toggle-${table.name}`}
-            type="button"
-            onClick={() => setOpenIdx((v) => !v)}
-            className="w-full flex items-center gap-1 px-0.5 py-0.5 text-left text-[10px] font-bold uppercase tracking-wide text-indigo-400/90 hover:text-indigo-200"
-            aria-expanded={openIdx}
-          >
-            {openIdx ? (
-              <ChevronDown className="w-3 h-3" strokeWidth={SQL_ICON_STROKE} />
-            ) : (
-              <ChevronRight className="w-3 h-3" strokeWidth={SQL_ICON_STROKE} />
-            )}
-            <Hash className="w-3 h-3" strokeWidth={SQL_ICON_STROKE} />
-            Indexes
-            <span className="font-mono font-medium text-slate-500">({indexes.length})</span>
-          </button>
-          {openIdx && (
-            <ul className="border-l border-indigo-900/60 pl-2.5 flex flex-col gap-0.5">
-            {indexes.map((idx) => {
-              const idxSize = lookupIndexSizeRow(sizeGroup, idx.name);
-              return (
-              <li key={idx.name} className="min-w-0">
-                <button
-                  type="button"
-                  data-testid={`sql-explorer-index-${table.name}-${idx.name}`}
-                  title={`Insert ${idx.name}`}
-                  onClick={() => insertIdent(idx.name)}
-                  className="w-full min-w-0 text-left text-[12.5px] font-mono font-medium text-slate-300 hover:text-indigo-300 truncate py-1"
-                >
-                  <span className="font-bold">{idx.name}</span>
-                  <span className="ml-1.5 text-[10px] font-bold uppercase font-sans text-indigo-300/80">
-                    {idx.unique ? 'unique' : 'non-unique'}
-                  </span>
-                  {idx.columns.length > 0 ? (
-                    <span className="text-slate-500 ml-1.5 font-sans text-[11px]">
-                      ({idx.columns.join(', ')})
-                    </span>
-                  ) : null}
-                  {idxSize ? (
-                    <span className="ml-1.5 text-[10px] font-sans text-slate-500">
-                      {formatBytes(idxSize.indexBytes ?? idxSize.totalBytes)}
-                      {idxSize.rowCount != null
-                        ? ` · ${formatRowCount(idxSize.rowCount)} rows`
-                        : ''}
-                    </span>
-                  ) : null}
-                </button>
-              </li>
-              );
-            })}
-          </ul>
           )}
         </div>
       )}

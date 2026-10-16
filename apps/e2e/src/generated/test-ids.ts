@@ -275,7 +275,7 @@ export const TestIds = {
       diffTablesList: (index: string | number) => `diff-tables-${index}-list`,
       /** div */
       diffUnsupported: 'diff-unsupported',
-      /** div · Permission Diff */
+      /** div · Insight */
       permissionDiff: 'permission-diff',
     },
     PermissionInspector: {

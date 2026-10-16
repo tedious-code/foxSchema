@@ -154,7 +154,7 @@ Every control has a test ID: **988** buttons, text boxes, selects and textareas.
   - `diff-tables-{index}-item-{name}` · input in ObjectPicker
   - `diff-tables-{index}-list` · div in ObjectPicker
   - `diff-unsupported` · div
-  - `permission-diff` · div · Permission Diff
+  - `permission-diff` · div · Insight
 - **PermissionInspector** · `features/access/components/PermissionInspector.tsx`
   - `inspector-chain` · section · Why does this principal have access?
   - `inspector-connection` · select · Choose a saved connection…

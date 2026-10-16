@@ -147,8 +147,16 @@ export const AccessReport: React.FC<{ embedded?: boolean }> = ({ embedded = fals
           <div className="shrink-0 grid grid-cols-2 md:grid-cols-4 gap-2" data-testid="report-tiles">
             {/* Roles and privileges are counted in different units — principals
                 versus grants — so they do not share an icon. */}
-            <Tile icon={Users} label="Users" value={report.principals.length - report.roleCount} />
-            <Tile icon={UserCog} label="Roles" value={report.roleCount} />
+            <Tile
+              icon={Users}
+              label="Users"
+              value={report.principals.filter((p) => p.kind === 'user').length}
+            />
+            <Tile
+              icon={UserCog}
+              label="Roles"
+              value={report.principals.filter((p) => p.kind !== 'user').length}
+            />
             <Tile icon={KeyRound} label="Granted privileges" value={report.grantedPrivilegeCount} />
             <Tile
               icon={AlertTriangle}

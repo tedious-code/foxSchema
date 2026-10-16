@@ -29,7 +29,7 @@ export function makeCompareController(deps: {
      * This layer exists as the place where cross-cutting work runs before the
      * service: resource-level authorization and the scope-aware cache both
      * attach here, so an endpoint cannot skip them. See
-     * docs/API_RESTRUCTURE_PLAN.md §4 and §6.
+     * docs/plans/api-restructure.md §4 and §6.
      */
     compare(input, actor) {
       return deps.compareService.compare(input, actor);

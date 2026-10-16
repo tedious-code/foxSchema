@@ -71,8 +71,8 @@ foxschema tui
 
 ## Docs
 
-- [User guide](https://github.com/tedious-code/foxschema/blob/main/docs/USER_GUIDE.md)
-- [Install](https://github.com/tedious-code/foxschema/blob/main/docs/INSTALL.md)
+- [User guide](https://github.com/tedious-code/foxschema/blob/main/docs/user-guide.md)
+- [Install](https://github.com/tedious-code/foxschema/blob/main/docs/install.md)
 - [Site](https://foxschema.com)
 
 ## License

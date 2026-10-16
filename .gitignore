@@ -65,7 +65,6 @@ packages/db/npm-pack/
 # Homebrew formula docs (tracked)
 !packaging/homebrew/README.md
 !apps/cli/README.md
-!docs/homebrew.md
 
 
 # The workflow engine's SQLite DB, created at the repo root by default

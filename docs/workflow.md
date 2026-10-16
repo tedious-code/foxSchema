@@ -4,7 +4,7 @@ FoxSchema designs and administers workflows in the web UI. A **separate process*
 (`apps/workflow-server`) runs them, so a slow or failing job never shares a
 process with Schema Sync or the SQL Editor.
 
-User walkthrough: [USER_GUIDE.md](USER_GUIDE.md#workflow). Deploy env vars:
+User walkthrough: [user-guide.md](user-guide.md#workflow). Deploy env vars:
 [DEPLOYMENT.md](DEPLOYMENT.md#workflow-engine). Folder map: [CODE_MAP.md](CODE_MAP.md).
 
 ## Architecture

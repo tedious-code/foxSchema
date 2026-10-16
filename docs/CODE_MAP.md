@@ -41,7 +41,7 @@ apps/workflow-server        The workflow engine's HTTP process (port 8081), plus
                             the server's engine proxy (WORKFLOW_ENGINE_TOKEN);
                             trigger ingress can take a port of its own
                             (INGRESS_PORT). Pulls engine settings from the server.
-                            Runbook: docs/WORKFLOW.md.
+                            Runbook: docs/workflow.md.
 apps/e2e                    Browser tests that drive the running application.
 ```
 
@@ -156,7 +156,7 @@ database/    The metadata store and its migrations.
 | `sql-editor` | SQL editor, code cells, sandboxed execution |
 | `users` | Profile, preferences, first-run wizard |
 | `workspaces` | Shared workspaces: create, switch, members, invites, public or private (`/api/workspaces`). Which workspace a request acts in is `platform/workspaces`. Admins list every workspace (`GET /all`) and open one only by joining. |
-| `workflow` | Workflow engine settings and health; the engine proxy (an allowlist of engine routes, each behind a `workflow.*` permission); saved-connection grants; and the token-guarded internal routes the engine calls to resolve a granted connection and read its settings. Runbook: [WORKFLOW.md](WORKFLOW.md). |
+| `workflow` | Workflow engine settings and health; the engine proxy (an allowlist of engine routes, each behind a `workflow.*` permission); saved-connection grants; and the token-guarded internal routes the engine calls to resolve a granted connection and read its settings. Runbook: [workflow.md](workflow.md). |
 
 Every feature folder has an `index.ts` exporting its `ServerFeatureModule`
 and its public API; other features import only that
@@ -270,7 +270,7 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | Guard or cross-cutting HTTP concern | `packages/server/src/platform/` |
 | How a dialect lexes SQL (permission gates, splitter) | `packages/sql/src/modules/sql-text/sql-readings.ts` + `sql-tokens.ts`. Do not add a second scanner. |
 | Workspace membership, invites, public / private | `packages/server/src/features/workspaces/`; request scope is `platform/workspaces`. Services take `WorkspaceScope` (`scopeOf(req)`). |
-| Workflow pipe, runtime, or store | `packages/workflow-engine/` — HTTP process in `apps/workflow-server/` ([WORKFLOW.md](WORKFLOW.md)) |
+| Workflow pipe, runtime, or store | `packages/workflow-engine/` — HTTP process in `apps/workflow-server/` ([workflow.md](workflow.md)) |
 
 ## Checks to run
 

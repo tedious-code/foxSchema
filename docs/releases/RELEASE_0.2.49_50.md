@@ -129,7 +129,7 @@ Or: brew update && brew upgrade foxschema
 ## Maintainers
 
 This file is the **GitHub Release body** (`gh release create … --notes-file`). After
-publish, the in-app **What's new** link opens that release page. See [PUBLISH.md](PUBLISH.md).
+publish, the in-app **What's new** link opens that release page. See [publish.md](../publish.md).
 
 ```bash
 git tag v0.2.49

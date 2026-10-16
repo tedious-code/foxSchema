@@ -5,18 +5,7 @@ There is **no** separate `homebrew-foxschema` tap.
 
 ## Install (users)
 
-```bash
-brew tap tedious-code/foxschema https://github.com/tedious-code/foxschema
-brew trust tedious-code/foxschema   # required once on Homebrew 6+
-brew install foxschema
-foxschema
-foxschema shortcut   # optional Fox icon on Desktop
-```
-
-Requires Homebrew’s `node@22` (or newer Node 22+ on PATH after link).
-
-Same npm package as `npm i -g foxschema`. Docker image:
-`5nickels/foxschema:latest` (linux/amd64, includes Db2).
+User install for every channel, including Homebrew, is [docs/install.md](../../docs/install.md). This file is only how to refresh the formula after a release.
 
 ## Updating after an npm release
 

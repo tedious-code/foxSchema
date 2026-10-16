@@ -4,7 +4,7 @@
 > stale: `packages/core` is now `packages/sql` + `packages/db`; the API lives in
 > `packages/server` (not `apps/web/src/backend`); SQLite is read-write; ports are
 > **3210** / **5173**. Current map: [CODE_MAP.md](../CODE_MAP.md). User walkthrough:
-> [USER_GUIDE.md](../USER_GUIDE.md#sql-editor). Agent notes:
+> [user-guide.md](../user-guide.md#sql-editor). Agent notes:
 > `.cursor/rules/sql-editor-agent-memory.mdc`.
 
 ## Context

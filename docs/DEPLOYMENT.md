@@ -1,7 +1,7 @@
 # Deploying Fox Schema
 
 **Day-to-day on a laptop:** install the CLI, open the UI in your browser, optionally add a
-desktop shortcut (`foxschema shortcut`). See **[INSTALL.md](INSTALL.md)**.
+desktop shortcut (`foxschema shortcut`). See **[install.md](install.md)**.
 
 ```bash
 npm install -g foxschema
@@ -12,7 +12,7 @@ foxschema                  # http://localhost:3210
 foxschema shortcut
 ```
 
-Maintainers: **[PUBLISH.md](PUBLISH.md)**.
+Maintainers: **[publish.md](publish.md)**.
 
 ### Sign-in + RBAC
 
@@ -47,15 +47,15 @@ and the desktop app alike. Roles are `admin` / `editor` / `owner` / `viewer`.
   **Admins: One / Several** lives there (`FOX_ADMIN_POLICY` overrides it). Saved
   connections, snapshots, runs and secrets belong to a **workspace**; every
   account has a personal one. Admins see every workspace and open one only by
-  joining. [USER_GUIDE — Workspaces](USER_GUIDE.md#workspaces).
+  joining. [USER_GUIDE — Workspaces](user-guide.md#workspaces).
 - Permissions cover Schema Sync (browse / compare / migrate), SQL Editor (sidebar, variables, writes, Data grid insert/update/delete, code cells), Utilities, Secrets, Access, Workflow (`workflow.access` / `design` / `run` / `admin`), and Workspaces (`workspace.members` / `settings` / `create`). Code cells, Git, workflow and `workspace.create` are install-wide (account role); the rest follow the member’s role in the current workspace.
 - **Database Access** catalog (`POST /schema/db-access`) is an OR gate: **Use utilities** *or* any Access-workspace permission (`access.access`, Users, builder, diff, inspector, report) may load it. GRANT / REVOKE still needs **Grant privileges**.
 
 **Servers / teams:** Fox Schema ships as a **single Docker image** (all dialects including
 Db2) that serves both the UI and the API on one configurable port (default **3210**).
 
-- [Install (all channels)](INSTALL.md)
-- [CLI / Homebrew](homebrew.md)
+- [Install (all channels)](install.md)
+- [CLI / Homebrew](install.md#homebrew-macos)
 - [Quick start (Docker)](#quick-start)
 - [Configuration (environment variables)](#configuration-environment-variables)
 - [The encryption key](#the-encryption-key)
@@ -200,7 +200,7 @@ npm -w @foxschema/workflow-server run start:worker      # claim queued runs
 **The published Docker image does not start the engine.** `Dockerfile` /
 `docker-compose.app.yml` run FoxSchema only. Deploy `apps/workflow-server` beside
 it (same token on both). Local checkout: `npm run dev:with-workflow`. Full
-runbook: [WORKFLOW.md](WORKFLOW.md).
+runbook: [workflow.md](workflow.md).
 
 ### First-open email subscriber wizard
 

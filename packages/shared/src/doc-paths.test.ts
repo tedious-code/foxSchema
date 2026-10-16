@@ -23,7 +23,7 @@
  * and drifted twice).
  *
  * Scope is deliberately the *navigational* docs only. Plan and release
- * documents are history — `docs/API_RESTRUCTURE_PLAN.md` says in its own header
+ * documents are history — `docs/plans/api-restructure.md` says in its own header
  * that its paths are stale and kept as the record of why, which is a legitimate
  * thing for a document to be. Those are not scanned.
  */
@@ -165,7 +165,7 @@ describe('navigational docs point at paths that exist', () => {
 
 describe('Express is gone and the docs say so', () => {
   /**
-   * Express was removed wholesale (see `docs/BACKEND_EXTRACTION_PLAN.md` §8).
+   * Express was removed wholesale (see `docs/plans/backend-extraction.md` §8).
    * The navigational docs described it as the running server for months
    * afterwards. This fails if that language comes back while no workspace
    * actually depends on Express — the combination that misleads.

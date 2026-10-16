@@ -1,7 +1,7 @@
 # Architecture reference
 
 Stable orientation for FoxSchema. For where a change belongs see
-[CODE_MAP.md](CODE_MAP.md). Workflow engine runbook: [WORKFLOW.md](WORKFLOW.md).
+[CODE_MAP.md](CODE_MAP.md). Workflow engine runbook: [workflow.md](workflow.md).
 
 ## What this is
 

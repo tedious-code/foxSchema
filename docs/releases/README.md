@@ -10,3 +10,5 @@ that, start at [`docs/CODE_MAP.md`](../CODE_MAP.md).
 
 They live in their own directory because twelve of them had accumulated in
 `docs/`, where they outnumbered the documents people actually need to find.
+
+Every version on one page: [SUMMARY.md](SUMMARY.md).

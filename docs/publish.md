@@ -1,6 +1,6 @@
 # Publishing Fox Schema
 
-How maintainers ship a release. **Users** should follow [INSTALL.md](INSTALL.md).
+How maintainers ship a release. **Users** should follow [install.md](install.md).
 
 Distribution channels (one product, no separate Db2 edition):
 

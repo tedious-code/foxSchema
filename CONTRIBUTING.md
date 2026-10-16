@@ -13,8 +13,9 @@ fresh clone to a running app with a passing test suite.
   develop on).
 - **Docker** — for the test databases and the end-to-end suite.
 
-User install channels: [docs/INSTALL.md](docs/INSTALL.md). Release publish:
-[docs/PUBLISH.md](docs/PUBLISH.md).
+User install channels: [docs/install.md](docs/install.md). Release publish:
+[docs/publish.md](docs/publish.md). The rest of the docs, one file per topic:
+[docs/README.md](docs/README.md).
 
 ## First-time setup
 
@@ -41,7 +42,7 @@ export FOXFLOW_ENCRYPTION_KEY="$(openssl rand -hex 32)"
 npm run dev:with-workflow
 ```
 
-Then **Workflow → Engine → Enabled**. Runbook: [docs/WORKFLOW.md](docs/WORKFLOW.md).
+Then **Workflow → Engine → Enabled**. Runbook: [docs/workflow.md](docs/workflow.md).
 
 For the advanced test schemas (`demo_c` / `demo_d` — FK chains, cross-dialect type
 matrix, materialized views, etc.): `bash scripts/seed/seed-advanced.sh all`.

@@ -3,7 +3,7 @@
 Fox Schema (`foxschema`) is a database schema diff & migration tool: an npm-workspaces
 monorepo delivered as a web app (`apps/web` = React/Vite UI + `packages/server`
 Fastify API), a CLI (`apps/cli`), and the dialect engine (`packages/sql` +
-`packages/db`). Optional workflow engine: `apps/workflow-server` ([docs/WORKFLOW.md](docs/WORKFLOW.md)).
+`packages/db`). Optional workflow engine: `apps/workflow-server` ([docs/workflow.md](docs/workflow.md)).
 See `README.md` and `CONTRIBUTING.md` for the product overview and the canonical
 dev/test/build commands.
 
@@ -48,7 +48,7 @@ Standard commands live in `CONTRIBUTING.md` and `package.json` scripts (`npm run
   UI at http://localhost:5173. API liveness: `GET http://localhost:3210/api/health`
   → `{"ok":true}`. Every install requires sign-in; first open runs admin setup. Workflow engine:
   `npm run dev:with-workflow` (needs `WORKFLOW_ENGINE_TOKEN` and
-  `FOXFLOW_ENCRYPTION_KEY` — [docs/WORKFLOW.md](docs/WORKFLOW.md)).
+  `FOXFLOW_ENCRYPTION_KEY` — [docs/workflow.md](docs/workflow.md)).
 - Vite is configured with `server.host: true`, `server.strictPort: true`, and
   `server.allowedHosts: true` so `http://127.0.0.1:5173` works (not only IPv6
   localhost), the port does not silently hop to 5174+, and Cursor/cloud

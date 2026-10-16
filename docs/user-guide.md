@@ -45,7 +45,7 @@ foxschema                         # http://localhost:3210
 foxschema shortcut                # optional Fox icon on your Desktop
 ```
 
-Full install matrix (npm, Homebrew, Winget, Docker, curl/wget): [INSTALL.md](INSTALL.md).
+Full install matrix (npm, Homebrew, Winget, Docker, curl/wget): [install.md](install.md).
 
 **Option B — Docker (shared/team server):**
 
@@ -68,7 +68,7 @@ Fox Schema checks npm for a newer `foxschema` version when you open the UI.
    You can also use **User Preference → Update now**.
 
 Docker / Homebrew / locked-down servers get **Copy command** (or use
-`brew upgrade foxschema` / `docker pull …:latest` — see [INSTALL.md](INSTALL.md)).
+`brew upgrade foxschema` / `docker pull …:latest` — see [install.md](install.md)).
 
 ## First run
 
@@ -626,7 +626,7 @@ Optional workspace for scheduled and triggered jobs (SQL, HTTP, files, email/SMS
 beside Compare and the SQL Editor. The designer lives in the Fox Schema UI;
 a **separate engine process** runs the jobs.
 
-Developer / ops runbook: [WORKFLOW.md](WORKFLOW.md). Env vars:
+Developer / ops runbook: [workflow.md](workflow.md). Env vars:
 [DEPLOYMENT.md](DEPLOYMENT.md#workflow-engine).
 
 1. Start the engine beside Fox Schema (`npm run dev:with-workflow` in a checkout,
@@ -875,6 +875,6 @@ separate process. Check **Workflow → Engine** health. New installs default to
 engine boot. Saved connections need both `WORKFLOW_ENGINE_TOKEN` (same value on
 FoxSchema and the engine) and an explicit grant (pick the connection on a SQL
 pipe). The published Docker image does not start the engine. See
-[WORKFLOW.md](WORKFLOW.md).
+[workflow.md](workflow.md).
 
 Still stuck? Open a GitHub issue with what you did and the error you saw.

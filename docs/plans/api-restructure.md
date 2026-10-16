@@ -14,7 +14,7 @@ in place; the layering is not. Last reconciled against the tree 2026-09-21.
 | Resource-level authorization (§6) | Not started — highest remaining security value |
 | Async stores for locks / idempotency / rate limit | Not started — multi-instance prep |
 | Scope-aware cache (§4) | Not started, deliberately last |
-| Remove Express entirely | **Done** — see `docs/BACKEND_EXTRACTION_PLAN.md` §8 |
+| Remove Express entirely | **Done** — see `docs/plans/backend-extraction.md` §8 |
 
 **Paths below are as-written and now stale.** The tree has moved twice since:
 out of `apps/web/src/backend/` into `packages/server/src/`, and through a

@@ -225,7 +225,7 @@ for the credential at the top of the workspace.
   backups they recorded; pick one and the restore reads it. Restores still only
   open in the SQL Editor.
 
-See [USER_GUIDE.md](../USER_GUIDE.md#utilities).
+See [user-guide.md](../user-guide.md#utilities).
 
 ## Access: Grants show what is held
 

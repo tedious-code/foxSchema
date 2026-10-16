@@ -65,7 +65,7 @@ Docker: restart with the **same** `/data` volume.
 
 ## Publish checklist (maintainers)
 
-See [PUBLISH.md](PUBLISH.md). Short path:
+See [publish.md](../publish.md). Short path:
 
 ```bash
 git fetch origin main && git checkout main && git pull

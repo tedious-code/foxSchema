@@ -13,7 +13,13 @@
  * reads like a guard while guarding nothing.
  */
 import { describe, expect, it } from 'vitest';
-import { DIALECTS, PROVIDER_SETTINGS, getProviderSettings, isFileDialect } from './provider-settings.js';
+import {
+  DIALECTS,
+  PROVIDER_SETTINGS,
+  dialectHasTransactions,
+  getProviderSettings,
+  isFileDialect,
+} from './provider-settings.js';
 
 describe('the dialect union matches the registry', () => {
   it('lists exactly the registered dialects', () => {
@@ -48,5 +54,21 @@ describe('isFileDialect', () => {
 
   it('is case-insensitive, like getProviderSettings', () => {
     expect(isFileDialect('SQLite')).toBe(true);
+  });
+});
+
+describe('dialectHasTransactions', () => {
+  // Their adapters open no transaction, so "one transaction" there commits
+  // each statement as it runs and a failure rolls nothing back.
+  const NONE = ['clickhouse', 'mongodb', 'redis'];
+
+  it('is false for exactly the engines with nothing to roll back', () => {
+    expect(DIALECTS.filter((dialect) => !dialectHasTransactions(dialect)).sort()).toEqual(NONE);
+  });
+
+  it('is case-insensitive, and true for a dialect it does not know', () => {
+    expect(dialectHasTransactions('ClickHouse')).toBe(false);
+    expect(dialectHasTransactions('editor')).toBe(true);
+    expect(dialectHasTransactions('')).toBe(true);
   });
 });

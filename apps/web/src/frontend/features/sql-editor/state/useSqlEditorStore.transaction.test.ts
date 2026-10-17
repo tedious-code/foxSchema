@@ -40,7 +40,7 @@ const ok = (n: number) => ({
   durationMs: 1,
 });
 
-async function arm(sql: string, checked: number[]) {
+async function arm(sql: string, checked: number[], dialect = 'sqlite') {
   await useSqlEditorStore.persist.rehydrate();
   const tab = createTab({
     id: 't1',
@@ -50,7 +50,8 @@ async function arm(sql: string, checked: number[]) {
     selectedConnectionIds: ['c1'],
   });
   useSyncStore.setState({
-    connections: [{ id: 'c1', name: 'Lite', dialect: 'sqlite', hasPassword: false } as never],
+    // A stored password, so a server engine runs without asking for one.
+    connections: [{ id: 'c1', name: 'Lite', dialect, hasPassword: true } as never],
   });
   useSqlEditorStore.setState({
     tabs: [tab],
@@ -130,6 +131,17 @@ describe('SQL editor one transaction', () => {
     expect(executeSql.mock.calls.length).toBe(3);
     expect(executeSql.mock.calls.every((call) => !(call[5] as { transaction?: boolean } | undefined)?.transaction)).toBe(true);
     expect(useSqlEditorStore.getState().resultsByTab[tabId]?.warnings?.join('\n')).toMatch(/BEGIN, COMMIT or ROLLBACK/);
+  });
+
+  it('runs statement by statement on an engine with no transactions, and says why', async () => {
+    // ClickHouse commits each statement as it runs; wrapped, a failure would
+    // leave the earlier ones in place while the panel reported a rollback.
+    executeSql.mockResolvedValue({ results: [ok(1)] });
+    const tabId = await arm('INSERT INTO t VALUES (1);\nINSERT INTO t VALUES (2);', [0, 1], 'clickhouse');
+    await useSqlEditorStore.getState().execute();
+    expect(executeSql.mock.calls.length).toBe(2);
+    expect(executeSql.mock.calls.every((call) => !(call[5] as { transaction?: boolean } | undefined)?.transaction)).toBe(true);
+    expect(useSqlEditorStore.getState().resultsByTab[tabId]?.warnings?.join('\n')).toMatch(/ClickHouse has no transactions/);
   });
 
   it('still batches savepoints, which stay inside the transaction', async () => {

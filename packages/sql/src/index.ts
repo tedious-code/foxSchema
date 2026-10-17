@@ -415,6 +415,7 @@ export {
   getProviderSettings,
   isFileDialect,
   dialectFamily,
+  dialectHasTransactions,
   DIALECTS,
   type Dialect,
 } from './providers/provider-settings.js';

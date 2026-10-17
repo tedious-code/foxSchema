@@ -34,7 +34,8 @@ export type {
 
 // Engines: connection settings, the registry, and wire-compatible families.
 export {
-  DIALECTS, IBM_DB_VERSION, PROVIDER_SETTINGS, dialectFamily, getProviderSettings, isFileDialect,
+  DIALECTS, IBM_DB_VERSION, PROVIDER_SETTINGS, dialectFamily, dialectHasTransactions, getProviderSettings,
+  isFileDialect,
 } from '@foxschema/sql';
 export type { Dialect } from '@foxschema/sql';
 

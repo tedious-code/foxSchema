@@ -83,7 +83,7 @@ import {
   type SqlVariableKind,
   type VariableOverride,
 } from '@/shared/lib/sql-variables';
-import { connectionNeedsSecret } from '@/shared/lib/provider-settings';
+import { connectionNeedsSecret, dialectHasTransactions, getProviderSettings } from '@/shared/lib/provider-settings';
 import { useSyncStore } from '@/features/compare';
 import { SQL_EDITOR_PERSIST_KEY, SQL_EDITOR_PERSIST_VERSION, useRecentQueries } from './recentQueries';
 import { workspaceEditorStorage } from '@/shared/lib/editorWorkspaceStorage';
@@ -1293,6 +1293,10 @@ export const useSqlEditorStore = create<SqlEditorState>()(
         // transaction halfway: what ran before it stays, and a later failure
         // rolls back nothing. The server refuses such a batch; run it as typed.
         const steersOwnTransaction = rawStatements.some((statement) => isTransactionControl(statement));
+        // ClickHouse, Redis and MongoDB open no transaction: each statement
+        // commits as it runs, so a failure cannot take the earlier ones back.
+        // The server refuses the batch; run it as typed and say so.
+        const noTransaction = connections.find((c) => !dialectHasTransactions(c.dialect));
         if (wantsTransaction && hasCellOrSet) {
           appendWarning(
             'One transaction applies to plain SQL. This run has a code cell or an @set, so each statement runs on its own.'
@@ -1301,8 +1305,12 @@ export const useSqlEditorStore = create<SqlEditorState>()(
           appendWarning(
             'This run has its own BEGIN, COMMIT or ROLLBACK, so it runs statement by statement as written rather than as one transaction.'
           );
+        } else if (wantsTransaction && noTransaction) {
+          appendWarning(
+            `${getProviderSettings(noTransaction.dialect).label} has no transactions, so this run goes statement by statement and nothing rolls back on a failure.`
+          );
         }
-        const asOneTransaction = wantsTransaction && !hasCellOrSet && !steersOwnTransaction;
+        const asOneTransaction = wantsTransaction && !hasCellOrSet && !steersOwnTransaction && !noTransaction;
         if (asOneTransaction) {
           type Prep = { ok: true; sql: string } | { ok: false; error: string };
           const prepared: Array<Map<string, Prep>> = [];

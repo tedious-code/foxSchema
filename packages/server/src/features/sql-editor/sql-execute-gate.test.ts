@@ -135,6 +135,27 @@ describe('POST /sql/execute as one transaction', () => {
     },
   );
 
+  it.each([
+    ['clickhouse', 'ClickHouse'],
+    ['redis', 'Redis'],
+    ['mongodb', 'MongoDB'],
+  ])('refuses one transaction on %s, which has nothing to roll back', async (dialect, label) => {
+    // Its adapter opens no transaction: each statement commits as it runs,
+    // so a failure leaves the earlier ones while the editor said rolled back.
+    const { sent, ran } = await execute(dialect, ['editor.run', 'editor.dml', 'editor.ddl'], {
+      statements: ['SELECT 1', 'SELECT 2'],
+      transaction: true,
+    });
+    expect(sent.status).toBe(400);
+    expect(sent.body.error).toContain(`${label} has no transactions`);
+    expect(ran).toBe(false);
+
+    const plain = await execute(dialect, ['editor.run', 'editor.dml', 'editor.ddl'], {
+      statements: ['SELECT 1', 'SELECT 2'],
+    });
+    expect(plain.ran).toBe(true);
+  });
+
   it('runs the same batch statement by statement when not asked for one transaction', async () => {
     const { ran } = await execute('postgres', ['editor.run', 'editor.dml', 'editor.ddl'], {
       statements: ['INSERT INTO t VALUES (1)', 'COMMIT', 'INSERT INTO t VALUES (2)'],

@@ -15,19 +15,17 @@ import {
 /**
  * Qualified table for a REORG/RUNSTATS command.
  *
- * Schema is always folded: the connection field is what the user typed, and
- * schema browse looks that name up with `toUpperCase()`. A table name that is
- * already one case is folded the same way. Mixed case is kept, because that
- * is how a delimited name comes back from SYSCAT.
+ * The schema is folded: it is what the user typed in the connection field,
+ * and schema browse looks it up with `toUpperCase()`. The table is not: every
+ * caller passes the name schema browse read from SYSCAT.TABLES, which is
+ * already what the catalog stores. Folding it too would aim a table created
+ * as `"orders"` at `ORDERS` — SQL2211N if there is none, or someone else's
+ * table if there is.
  */
 function db2ReorgTarget(schema: string, table: string): string {
-  const quote = (name: string, fold: boolean) => {
-    const trimmed = name.trim();
-    const singleCase = trimmed === trimmed.toLowerCase() || trimmed === trimmed.toUpperCase();
-    const raw = fold || singleCase ? trimmed.toUpperCase() : trimmed;
-    return '"' + raw.replace(/"/g, '""') + '"';
-  };
-  const qualified = schema.trim() ? `${quote(schema, true)}.${quote(table, false)}` : quote(table, false);
+  const quote = (name: string) => '"' + name.replace(/"/g, '""') + '"';
+  const folded = schema.trim().toUpperCase();
+  const qualified = folded ? `${quote(folded)}.${quote(table.trim())}` : quote(table.trim());
   return qualified.replace(/'/g, "''");
 }
 
@@ -64,7 +62,8 @@ export const db2IndexFragmentation: IndexFragmentationDialect = {
     if (!target.schema) return { error: 'DB2 fragmentation probe needs a schema name.' };
     return {
       mode: 'estimated',
-      params: [target.schema.toUpperCase(), target.table.toUpperCase()],
+      // The same names REORG uses, below: schema folded, table as the catalog has it.
+      params: [target.schema.toUpperCase(), target.table.trim()],
       sql: PROBE_SQL,
     };
   },
@@ -83,13 +82,12 @@ export const db2IndexFragmentation: IndexFragmentationDialect = {
     // 2. REORG is a command, not SQL. Sent over a driver connection it is
     //    rejected by the statement parser (SQL0104N, "expected tokens may
     //    include: JOIN"). It has to be handed to SYSPROC.ADMIN_CMD.
-    // 3. Unquoted names are stored in uppercase. Schema browse and the
-    //    fragmentation probe already look them up that way, but quoting the
-    //    typed case (`"demo_a"."ORDERS"`, `"App"."ORDERS"`) makes REORG answer
-    //    SQL2211N "The specified table does not exist" for a table the probe
-    //    just listed. Fold the schema, and a single-case table name, before
-    //    quoting. A mixed-case table name came back from the catalog as a
-    //    delimited identifier and must keep that case.
+    // 3. Unquoted names are stored in uppercase. Schema browse looks the
+    //    typed schema up that way, but quoting the typed case
+    //    (`"demo_a"."ORDERS"`, `"App"."ORDERS"`) makes REORG answer SQL2211N
+    //    "The specified table does not exist" for a table the probe just
+    //    listed. Fold the schema before quoting. The table name came from
+    //    the catalog and keeps its case (see db2ReorgTarget).
     //
     // The name is embedded in a string literal, so any single quote in an
     // identifier has to be doubled or it would end the literal early.
@@ -106,13 +104,14 @@ export const db2IndexFragmentation: IndexFragmentationDialect = {
     return [`DROP INDEX ${quoteIndexTarget(target).indexQualified(indexName)};`];
   },
   customTemplate(target) {
-    const sch = target.schema || 'schema';
-    const tbl = target.table || 'table';
+    const literal = (name: string) => name.replace(/'/g, "''");
+    const sch = literal((target.schema || 'schema').toUpperCase());
+    const tbl = literal(target.table || 'table');
     return `SELECT INDNAME AS index_name,
        DECIMAL(100.0 * FLOAT(COALESCE(NUM_EMPTY_LEAFS,0)) / NULLIF(FLOAT(NLEAF),0), 5, 2)
          AS fragmentation_percent,
        CASE WHEN LASTUSED IS NULL OR LASTUSED <= DATE('1971-01-01') THEN NULL ELSE LASTUSED END AS last_used
 FROM SYSCAT.INDEXES
-WHERE TABSCHEMA = '${sch.toUpperCase()}' AND TABNAME = '${tbl.toUpperCase()}';`;
+WHERE TABSCHEMA = '${sch}' AND TABNAME = '${tbl}';`;
   },
 };

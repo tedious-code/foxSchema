@@ -105,6 +105,18 @@ describe('POST /api/preview/parse', () => {
     ]);
   });
 
+  it('numbers CSV records by the line they start on, past a quoted field that spans lines', async () => {
+    // preamble + header + index put the third record on line 5; it starts on 7.
+    const result = await parse({
+      kind: 'csv',
+      config: { skipLines: 1 },
+      sample: 'exported yesterday\nid,note\n1,"two\nlines"\n2,"three\nmore\nlines"\n3,plain\n',
+    });
+    expect(result.error).toBeNull();
+    expect(result.records.map((record) => record.id)).toEqual(['1', '2', '3']);
+    expect(result.lines).toEqual([3, 5, 8]);
+  });
+
   it('previews multi-delimiter text with offset and flat map', async () => {
     const result = await parse({
       kind: 'text',

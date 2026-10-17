@@ -8,6 +8,8 @@
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import { ArrowDownToLine, ArrowUpFromLine, Shuffle, Zap } from 'lucide-react';
 import { portLabel } from '../lib/ports';
+import type { z } from 'zod';
+import type { retrySchema } from '@foxschema/workflow-engine/definitions';
 
 export type PortInfo = { name: string; type: string };
 
@@ -24,6 +26,8 @@ export type PipeData = {
   credentialId: string;
   /** Not edited on the canvas; kept so a save does not drop it. */
   timeoutMs?: number;
+  /** The pipe's whole retry policy as loaded; the canvas edits only `retryAttempts`. */
+  retry?: z.input<typeof retrySchema>;
   inputs: PortInfo[];
   outputs: PortInfo[];
 };

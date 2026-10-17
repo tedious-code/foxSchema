@@ -803,10 +803,24 @@ describe('defrag statements the engines actually accept', () => {
     expect(note).toMatch(/no single-index REORG/i);
   });
 
+  it('Db2 escapes a name for both the identifier and the ADMIN_CMD string it sits in', () => {
+    // `"` doubles inside the delimited identifier; `'` then doubles because the
+    // whole command is one string literal. Missing either layer ends a quote
+    // early — and lets the rest of the name run as part of the command.
+    const [reorg, stats] = defrag('db2', 'DEMO_A', `O'Brien"s`, 'IDX');
+    expect(reorg).toBe(`CALL SYSPROC.ADMIN_CMD('REORG INDEXES ALL FOR TABLE "DEMO_A"."O''Brien""s"');`);
+    expect(stats).toBe(`CALL SYSPROC.ADMIN_CMD('RUNSTATS ON TABLE "DEMO_A"."O''Brien""s" AND INDEXES ALL');`);
+  });
+
+  it('Db2 names the table alone when there is no schema', () => {
+    const [reorg] = defrag('db2', '  ', 'ORDERS', 'IDX');
+    expect(reorg).toBe(`CALL SYSPROC.ADMIN_CMD('REORG INDEXES ALL FOR TABLE "ORDERS"');`);
+  });
+
   it('Db2 folds a typed schema to the uppercase name the catalog stores', () => {
     // Live server: quoting the typed case (`"demo_a"."ORDERS"`, `"App"."ORDERS"`)
     // returns SQL2211N. The probe had already found the table as DEMO_A / APP.
-    const [lower] = defrag('db2', 'demo_a', 'orders', 'IDX');
+    const [lower] = defrag('db2', 'demo_a', 'ORDERS', 'IDX');
     expect(lower).toBe(
       `CALL SYSPROC.ADMIN_CMD('REORG INDEXES ALL FOR TABLE "DEMO_A"."ORDERS"');`
     );
@@ -817,6 +831,27 @@ describe('defrag statements the engines actually accept', () => {
     // A mixed-case table name is a delimited identifier from SYSCAT.
     const [mixed] = defrag('db2', 'DEMO_A', 'MyTable', 'IDX');
     expect(mixed).toContain('"DEMO_A"."MyTable"');
+  });
+
+  it('Db2 keeps a table name the catalog stores in lowercase', () => {
+    // The table comes from schema browse, which reads SYSCAT.TABLES: `orders`
+    // there is a table created as `"orders"`. Folding it to ORDERS reorganised
+    // a different table when one by that name existed, and SQL2211N when not.
+    // The probe has to look up the same name, or the % on screen belongs to
+    // that other table too.
+    const [reorg, stats] = defrag('db2', 'demo_a', 'orders', 'IDX');
+    expect(reorg).toBe(`CALL SYSPROC.ADMIN_CMD('REORG INDEXES ALL FOR TABLE "DEMO_A"."orders"');`);
+    expect(stats).toBe(`CALL SYSPROC.ADMIN_CMD('RUNSTATS ON TABLE "DEMO_A"."orders" AND INDEXES ALL');`);
+    const probe = buildIndexFragmentationQuery({ dialect: 'db2', schema: 'demo_a', table: 'orders' });
+    if ('error' in probe) throw new Error(probe.error);
+    expect(probe.params).toEqual(['DEMO_A', 'orders']);
+    const template = buildIndexFragmentationCustomTemplate({ dialect: 'db2', schema: 'demo_a', table: 'orders' });
+    expect(template).toContain(`WHERE TABSCHEMA = 'DEMO_A' AND TABNAME = 'orders'`);
+  });
+
+  it('Db2 custom template doubles a quote in the names it embeds', () => {
+    const template = buildIndexFragmentationCustomTemplate({ dialect: 'db2', schema: 'DEMO_A', table: `O'Brien` });
+    expect(template).toContain(`TABNAME = 'O''Brien'`);
   });
 
   it('Db2 doubles a quote inside the ADMIN_CMD literal', () => {

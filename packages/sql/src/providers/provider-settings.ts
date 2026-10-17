@@ -134,6 +134,17 @@ export function dialectFamily(dialect: string): string {
   return Object.hasOwn(DIALECT_FAMILY, d) ? DIALECT_FAMILY[d as Dialect]! : d;
 }
 
+/**
+ * Whether a batch on this engine can be rolled back. ClickHouse, Redis and
+ * MongoDB answer `false`: their adapters open no transaction, so a "one
+ * transaction" run there commits each statement as it goes, and a failure
+ * leaves the earlier ones in place while the editor reported a rollback.
+ * An unknown dialect answers `true`; it is refused elsewhere.
+ */
+export function dialectHasTransactions(dialect: string): boolean {
+  return PROVIDER_SETTINGS[(dialect || '').toLowerCase()]?.transactions !== false;
+}
+
 export function isFileDialect(dialect: string): boolean {
   const name = dialect.toLowerCase();
   return name === 'sqlite' || name === 'duckdb';

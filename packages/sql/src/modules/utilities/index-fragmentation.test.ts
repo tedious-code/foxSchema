@@ -803,6 +803,20 @@ describe('defrag statements the engines actually accept', () => {
     expect(note).toMatch(/no single-index REORG/i);
   });
 
+  it('Db2 escapes a name for both the identifier and the ADMIN_CMD string it sits in', () => {
+    // `"` doubles inside the delimited identifier; `'` then doubles because the
+    // whole command is one string literal. Missing either layer ends a quote
+    // early — and lets the rest of the name run as part of the command.
+    const [reorg, stats] = defrag('db2', 'DEMO_A', `O'Brien"s`, 'IDX');
+    expect(reorg).toBe(`CALL SYSPROC.ADMIN_CMD('REORG INDEXES ALL FOR TABLE "DEMO_A"."O''Brien""s"');`);
+    expect(stats).toBe(`CALL SYSPROC.ADMIN_CMD('RUNSTATS ON TABLE "DEMO_A"."O''Brien""s" AND INDEXES ALL');`);
+  });
+
+  it('Db2 names the table alone when there is no schema', () => {
+    const [reorg] = defrag('db2', '  ', 'orders', 'IDX');
+    expect(reorg).toBe(`CALL SYSPROC.ADMIN_CMD('REORG INDEXES ALL FOR TABLE "ORDERS"');`);
+  });
+
   it('Db2 folds a typed schema to the uppercase name the catalog stores', () => {
     // Live server: quoting the typed case (`"demo_a"."ORDERS"`, `"App"."ORDERS"`)
     // returns SQL2211N. The probe had already found the table as DEMO_A / APP.

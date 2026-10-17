@@ -67,7 +67,7 @@ export {
   checkStatement, codeCellHasReturn, codeCellNeedsTs, collectMultiTableWriteWarnings,
   countReferencedTables, dmlLacksWhere, extractTableAliases, findCodeFences, firstKeyword,
   isCodeCellKind, isInsertWriteStatement, isMutatingDmlStatement, isNodeCodeCellKind,
-  isPageableStatement, isSqlQuery, isWriteStatement, makeSqlQuery, nodeCodeCellWireKind,
+  isPageableStatement, isSqlQuery, isTransactionControl, isWriteStatement, makeSqlQuery, nodeCodeCellWireKind,
   parseCodeCell, placeholderStyleFor, qualifiedNameParts, quoteIdentifierIfNeeded,
   quoteSqlIdentifier, referencedTableNames, renderSqlQuery, requiresWritePermission,
   splitSqlStatements, sqlTag, statementVerb, stripCodeFenceMarkers, stripFullLineSqlComments,

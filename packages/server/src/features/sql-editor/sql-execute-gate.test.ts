@@ -118,3 +118,35 @@ describe('POST /sql/execute stopOnError and transaction', () => {
     expect(flags()).toEqual({ stopOnError: false, transaction: false });
   });
 });
+
+describe('POST /sql/execute as one transaction', () => {
+  // A COMMIT inside the batch made what came before it permanent; a later
+  // failure then rolled back nothing, and the editor reported a rollback.
+  it.each(['COMMIT', 'BEGIN', 'ROLLBACK;', 'START TRANSACTION', 'END'])(
+    'refuses a batch that runs %s itself, before touching the database',
+    async (control) => {
+      const { sent, ran } = await execute('postgres', ['editor.run', 'editor.dml', 'editor.ddl'], {
+        statements: ['INSERT INTO t VALUES (1)', control, 'INSERT INTO t VALUES (2)'],
+        transaction: true,
+      });
+      expect(sent.status).toBe(400);
+      expect(sent.body.error).toMatch(/One transaction/);
+      expect(ran).toBe(false);
+    },
+  );
+
+  it('runs the same batch statement by statement when not asked for one transaction', async () => {
+    const { ran } = await execute('postgres', ['editor.run', 'editor.dml', 'editor.ddl'], {
+      statements: ['INSERT INTO t VALUES (1)', 'COMMIT', 'INSERT INTO t VALUES (2)'],
+    });
+    expect(ran).toBe(true);
+  });
+
+  it('keeps savepoints, which stay inside the transaction', async () => {
+    const { ran } = await execute('postgres', ['editor.run', 'editor.dml', 'editor.ddl'], {
+      statements: ['SAVEPOINT s1', 'INSERT INTO t VALUES (1)', 'ROLLBACK TO SAVEPOINT s1'],
+      transaction: true,
+    });
+    expect(ran).toBe(true);
+  });
+});

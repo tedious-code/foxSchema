@@ -34,6 +34,7 @@ import {
   isInsertWriteStatement,
   isMutatingDmlStatement,
   isPageableStatement,
+  isTransactionControl,
   isWriteStatement,
   splitSqlStatements,
 } from '@/shared/lib/sql-splitter';
@@ -1285,15 +1286,23 @@ export const useSqlEditorStore = create<SqlEditorState>()(
         };
 
         const wantsTransaction = get().oneTransaction && rawStatements.length > 1;
-        const transactionBlocked = rawStatements.some(
+        const hasCellOrSet = rawStatements.some(
           (statement) => detectCodeCell(statement) || parseSetDirectives(statement).directives.length > 0
         );
-        if (wantsTransaction && transactionBlocked) {
+        // A BEGIN or COMMIT of the batch's own would end the wrapping
+        // transaction halfway: what ran before it stays, and a later failure
+        // rolls back nothing. The server refuses such a batch; run it as typed.
+        const steersOwnTransaction = rawStatements.some((statement) => isTransactionControl(statement));
+        if (wantsTransaction && hasCellOrSet) {
           appendWarning(
             'One transaction applies to plain SQL. This run has a code cell or an @set, so each statement runs on its own.'
           );
+        } else if (wantsTransaction && steersOwnTransaction) {
+          appendWarning(
+            'This run has its own BEGIN, COMMIT or ROLLBACK, so it runs statement by statement as written rather than as one transaction.'
+          );
         }
-        const asOneTransaction = wantsTransaction && !transactionBlocked;
+        const asOneTransaction = wantsTransaction && !hasCellOrSet && !steersOwnTransaction;
         if (asOneTransaction) {
           type Prep = { ok: true; sql: string } | { ok: false; error: string };
           const prepared: Array<Map<string, Prep>> = [];

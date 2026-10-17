@@ -286,6 +286,7 @@ export {
   splitSqlStatements,
   checkStatement,
   isWriteStatement,
+  isTransactionControl,
   requiresWritePermission,
   sqlStatementCategory,
   sqlStatementCategories,

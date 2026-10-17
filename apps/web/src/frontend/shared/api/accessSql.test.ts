@@ -68,12 +68,13 @@ describe('runAccessSql', () => {
     ).resolves.toEqual({
       ok: false,
       error: 'Statement 2 of 3 failed: role "r" does not exist. The 1 before it was applied. The 1 after it did not run.',
+      applied: 1,
     });
   });
 
   it('reports a lone statement’s error as it is', async () => {
     executeSql.mockResolvedValue({ results: [{ ok: false, error: 'permission denied' }] });
-    await expect(runAccessSql(ref, 'GRANT SELECT ON t TO r;')).resolves.toEqual({ ok: false, error: 'permission denied' });
+    await expect(runAccessSql(ref, 'GRANT SELECT ON t TO r;')).resolves.toEqual({ ok: false, error: 'permission denied', applied: 0 });
   });
 
   it('does not report ok when fewer results came back than statements were sent', async () => {
@@ -81,6 +82,7 @@ describe('runAccessSql', () => {
     await expect(runAccessSql(ref, 'GRANT SELECT ON t TO r;\nGRANT INSERT ON t TO r;')).resolves.toEqual({
       ok: false,
       error: 'Only 1 of 2 statements ran.',
+      applied: 1,
     });
   });
 

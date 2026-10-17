@@ -25,8 +25,8 @@ const _kindsMatch: SameMembers<(typeof KINDS)[number], CredentialKind> = true;
 const _sourcesMatch: SameMembers<(typeof SOURCES)[number], Exclude<CredentialSource, 'foxschema'>> = true;
 void [_kindsMatch, _sourcesMatch];
 
-type Kind = (typeof KINDS)[number];
-type Source = (typeof SOURCES)[number];
+type Kind = CredentialKind;
+type Source = Exclude<CredentialSource, 'foxschema'>;
 
 const KIND_FIELDS: Record<Kind, Array<{ key: string; label: string; secret?: boolean }>> = {
   database: [

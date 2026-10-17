@@ -5,7 +5,6 @@
  *
  * Workflow engine — moved from FoxAgent (packages/pipes/utility/src/text.ts).
  */
-import { createReadStream } from 'node:fs';
 import * as z from 'zod';
 import type {
   PipeContext,
@@ -20,19 +19,14 @@ import {
   rejectPolicyField,
   type PipeMetadata,
 } from '../../sdk/index.js';
-import { validateAgainstSchema } from '../../common/index.js';
 import {
-  applyColumnRules,
   columnRuleFieldsSchema,
   columnRules,
   compileColumnRules,
-  configuredNames,
-  describeFailures,
-  isHeaderRecord,
-  parseLine,
-  rejectBatch,
+  BatchEmitter,
+  TextRowReader,
 } from './delimited.js';
-import { resolveWorkflowFile } from './file-root.js';
+import { openWorkflowFile } from './workflow-files.js';
 
 /**
  * The field shape, exported without the cross-field `.refine()` so callers
@@ -139,107 +133,29 @@ export class TextSourcePipe implements SourcePipe {
   async *read(context: PipeContext): AsyncIterable<RecordBatch> {
     const config = configSchema.parse(context.pipe.config);
     const resumeAfter = Number(context.checkpoint?.cursor.line ?? 0);
-    let lineNumber = 0;
-    let records: Record<string, unknown>[] = [];
-    let firstLine = 0;
-    let rejects: Record<string, unknown>[] = [];
-    let firstReject = 0;
-    let lastReject = 0;
-    const rules = columnRules(config);
-    const compiled = compileColumnRules(rules);
-    // A resumed run's cursor is always past the header — it was handled (or
-    // absent) in the run that wrote the checkpoint.
-    let headerDone = config.header === 'none' || resumeAfter > 0;
-
-    for await (const line of readLines(
-      // eslint-disable-next-line security/detect-non-literal-fs-filename -- the source file path is this pipe's own configuration, confined to the files root
-      createReadStream(await resolveWorkflowFile(config.path), { encoding: 'utf8' }),
-    )) {
-      lineNumber++;
-      if (lineNumber <= config.offset) continue;
-      if (lineNumber <= resumeAfter) continue;
-      if (config.skipEmpty && line.trim() === '') continue;
-
-      const parsed = parseLine(line, config);
-      if (!headerDone) {
-        headerDone = true;
-        if (config.header === 'skip') continue;
-        if (parsed[0] && isHeaderRecord(parsed[0], configuredNames(config))) {
-          continue;
+    // Cut at line boundaries: a line flat-maps to several records, its cursor
+    // is the line, and a line must never straddle two batches.
+    const emitter = new BatchEmitter(context.pipe.id, config, {
+      cursorKey: 'line',
+      positionKey: '_line',
+      label: 'line',
+      cut: 'boundary',
+    });
+    // The same reader the designer preview uses, so the two cannot disagree.
+    const reader = new TextRowReader(config, resumeAfter);
+    for await (const line of readLines((await openWorkflowFile(config.path)).readStream())) {
+      for (const row of reader.push(line)) {
+        // A record a column rule refused is kept, if rejected, as the raw values.
+        if (row.failure !== null) {
+          emitter.add(row.record, row.line, { reason: 'validation', message: row.failure }, row.raw);
+        } else {
+          emitter.add(row.record, row.line);
         }
       }
-
-      for (const raw of parsed) {
-        // Column rules run first: they convert text into typed values, so the
-        // whole-record schema sees numbers/booleans rather than strings.
-        const applied = applyColumnRules(raw, rules, compiled);
-        const record = applied.record;
-        const columnError =
-          applied.failures.length > 0
-            ? describeFailures(applied.failures)
-            : null;
-        if (columnError !== null) {
-          if (config.onInvalid === 'fail') {
-            throw new Error(`line ${lineNumber} failed validation: ${columnError}`);
-          }
-          if (config.onInvalid === 'reject') {
-            if (rejects.length === 0) firstReject = lineNumber;
-            lastReject = lineNumber;
-            rejects.push({ ...raw, _error: columnError, _line: lineNumber });
-          }
-          continue;
-        }
-        if (config.schema) {
-          const message = validateAgainstSchema(config.schema, record);
-          if (message !== null) {
-            if (config.onInvalid === 'fail') {
-              throw new Error(`line ${lineNumber} failed schema: ${message}`);
-            }
-            if (config.onInvalid === 'reject') {
-              if (rejects.length === 0) firstReject = lineNumber;
-              lastReject = lineNumber;
-              rejects.push({ ...record, _error: message, _line: lineNumber });
-            }
-            continue; // skip/reject — the row leaves the data stream either way
-          }
-        }
-        if (records.length === 0) firstLine = lineNumber;
-        records.push(record);
-      }
-      // Cut batches only at line boundaries so the line cursor stays exact —
-      // a flat-mapped line is never split across two batches.
-      if (rejects.length >= config.batchSize) {
-        yield rejectBatch(context.pipe.id, firstReject, lastReject, rejects);
-        rejects = [];
-      }
-      if (records.length >= config.batchSize) {
-        yield makeBatch(context.pipe.id, firstLine, lineNumber, records);
-        records = [];
-      }
+      yield* emitter.drain();
     }
-    // Rejects flush before the final data batch — checkpoints only ever come
-    // from data cursors, so everything emitted is covered by the last one.
-    if (rejects.length > 0) {
-      yield rejectBatch(context.pipe.id, firstReject, lastReject, rejects);
-    }
-    if (records.length > 0) {
-      yield makeBatch(context.pipe.id, firstLine, lineNumber, records);
-    }
+    yield* emitter.flush(reader.line);
   }
-}
-
-function makeBatch(
-  pipeId: string,
-  firstLine: number,
-  lastLine: number,
-  records: Record<string, unknown>[],
-): RecordBatch {
-  return {
-    id: `${pipeId}:0:${firstLine}-${lastLine}`,
-    partitionId: '0',
-    records,
-    cursor: { line: lastLine },
-  };
 }
 
 export async function* readLines(

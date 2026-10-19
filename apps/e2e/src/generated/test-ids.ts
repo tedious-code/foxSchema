@@ -2007,8 +2007,20 @@ export const TestIds = {
       dataPeekGrid: (id: string | number) => `data-peek-grid-${id}`,
       /** input */
       dataPeekLimit: (id: string | number) => `data-peek-limit-${id}`,
-      /** input · ID DESC */
+      /** input · created_at */
       dataPeekOrder: (id: string | number) => `data-peek-order-${id}`,
+      /** input · created_at */
+      dataPeekOrderForIdAndIndex: (id: string | number, index: string | number) => `data-peek-order-${id}-${index}`,
+      /** button · Add sort */
+      dataPeekOrderAdd: (id: string | number) => `data-peek-order-add-${id}`,
+      /** button · Remove this sort */
+      dataPeekOrderClear: (id: string | number) => `data-peek-order-clear-${id}`,
+      /** button · Remove this sort */
+      dataPeekOrderClearForIdAndIndex: (id: string | number, index: string | number) => `data-peek-order-clear-${id}-${index}`,
+      /** select · — ASC DESC */
+      dataPeekOrderDir: (id: string | number) => `data-peek-order-dir-${id}`,
+      /** select · — ASC DESC */
+      dataPeekOrderDirForIdAndIndex: (id: string | number, index: string | number) => `data-peek-order-dir-${id}-${index}`,
       /** button */
       dataPeekRefby: (table: string | number, fkKey: string | number) => `data-peek-refby-${table}-${fkKey}`,
       /** div */
@@ -2023,10 +2035,16 @@ export const TestIds = {
       dataPeekTabRows: (id: string | number) => `data-peek-tab-rows-${id}`,
       /** div */
       dataPeekTabs: (id: string | number) => `data-peek-tabs-${id}`,
-      /** input · e.g. ARCHIVED = false — or clear to fetch all */
+      /** input */
       dataPeekWhere: (id: string | number) => `data-peek-where-${id}`,
-      /** button · Clear WHERE and fetch all rows */
+      /** input */
+      dataPeekWhereForIdAndIndex: (id: string | number, index: string | number) => `data-peek-where-${id}-${index}`,
+      /** button · Add condition */
+      dataPeekWhereAdd: (id: string | number) => `data-peek-where-add-${id}`,
+      /** button */
       dataPeekWhereClear: (id: string | number) => `data-peek-where-clear-${id}`,
+      /** button */
+      dataPeekWhereClearForIdAndIndex: (id: string | number, index: string | number) => `data-peek-where-clear-${id}-${index}`,
     },
     EditorTabBar: {
       /** div */
@@ -2291,6 +2309,16 @@ export const TestIds = {
       sqlRecentOpen: (id: string | number) => `sql-recent-open-${id}`,
       /** button · Recent */
       sqlRecentTab: 'sql-recent-tab',
+      /** button · Delete workspace script */
+      sqlWorkspaceScriptDelete: (id: string | number) => `sql-workspace-script-delete-${id}`,
+      /** p */
+      sqlWorkspaceScriptError: 'sql-workspace-script-error',
+      /** button */
+      sqlWorkspaceScriptOpen: (id: string | number) => `sql-workspace-script-open-${id}`,
+      /** button · Save the current query for everyone in this workspace */
+      sqlWorkspaceScriptSave: 'sql-workspace-script-save',
+      /** button · Workspace */
+      sqlWorkspaceScriptsTab: 'sql-workspace-scripts-tab',
     },
     SqlEditorView: {
       /** button · Save current query as a bookmark (uses the tab title) */
@@ -3479,7 +3507,7 @@ export const TestIds = {
       workspaceMenuInviteDecline: (id: string | number) => `workspace-menu-invite-decline-${id}`,
       /** div */
       workspaceMenuInvites: 'workspace-menu-invites',
-      /** button */
+      /** option */
       workspaceMenuItem: (id: string | number) => `workspace-menu-item-${id}`,
       /** div */
       workspaceMenuPublic: 'workspace-menu-public',
@@ -3489,6 +3517,8 @@ export const TestIds = {
       workspaceMenuPublicEmpty: 'workspace-menu-public-empty',
       /** button · Join */
       workspaceMenuPublicJoin: (id: string | number) => `workspace-menu-public-join-${id}`,
+      /** select · Workspace */
+      workspaceMenuSelect: 'workspace-menu-select',
       /** button · Workspace settings */
       workspaceMenuSettings: 'workspace-menu-settings',
     },
@@ -4015,6 +4045,12 @@ export type TestId =
   | 'data-peek-insight-rows'
   | `data-peek-limit-${string}`
   | `data-peek-order-${string}`
+  | `data-peek-order-${string}-${string}`
+  | `data-peek-order-add-${string}`
+  | `data-peek-order-clear-${string}`
+  | `data-peek-order-clear-${string}-${string}`
+  | `data-peek-order-dir-${string}`
+  | `data-peek-order-dir-${string}-${string}`
   | `data-peek-refby-${string}-${string}`
   | `data-peek-referenced-by-${string}`
   | `data-peek-resize-${string}`
@@ -4023,7 +4059,10 @@ export type TestId =
   | `data-peek-tab-rows-${string}`
   | `data-peek-tabs-${string}`
   | `data-peek-where-${string}`
+  | `data-peek-where-${string}-${string}`
+  | `data-peek-where-add-${string}`
   | `data-peek-where-clear-${string}`
+  | `data-peek-where-clear-${string}-${string}`
   | 'db-access-all-form'
   | 'db-access-all-note'
   | 'db-access-all-target'
@@ -4872,6 +4911,11 @@ export type TestId =
   | `sql-variable-value-edit-${string}`
   | 'sql-variable-value-input'
   | 'sql-variables'
+  | `sql-workspace-script-delete-${string}`
+  | 'sql-workspace-script-error'
+  | `sql-workspace-script-open-${string}`
+  | 'sql-workspace-script-save'
+  | 'sql-workspace-scripts-tab'
   | 'sql-write-confirm'
   | 'sql-write-confirm-btn'
   | 'sql-write-confirm-cancel'
@@ -5178,6 +5222,7 @@ export type TestId =
   | `workspace-menu-public-${string}`
   | 'workspace-menu-public-empty'
   | `workspace-menu-public-join-${string}`
+  | 'workspace-menu-select'
   | 'workspace-menu-settings'
   | 'workspace-rail-btn'
   | 'workspace-rail-invites'

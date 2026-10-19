@@ -40,7 +40,11 @@ import { SqlBookmarksPanel } from './SqlBookmarksPanel';
 import { SqlVariablesPanel } from './SqlVariablesPanel';
 import { SqlSecretsPanel, type SqlSecretsPanelHandle } from './SqlSecretsPanel';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
-import { SqlSchemaExplorer, type SqlSchemaExplorerHandle } from './SqlSchemaExplorer';
+import {
+  SqlSchemaExplorer,
+  schemaExplorerConnectionId,
+  type SqlSchemaExplorerHandle,
+} from './SqlSchemaExplorer';
 import {
   SqlSidebarSection,
   useSidebarSectionHeights,
@@ -217,8 +221,17 @@ export const SqlEditorView: React.FC = () => {
       const state = useSqlEditorStore.getState();
       const active = state.tabs.find((t) => t.id === state.activeTabId) ?? state.tabs[0]!;
       const destIds = state.activeConnectionIds();
+      const explorerId = schemaExplorerConnectionId();
+      const explorerEntry = explorerId ? state.schemaCache[explorerId] : undefined;
+      const explorerReady = explorerEntry?.status === 'ready' && !!explorerEntry.tables;
+      if (explorerId && !explorerReady && explorerEntry?.status !== 'loading') {
+        void state.ensureSchema(explorerId);
+      }
+      // Select schema is the catalog the query is written against. Other
+      // destinations are only a fallback until that catalog has loaded.
+      const sourceIds = explorerReady ? [explorerId] : destIds;
       const connections = useSyncStore.getState().connections;
-      const schemas = destIds
+      const schemas = sourceIds
         .map((id) => {
           const entry = state.schemaCache[id];
           if (entry?.status !== 'ready' || !entry.tables) {
@@ -426,7 +439,7 @@ export const SqlEditorView: React.FC = () => {
             <SqlSidebarSection
               railPanel
               id="bookmarks"
-              title="Bookmarks"
+              title="Scripts"
               icon={<Bookmark className="text-[#f59e0b]" strokeWidth={SQL_ICON_STROKE} />}
               open={sidebarOpen.bookmarks}
               onToggle={() => selectSidebar('bookmarks')}
@@ -576,7 +589,7 @@ export const SqlEditorView: React.FC = () => {
     },
     {
       id: 'bookmarks',
-      title: 'Bookmarks',
+      title: 'Scripts',
       visible: canEditorBookmarks,
       icon: <Bookmark className="text-[#f59e0b]" strokeWidth={SQL_ICON_STROKE} />,
     },

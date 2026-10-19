@@ -446,6 +446,7 @@ export {
   fromClauseEntries,
   rowKeyFor,
   splitSelectItems,
+  splitTopLevel,
   tablesInOrigins,
   type AttributeOptions,
   type CollapsedColumns,

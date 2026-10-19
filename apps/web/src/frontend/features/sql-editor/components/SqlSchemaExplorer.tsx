@@ -63,6 +63,11 @@ export function peekModifierLabel(): string {
   return /mac|iphone|ipad/i.test(platform) ? 'Cmd' : 'Ctrl';
 }
 
+/** Connection chosen in Select schema. Completions read that schema's tables. */
+export function schemaExplorerConnectionId(): string {
+  return readStoredExplorerId();
+}
+
 function readStoredExplorerId(): string {
   try {
     return localStorage.getItem(EXPLORER_CONN_KEY)?.trim() || '';

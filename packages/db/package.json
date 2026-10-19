@@ -20,8 +20,8 @@
     "better-sqlite3": ">=12",
     "ibm_db": "^4.0.1",
     "mongodb": ">=6",
-    "mssql": "12.7.4",
-    "mysql2": "3.24.5",
+    "mssql": "12.7.9",
+    "mysql2": "3.24.6",
     "oracledb": "26.0.0",
     "pg": "8.23.1",
     "redis": ">=4"

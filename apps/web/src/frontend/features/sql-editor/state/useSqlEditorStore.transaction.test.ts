@@ -141,7 +141,18 @@ describe('SQL editor one transaction', () => {
     await useSqlEditorStore.getState().execute();
     expect(executeSql.mock.calls.length).toBe(2);
     expect(executeSql.mock.calls.every((call) => !(call[5] as { transaction?: boolean } | undefined)?.transaction)).toBe(true);
-    expect(useSqlEditorStore.getState().resultsByTab[tabId]?.warnings?.join('\n')).toMatch(/ClickHouse has no transactions/);
+    expect(useSqlEditorStore.getState().resultsByTab[tabId]?.warnings?.join('\n')).toMatch(/ClickHouse transactions are experimental/);
+  });
+
+  it('puts the missing MongoDB transaction on Fox Schema, not on MongoDB', async () => {
+    // MongoDB has transactions on a replica set; the adapter does not open one.
+    // "MongoDB has no transactions" sent readers to the wrong place.
+    executeSql.mockResolvedValue({ results: [ok(1)] });
+    const tabId = await arm('INSERT INTO t VALUES (1);\nINSERT INTO t VALUES (2);', [0, 1], 'mongodb');
+    await useSqlEditorStore.getState().execute();
+    const warnings = useSqlEditorStore.getState().resultsByTab[tabId]?.warnings?.join('\n') ?? '';
+    expect(warnings).toMatch(/Fox Schema writes to MongoDB without a transaction/);
+    expect(warnings).not.toMatch(/MongoDB has no transactions/);
   });
 
   it('still batches savepoints, which stay inside the transaction', async () => {

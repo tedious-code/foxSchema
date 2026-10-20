@@ -22,9 +22,9 @@ import {
   type Permission,
 } from '@foxschema/shared';
 import {
+  dialectFeatureReason,
   dialectHasTransactions,
   errorMessage,
-  getProviderSettings,
   isTransactionControl,
   sqlStatementCategories,
   statementVerb,
@@ -132,12 +132,14 @@ export function createEditorRoutes(deps: EditorRouteDeps): Router {
     const { dialect } = resolved;
     // On an engine with no transaction, BEGIN and ROLLBACK do nothing: each
     // statement commits as it runs, and a failure would leave the earlier ones
-    // in place while the editor said the batch had rolled back.
+    // in place while the editor said the batch had rolled back. The sentence
+    // is the one Data migrate shows: "X has no transactions" was wrong for
+    // MongoDB, which has them on a replica set and is simply not given one.
     if (transaction === true && !dialectHasTransactions(dialect)) {
       sendError(
         res,
         'invalid_input',
-        `${getProviderSettings(dialect).label} has no transactions, so One transaction cannot roll this batch back. Run it without One transaction.`,
+        `${dialectFeatureReason(dialect, 'transactions')} One transaction cannot roll this batch back, so run it without One transaction.`,
       );
       return;
     }

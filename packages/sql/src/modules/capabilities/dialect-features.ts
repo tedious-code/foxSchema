@@ -109,7 +109,7 @@ const DECLARED: Record<string, Partial<Record<DialectFeature, string>>> = {
     rowEditing: 'The SQL Editor adapter rejects writes for ClickHouse.',
     transactions:
       'ClickHouse transactions are experimental and Fox Schema does not open one, ' +
-      'so a failure leaves the rows written before it in place.',
+      'so a failure leaves earlier writes in place.',
   },
   // These two have no grants at all; the file's permissions are the access
   // control. Nothing to build, so the engine is the honest answer.
@@ -128,13 +128,13 @@ const DECLARED: Record<string, Partial<Record<DialectFeature, string>>> = {
     commandMode: 'Redis does not take SQL, so there is nothing to hand to a client.',
     transactions:
       'Redis cannot undo a write — MULTI/EXEC queues commands but never rolls one ' +
-      'back — so a failure leaves the rows written before it in place.',
+      'back — so a failure leaves earlier writes in place.',
   },
   mongodb: {
     commandMode: 'MongoDB does not take SQL, so there is nothing to hand to a client.',
     transactions:
       'Fox Schema writes to MongoDB without a transaction, because a standalone ' +
-      'server has none, so a failure leaves the rows written before it in place.',
+      'server has none, so a failure leaves earlier writes in place.',
   },
 };
 

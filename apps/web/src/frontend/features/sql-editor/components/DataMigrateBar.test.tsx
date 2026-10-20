@@ -120,7 +120,7 @@ describe('Data migrate Transaction checkbox', () => {
       expect(txBox().disabled).toBe(true);
       // The reason replaces the tooltip that promised a rollback.
       const title = txBox().closest('label')!.getAttribute('title') ?? '';
-      expect(title).toMatch(/rows written before it in place/);
+      expect(title).toMatch(/earlier writes in place/);
       expect(title).not.toMatch(/rolls back/);
     }
   );

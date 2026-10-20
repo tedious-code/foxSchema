@@ -145,8 +145,8 @@ describe('the reasons this table owns', () => {
       const reason = dialectFeatureReason(dialect, 'transactions')!;
       expect(reason, dialect).toMatch(names);
       expect(reason, dialect).not.toMatch(notThe);
-      // What the user is deciding about: rows that already went in.
-      expect(reason, dialect).toMatch(/rows written before it/);
+      // What the user is deciding about: writes that already went in.
+      expect(reason, dialect).toMatch(/earlier writes in place/);
     }
   });
 

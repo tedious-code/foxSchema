@@ -21,7 +21,7 @@ import {
   supportsDialectFeature,
 } from './dialect-features.js';
 import { DIALECT_MAP } from '../dialect/registry.js';
-import { PROVIDER_SETTINGS } from '../../providers/provider-settings.js';
+import { PROVIDER_SETTINGS, dialectHasTransactions } from '../../providers/provider-settings.js';
 
 describe('every engine a connection can use gets an answer', () => {
   it('covers the provider roster, not a second hand-written list', () => {
@@ -70,6 +70,24 @@ describe('the answers are asked for, not copied', () => {
     expect(dialectFeatureReason('redis', 'dbAccess')).toMatch(/redis-cli/);
     expect(dialectFeatureReason('mongodb', 'dbAccess')).toMatch(/mongosh/);
   });
+
+  it('offers transactions exactly where the provider settings have them', () => {
+    // The same flag the editor's One transaction reads, and the one
+    // `@foxschema/db` answers DML rollback from. Data migrate's Transaction
+    // checkbox defaulted on for Redis and promised a rollback of the whole
+    // batch; its adapter's ROLLBACK does nothing.
+    for (const dialect of knownDialects()) {
+      expect(supportsDialectFeature(dialect, 'transactions'), dialect).toBe(
+        dialectHasTransactions(dialect)
+      );
+    }
+    for (const dialect of ['redis', 'mongodb', 'clickhouse', 'Redis']) {
+      expect(supportsDialectFeature(dialect, 'transactions'), dialect).toBe(false);
+    }
+    for (const dialect of ['postgres', 'mysql', 'oracle', 'sqlite', 'cockroachdb']) {
+      expect(supportsDialectFeature(dialect, 'transactions'), dialect).toBe(true);
+    }
+  });
 });
 
 describe('the reasons this table owns', () => {
@@ -103,6 +121,32 @@ describe('the reasons this table owns', () => {
       const reason = dialectFeatureReason(dialect, 'dbAccess')!;
       expect(reason, dialect).toMatch(names);
       expect(reason, dialect).not.toMatch(notThe);
+    }
+  });
+
+  /**
+   * Who cannot roll back, per engine. The sentence is the tooltip on a
+   * disabled Transaction checkbox, so it must say where the gap is: Redis has
+   * no rollback to offer, while MongoDB does on a replica set and Fox Schema
+   * is what leaves it unused. A shared "X has no transactions" is wrong for
+   * MongoDB.
+   */
+  const TRANSACTION_BLAME: Record<string, { names: RegExp; notThe: RegExp }> = {
+    redis: { names: /Redis cannot undo a write/, notThe: /Fox Schema/ },
+    mongodb: { names: /Fox Schema writes to MongoDB without a transaction/, notThe: /MongoDB has no/i },
+    clickhouse: { names: /ClickHouse transactions are experimental/, notThe: /ClickHouse has no/i },
+  };
+
+  it('blames the right party for every engine with no transactions', () => {
+    const refusing = knownDialects().filter((d) => !supportsDialectFeature(d, 'transactions'));
+    expect(refusing.sort()).toEqual(Object.keys(TRANSACTION_BLAME).sort());
+
+    for (const [dialect, { names, notThe }] of Object.entries(TRANSACTION_BLAME)) {
+      const reason = dialectFeatureReason(dialect, 'transactions')!;
+      expect(reason, dialect).toMatch(names);
+      expect(reason, dialect).not.toMatch(notThe);
+      // What the user is deciding about: rows that already went in.
+      expect(reason, dialect).toMatch(/rows written before it/);
     }
   });
 

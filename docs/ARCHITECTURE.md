@@ -379,7 +379,11 @@ Constraints:
    editing — the frontend re-exports this registry.
    If the adapter's `beginTransaction` / `rollbackTransaction` do nothing, set
    `transactions: false` in `<name>.settings.ts`: the editor then refuses
-   One transaction there instead of reporting a rollback that never happened.
+   One transaction there instead of reporting a rollback that never happened,
+   Data migrate's Transaction checkbox is off and disabled, and `@foxschema/db`
+   reports neither DML nor DDL rollback. Say why in the `transactions` entry of
+   `modules/capabilities/dialect-features.ts` — it is the checkbox's tooltip,
+   and `dialect-features.test.ts` fails until each such engine has one.
 4. Add `parseType`/`renderType` round-trip tests in `type-mapping.test.ts`
 5. Verify each optional hook against real DDL — the generic fallbacks are often wrong for DROP INDEX/TRIGGER/FK
 6. Say how the engine lexes SQL in `modules/sql-text/sql-readings.ts` (comments,

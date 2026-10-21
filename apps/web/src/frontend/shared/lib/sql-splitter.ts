@@ -11,6 +11,7 @@ export {
   isMutatingDmlStatement,
   isInsertWriteStatement,
   isPageableStatement,
+  isTransactionControl,
   dmlLacksWhere,
   parseCodeCell,
   findCodeFences,

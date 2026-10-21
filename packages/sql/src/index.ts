@@ -286,6 +286,7 @@ export {
   splitSqlStatements,
   checkStatement,
   isWriteStatement,
+  isTransactionControl,
   requiresWritePermission,
   sqlStatementCategory,
   sqlStatementCategories,
@@ -414,6 +415,7 @@ export {
   getProviderSettings,
   isFileDialect,
   dialectFamily,
+  dialectHasTransactions,
   DIALECTS,
   type Dialect,
 } from './providers/provider-settings.js';

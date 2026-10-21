@@ -5,8 +5,9 @@
  *
  * Opening a workflow in the designer and saving it keeps what the designer
  * does not edit — a pipe's timeout, the workflow's version, error handler,
- * display name, and the trust its origin records. Saving used to drop all
- * five: an imported workflow came back `authored`, renamed to its id.
+ * display name, the trust its origin records, and a retry policy beyond its
+ * attempts. Saving used to drop each: an imported workflow came back
+ * `authored`, renamed to its id, with the engine's default retry.
  *
  * Needs the web app at E2E_BASE_URL and workflow-server on :8081 with no
  * service token (loopback dev); skips when the engine is not there.
@@ -30,7 +31,17 @@ const doc = (id: string, extra: Record<string, unknown> = {}) => ({
     {
       id: 'main',
       name: 'Main',
-      pipes: [{ id: 'start', type: 'source.triggerPayload', role: 'source', config: {}, timeoutMs: 1234 }],
+      pipes: [
+        {
+          id: 'start',
+          type: 'source.triggerPayload',
+          role: 'source',
+          config: {},
+          timeoutMs: 1234,
+          // Beyond the attempts the canvas edits: a save used to drop the rest.
+          retry: { attempts: 5, backoff: 'fixed', maxDelayMs: 900, jitter: false, on: 'all' },
+        },
+      ],
       edges: [],
     },
   ],
@@ -99,6 +110,7 @@ describe('workflow designer round trip', () => {
       errorHandler: { workflowId: HANDLER },
     });
     expect(after.pipelines[0].pipes[0].timeoutMs).toBe(1234);
+    expect(after.pipelines[0].pipes[0].retry).toEqual({ attempts: 5, backoff: 'fixed', maxDelayMs: 900, jitter: false, on: 'all' });
   });
 
   it('shows only the trigger sections that have a form, and no dead buttons', async (ctx) => {
@@ -116,5 +128,18 @@ describe('workflow designer round trip', () => {
       'workflow-trigger-config-section-input parameters',
     ]);
     await driver.screenshot({ path: process.env.E2E_SHOT ?? '/tmp/workflow-trigger-dialog.png' });
+  });
+
+  it('keeps the section you are in while you type in a trigger', async (ctx) => {
+    // The dialog used to re-sync its selection from props in an effect; with
+    // the triggers among its dependencies, every keystroke snapped it back to
+    // General. Mounted only while open, it starts once and stays put.
+    if (!engineUp) ctx.skip();
+    const section = driver.locator('[data-testid="workflow-trigger-config-section-input parameters"]');
+    await section.click();
+    await driver.locator(`${byTestId('workflow-trigger-config')} .monaco-editor .view-lines`).click();
+    await driver.keyboard.type('{"region": "west"}');
+    expect(await section.getAttribute('class')).toContain('active');
+    expect(await driver.locator(`${byTestId('workflow-trigger-config')} .monaco-editor`).isVisible()).toBe(true);
   });
 });

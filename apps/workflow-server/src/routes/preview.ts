@@ -5,7 +5,6 @@
  *
  * Workflow engine — moved from FoxAgent (apps/api/src/routes/preview.ts).
  */
-import { open } from 'node:fs/promises';
 import { z } from 'zod';
 import type { FastifyPluginAsync } from 'fastify';
 import type { ZodTypeProvider } from '../zod-provider.js';
@@ -16,7 +15,7 @@ import {
   parseTextRows,
   textConfigFields,
   textFormatRefine,
-  resolveWorkflowFile,
+  openWorkflowFile,
 } from '@foxschema/workflow-engine';
 
 /** At most this much of a file is read for a preview. */
@@ -49,7 +48,7 @@ const previewResponseSchema = z.object({
   records: z.array(z.record(z.string(), z.unknown())),
   /**
    * 1-based source line for each visible record (parallel to `records`).
-   * Text uses the physical file/sample line; CSV uses the record ordinal.
+   * The physical file/sample line the record starts on, for text and CSV alike.
    */
   lines: z.array(z.number().int().min(1)).default([]),
   invalid: z.array(
@@ -77,31 +76,6 @@ const failure = (error: string): PreviewResponse => ({
   truncated: false,
   error,
 });
-
-/**
- * Head of the file as text. When the file is larger than the window, the last
- * (possibly partial) line is dropped so the parser only sees complete lines.
- */
-async function readHead(
-  path: string,
-): Promise<{ text: string; truncated: boolean }> {
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- the workflow author's configured source file — the same path a run reads; the FoxSchema proxy requires workflow.design
-  const handle = await open(path, 'r');
-  try {
-    const { size } = await handle.stat();
-    const buffer = Buffer.alloc(Math.min(size, HEAD_BYTES));
-    await handle.read(buffer, 0, buffer.length, 0);
-    let text = buffer.toString('utf8');
-    const truncated = size > HEAD_BYTES;
-    if (truncated) {
-      const lastNewline = text.lastIndexOf('\n');
-      if (lastNewline !== -1) text = text.slice(0, lastNewline);
-    }
-    return { text, truncated };
-  } finally {
-    await handle.close();
-  }
-}
 
 /**
  * Parse a sample (or the head of the configured file) with the same code the
@@ -140,7 +114,11 @@ export function previewRoutes(): FastifyPluginAsync {
           const path = parsed.data.path;
           if (!path) return failure('provide a sample or set a file path');
           try {
-            ({ text, truncated: headTruncated } = await readHead(await resolveWorkflowFile(path)));
+            // The head of the file, through the same root-confined handle a
+            // run reads with; a partial last line is dropped.
+            ({ text, truncated: headTruncated } = await (await openWorkflowFile(path)).readHead(HEAD_BYTES, {
+              wholeLines: true,
+            }));
           } catch (error) {
             return failure(`read ${path}: ${(error as Error).message}`);
           }
@@ -159,11 +137,10 @@ export function previewRoutes(): FastifyPluginAsync {
           }[] = [];
           if (kind === 'csv') {
             const csv = csvConfigSchema.parse(config);
-            ({ headers: fields, records } = await parseCsvRecords(text, csv));
-            // Physical file line: skipped preamble + header row + 1-based data.
-            recordLines = records.map(
-              (_, index) => csv.skipLines + index + 2,
-            );
+            // Where each record starts, read by the scanner the run uses: a
+            // count of preamble + header + index was wrong after any quoted
+            // field that spans lines.
+            ({ headers: fields, records, lines: recordLines } = await parseCsvRecords(text, csv));
           } else {
             const opts = textConfigSchema.parse(config);
             ({

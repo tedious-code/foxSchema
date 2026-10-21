@@ -54,10 +54,10 @@ async function* referenceParse(chunks: Iterable<string>, delimiter: string): Asy
   }
 }
 
-async function collect(rows: AsyncIterable<string[]>): Promise<string[][] | string> {
+async function collect(rows: AsyncIterable<string[] | { values: string[] }>): Promise<string[][] | string> {
   const out: string[][] = [];
   try {
-    for await (const row of rows) out.push(row);
+    for await (const row of rows) out.push(Array.isArray(row) ? row : row.values);
   } catch (error) {
     return `error: ${(error as Error).message}`;
   }
@@ -115,4 +115,18 @@ describe('CSV scanning', () => {
       expect(await collect(parseCsv([text], delimiter)), `seed ${seed}, one chunk`).toEqual(expected);
     }
   });
+
+  it('reports the physical line each row starts on, across quoted line breaks and chunks', async () => {
+    const text = 'a,b\n"two\nlines",x\nplain,y\r\n"three\nmore\nlines",z\nlast,w';
+    const lines: number[] = [];
+    for await (const { line } of parseCsv(chunkedFixed(text, 3), ',')) lines.push(line);
+    // a,b on 1 · "two↵lines" starts 2 · plain 4 · "three↵more↵lines" 5 · last 8
+    expect(lines).toEqual([1, 2, 4, 5, 8]);
+  });
 });
+
+function chunkedFixed(text: string, size: number): string[] {
+  const parts: string[] = [];
+  for (let at = 0; at < text.length; at += size) parts.push(text.slice(at, at + size));
+  return parts;
+}

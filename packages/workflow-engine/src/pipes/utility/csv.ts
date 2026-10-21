@@ -5,7 +5,6 @@
  *
  * Workflow engine — moved from FoxAgent (packages/pipes/utility/src/csv.ts).
  */
-import { createReadStream } from 'node:fs';
 import * as z from 'zod';
 import type {
   PipeContext,
@@ -20,9 +19,8 @@ import {
   rejectPolicyField,
   type PipeMetadata,
 } from '../../sdk/index.js';
-import { validateAgainstSchema } from '../../common/index.js';
-import { rejectBatch } from './delimited.js';
-import { resolveWorkflowFile } from './file-root.js';
+import { BatchEmitter } from './delimited.js';
+import { openWorkflowFile } from './workflow-files.js';
 
 /** Exported so the preview endpoint parses with the pipe's own field shape. */
 export const csvConfigFields = z.object({
@@ -64,66 +62,20 @@ export class CsvSourcePipe implements SourcePipe {
   async *read(context: PipeContext): AsyncIterable<RecordBatch> {
     const config = csvConfigFields.parse(context.pipe.config);
     const resumeAfter = Number(context.checkpoint?.cursor.row ?? 0);
-    let skipped = 0;
-    let headers: string[] | undefined;
+    const emitter = new BatchEmitter(context.pipe.id, config, {
+      cursorKey: 'row',
+      positionKey: '_row',
+      label: 'CSV row',
+      cut: 'record',
+    });
     let rowNumber = 0;
-    let records: Record<string, unknown>[] = [];
-    let firstRow = 0;
-    let rejects: Record<string, unknown>[] = [];
-    let firstReject = 0;
-    let lastReject = 0;
-
-    for await (const values of parseCsv(
-      // eslint-disable-next-line security/detect-non-literal-fs-filename -- the source file path is this pipe's own configuration, confined to the files root
-      createReadStream(await resolveWorkflowFile(config.path), { encoding: 'utf8' }),
-      config.delimiter,
-    )) {
-      if (skipped < config.skipLines) {
-        skipped++;
-        continue;
-      }
-      if (!headers) {
-        headers = deriveHeaders(values);
-        continue;
-      }
-      rowNumber++;
-      if (rowNumber <= resumeAfter) continue;
-      const record = Object.fromEntries(
-        headers.map((header, index) => [header, values[index] ?? '']),
-      );
-      if (config.schema) {
-        const message = validateAgainstSchema(config.schema, record);
-        if (message !== null) {
-          if (config.onInvalid === 'fail') {
-            throw new Error(`CSV row ${rowNumber} failed schema: ${message}`);
-          }
-          if (config.onInvalid === 'reject') {
-            if (rejects.length === 0) firstReject = rowNumber;
-            lastReject = rowNumber;
-            rejects.push({ ...record, _error: message, _row: rowNumber });
-            if (rejects.length === config.batchSize) {
-              yield rejectBatch(context.pipe.id, firstReject, lastReject, rejects);
-              rejects = [];
-            }
-          }
-          continue; // skip/reject — the row leaves the data stream either way
-        }
-      }
-      if (records.length === 0) firstRow = rowNumber;
-      records.push(record);
-      if (records.length === config.batchSize) {
-        yield makeBatch(context.pipe.id, firstRow, rowNumber, records);
-        records = [];
-      }
+    for await (const { record, row } of csvRows((await openWorkflowFile(config.path)).readStream(), config)) {
+      rowNumber = row;
+      if (row <= resumeAfter) continue;
+      emitter.add(record, row);
+      yield* emitter.drain();
     }
-    // Rejects flush before the final data batch so the run's last checkpoint
-    // (data cursors only) still covers everything that was emitted.
-    if (rejects.length > 0) {
-      yield rejectBatch(context.pipe.id, firstReject, lastReject, rejects);
-    }
-    if (records.length > 0) {
-      yield makeBatch(context.pipe.id, firstRow, rowNumber, records);
-    }
+    yield* emitter.flush(rowNumber);
   }
 }
 
@@ -141,45 +93,25 @@ export function deriveHeaders(values: string[]): string[] {
 }
 
 /**
- * Parse a full CSV text block into records — the preview path. Shares
- * `parseCsv`/`deriveHeaders` with the streaming pipe so preview and run agree.
+ * Parse a full CSV text block into records — the preview path, through the
+ * same {@link csvRows} the run reads with. `lines` is where each record
+ * starts in the text.
  */
 export async function parseCsvRecords(
   text: string,
   options: { delimiter?: string; skipLines?: number } = {},
-): Promise<{ headers: string[]; records: Record<string, string>[] }> {
-  const { delimiter = ',', skipLines = 0 } = options;
-  let skipped = 0;
-  let headers: string[] | undefined;
+): Promise<{ headers: string[]; records: Record<string, string>[]; lines: number[] }> {
+  let headers: string[] = [];
   const records: Record<string, string>[] = [];
-  for await (const values of parseCsv([text], delimiter)) {
-    if (skipped < skipLines) {
-      skipped++;
-      continue;
-    }
-    if (!headers) {
-      headers = deriveHeaders(values);
-      continue;
-    }
-    records.push(
-      Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ''])),
-    );
+  const lines: number[] = [];
+  const rows = csvRows([text], { delimiter: options.delimiter ?? ',', skipLines: options.skipLines ?? 0 }, (found) => {
+    headers = found;
+  });
+  for await (const { record, line } of rows) {
+    records.push(record);
+    lines.push(line);
   }
-  return { headers: headers ?? [], records };
-}
-
-function makeBatch(
-  pipeId: string,
-  firstRow: number,
-  lastRow: number,
-  records: Record<string, unknown>[],
-): RecordBatch {
-  return {
-    id: `${pipeId}:0:${firstRow}-${lastRow}`,
-    partitionId: '0',
-    records,
-    cursor: { row: lastRow },
-  };
+  return { headers, records, lines };
 }
 
 /**
@@ -194,11 +126,15 @@ function makeBatch(
 export async function* parseCsv(
   chunks: AsyncIterable<string | Buffer> | Iterable<string>,
   delimiter: string,
-): AsyncIterable<string[]> {
+): AsyncIterable<{ values: string[]; line: number }> {
   let field = '';
   let row: string[] = [];
   let quoted = false;
   let pendingQuote = false;
+  // Physical lines: every `\n` read, inside quotes too, so a row's `line` is
+  // where it starts in the file even after a multi-line quoted field.
+  let newlines = 0;
+  let rowStart = 1;
 
   for await (const chunk of chunks) {
     const text = String(chunk);
@@ -217,11 +153,10 @@ export async function* parseCsv(
       }
       if (quoted) {
         const close = text.indexOf('"', at);
-        if (close === -1) {
-          field += text.slice(at);
-          break;
-        }
-        field += text.slice(at, close);
+        const end = close === -1 ? length : close;
+        newlines += countNewlines(text, at, end);
+        field += text.slice(at, end);
+        if (close === -1) break;
         pendingQuote = true;
         at = close + 1;
         continue;
@@ -236,7 +171,9 @@ export async function* parseCsv(
         at++;
       } else if (char === '\n') {
         row.push(field.replace(/\r$/, ''));
-        yield row;
+        newlines++;
+        yield { values: row, line: rowStart };
+        rowStart = newlines + 1;
         field = '';
         row = [];
         at++;
@@ -256,6 +193,50 @@ export async function* parseCsv(
   if (quoted && !pendingQuote) throw new Error('unterminated quoted CSV field');
   if (field.length > 0 || row.length > 0) {
     row.push(field.replace(/\r$/, ''));
-    yield row;
+    yield { values: row, line: rowStart };
+  }
+}
+
+function countNewlines(text: string, from: number, to: number): number {
+  let count = 0;
+  for (let at = text.indexOf('\n', from); at !== -1 && at < to; at = text.indexOf('\n', at + 1)) count++;
+  return count;
+}
+
+/** One CSV record: its 1-based ordinal after the header, and the physical line it starts on. */
+export interface CsvRow {
+  record: Record<string, string>;
+  row: number;
+  line: number;
+}
+
+/**
+ * The records a CSV source reads, after its preamble and header — the one
+ * reading the run and the designer preview share, so they cannot disagree on
+ * which row is which. `onHeaders` hears the column names even when no record
+ * follows them.
+ */
+export async function* csvRows(
+  chunks: AsyncIterable<string | Buffer> | Iterable<string>,
+  options: { delimiter: string; skipLines: number },
+  onHeaders?: (headers: string[]) => void,
+): AsyncIterable<CsvRow> {
+  let skipped = 0;
+  let headers: string[] | undefined;
+  let row = 0;
+  for await (const { values, line } of parseCsv(chunks, options.delimiter)) {
+    if (skipped < options.skipLines) {
+      skipped++;
+      continue;
+    }
+    if (!headers) {
+      headers = deriveHeaders(values);
+      onHeaders?.(headers);
+      continue;
+    }
+    row++;
+    const record: Record<string, string> = {};
+    for (let index = 0; index < headers.length; index++) record[headers[index]!] = values[index] ?? '';
+    yield { record, row, line };
   }
 }

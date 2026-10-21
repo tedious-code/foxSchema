@@ -439,24 +439,6 @@ export function addTableWithAliasToFrom(
   return { sql: nextSql, alias: nextAlias, added: true };
 }
 
-/** True when the caret is in a FROM / JOIN table position (not WHERE/SELECT list). */
-export function isInFromTablePosition(sqlBeforeCursor: string): boolean {
-  const re = /\b(FROM|JOIN)\b/gi;
-  let last = -1;
-  let lastLen = 0;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(sqlBeforeCursor)) !== null) {
-    last = m.index;
-    lastLen = m[0].length;
-  }
-  if (last < 0) return false;
-  const afterKw = sqlBeforeCursor.slice(last + lastLen);
-  // Still in FROM/JOIN list if we haven't hit a following clause keyword.
-  return !/\b(?:WHERE|GROUP\s+BY|ORDER\s+BY|HAVING|LIMIT|OFFSET|FETCH|UNION|EXCEPT|INTERSECT|FOR\s+UPDATE|SELECT|UPDATE|DELETE|INSERT|SET)\b/i.test(
-    afterKw
-  );
-}
-
 /** True when the word at offset is SELECT or FROM (case-insensitive). */
 export function isSelectOrFromKeyword(sql: string, offset: number): 'select' | 'from' | null {
   if (offset < 0 || offset > sql.length) return null;

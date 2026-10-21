@@ -112,8 +112,8 @@ export {
   collapsedColumnsFor, compileFoxScriptPlan, foxScriptExecutableTexts, isCodeCellLast,
   isCodeCellVars, normalizeCodeCellReturn, parseCodeCellImports, parseFoxScript, parseSqlSubset,
   parseTopLevelOrderBy, prepareCodeCellImports, resolveCodeCellImportBindings, rowKeyFor,
-  runCodeCellBody, splitSelectItems, subsetValue, tablesInOrigins, uniqueKeyCoversOrder,
-  uniqueKeysFromTable,
+  runCodeCellBody, splitSelectItems, splitTopLevel, subsetValue, tablesInOrigins,
+  uniqueKeyCoversOrder, uniqueKeysFromTable,
 } from '@foxschema/sql';
 export type {
   CodeCellAllowedPackage, CodeCellErr, CodeCellImportSpec, CodeCellLast, CodeCellOk, CodeCellResult,

@@ -22,6 +22,9 @@ export const mongoDbSettings: ProviderConnectionSettings = {
   label: 'MongoDB',
   defaultPort: 27017,
   schemaRequired: false,
+  // MongoDB has sessions with transactions on a replica set, but the adapter
+  // does not start one: each translated statement is final as it runs.
+  transactions: false,
 
   buildConnectionString(option: ConnectionOptions): string {
     // mongodb+srv:// URLs carry their own host list and no port, so a

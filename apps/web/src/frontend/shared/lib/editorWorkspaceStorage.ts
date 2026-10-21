@@ -88,6 +88,34 @@ export function claimEditorWorkspace(workspaceId: string): void {
 }
 
 /**
+ * Keep the editor on the workspace the server opened, which is not always the
+ * one this browser last used: a switch in another browser or tab, being taken
+ * out of a workspace, or another account signing in here all move the server
+ * without moving the pointer. The editor hydrated from the pointer, so on a
+ * mismatch it was showing — and saving into — another workspace's scripts.
+ *
+ * `'claimed'`: first run, the original blob now belongs to `workspaceId` and
+ * is what the editor already holds. `'moved'`: the pointer now names
+ * `workspaceId`; the caller reloads, so the editor hydrates from it rather
+ * than writing what it holds into the wrong workspace. `'same'`: nothing to do.
+ */
+export function followServerWorkspace(workspaceId: string): 'same' | 'claimed' | 'moved' {
+  const id = workspaceId.trim();
+  if (!id) return 'same';
+  const active = activeEditorWorkspaceId();
+  if (!active) {
+    claimEditorWorkspace(id);
+    return 'claimed';
+  }
+  if (active === id) return 'same';
+  // Pending writes are keyed when made, so they still land in the workspace
+  // they were typed in.
+  flushDeferredStorage();
+  write(ACTIVE_WORKSPACE_KEY, id);
+  return 'moved';
+}
+
+/**
  * Point the next page load at `nextId`, after the current blob is saved.
  *
  * Returns an undo for when the server refuses the switch, so a failed select

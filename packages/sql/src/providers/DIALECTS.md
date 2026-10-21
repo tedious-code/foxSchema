@@ -137,6 +137,10 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
 ### ClickHouse (`clickhouse.sql-dialect.ts`)
 - `nullableTypeWrapper` ⇒ `Nullable(T)`; generator skips `NULL`/`NOT NULL` keywords.
 - No traditional indexes/triggers/FKs — those hooks are absent by design.
+- No transactions: the adapter's begin/commit/rollback are no-ops, so
+  `clickhouse.settings.ts` sets `transactions: false` (as Redis and MongoDB do).
+  `POST /sql/execute` refuses `transaction: true` there and the editor runs the
+  batch statement by statement with a warning.
 
 ### Wire-compatible variants — CockroachDB / YugabyteDB / TiDB
 - **CockroachDB** (`cockroachDb/`) and **YugabyteDB** (`yugabyteDb/`) are PostgreSQL

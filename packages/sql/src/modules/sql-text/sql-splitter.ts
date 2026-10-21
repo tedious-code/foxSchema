@@ -831,6 +831,43 @@ export function isWriteStatement(text: string, dialect?: string): boolean {
   return someReading(text, dialect, (statements) => statements.some((s) => !s.cell && sqlTextIsWrite(s.text)));
 }
 
+/**
+ * A statement that opens, ends or abandons a transaction: `BEGIN` (bare, or
+ * with TRANSACTION/WORK/TRAN and SQLite's DEFERRED/IMMEDIATE/EXCLUSIVE),
+ * `START TRANSACTION`, `COMMIT`, `END` (Postgres' COMMIT), and `ROLLBACK` —
+ * but not `ROLLBACK TO SAVEPOINT`, which stays inside the transaction. A
+ * procedural `BEGIN … END` block is not one.
+ *
+ * A caller that wraps a batch in a transaction of its own must not run these
+ * inside it: a COMMIT halfway makes everything before it permanent, so a later
+ * failure can no longer roll the batch back — while the caller reports that
+ * it did.
+ */
+export function isTransactionControl(text: string): boolean {
+  const keyword = firstKeyword(text);
+  if (keyword === 'commit' || keyword === 'end') return true;
+  if (keyword !== 'begin' && keyword !== 'start' && keyword !== 'rollback') return false;
+  const words = stripSqlStringsAndComments(text)
+    .replace(/;/g, ' ')
+    .trim()
+    .toLowerCase()
+    .split(/\s+/);
+  if (keyword === 'start') return words[1] === 'transaction';
+  if (keyword === 'rollback') {
+    // ROLLBACK [WORK | TRANSACTION | TRAN] TO [SAVEPOINT] s stays inside it.
+    const next = TRANSACTION_NOUNS.has(words[1] ?? '') ? words[2] : words[1];
+    return next !== 'to';
+  }
+  // BEGIN [DEFERRED | IMMEDIATE | EXCLUSIVE | DISTRIBUTED] [TRANSACTION | TRAN | WORK] …
+  // Anything else after BEGIN is a procedural block.
+  let at = 1;
+  if (BEGIN_MODES.has(words[at] ?? '')) at++;
+  return at >= words.length || TRANSACTION_NOUNS.has(words[at] ?? '');
+}
+
+const TRANSACTION_NOUNS = new Set(['transaction', 'tran', 'work']);
+const BEGIN_MODES = new Set(['deferred', 'immediate', 'exclusive', 'distributed']);
+
 /** Recursive write check used for nested WITH bodies (no code-cell gate). */
 function sqlTextIsWrite(text: string): boolean {
   const kw = firstKeyword(text);

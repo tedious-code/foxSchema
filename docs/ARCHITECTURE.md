@@ -377,6 +377,9 @@ Constraints:
    `packages/sql/src/providers/provider-settings.ts` (`dialect-registry.test.ts`
    fails until they match `PROVIDER_SETTINGS`). Nothing in `apps/web` needs
    editing — the frontend re-exports this registry.
+   If the adapter's `beginTransaction` / `rollbackTransaction` do nothing, set
+   `transactions: false` in `<name>.settings.ts`: the editor then refuses
+   One transaction there instead of reporting a rollback that never happened.
 4. Add `parseType`/`renderType` round-trip tests in `type-mapping.test.ts`
 5. Verify each optional hook against real DDL — the generic fallbacks are often wrong for DROP INDEX/TRIGGER/FK
 6. Say how the engine lexes SQL in `modules/sql-text/sql-readings.ts` (comments,

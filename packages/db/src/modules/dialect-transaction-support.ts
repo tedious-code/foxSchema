@@ -16,17 +16,27 @@
  * is unchanged" over a half-migrated schema; deny DML rollback and it tells
  * someone their row changes are unconfirmed when the engine already undid them.
  *
- * ## Why a table
+ * ## Where each answer lives
  *
- * This was two switch statements, one per question, both ending
+ * DML is the provider settings' `transactions` flag in `@foxschema/sql`, read
+ * through `dialectHasTransactions`. That is where the browser reads it too —
+ * the editor's One transaction and Data migrate's Transaction cannot import
+ * this package — so it is declared there once rather than here a second time.
+ *
+ * DDL is declared below, as the engines whose DDL commits as it runs, and is
+ * only ever asked once DML has said yes. That is the invariant the old
+ * one-row-per-dialect table had to be tested for: an adapter whose rollback
+ * does nothing cannot undo DDL either. Here it cannot be written down wrong.
+ *
+ * It was two switch statements before that, one per question, both ending
  * `default: return true`. They were easy to confuse and duly were: the edit
  * adding CockroachDB matched the first switch, so the case landed under DML —
  * wrong — and DDL was left with the explanatory comment and no case, returning
- * false only by short-circuiting through that mistake. One row per dialect puts
- * both answers on the same line, where they cannot be edited apart.
+ * false only by short-circuiting through that mistake.
  */
+import { dialectHasTransactions } from '@foxschema/sql';
 
-/** What a dialect can undo. Absent from the table below means "both". */
+/** What a dialect can undo. */
 export interface RollbackSupport {
   /** ROLLBACK undoes INSERT/UPDATE/DELETE. */
   dml: boolean;
@@ -34,26 +44,19 @@ export interface RollbackSupport {
   ddl: boolean;
 }
 
-const BOTH: RollbackSupport = { dml: true, ddl: true };
-
 /**
- * The engines that cannot undo something. Everything else gets {@link BOTH}.
+ * Engines that roll back DML but not DDL. Redis, MongoDB and ClickHouse are
+ * not here: they roll back neither, and their settings say so.
  *
  * Keyed by the lower-cased dialect name, matching how callers name engines.
  */
-const ROLLBACK_SUPPORT: Record<string, RollbackSupport> = {
-  // No-op begin/rollback: the adapter resolves without doing anything, so a
-  // caller must not report a rollback it never got. Neither kind is undone.
-  redis: { dml: false, ddl: false },
-  mongodb: { dml: false, ddl: false },
-  clickhouse: { dml: false, ddl: false },
-
+const DDL_AUTOCOMMITS: ReadonlySet<string> = new Set([
   // DDL auto-commits as each statement runs, so ROLLBACK after a mid-plan
   // failure leaves the earlier CREATE/ALTER/DROP applied. DML is unaffected.
-  mysql: { dml: true, ddl: false },
-  mariadb: { dml: true, ddl: false },
-  tidb: { dml: true, ddl: false },
-  oracle: { dml: true, ddl: false },
+  'mysql',
+  'mariadb',
+  'tidb',
+  'oracle',
 
   // CockroachDB advertises transactional DDL and was trusted for it. It does
   // not deliver, and the server says so out loud — on v26.3.0
@@ -77,12 +80,16 @@ const ROLLBACK_SUPPORT: Record<string, RollbackSupport> = {
   // DROP DEFAULT the plan runs first. ROLLBACK returned without error and the
   // column stayed changed, under a banner reading "All changes were rolled
   // back — the target is unchanged".
-  cockroachdb: { dml: true, ddl: false },
-};
+  'cockroachdb',
+]);
 
-/** What this dialect can undo. */
+/** What this dialect can undo. An engine nobody has described can undo both. */
 export function rollbackSupport(dialect: string): RollbackSupport {
-  return ROLLBACK_SUPPORT[dialect.trim().toLowerCase()] ?? BOTH;
+  const key = dialect.trim().toLowerCase();
+  // No-op begin/rollback: the adapter resolves without doing anything, so a
+  // caller must not report a rollback it never got. Neither kind is undone.
+  const dml = dialectHasTransactions(key);
+  return { dml, ddl: dml && !DDL_AUTOCOMMITS.has(key) };
 }
 
 /** True when adapter.rollback can undo ordinary DML on this dialect. */
@@ -92,16 +99,11 @@ export function dialectSupportsTransactionalRollback(dialect: string): boolean {
 
 /**
  * True when a failed multi-step schema migration can undo DDL already run in
- * the same transaction.
- *
- * Never true where DML rollback is not: an adapter whose rollback does nothing
- * cannot undo DDL either. The table is checked for that in its own test rather
- * than the check being repeated here, so a new row cannot quietly claim it.
+ * the same transaction. Never true where DML rollback is not.
  */
 export function dialectSupportsTransactionalDdlRollback(dialect: string): boolean {
   return rollbackSupport(dialect).ddl;
 }
 
-/** Exported for the invariant test; not part of the runtime contract. */
-export const ROLLBACK_SUPPORT_TABLE: Readonly<Record<string, RollbackSupport>> =
-  ROLLBACK_SUPPORT;
+/** Exported for the table's own test; not part of the runtime contract. */
+export const DDL_AUTOCOMMITS_TABLE: ReadonlySet<string> = DDL_AUTOCOMMITS;

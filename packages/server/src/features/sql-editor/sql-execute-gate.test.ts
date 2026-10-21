@@ -9,6 +9,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import type { Permission } from '@foxschema/shared';
+import { dialectFeatureReason } from '@foxschema/sql';
 import { fakeReply, routeHandler } from '../../platform/http/route-doubles';
 import { createEditorRoutes } from './editor.routes';
 import { runStatements } from './sql-execute.service';
@@ -147,13 +148,26 @@ describe('POST /sql/execute as one transaction', () => {
       transaction: true,
     });
     expect(sent.status).toBe(400);
-    expect(sent.body.error).toContain(`${label} has no transactions`);
+    expect(sent.body.error).toContain(label);
+    // The sentence Data migrate's disabled Transaction checkbox shows.
+    expect(sent.body.error).toContain(dialectFeatureReason(dialect, 'transactions'));
+    expect(sent.body.error).toMatch(/One transaction cannot roll this batch back/);
     expect(ran).toBe(false);
 
     const plain = await execute(dialect, ['editor.run', 'editor.dml', 'editor.ddl'], {
       statements: ['SELECT 1', 'SELECT 2'],
     });
     expect(plain.ran).toBe(true);
+  });
+
+  it('does not tell a MongoDB user their database has no transactions', async () => {
+    // It has them on a replica set; Fox Schema's adapter does not open one.
+    const { sent } = await execute('mongodb', ['editor.run', 'editor.dml', 'editor.ddl'], {
+      statements: ['SELECT 1', 'SELECT 2'],
+      transaction: true,
+    });
+    expect(sent.body.error).not.toMatch(/MongoDB has no transactions/);
+    expect(sent.body.error).toMatch(/Fox Schema writes to MongoDB without a transaction/);
   });
 
   it('runs the same batch statement by statement when not asked for one transaction', async () => {

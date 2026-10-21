@@ -25,7 +25,7 @@ import {
   type DataPeekState,
 } from './sqlEditorDataPeek';
 import { seekFromLastRow, tableForOrderBy } from '@/features/sql-editor/lib/resultSeek';
-import { supportsDialectFeature } from '@/shared/lib/dialect-features';
+import { dialectFeatureReason, supportsDialectFeature } from '@/shared/lib/dialect-features';
 import type { SavedConnectionSummary } from '@/shared/api/authApi';
 import { resolveAppSecrets } from '@/shared/api/appSecretsApi';
 import { loadSchema } from '@/shared/api/schemaApi';
@@ -83,7 +83,7 @@ import {
   type SqlVariableKind,
   type VariableOverride,
 } from '@/shared/lib/sql-variables';
-import { connectionNeedsSecret, dialectHasTransactions, getProviderSettings } from '@/shared/lib/provider-settings';
+import { connectionNeedsSecret, dialectHasTransactions } from '@/shared/lib/provider-settings';
 import { useSyncStore } from '@/features/compare';
 import { SQL_EDITOR_PERSIST_KEY, SQL_EDITOR_PERSIST_VERSION, useRecentQueries } from './recentQueries';
 import { workspaceEditorStorage } from '@/shared/lib/editorWorkspaceStorage';
@@ -1307,7 +1307,7 @@ export const useSqlEditorStore = create<SqlEditorState>()(
           );
         } else if (wantsTransaction && noTransaction) {
           appendWarning(
-            `${getProviderSettings(noTransaction.dialect).label} has no transactions, so this run goes statement by statement and nothing rolls back on a failure.`
+            `${dialectFeatureReason(noTransaction.dialect, 'transactions')} This run goes statement by statement instead of as one transaction.`
           );
         }
         const asOneTransaction = wantsTransaction && !hasCellOrSet && !steersOwnTransaction && !noTransaction;

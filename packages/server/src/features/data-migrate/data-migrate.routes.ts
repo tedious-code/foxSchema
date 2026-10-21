@@ -17,7 +17,7 @@ import { rateLimit } from '../../platform/guards/rate-limit';
 import { MAX_STATEMENT_LENGTH } from '../sql-editor';
 import type { Permission } from '@foxschema/shared';
 import { CATEGORY_PERMISSION, DATAGRID_ACTION_PERMISSION } from '@foxschema/shared';
-import { sqlStatementCategories, statementVerb } from '@foxschema/sql';
+import { dialectFeatures, sqlStatementCategories, statementVerb } from '@foxschema/sql';
 import { isSingleSqlStatement } from '../../platform/statements/single-statement';
 import { executeDataMigrateOps, type DataMigrateExecOp } from './data-migrate-execute';
 import { identitySessionSql } from './identity-session';
@@ -65,6 +65,15 @@ export function createDataMigrateRoutes(deps: DataMigrateRouteDeps): Router {
         return;
       }
       const { dialect } = resolved;
+      // Redis, MongoDB and ClickHouse open no transaction: each row is final as
+      // it runs, so "roll back the whole batch" is a promise they cannot keep.
+      // Refuse an explicit request, as /sql/execute does for One transaction.
+      // An omitted flag defaults to whatever the engine can do.
+      const transactions = dialectFeatures(dialect).transactions;
+      if (body.useTransaction === true && !transactions.supported) {
+        sendError(res, 'invalid_input', `${transactions.reason} Turn Transaction off to migrate without one.`);
+        return;
+      }
       const ops: DataMigrateExecOp[] = [];
       const needed = new Set<Permission>(['editor.dml']);
       for (const raw of body.ops) {
@@ -144,7 +153,7 @@ export function createDataMigrateRoutes(deps: DataMigrateRouteDeps): Router {
           resolved.schema,
           ops,
           {
-            useTransaction: body.useTransaction !== false,
+            useTransaction: body.useTransaction !== false && transactions.supported,
             continueOnError: Boolean(body.continueOnError),
             sessionSql,
           }

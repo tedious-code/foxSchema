@@ -147,7 +147,9 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
 - No transactions: the adapter's begin/commit/rollback are no-ops, so
   `clickhouse.settings.ts` sets `transactions: false` (as Redis and MongoDB do).
   `POST /sql/execute` refuses `transaction: true` there and the editor runs the
-  batch statement by statement with a warning.
+  batch statement by statement with a warning. `POST /data-migrate/execute`
+  refuses `useTransaction: true` the same way, and Data migrate shows its
+  Transaction checkbox off and disabled.
 
 ### Wire-compatible variants — CockroachDB / YugabyteDB / TiDB
 - **CockroachDB** (`cockroachDb/`) and **YugabyteDB** (`yugabyteDb/`) are PostgreSQL

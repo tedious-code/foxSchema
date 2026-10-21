@@ -155,6 +155,13 @@ connection grant follows the connection’s workspace.
   (`GET /api/workspaces/discover`, `POST /:id/join`). Join role is viewer or
   editor, never owner. An invite never adds: the invitee accepts
   (`POST /api/workspaces/invites/:id/accept`, 14-day TTL).
+- **UI.** One workspace is open. `WorkspaceRailButton` sits under the Fox mark
+  on the activity rail (not the profile menu) and opens the same
+  `WorkspaceMenu` (switch, invites, settings, public join, create). A launch
+  session hides it. Switching is still `POST /api/workspaces/:id/select` then
+  reload. Editor tabs/scripts in this browser are keyed by workspace id
+  (`editorWorkspaceStorage.ts`); the unscoped blob is claimed once by the first
+  workspace the rail sees.
 
 Startup `backfillWorkspaces` gives each account a personal workspace and moves
 rows that still have `workspace_id` null or `'local'` into their author’s.
@@ -285,8 +292,10 @@ largest files when it fails. Everything else loads when it is used:
   `prefetchView` on hover or focus, so a view's code is usually already loaded by the time
   the click lands.
 - **Panels that open on a click** (admin console, credentials, applies history, new
-  connection) are `lazy()` inside `MountWhenOpened`. That mounts a panel on its first open
-  and keeps it mounted afterwards, so its state survives closing exactly as before.
+  connection, the workspace menu) are `lazy()` inside `MountWhenOpened`. That mounts a
+  panel on its first open and keeps it mounted afterwards, so its state survives
+  closing exactly as before. The workspace button is shell, not a view — it is
+  not in the view registry.
 - **Heavy libraries** (sql-formatter, Prettier, faker, lodash, date-fns, zod, ajv) load
   through `shared/lib/loadOnce.ts`: one shared promise, retried after a failure. A
   component that needs one while rendering uses `useLoaded(loader)`, which re-renders

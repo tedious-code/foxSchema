@@ -27,7 +27,7 @@ FoxSchema = schema diff/migration + SQL Editor + workspaces. Destinations checkl
 - Admins see all workspaces but open one only by joining (#495 / Admin → Workspaces).
 - Public vs private: signed-in users can join public (#496).
 - Isolation proven e2e both ways (#497).
-- UI: `workspace-switcher`, `workspace-menu`, `workspace-settings`, profile embeds WorkspaceMenu.
+- UI: rail `WorkspaceRailButton` (under the Fox mark) opens `WorkspaceMenu` / settings; launch sessions hide it. Profile menu does not list workspaces.
 
 ## Auth / admin (Claude + follow-ons)
 - **Launch sessions** (#490): `foxschema open` one-time local launch token → session with `launch: true`; skip signup wizard; profile **"Create your account"**; registration grace then blocks; admin/SSO gated until registered.

@@ -10,9 +10,13 @@
 export {
   apiAdminListWorkspaces,
   apiArchiveWorkspace,
+  apiDeleteWorkspaceScript,
+  apiListWorkspaceScripts,
+  apiSaveWorkspaceScript,
   apiSelectWorkspace,
   apiSetWorkspaceMember,
   type AdminWorkspaceRow,
+  type WorkspaceScript,
 } from './api/workspacesApi';
 
 export { WorkspaceRailButton } from './components/WorkspaceRailButton';

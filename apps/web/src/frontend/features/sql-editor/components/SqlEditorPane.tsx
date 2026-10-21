@@ -23,7 +23,8 @@ import {
   parseFoxScript,
   type SplitStatement,
 } from '@/shared/lib/sql-splitter';
-import { ensureSqlCompletions } from '../lib/completion';
+import { ensureSqlCompletions, shouldOpenClauseSuggest } from '../lib/completion';
+import { disarmPasswordAutofill } from '../lib/passwordAutofill';
 import { applyFoxscriptMarkers, clearFoxscriptMarkers } from '../lib/foxscriptDiagnostics';
 import {
   setSqlCaretOffsetGetter,
@@ -237,6 +238,13 @@ export const SqlEditorPane: React.FC<Props> = ({
 
   return (
     <>
+    {/* A form with no password field, so Enter stays in the editor. Without
+        it Chrome treats this origin's saved login as belonging to the textarea. */}
+    <form
+      autoComplete="off"
+      className="contents"
+      onSubmit={(event) => event.preventDefault()}
+    >
     <Editor
       height="100%"
       theme={monacoTheme}
@@ -246,6 +254,13 @@ export const SqlEditorPane: React.FC<Props> = ({
       onMount={(editor, monaco) => {
         editorRef.current = editor;
         monacoRef.current = monaco;
+        const disarm = () => disarmPasswordAutofill(editor.getDomNode?.() ?? null);
+        disarm();
+        // Monaco writes autocomplete="off" while building the textarea, and
+        // Chrome ignores "off" on a site that has a saved login. Stamp again
+        // after that write, and whenever the editor is focused.
+        requestAnimationFrame(disarm);
+        editor.onDidFocusEditorText(disarm);
         ensureSqlCompletions(monaco);
         ensureFoxscriptVirtualProviders(monaco);
         ensureFoxscriptSemanticTokens(monaco, () => useSqlEditorStore.getState().schemaCache);
@@ -260,6 +275,22 @@ export const SqlEditorPane: React.FC<Props> = ({
             applyFoxscriptMarkers(monaco, model, fox);
             syncFoxscriptVirtualDocs(monaco, model, fox);
           }
+        });
+        // `onDidType` is on Monaco's ICodeEditor but not in the public
+        // editor.api typings, so it is reached through one narrow cast.
+        const typing = editor as typeof editor & {
+          onDidType?: (listener: (text: string) => void) => void;
+        };
+        typing.onDidType?.((typed: string) => {
+          if (typed !== ' ' && typed !== '=') return;
+          const model = editor.getModel?.();
+          const pos = editor.getPosition?.();
+          if (!model || !pos) return;
+          // The clause keyword touching the caret is on the caret's own line,
+          // so read that line instead of copying the whole buffer per space.
+          const before = model.getLineContent(pos.lineNumber).slice(0, pos.column - 1);
+          if (!shouldOpenClauseSuggest(before)) return;
+          editor.trigger('keyboard', 'editor.action.triggerSuggest', { auto: true });
         });
         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => onRunRef.current?.());
         // Ctrl/Cmd+S → bookmark current query
@@ -357,6 +388,7 @@ export const SqlEditorPane: React.FC<Props> = ({
       }}
       options={editorOptions}
     />
+    </form>
     <SelectColumnPicker
       open={columnPickerOpen}
       anchor={columnPickerAnchor}

@@ -1,5 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Pencil, Trash2, Sparkles, Eye, EyeOff } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Pencil, Trash2, Sparkles, Eye, EyeOff, Users } from 'lucide-react';
+import {
+  apiDeleteWorkspaceScript,
+  apiListWorkspaceScripts,
+  apiSaveWorkspaceScript,
+  type WorkspaceScript,
+} from '@/features/workspaces';
 import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { SQL_EDITOR_SAMPLE_BOOKMARKS } from '@/features/sql-editor/lib/sqlEditorSamples';
 import { formatRelativeDay } from '@/shared/lib/relativeTime';
@@ -15,7 +21,7 @@ import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
  */
 const HIDE_SAMPLES_KEY = 'foxschema-sql-bookmarks-hide-samples';
 
-type PanelTab = 'bookmarks' | 'recent';
+type PanelTab = 'bookmarks' | 'workspace' | 'recent';
 
 function readHideSamples(): boolean {
   try {
@@ -39,8 +45,15 @@ export const SqlBookmarksPanel: React.FC = () => {
   const renameBookmark = useSqlEditorStore((s) => s.renameBookmark);
   const deleteBookmark = useSqlEditorStore((s) => s.deleteBookmark);
   const installSampleBookmarks = useSqlEditorStore((s) => s.installSampleBookmarks);
+  const addTab = useSqlEditorStore((s) => s.addTab);
+  const renameTab = useSqlEditorStore((s) => s.renameTab);
+  const setSql = useSqlEditorStore((s) => s.setSql);
 
   const [tab, setTab] = useState<PanelTab>('bookmarks');
+  const [scripts, setScripts] = useState<WorkspaceScript[]>([]);
+  const [canWriteScripts, setCanWriteScripts] = useState(false);
+  const [scriptError, setScriptError] = useState<string | null>(null);
+  const [scriptBusy, setScriptBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [sampleNote, setSampleNote] = useState<string | null>(null);
@@ -59,9 +72,66 @@ export const SqlBookmarksPanel: React.FC = () => {
     });
   };
 
+  const loadScripts = useCallback(async () => {
+    try {
+      const next = await apiListWorkspaceScripts();
+      setScripts(next.scripts);
+      setCanWriteScripts(next.canWrite);
+      setScriptError(null);
+    } catch (error: unknown) {
+      setScriptError(error instanceof Error ? error.message : 'Could not load workspace scripts');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab !== 'workspace') return;
+    void loadScripts();
+  }, [tab, loadScripts]);
+
   useEffect(() => {
     if (editingId) inputRef.current?.select();
   }, [editingId]);
+
+  /** One shape for every script write: busy flag, error text, and the result. */
+  const runScriptOp = useCallback(
+    async (fallback: string, op: () => Promise<void>): Promise<void> => {
+      setScriptBusy(true);
+      setScriptError(null);
+      try {
+        await op();
+      } catch (error: unknown) {
+        setScriptError(error instanceof Error ? error.message : fallback);
+      } finally {
+        setScriptBusy(false);
+      }
+    },
+    []
+  );
+
+  const shareCurrent = async () => {
+    const state = useSqlEditorStore.getState();
+    const current = state.tabs.find((item) => item.id === state.activeTabId);
+    if (!current?.sql.trim()) return;
+    await runScriptOp('Could not save the script', async () => {
+      // The POST returns the saved script, so no follow-up GET is needed.
+      const saved = await apiSaveWorkspaceScript(current.title.trim() || 'Script', current.sql);
+      setScripts((prev) => [saved, ...prev.filter((s) => s.id !== saved.id)]);
+    });
+  };
+
+  const openScript = (script: WorkspaceScript) => {
+    addTab();
+    const id = useSqlEditorStore.getState().activeTabId;
+    renameTab(id, script.title);
+    setSql(script.sql);
+  };
+
+  const deleteScript = async (script: WorkspaceScript) => {
+    await runScriptOp('Could not delete the script', async () => {
+      await apiDeleteWorkspaceScript(script.id);
+      setScripts((prev) => prev.filter((s) => s.id !== script.id));
+    });
+  };
 
   const commitRename = () => {
     if (!editingId) return;
@@ -102,6 +172,19 @@ export const SqlBookmarksPanel: React.FC = () => {
           }`}
         >
           Bookmarks
+        </button>
+        <button
+          type="button"
+          data-testid="sql-workspace-scripts-tab"
+          aria-pressed={tab === 'workspace'}
+          onClick={() => setTab('workspace')}
+          className={`rounded-t px-2 py-1 text-[11px] font-bold transition ${
+            tab === 'workspace'
+              ? 'border border-b-0 border-slate-700 bg-slate-900 text-emerald-300'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          Workspace
         </button>
         <button
           type="button"
@@ -240,6 +323,74 @@ export const SqlBookmarksPanel: React.FC = () => {
                 ))}
               </ul>
             </div>
+          )}
+        </>
+      ) : tab === 'workspace' ? (
+        <>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              data-testid="sql-workspace-script-save"
+              title="Save the current query for everyone in this workspace"
+              disabled={scriptBusy || !canWriteScripts}
+              onClick={() => void shareCurrent()}
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-bold text-emerald-300 hover:text-emerald-200 hover:bg-slate-800/80 transition disabled:opacity-40"
+            >
+              <Users className="w-3 h-3" strokeWidth={SQL_ICON_STROKE} />
+              Save for workspace
+            </button>
+          </div>
+          {scriptError && (
+            <p data-testid="sql-workspace-script-error" className="text-[11px] text-rose-300">
+              {scriptError}
+            </p>
+          )}
+          {!canWriteScripts && (
+            <p className="text-[11px] text-slate-500 leading-snug">
+              Everyone in this workspace can open these. An editor saves and deletes them.
+            </p>
+          )}
+          {scripts.length === 0 ? (
+            <p className="text-[12px] font-medium text-slate-500 leading-snug">
+              No shared scripts yet. Save the query in the editor and everyone here can open it.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-0.5 overflow-y-auto min-h-0 flex-1 pr-0.5">
+              {scripts.map((script) => (
+                <li key={script.id} className={TABLE_ROW}>
+                  <button
+                    type="button"
+                    data-testid={`sql-workspace-script-open-${script.id}`}
+                    title={script.sql.slice(0, 200)}
+                    onClick={() => openScript(script)}
+                    className="min-w-0 text-left text-[12px] font-semibold truncate text-slate-300 hover:text-emerald-300"
+                  >
+                    {script.title}
+                  </button>
+                  <span
+                    className="text-[10px] font-medium text-slate-500 text-right tabular-nums shrink-0 truncate"
+                    title={script.updatedBy ?? ''}
+                  >
+                    {script.updatedBy?.split('@')[0] ?? ''}
+                  </span>
+                  <div className="flex justify-end">
+                    {canWriteScripts && (
+                      <button
+                        type="button"
+                        data-testid={`sql-workspace-script-delete-${script.id}`}
+                        title="Delete workspace script"
+                        aria-label={`Delete ${script.title}`}
+                        disabled={scriptBusy}
+                        onClick={() => void deleteScript(script)}
+                        className="p-0.5 text-slate-500 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition"
+                      >
+                        <Trash2 className="w-3 h-3 text-rose-400" strokeWidth={SQL_ICON_STROKE} />
+                      </button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </>
       ) : (

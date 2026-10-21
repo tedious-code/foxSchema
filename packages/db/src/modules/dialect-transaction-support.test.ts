@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { describe, expect, it } from 'vitest';
+import { DIALECTS, dialectHasTransactions } from '@foxschema/sql';
 import {
   dialectSupportsTransactionalDdlRollback,
-  ROLLBACK_SUPPORT_TABLE,
+  DDL_AUTOCOMMITS_TABLE,
   dialectSupportsTransactionalRollback,
 } from './dialect-transaction-support.js';
 
@@ -78,25 +79,31 @@ describe('dialectSupportsTransactionalDdlRollback', () => {
 });
 
 describe('the table itself', () => {
+  it('takes DML from the provider settings, the flag the browser reads', () => {
+    // Data migrate's Transaction checkbox and the editor's One transaction
+    // cannot import this package, so they read `transactions` in the provider
+    // settings. A second declaration here is how the two would come to
+    // disagree about whether a failed migrate was rolled back.
+    for (const dialect of DIALECTS) {
+      expect(dialectSupportsTransactionalRollback(dialect), dialect).toBe(
+        dialectHasTransactions(dialect)
+      );
+    }
+  });
+
   it('never claims DDL rollback where DML rollback is impossible', () => {
-    // An adapter whose rollback does nothing cannot undo DDL either. The old
-    // shape enforced this with a guard inside the DDL function; the table has
-    // one row per dialect instead, so the invariant is checked here rather
-    // than re-derived on every call.
-    const impossible = Object.entries(ROLLBACK_SUPPORT_TABLE)
-      .filter(([, s]) => s.ddl && !s.dml)
-      .map(([dialect]) => dialect);
+    // An adapter whose rollback does nothing cannot undo DDL either.
+    const impossible = DIALECTS.filter(
+      (d) => dialectSupportsTransactionalDdlRollback(d) && !dialectSupportsTransactionalRollback(d)
+    );
     expect(impossible, 'a no-op rollback cannot undo DDL').toEqual([]);
   });
 
-  it('lists only engines that lose something — the default is both', () => {
-    // A row saying { dml: true, ddl: true } is the default written out, and a
-    // reader scanning for "which engines are special" would have to check it
-    // to find out it is not.
-    const redundant = Object.entries(ROLLBACK_SUPPORT_TABLE)
-      .filter(([, s]) => s.dml && s.ddl)
-      .map(([dialect]) => dialect);
-    expect(redundant, 'this row is the default; remove it').toEqual([]);
+  it('lists only engines whose DML does roll back', () => {
+    // An engine with no transactions loses DDL rollback anyway; listing it
+    // here would read as the reason, and hide the one that applies.
+    const redundant = [...DDL_AUTOCOMMITS_TABLE].filter((d) => !dialectHasTransactions(d));
+    expect(redundant, 'this engine has no transactions at all; remove it').toEqual([]);
   });
 
   it('answers both questions for an engine it has never heard of', () => {

@@ -8,6 +8,10 @@ import {
   foreignKeyLinksForSql,
   composePeekSql,
   isSafePeekClause,
+  joinPeekOrder,
+  joinPeekWhere,
+  splitPeekOrder,
+  splitPeekWhere,
   peekBaseFilterLabel,
   singleTableForResultEdit,
   fromClauseIsMultiTable,
@@ -160,8 +164,44 @@ describe('composePeekSql', () => {
   it('rejects multi-statement and comment filters', () => {
     expect(isSafePeekClause('a = 1; DROP TABLE t')).toBe(false);
     expect(composePeekSql('SELECT * FROM t', [], { where: '1=1; --' })).toEqual({
-      error: 'WHERE must be a single predicate (no ; or comments)',
+      error: 'WHERE cannot contain ; or comments. AND several conditions together.',
     });
+  });
+
+  it('keeps several AND predicates and several sort columns', () => {
+    const q = composePeekSql('SELECT * FROM t', [], {
+      where: "status = 'gold' AND active = 1",
+      orderBy: 'created_at DESC, id ASC',
+    });
+    expect(q).toEqual({
+      sql: "SELECT * FROM t WHERE (status = 'gold' AND active = 1) ORDER BY created_at DESC, id ASC",
+      params: [],
+    });
+  });
+});
+
+describe('peek filter rows', () => {
+  it('splits WHERE on AND and ORDER BY on commas, keeping quotes and calls intact', () => {
+    expect(splitPeekWhere("status = 'gold' AND name LIKE '%AND%' AND id > 1")).toEqual([
+      "status = 'gold'",
+      "name LIKE '%AND%'",
+      'id > 1',
+    ]);
+    expect(splitPeekOrder('created_at DESC, COALESCE(a, b) ASC, id')).toEqual([
+      { expr: 'created_at', dir: 'DESC' },
+      { expr: 'COALESCE(a, b)', dir: 'ASC' },
+      { expr: 'id', dir: '' },
+    ]);
+    expect(joinPeekWhere(['status = \'gold\'', '', 'active = 1'])).toBe(
+      "status = 'gold' AND active = 1"
+    );
+    expect(
+      joinPeekOrder([
+        { expr: 'created_at', dir: 'DESC' },
+        { expr: '', dir: 'ASC' },
+        { expr: 'id', dir: '' },
+      ])
+    ).toBe('created_at DESC, id');
   });
 });
 

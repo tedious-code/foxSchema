@@ -14,7 +14,11 @@
  */
 
 import { sqlTag as sql, renderSqlQuery } from './sql-splitter';
-import { qualifiedNameParts as tableNameParts, splitSelectItems } from '@foxschema/ui-shared';
+import {
+  qualifiedNameParts as tableNameParts,
+  splitSelectItems,
+  splitTopLevel,
+} from '@foxschema/ui-shared';
 import type { ForeignKeyInfo, TableSchema } from './types';
 
 export interface PreviewQuery {
@@ -682,6 +686,49 @@ export function foreignKeyLinksForSql(
  * Free-text WHERE / ORDER BY for Data Peek. Rejects multi-statement and
  * comment tricks so a filter box can't smuggle a second command.
  */
+/**
+ * Split a peek WHERE into predicates on top-level AND.
+ * Quoted text and parentheses stay intact, so `name LIKE '%AND%'` is one piece.
+ */
+export function splitPeekWhere(clause: string): string[] {
+  const parts = splitTopLevel(clause, 'AND').filter(Boolean);
+  return parts.length > 0 ? parts : [''];
+}
+
+/** Join peek WHERE rows. Empty rows are dropped. */
+export function joinPeekWhere(parts: readonly string[]): string {
+  return parts.map((p) => p.trim()).filter(Boolean).join(' AND ');
+}
+
+export interface PeekSort {
+  expr: string;
+  dir: '' | 'ASC' | 'DESC';
+}
+
+/** Split `created_at DESC, id` into sort rows. Commas inside parentheses stay. */
+export function splitPeekOrder(clause: string): PeekSort[] {
+  const parts = splitTopLevel(clause, ',').filter(Boolean);
+  if (parts.length === 0) return [{ expr: '', dir: '' }];
+  return parts.map((part) => {
+    const match = /^(.*?)(?:\s+(ASC|DESC))\s*$/i.exec(part.trim());
+    if (!match) return { expr: part.trim(), dir: '' as const };
+    const dir = match[2]!.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+    return { expr: match[1]!.trim(), dir };
+  });
+}
+
+/** Join peek sort rows into an ORDER BY list. */
+export function joinPeekOrder(parts: readonly PeekSort[]): string {
+  return parts
+    .map((part) => {
+      const expr = part.expr.trim();
+      if (!expr) return '';
+      return part.dir ? `${expr} ${part.dir}` : expr;
+    })
+    .filter(Boolean)
+    .join(', ');
+}
+
 export function isSafePeekClause(clause: string): boolean {
   const t = clause.trim();
   if (!t) return true;
@@ -734,10 +781,10 @@ export function composePeekSql(
   const where = (filters.where ?? '').trim();
   const orderBy = (filters.orderBy ?? '').trim();
   if (!isSafePeekClause(where)) {
-    return { error: 'WHERE must be a single predicate (no ; or comments)' };
+    return { error: 'WHERE cannot contain ; or comments. AND several conditions together.' };
   }
   if (!isSafePeekClause(orderBy)) {
-    return { error: 'ORDER BY must be a sort list (no ; or comments)' };
+    return { error: 'ORDER BY cannot contain ; or comments. Separate columns with a comma.' };
   }
 
   let sql = baseSql.trim().replace(/;+\s*$/, '');

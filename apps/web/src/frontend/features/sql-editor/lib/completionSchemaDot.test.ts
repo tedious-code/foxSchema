@@ -19,12 +19,20 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 
 vi.mock('./foxscriptVirtualDocs', () => ({ projectToVirtualDoc: () => null }));
 
-import { ensureSqlCompletions } from './completion';
+import { ensureSqlCompletions, shouldOpenClauseSuggest } from './completion';
 import { setCompletionContextGetter, type CompletionSchemaSource } from './sqlEditorBridge';
 
-type Suggestion = { label: string; detail?: string; insertText: string; command?: { id: string } };
+type Suggestion = {
+  label: string;
+  detail?: string;
+  insertText: string;
+  command?: { id: string };
+  filterText?: string;
+};
 
-let provider: { provideCompletionItems: (m: unknown, p: unknown) => { suggestions: Suggestion[] } };
+let provider: {
+  provideCompletionItems: (m: unknown, p: unknown, c?: unknown) => { suggestions: Suggestion[] };
+};
 
 const KIND = new Proxy({}, { get: (_t, k) => String(k) });
 const monaco = {
@@ -44,7 +52,7 @@ const monaco = {
  * test for `o.` needs text *after* the cursor — which is exactly the case the
  * first version of this helper could not express, and it hid a real bug.
  */
-function complete(text: string): Suggestion[] {
+function complete(text: string, triggerCharacter?: string): Suggestion[] {
   const caret = text.indexOf('|');
   const line = caret === -1 ? text : text.slice(0, caret) + text.slice(caret + 1);
   const column = (caret === -1 ? line.length : caret) + 1;
@@ -57,7 +65,8 @@ function complete(text: string): Suggestion[] {
     getValueInRange: ({ startColumn, endColumn }: { startColumn: number; endColumn: number }) =>
       line.slice(startColumn - 1, endColumn - 1),
   };
-  return provider.provideCompletionItems(model, { lineNumber: 1, column }).suggestions;
+  const context = triggerCharacter ? { triggerCharacter, triggerKind: 1 } : {};
+  return provider.provideCompletionItems(model, { lineNumber: 1, column }, context).suggestions;
 }
 
 const labels = (line: string) => complete(line).map((s) => s.label);
@@ -197,5 +206,72 @@ describe('schema names are offered before the dot', () => {
     context([{ connectionId: 'c1', schema: 'orders', tables: demoA.tables }]);
     const items = complete('SELECT * FROM orde');
     expect(items.filter((s) => s.label === 'orders' && s.detail === 'schema')).toHaveLength(0);
+  });
+});
+
+describe('FROM, JOIN, ON, WHERE, and AND', () => {
+  it('offers each table with an alias after FROM, qualified by the selected schema', () => {
+    const orders = complete('SELECT * FROM ').find((s) => s.label.startsWith('orders'));
+    expect(orders?.insertText).toMatch(/^demo_a\.orders \w+$/);
+    expect(orders?.detail).toMatch(/alias /);
+  });
+
+  it('offers tables again on a JOIN that follows ON', () => {
+    const items = complete('SELECT * FROM orders o INNER JOIN customers c ON c.email = o.id JOIN ');
+    expect(items.some((s) => s.insertText.startsWith('demo_a.order_items'))).toBe(true);
+    expect(items.some((s) => s.insertText === 'c.email')).toBe(false);
+  });
+
+  it('offers tables with aliases after INNER JOIN', () => {
+    const customers = complete('SELECT * FROM orders o INNER JOIN ').find((s) =>
+      s.label.startsWith('customers')
+    );
+    expect(customers?.insertText).toMatch(/^demo_a\.customers \w+$/);
+  });
+
+  it('offers alias.column after ON, not another table', () => {
+    const items = complete('SELECT * FROM orders o INNER JOIN customers c ON ');
+    const inserted = items.map((s) => s.insertText);
+    expect(inserted).toContain('o.id');
+    expect(inserted).toContain('o.total');
+    expect(inserted).toContain('c.email');
+    expect(inserted.some((text) => /^demo_a\.customers \w+$/.test(text))).toBe(false);
+  });
+
+  it('offers columns and common functions after WHERE and AND', () => {
+    const where = complete('SELECT * FROM orders o WHERE ');
+    expect(where.map((s) => s.insertText)).toContain('o.total');
+    expect(where.map((s) => s.label)).toContain('COUNT');
+    expect(where.find((s) => s.label === 'COUNT')?.insertText).toBe('COUNT(${1:*})');
+    expect(where.map((s) => s.label)).toContain('COALESCE');
+
+    const and = complete('SELECT * FROM orders o WHERE o.id = 1 AND ');
+    expect(and.map((s) => s.insertText)).toContain('o.id');
+    expect(and.map((s) => s.label)).toContain('UPPER');
+  });
+
+  it('opens the list after LEFT and after =, not after a select-list space', () => {
+    expect(shouldOpenClauseSuggest('SELECT * FROM orders o LEFT ')).toBe(true);
+    expect(shouldOpenClauseSuggest('SELECT * FROM orders o LEFT OUTER JOIN customers c ON c.id = ')).toBe(true);
+    expect(shouldOpenClauseSuggest('SELECT * ')).toBe(false);
+  });
+
+  it('after LEFT offers JOIN and OUTER, and after = offers both aliases', () => {
+    const left = complete('SELECT * FROM orders o LEFT ', ' ');
+    expect(left.map((s) => s.label)).toEqual(expect.arrayContaining(['JOIN', 'OUTER']));
+    const joined = complete('SELECT * FROM orders o LEFT OUTER JOIN ', ' ');
+    expect(joined.some((s) => s.insertText.startsWith('demo_a.customers'))).toBe(true);
+    const eq = complete('SELECT * FROM orders o LEFT OUTER JOIN customers c ON c.id = ', ' ');
+    const inserted = eq.map((s) => s.insertText);
+    expect(inserted).toContain('c.email');
+    expect(inserted).toContain('o.id');
+    expect(inserted).toContain('o.total');
+  });
+
+  it('opens on a space after FROM, and stays quiet on a space in the select list', () => {
+    expect(complete('SELECT * FROM ', ' ').some((s) => s.insertText.startsWith('demo_a.orders'))).toBe(
+      true
+    );
+    expect(complete('SELECT * ', ' ')).toEqual([]);
   });
 });

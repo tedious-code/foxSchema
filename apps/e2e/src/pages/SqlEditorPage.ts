@@ -357,8 +357,8 @@ export class SqlEditorPage {
     return this.page.locator('[data-testid="sql-editor-tabs"] [role="tab"]').count();
   }
 
-  async statementStripVisible(): Promise<boolean> {
-    return this.page.locator(byTestId('sql-statement-strip')).isVisible();
+  async statementGutterVisible(): Promise<boolean> {
+    return this.page.locator(byTestId('sql-statement-gutter')).isVisible();
   }
 
   async confirmWriteIfShown(): Promise<boolean> {

@@ -2528,6 +2528,14 @@ export const TestIds = {
       /** div */
       sqlVariables: 'sql-variables',
     },
+    StatementRunGutter: {
+      /** div · Statement run checks */
+      sqlStatementGutter: 'sql-statement-gutter',
+      /** input */
+      sqlStatementInclude: (i: string | number) => `sql-statement-include-${i}`,
+      /** button */
+      sqlStatementRun: (i: string | number) => `sql-statement-run-${i}`,
+    },
     StatementStrip: {
       /** div */
       sqlStatementCell: (i: string | number) => `sql-statement-cell-${i}`,
@@ -4886,6 +4894,7 @@ export type TestId =
   | `sql-statement-cell-${string}`
   | 'sql-statement-copy'
   | `sql-statement-copy-row-${string}`
+  | 'sql-statement-gutter'
   | `sql-statement-include-${string}`
   | `sql-statement-reveal-${string}`
   | `sql-statement-run-${string}`

@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **997** buttons, text boxes, selects and textareas.
+Every control has a test ID: **999** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1347,6 +1347,10 @@ Every control has a test ID: **997** buttons, text boxes, selects and textareas.
   - `sql-variable-value-edit-{name}` · input
   - `sql-variable-value-input` · input · value
   - `sql-variables` · div
+- **StatementRunGutter** · `features/sql-editor/components/StatementRunGutter.tsx`
+  - `sql-statement-gutter` · div · Statement run checks
+  - `sql-statement-include-{i}` · input
+  - `sql-statement-run-{i}` · button
 - **StatementStrip** · `features/sql-editor/components/StatementStrip.tsx`
   - `sql-statement-cell-{i}` · div
   - `sql-statement-copy` · button

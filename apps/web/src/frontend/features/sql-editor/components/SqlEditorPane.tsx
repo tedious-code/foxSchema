@@ -37,6 +37,7 @@ import {
   SelectColumnPicker,
   type SelectColumnPickerAnchor,
 } from './SelectColumnPicker';
+import { StatementRunGutter } from './StatementRunGutter';
 
 export interface RevealRequest {
   startLine: number;
@@ -47,8 +48,14 @@ export interface RevealRequest {
 
 interface Props {
   value: string;
-  /** Pre-split statements from the parent (kept for API compatibility / strip). */
   statements: SplitStatement[];
+  /** Statement indexes included in toolbar Run. */
+  checkedStatements?: number[];
+  onToggleStatement?: (index: number) => void;
+  /** Per-cell play, same pipeline as toolbar Run. */
+  onRunCell?: (index: number) => void;
+  cellRunning?: boolean;
+  sqlNeedsDestination?: boolean;
   dialect: string;
   onChange: (value: string) => void;
   /** Ctrl/Cmd+Enter shortcut → run. */
@@ -57,17 +64,24 @@ interface Props {
   onSelectionChange?: (hasSelection: boolean) => void;
   /** Caret moved — offset in the model, so Run can label the right statement. */
   onCaretChange?: (offset: number | null) => void;
-  /** Statement strip click → scroll/select that range. */
+  /** Scroll and select a statement range. */
   reveal?: RevealRequest | null;
 }
 
 /**
  * Editable Monaco pane for the SQL Editor. Notebook-style cell banding spans
  * each statement's line range; the glyph margin shows ✓ / ⚠ on the first line.
+ * Run checkboxes sit in a rail on the left of that line.
  * Model language is FoxScript (`foxscript`) once Monarch + packs load.
  */
 export const SqlEditorPane: React.FC<Props> = ({
   value,
+  statements,
+  checkedStatements = [],
+  onToggleStatement,
+  onRunCell,
+  cellRunning = false,
+  sqlNeedsDestination = false,
   dialect,
   onChange,
   onRun,
@@ -96,6 +110,7 @@ export const SqlEditorPane: React.FC<Props> = ({
   const [columnPickerAnchor, setColumnPickerAnchor] = useState<SelectColumnPickerAnchor | null>(
     null
   );
+  const [editorEpoch, setEditorEpoch] = useState(0);
   const editorOptions = useMemo(
     () => ({
       ...MONACO_EDITOR_BASE_OPTIONS,
@@ -144,8 +159,8 @@ export const SqlEditorPane: React.FC<Props> = ({
             glyphMarginHoverMessage: {
               value: ok
                 ? isCode
-                  ? 'Code cell looks complete — use the strip ▶ to run this cell'
-                  : 'Statement looks complete — use the strip ▶ to run this cell'
+                  ? 'Code cell looks complete — use the ▶ on the left to run this cell'
+                  : 'Statement looks complete — use the ▶ on the left to run this cell'
                 : status.reasons.join(' · '),
             },
             stickiness: 1,
@@ -242,9 +257,20 @@ export const SqlEditorPane: React.FC<Props> = ({
         it Chrome treats this origin's saved login as belonging to the textarea. */}
     <form
       autoComplete="off"
-      className="contents"
+      className="flex h-full min-h-0 w-full"
       onSubmit={(event) => event.preventDefault()}
     >
+    <StatementRunGutter
+      statements={statements}
+      checked={checkedStatements}
+      editorRef={editorRef}
+      editorEpoch={editorEpoch}
+      running={cellRunning}
+      sqlNeedsDestination={sqlNeedsDestination}
+      onToggle={(index) => onToggleStatement?.(index)}
+      onRunCell={onRunCell}
+    />
+    <div className="h-full min-w-0 flex-1">
     <Editor
       height="100%"
       theme={monacoTheme}
@@ -254,6 +280,7 @@ export const SqlEditorPane: React.FC<Props> = ({
       onMount={(editor, monaco) => {
         editorRef.current = editor;
         monacoRef.current = monaco;
+        setEditorEpoch((n) => n + 1);
         const disarm = () => disarmPasswordAutofill(editor.getDomNode?.() ?? null);
         disarm();
         // Monaco writes autocomplete="off" while building the textarea, and
@@ -388,6 +415,7 @@ export const SqlEditorPane: React.FC<Props> = ({
       }}
       options={editorOptions}
     />
+    </div>
     </form>
     <SelectColumnPicker
       open={columnPickerOpen}

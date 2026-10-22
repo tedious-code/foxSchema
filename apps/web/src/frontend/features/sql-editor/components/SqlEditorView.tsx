@@ -22,7 +22,7 @@ import {
 import { useSyncStore } from '@/features/compare';
 import { SCHEMA_ROUTINE_SCOPE, useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { useAuthStore } from '@/platform/authStore';
-import { splitSqlStatements, type SplitStatement } from '@/shared/lib/sql-splitter';
+import { splitSqlStatements } from '@/shared/lib/sql-splitter';
 import { formatEditorSql } from '@/shared/utils/formatSql';
 import {
   effectiveConnectionIds,
@@ -35,7 +35,6 @@ import { ConnectionChecklist } from './ConnectionChecklist';
 import { EditorTabBar } from './EditorTabBar';
 import { ResultsPanel } from './ResultsPanel';
 import { DataPeekPanel } from './DataPeekPanel';
-import { StatementStrip } from './StatementStrip';
 import { SqlBookmarksPanel } from './SqlBookmarksPanel';
 import { SqlVariablesPanel } from './SqlVariablesPanel';
 import { SqlSecretsPanel, type SqlSecretsPanelHandle } from './SqlSecretsPanel';
@@ -54,7 +53,6 @@ import {
 } from './SqlSidebarSection';
 import { WriteConfirmDialog } from './WriteConfirmDialog';
 import { SqlRunsDrawer } from './SqlRunsDrawer';
-import type { RevealRequest } from './SqlEditorPane';
 
 // One empty list each, so an empty result keeps the same props between renders.
 const NO_RUNS: never[] = [];
@@ -163,7 +161,6 @@ export const SqlEditorView: React.FC = () => {
   const results = resultsByTab[tab.id];
   const running = runningTabId === tab.id;
 
-  const [reveal, setReveal] = useState<RevealRequest | null>(null);
   const [editorPct, setEditorPct] = useState(EDITOR_PCT_DEFAULT);
   const [hasSelection, setHasSelection] = useState(false);
   const [caretOffset, setCaretOffset] = useState<number | null>(null);
@@ -347,10 +344,6 @@ export const SqlEditorView: React.FC = () => {
 
   const [formatNote, setFormatNote] = useState<string | null>(null);
   const formatNoteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const onReveal = (stmt: SplitStatement) => {
-    setReveal({ startLine: stmt.startLine, endLine: stmt.endLine, nonce: Date.now() });
-  };
 
   const onFormat = () => {
     void (async () => {
@@ -947,12 +940,16 @@ export const SqlEditorView: React.FC = () => {
                 key={tab.id}
                 value={tab.sql}
                 statements={statements}
+                checkedStatements={tab.checkedStatements}
+                onToggleStatement={toggleStatement}
+                onRunCell={(index) => void execute({ statementIndices: [index] })}
+                cellRunning={running}
+                sqlNeedsDestination={liveSelectedIds.length === 0}
                 dialect={dialect}
                 onChange={setSql}
                 onRun={() => execute()}
                 onSelectionChange={setHasSelection}
                 onCaretChange={setCaretOffset}
-                reveal={reveal}
               />
             </Suspense>
           </div>
@@ -965,16 +962,6 @@ export const SqlEditorView: React.FC = () => {
             onMouseDown={startEditorResize}
             title="Drag to resize editor / results"
             className="h-1.5 shrink-0 cursor-row-resize bg-slate-900 hover:bg-cyan-500/40 active:bg-cyan-500/60 transition-colors border-y border-slate-800/80"
-          />
-
-          <StatementStrip
-            statements={statements}
-            checked={tab.checkedStatements}
-            running={running}
-            sqlNeedsDestination={liveSelectedIds.length === 0}
-            onToggle={toggleStatement}
-            onReveal={onReveal}
-            onRunCell={(index) => void execute({ statementIndices: [index] })}
           />
 
           <div className="flex-1 min-h-0 overflow-hidden flex flex-col">

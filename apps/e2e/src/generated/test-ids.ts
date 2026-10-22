@@ -2181,6 +2181,10 @@ export const TestIds = {
     ResultsPanel: {
       /** button · Refresh this server */
       sqlCredRefresh: 'sql-cred-refresh',
+      /** button · Install the driver package on the server */
+      sqlInstallDriver: (connectionId: string | number) => `sql-install-driver-${connectionId}`,
+      /** div */
+      sqlInstallDriverBanner: (connectionId: string | number) => `sql-install-driver-${connectionId}-banner`,
       /** div · Drag to resize this table */
       sqlPaneResize: 'sql-pane-resize',
       /** button · Retry this server */
@@ -2523,6 +2527,14 @@ export const TestIds = {
       sqlVariableValueInput: 'sql-variable-value-input',
       /** div */
       sqlVariables: 'sql-variables',
+    },
+    StatementRunGutter: {
+      /** div · Statement run checks */
+      sqlStatementGutter: 'sql-statement-gutter',
+      /** input */
+      sqlStatementInclude: (i: string | number) => `sql-statement-include-${i}`,
+      /** button */
+      sqlStatementRun: (i: string | number) => `sql-statement-run-${i}`,
     },
     StatementStrip: {
       /** div */
@@ -4735,6 +4747,8 @@ export type TestId =
   | 'sql-grid-save-result-as'
   | 'sql-grid-save-result-as-mode'
   | 'sql-grid-view-scope'
+  | `sql-install-driver-${string}`
+  | `sql-install-driver-${string}-banner`
   | 'sql-layout-by-credential'
   | 'sql-layout-side-by-side'
   | 'sql-max-rows'
@@ -4880,6 +4894,7 @@ export type TestId =
   | `sql-statement-cell-${string}`
   | 'sql-statement-copy'
   | `sql-statement-copy-row-${string}`
+  | 'sql-statement-gutter'
   | `sql-statement-include-${string}`
   | `sql-statement-reveal-${string}`
   | `sql-statement-run-${string}`

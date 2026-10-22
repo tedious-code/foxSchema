@@ -180,13 +180,11 @@ describe.skipIf(!ready)('SQL Editor · SQLite multi-credential', () => {
     expect(await driver.locator('[data-testid="sql-data-migrate-bar-0"]').count()).toBe(0);
   });
 
-  it('shows the statement strip for multi-statement SQL', async () => {
+  it('shows a run checkbox on the left of each statement', async () => {
     await sql.setSql('SELECT 1 AS n;\nSELECT name FROM customers WHERE id = 1;');
-    expect(await sql.statementStripVisible()).toBe(true);
-    const strip = await driver.locator('[data-testid="sql-statement-strip"]').innerText();
-    // Jupyter-style cells label statements In [1] / In [2] (legacy used #1 / #2).
-    expect(strip).toMatch(/In\s*\[1\]|#1/);
-    expect(strip).toMatch(/In\s*\[2\]|#2/);
+    expect(await sql.statementGutterVisible()).toBe(true);
+    expect(await driver.locator('[data-testid="sql-statement-include-0"]').isVisible()).toBe(true);
+    expect(await driver.locator('[data-testid="sql-statement-include-1"]').isVisible()).toBe(true);
   });
 
   it('prompts for confirmation before running UPDATE', async () => {

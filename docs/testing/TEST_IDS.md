@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **996** buttons, text boxes, selects and textareas.
+Every control has a test ID: **999** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1117,6 +1117,9 @@ Every control has a test ID: **996** buttons, text boxes, selects and textareas.
   - `file-imports-panel` · div
   - `file-imports-refresh` · button · Refresh
   - `file-imports-table-head` · div
+- **MissingDriverBanner** · `features/sql-editor/components/MissingDriverBanner.tsx`
+  - `{testId}` · button · Install the driver package on the server · passed in by the parent
+  - `{testId}-banner` · div · passed in by the parent
 - **PeekDatePicker** · `features/sql-editor/components/PeekDatePicker.tsx`
   - `peek-date-day-{y}-{m}-{day}` · button
   - `peek-date-today` · button · ›
@@ -1171,6 +1174,8 @@ Every control has a test ID: **996** buttons, text boxes, selects and textareas.
   - `{testId}-bar-{i}` · rect · passed in by the parent
 - **ResultsPanel** · `features/sql-editor/components/ResultsPanel.tsx`
   - `sql-cred-refresh` · button · Refresh this server
+  - `sql-install-driver-{connectionId}` · button in MissingDriverBanner · Install the driver package on the server
+  - `sql-install-driver-{connectionId}-banner` · div in MissingDriverBanner
   - `sql-pane-resize` · div · Drag to resize this table
   - `sql-pane-retry-{connectionId}` · button · Retry this server
   - `sql-result-{statementIndex}-{action}` · data
@@ -1342,6 +1347,10 @@ Every control has a test ID: **996** buttons, text boxes, selects and textareas.
   - `sql-variable-value-edit-{name}` · input
   - `sql-variable-value-input` · input · value
   - `sql-variables` · div
+- **StatementRunGutter** · `features/sql-editor/components/StatementRunGutter.tsx`
+  - `sql-statement-gutter` · div · Statement run checks
+  - `sql-statement-include-{i}` · input
+  - `sql-statement-run-{i}` · button
 - **StatementStrip** · `features/sql-editor/components/StatementStrip.tsx`
   - `sql-statement-cell-{i}` · div
   - `sql-statement-copy` · button

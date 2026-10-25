@@ -1078,6 +1078,7 @@ Every control has a test ID: **997** buttons, text boxes, selects and textareas.
   - `data-peek-apply-{id}` · button · Apply
   - `data-peek-base-filter-{id}` · div
   - `data-peek-base-filter-clear-{id}` · button · Clear key filter and fetch all rows
+  - `data-peek-body-{id}` · div
   - `data-peek-clear-key-{id}` · button · Clear key filter and fetch all rows
   - `data-peek-close` · button · Close data peek
   - `data-peek-close-panel-{id}` · button · Close this panel

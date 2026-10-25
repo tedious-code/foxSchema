@@ -1974,7 +1974,11 @@ export const DataGrid: React.FC<{
               onChange={(e) => setSaveName(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') commitSave();
-                if (e.key === 'Escape') setSavePrompt(null);
+                if (e.key === 'Escape') {
+                  // Marked handled, so an enclosing Data Peek does not close too.
+                  e.preventDefault();
+                  setSavePrompt(null);
+                }
               }}
               placeholder="variable_name"
               className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-100 outline-none accent-focus mb-2"

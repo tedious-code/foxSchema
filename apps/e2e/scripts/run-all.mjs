@@ -127,6 +127,7 @@ const ALWAYS = [
       'src/tests/redis-editor.test.ts',
       'src/tests/sql-editor-peek-row-form.test.ts',
       'src/tests/sql-editor-peek-stacking.test.ts',
+      'src/tests/sql-editor-data-peek-grid.test.ts',
       'src/tests/sql-editor-compare-multi-target.test.ts',
       'src/tests/sql-editor-join-typing.test.ts',
     ].join(' '),

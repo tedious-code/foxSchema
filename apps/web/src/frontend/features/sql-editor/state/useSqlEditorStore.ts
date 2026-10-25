@@ -2219,9 +2219,13 @@ export const useSqlEditorStore = create<SqlEditorState>()(
               : { status: 'error', error: result.error, result }
           );
         } catch (error: unknown) {
+          // The rows of the last good page stay on screen, so the page number
+          // goes back to theirs. Left at the page that failed, the panel called
+          // page one's rows page two and numbered them from 11.
           patchIfCurrent({
             status: 'error',
             error: error instanceof Error ? error.message : String(error),
+            ...(entry.result?.ok ? { pageIndex: entry.resultPageIndex ?? 0 } : {}),
           });
         }
       },

@@ -9,7 +9,7 @@
  */
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 const apiSetupState = vi.fn();
 const apiSetup = vi.fn();
@@ -194,6 +194,52 @@ describe('codes', () => {
     fireEvent.submit(screen.getByTestId('auth-redeem-form'));
     await waitFor(() => expect(apiRedeemCode).toHaveBeenCalledWith('ABCD-EFGH-JKMN', GOOD, true));
     await waitFor(() => expect(useAuthStore.getState().status).toBe('ready'));
+  });
+
+  it('opens an emailed link under StrictMode, which renders every component twice in development', async () => {
+    // The code is read from the address bar and then removed. Read inside a
+    // useState initializer, the second render found it gone, and the page
+    // showed sign-in: every invite and reset link failed in development.
+    window.history.replaceState(null, '', '/#reset=QRST-UVWX-YZ23');
+    apiInspectCode.mockResolvedValue({ email: 'back@example.com', purpose: 'reset' });
+    useAuthStore.setState({ status: 'anon', setupState: null });
+    render(
+      <React.StrictMode>
+        <AuthPage />
+      </React.StrictMode>
+    );
+    await waitFor(() => expect(screen.getByTestId('auth-redeem-form')).toBeTruthy());
+    expect(apiInspectCode).toHaveBeenCalledWith('QRST-UVWX-YZ23');
+    expect(window.location.hash).toBe('');
+  });
+
+  it('keeps the code when React throws away the first render (a component in the tree suspends)', async () => {
+    // React discards a render that suspends, state and all, and mounts again.
+    // The first render had taken the code off the address bar, so the second
+    // found nothing and showed sign-in: every emailed link failed this way.
+    let release!: () => void;
+    let pending: Promise<void> | null = new Promise<void>((resolve) => {
+      release = () => {
+        pending = null;
+        resolve();
+      };
+    });
+    const SuspendOnce = () => {
+      if (pending) throw pending;
+      return null;
+    };
+    window.history.replaceState(null, '', '/#invite=LMNP-QRST-UVWX');
+    apiInspectCode.mockResolvedValue({ email: 'kept@example.com', purpose: 'invite' });
+    useAuthStore.setState({ status: 'anon', setupState: null });
+    render(
+      <React.Suspense fallback={null}>
+        <AuthPage />
+        <SuspendOnce />
+      </React.Suspense>
+    );
+    await act(async () => release());
+    await waitFor(() => expect(screen.getByTestId('auth-redeem-form')).toBeTruthy());
+    expect(apiInspectCode).toHaveBeenCalledWith('LMNP-QRST-UVWX');
   });
 
   it('opens an invite link pasted into a tab where Fox is already open', async () => {

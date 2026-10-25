@@ -80,6 +80,7 @@ export const PERMISSIONS = [
   // Administration
   'admin.users',
   'admin.roles',
+  'admin.drivers',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -143,6 +144,7 @@ export const PERMISSION_META: PermissionMeta[] = [
   { id: 'workspace.create', group: 'Workspace', label: 'Create workspaces', description: 'Create workspaces besides your own. Install-wide: comes from the account role, not a workspace role.' },
   { id: 'admin.users', group: 'Admin', label: 'Manage users', description: 'List FoxSchema logins, assign app roles, and activate or deactivate accounts. Not the same as database users on a connected server.' },
   { id: 'admin.roles', group: 'Admin', label: 'Configure roles', description: 'Edit which FoxSchema permissions each app role receives, including Grant privileges for database GRANT/REVOKE.' },
+  { id: 'admin.drivers', group: 'Admin', label: 'Install drivers', description: 'Install a database driver package on the server (npm install, and a native build for Db2). It downloads and runs code on the machine Fox Schema runs on, for every workspace. Install-wide: comes from the account role, not a workspace role.' },
 ];
 
 const ALL = [...PERMISSIONS];
@@ -294,8 +296,9 @@ export function workspaceGrantCeiling(accountRole: string, ownRole: WorkspaceRol
 /**
  * Permissions that belong to the install rather than to a workspace, so they
  * come from the account role. `editor.advanced` runs code on the server:
- * owning a workspace must never grant it. Workflows and Git repositories are
- * install-wide, and so is managing accounts and creating workspaces.
+ * owning a workspace must never grant it, nor `admin.drivers`, which installs
+ * packages on it. Workflows and Git repositories are install-wide, and so is
+ * managing accounts and creating workspaces.
  */
 export const INSTALL_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>([
   'editor.advanced',
@@ -307,6 +310,7 @@ export const INSTALL_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>(
   'git.manage',
   'admin.users',
   'admin.roles',
+  'admin.drivers',
   'workspace.create',
 ]);
 

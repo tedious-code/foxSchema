@@ -12,6 +12,7 @@ import type { AppRequest, AuthedRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
 import { scopeOf } from '../../platform/http/scope';
 import { sendError, sendThrown } from '../../platform/http/respond';
+import { requirePermissions } from '../../platform/authorization/rbac.guard';
 import type { ConnectionRef, ConnectionResolver } from '../../platform/connections/resolve';
 
 export function createConnectionToolRoutes(deps: {
@@ -32,7 +33,10 @@ export function createConnectionToolRoutes(deps: {
     }
   });
 
-  router.post('/driver/install', async (req: AppRequest, res: FastifyReply) => {
+  // Installing runs npm (and, for Db2, a native build) on the server, for every
+  // workspace. Any signed-in account could do it while the only button was in
+  // the credential form; the SQL editor now offers it on every failed run.
+  router.post('/driver/install', requirePermissions('admin.drivers'), async (req: AppRequest, res: FastifyReply) => {
     const { dialect } = (req.body ?? {}) as { dialect?: unknown };
     // Without this, a missing dialect reached DriverDetector and came back as a
     // 500 — the caller's malformed request reported as a server fault.

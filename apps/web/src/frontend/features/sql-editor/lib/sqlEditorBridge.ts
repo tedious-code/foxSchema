@@ -102,7 +102,7 @@ export function setSqlSelectionGetter(fn: SelectionGetter | null): void {
   selectionGetter = fn ?? (() => null);
 }
 
-/** Current editor selection used by Run (selection overrides statement strip). */
+/** Current editor selection used by Run (selection overrides the rail's run checks). */
 export function getSelectedSql(): string | null {
   return selectionGetter();
 }

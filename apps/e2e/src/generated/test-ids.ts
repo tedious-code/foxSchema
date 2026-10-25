@@ -1750,6 +1750,12 @@ export const TestIds = {
     },
   },
   shared: {
+    DriverInstallHints: {
+      /** p */
+      driverInstallError: 'driver-install-error',
+      /** p */
+      driverInstallNeedsAdmin: 'driver-install-needs-admin',
+    },
     ErrorBoundary: {
       /** button · Dismiss */
       appErrorBoundaryDismiss: 'app-error-boundary-dismiss',
@@ -2187,6 +2193,10 @@ export const TestIds = {
       sqlInstallDriver: (connectionId: string | number) => `sql-install-driver-${connectionId}`,
       /** div */
       sqlInstallDriverBanner: (connectionId: string | number) => `sql-install-driver-${connectionId}-banner`,
+      /** button · Install the driver package on the server */
+      sqlPaneInstallDriver: (connectionId: string | number) => `sql-pane-install-driver-${connectionId}`,
+      /** div */
+      sqlPaneInstallDriverBanner: (connectionId: string | number) => `sql-pane-install-driver-${connectionId}-banner`,
       /** div · Drag to resize this table */
       sqlPaneResize: 'sql-pane-resize',
       /** button · Retry this server */
@@ -2531,32 +2541,16 @@ export const TestIds = {
       sqlVariables: 'sql-variables',
     },
     StatementRunGutter: {
+      /** button */
+      sqlStatementCopy: (i: string | number) => `sql-statement-copy-${i}`,
       /** div · Statement run checks */
       sqlStatementGutter: 'sql-statement-gutter',
       /** input */
       sqlStatementInclude: (i: string | number) => `sql-statement-include-${i}`,
       /** button */
-      sqlStatementRun: (i: string | number) => `sql-statement-run-${i}`,
-    },
-    StatementStrip: {
-      /** div */
-      sqlStatementCell: (i: string | number) => `sql-statement-cell-${i}`,
-      /** button */
-      sqlStatementCopy: 'sql-statement-copy',
-      /** button */
-      sqlStatementCopyRow: (i: string | number) => `sql-statement-copy-row-${i}`,
-      /** input */
-      sqlStatementInclude: (i: string | number) => `sql-statement-include-${i}`,
-      /** button · In [ ]: */
-      sqlStatementReveal: (i: string | number) => `sql-statement-reveal-${i}`,
+      sqlStatementLabel: (i: string | number) => `sql-statement-label-${i}`,
       /** button */
       sqlStatementRun: (i: string | number) => `sql-statement-run-${i}`,
-      /** div */
-      sqlStatementStrip: 'sql-statement-strip',
-      /** div · Resize statement list */
-      sqlStatementStripResize: 'sql-statement-strip-resize',
-      /** div */
-      sqlStatementValuesPopover: 'sql-statement-values-popover',
     },
     TableBlueprintModal: {
       /** button · Add column */
@@ -4204,6 +4198,8 @@ export type TestId =
   | `diff-tree-toggle-selection-${string}`
   | 'diff-unsupported'
   | 'dismiss-warnings-btn'
+  | 'driver-install-error'
+  | 'driver-install-needs-admin'
   | 'error-banner'
   | 'execute-btn'
   | 'feedback-cancel'
@@ -4766,6 +4762,8 @@ export type TestId =
   | 'sql-open-object-source-btn'
   | 'sql-page-next'
   | 'sql-page-prev'
+  | `sql-pane-install-driver-${string}`
+  | `sql-pane-install-driver-${string}-banner`
   | 'sql-pane-refresh'
   | 'sql-pane-resize'
   | `sql-pane-retry-${string}`
@@ -4896,16 +4894,11 @@ export type TestId =
   | `sql-sidebar-resize-${string}`
   | `sql-sidebar-toggle-${string}`
   | 'sql-sidebar-utilities'
-  | `sql-statement-cell-${string}`
-  | 'sql-statement-copy'
-  | `sql-statement-copy-row-${string}`
+  | `sql-statement-copy-${string}`
   | 'sql-statement-gutter'
   | `sql-statement-include-${string}`
-  | `sql-statement-reveal-${string}`
+  | `sql-statement-label-${string}`
   | `sql-statement-run-${string}`
-  | 'sql-statement-strip'
-  | 'sql-statement-strip-resize'
-  | 'sql-statement-values-popover'
   | 'sql-tab-add'
   | `sql-tab-close-${string}`
   | 'sql-tab-rename'

@@ -123,6 +123,7 @@ const ALWAYS = [
       'src/tests/sql-editor-code-cell-faker.test.ts',
       'src/tests/lazy-loading.test.ts',
       'src/tests/sql-editor-result-edit.test.ts',
+      'src/tests/sql-editor-run-rail.test.ts',
       'src/tests/sql-editor-peek-row-form.test.ts',
       'src/tests/sql-editor-peek-stacking.test.ts',
       'src/tests/sql-editor-compare-multi-target.test.ts',

@@ -29,6 +29,7 @@ import {
   type PeekSort,
 } from '@/shared/lib/tablePreview';
 import type { InboundForeignKey } from '@/shared/lib/tablePreview';
+import { clampDataPeekLimit } from '@/features/sql-editor/state/sqlEditorDataPeek';
 import { DataGrid } from './DataGrid';
 import { usePeekGridCrud } from './usePeekGridCrud';
 import { PeekInsight } from './PeekInsight';
@@ -36,11 +37,18 @@ import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import type { TableSchema } from '@/shared/lib/types';
 import { useSyncStore } from '@/features/compare';
 
-const DEFAULT_HEIGHT_ROOT = 360;
+/**
+ * The height of a panel's body — the rows grid or Insight — not of the whole
+ * panel. The controls above it (WHERE and ORDER BY rows, Limit) take what they
+ * need: with the height on the whole panel, each condition added took a row
+ * from the grid, and two filter rows left a grid of headers and no rows.
+ */
+const DEFAULT_BODY_HEIGHT_ROOT = 260;
 /** FK drill panels stack full-width; main body scrolls when many are open. */
-const DEFAULT_HEIGHT_DRILL = 320;
-const MIN_PANEL_HEIGHT = 200;
-const MAX_PANEL_HEIGHT = 900;
+const DEFAULT_BODY_HEIGHT_DRILL = 220;
+/** The store clamps to the same range (setDataPeekPanelHeight). */
+const MIN_BODY_HEIGHT = 220;
+const MAX_BODY_HEIGHT = 900;
 
 /**
  * Test id for one filter row. The first row keeps the original unsuffixed id,
@@ -84,7 +92,13 @@ const PeekFilterBar: React.FC<{
     const draftOrderBy = orderByRef.current;
     const draftLimit = limitRef.current;
     const parsed = Number.parseInt(draftLimit, 10);
-    const nextLimit = Number.isFinite(parsed) ? parsed : entry.limit;
+    // Clamped here as the store does, and written back, so the box always shows
+    // the limit in force: an emptied box or a typo above the cap used to stay.
+    const nextLimit = Number.isFinite(parsed) ? clampDataPeekLimit(parsed) : entry.limit;
+    if (draftLimit !== String(nextLimit)) {
+      setLimit(String(nextLimit));
+      limitRef.current = String(nextLimit);
+    }
     // Skip no-op applies (e.g. blur after an already-committed clear).
     if (
       draftWhere === entry.whereClause &&
@@ -344,8 +358,8 @@ const PeekResizeHandle: React.FC<{
     target.setPointerCapture(e.pointerId);
     const onMove = (ev: PointerEvent) => {
       const next = Math.min(
-        MAX_PANEL_HEIGHT,
-        Math.max(MIN_PANEL_HEIGHT, startH.current + (ev.clientY - startY.current))
+        MAX_BODY_HEIGHT,
+        Math.max(MIN_BODY_HEIGHT, startH.current + (ev.clientY - startY.current))
       );
       setDataPeekPanelHeight(entryId, next);
     };
@@ -497,8 +511,8 @@ const PeekGrid: React.FC<{
     [links, entry, drillDataPeek]
   );
 
-  const heightPx =
-    entry.panelHeightPx ?? (variant === 'drill' ? DEFAULT_HEIGHT_DRILL : DEFAULT_HEIGHT_ROOT);
+  const bodyHeightPx =
+    entry.panelHeightPx ?? (variant === 'drill' ? DEFAULT_BODY_HEIGHT_DRILL : DEFAULT_BODY_HEIGHT_ROOT);
 
   const afterWrite = useCallback(() => runDataPeekEntry(entry.id), [runDataPeekEntry, entry.id]);
   const columns = entry.result?.ok ? entry.result.columns : [];
@@ -543,7 +557,6 @@ const PeekGrid: React.FC<{
       className={`px-2 pb-1 flex flex-col w-full shrink-0 transition-opacity ${
         isDragging ? 'opacity-50' : ''
       } ${isDragOver ? 'ring-2 ring-cyan-500/50 rounded-lg' : ''}`}
-      style={{ height: heightPx }}
       data-testid={`data-peek-grid-${entry.id}`}
       onDragOver={(e) => {
         e.preventDefault();
@@ -644,11 +657,13 @@ const PeekGrid: React.FC<{
       {crud.writeErrorBanner}
 
       {tab === 'insight' && (
-        <PeekInsight
-          connectionId={connectionId}
-          tableName={entry.tableName}
-          schema={connectionSchema}
-        />
+        <div className="min-h-0 flex flex-col" style={{ height: bodyHeightPx }} data-testid={`data-peek-body-${entry.id}`}>
+          <PeekInsight
+            connectionId={connectionId}
+            tableName={entry.tableName}
+            schema={connectionSchema}
+          />
+        </div>
       )}
 
       {tab === 'rows' && entry.status === 'loading' && !entry.result && (
@@ -665,7 +680,7 @@ const PeekGrid: React.FC<{
       )}
 
       {tab === 'rows' && entry.result?.ok && (
-        <div className="flex-1 min-h-0 flex flex-col">
+        <div className="min-h-0 flex flex-col" style={{ height: bodyHeightPx }} data-testid={`data-peek-body-${entry.id}`}>
           <DataGrid
             result={entry.result}
             exportName={entry.tableName}
@@ -727,7 +742,7 @@ const PeekGrid: React.FC<{
         </div>
       )}
 
-      <PeekResizeHandle entryId={entry.id} heightPx={heightPx} />
+      <PeekResizeHandle entryId={entry.id} heightPx={bodyHeightPx} />
 
       {crud.overlays}
     </div>
@@ -752,6 +767,10 @@ export const DataPeekPanel: React.FC = () => {
       if (e.key !== 'Escape') return;
       // Row editor / write confirm own Escape — do not close the whole peek.
       if (childOverlayOpen) return;
+      // Something inside already used this Escape: the grid clearing a cell
+      // selection, or its save-as-variable dialog closing. Closing the peek
+      // too threw away every panel the reader had drilled open.
+      if (e.defaultPrevented) return;
       closeDataPeek();
     };
     window.addEventListener('keydown', onKey);

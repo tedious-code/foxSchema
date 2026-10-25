@@ -92,6 +92,16 @@ describe('DataPeekPanel Insight tab', () => {
       expect(peek?.entries[0]?.orderByClause).toBe('created_at DESC, id ASC');
     });
   });
+
+  it('gives its height to the grid, so filter rows never squeeze out the rows', () => {
+    // With the height on the whole panel, two WHERE rows and two ORDER BY rows
+    // took all of it: the grid showed its header and none of its rows.
+    render(<DataPeekPanel />);
+    fireEvent.click(screen.getByTestId('data-peek-where-add-e1'));
+    fireEvent.click(screen.getByTestId('data-peek-order-add-e1'));
+    expect(screen.getByTestId('data-peek-grid-e1').style.height).toBe('');
+    expect(screen.getByTestId('data-peek-body-e1').style.height).toBe('260px');
+  });
 });
 
 vi.mock('@/features/compare/state/useSyncStore', () => ({

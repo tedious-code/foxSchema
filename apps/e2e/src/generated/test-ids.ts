@@ -2015,6 +2015,8 @@ export const TestIds = {
       dataPeekBaseFilter: (id: string | number) => `data-peek-base-filter-${id}`,
       /** button · Clear key filter and fetch all rows */
       dataPeekBaseFilterClear: (id: string | number) => `data-peek-base-filter-clear-${id}`,
+      /** div */
+      dataPeekBody: (id: string | number) => `data-peek-body-${id}`,
       /** button · Clear key filter and fetch all rows */
       dataPeekClearKey: (id: string | number) => `data-peek-clear-key-${id}`,
       /** button · Close data peek */
@@ -4054,6 +4056,7 @@ export type TestId =
   | `data-peek-apply-${string}`
   | `data-peek-base-filter-${string}`
   | `data-peek-base-filter-clear-${string}`
+  | `data-peek-body-${string}`
   | `data-peek-clear-key-${string}`
   | 'data-peek-close'
   | `data-peek-close-panel-${string}`

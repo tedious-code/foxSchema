@@ -15,6 +15,7 @@ const apiSaveSsoProvider = vi.fn();
 const apiSaveMailSettings = vi.fn();
 const apiSetSignInService = vi.fn();
 const apiSetSignInServiceAdmins = vi.fn();
+const apiSaveDemoMode = vi.fn();
 
 vi.mock('@/shared/api/authApi', () => ({
   apiSignInSettings: (...a: unknown[]) => apiSignInSettings(...a),
@@ -26,6 +27,7 @@ vi.mock('@/shared/api/authApi', () => ({
   apiSendTestEmail: vi.fn(),
   apiSetSignInService: (...a: unknown[]) => apiSetSignInService(...a),
   apiSetSignInServiceAdmins: (...a: unknown[]) => apiSetSignInServiceAdmins(...a),
+  apiSaveDemoMode: (...a: unknown[]) => apiSaveDemoMode(...a),
 }));
 
 import { SignInSettingsPanel } from './SignInSettingsPanel';
@@ -55,8 +57,10 @@ beforeEach(() => {
     ],
     mail: { configured: false, source: null, host: '', port: 587, security: 'starttls', username: '', hasPassword: false, from: '' },
     broker: { enabled: false, source: null, url: 'https://foxschema.com/wp-json/foxschema/v1/sso', admins: true, adminsSource: null },
+    demo: { on: false, hint: '' },
   });
   apiSetSignInService.mockReset().mockResolvedValue(undefined);
+  apiSaveDemoMode.mockReset().mockResolvedValue(undefined);
 });
 
 describe('sign-in settings', () => {
@@ -118,5 +122,22 @@ describe('sign-in settings', () => {
     expect(admins.checked).toBe(true);
     fireEvent.click(admins);
     await waitFor(() => expect(apiSetSignInServiceAdmins).toHaveBeenCalledWith(false));
+  });
+});
+
+describe('SignInSettingsPanel · demo mode', () => {
+  it('turns demo mode on, and saves the sign-in hint on its own', async () => {
+    render(<SignInSettingsPanel />);
+    const toggle = (await screen.findByTestId('sign-in-demo-toggle')) as HTMLInputElement;
+    expect(toggle.checked).toBe(false);
+    fireEvent.click(toggle);
+    await waitFor(() => expect(apiSaveDemoMode).toHaveBeenCalledWith({ on: true }));
+
+    const save = screen.getByTestId('sign-in-demo-save') as HTMLButtonElement;
+    // Nothing to save until the hint differs from the stored one.
+    expect(save.disabled).toBe(true);
+    fireEvent.change(screen.getByTestId('sign-in-demo-hint'), { target: { value: 'Demo login: demo@x.com / try-fox' } });
+    fireEvent.click(save);
+    await waitFor(() => expect(apiSaveDemoMode).toHaveBeenCalledWith({ hint: 'Demo login: demo@x.com / try-fox' }));
   });
 });

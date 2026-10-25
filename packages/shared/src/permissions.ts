@@ -11,13 +11,25 @@
  * Ordered least → most privileged. `owner` sits between editor and admin:
  * full power over database schema and data (including GRANT and deploying
  * migrations), but no say over who may use the app — that stays with `admin`.
+ *
+ * `demo` is for a published demo: one account whose login is public. It
+ * reads and never writes, whatever workspace it is in, and its profile is
+ * locked so one visitor cannot sign the others out or change the login.
  */
-export const APP_ROLES = ['viewer', 'editor', 'owner', 'admin'] as const;
+export const APP_ROLES = ['demo', 'viewer', 'editor', 'owner', 'admin'] as const;
 export type AppRole = (typeof APP_ROLES)[number];
 
 export function isAppRole(value: unknown): value is AppRole {
   return typeof value === 'string' && (APP_ROLES as readonly string[]).includes(value);
 }
+
+/** The role for a published demo's shared login (see `DEMO` below). */
+export function isDemoRole(role: unknown): boolean {
+  return role === 'demo';
+}
+
+/** Longest sign-in hint demo mode keeps; the admin panel's box stops at the same length. */
+export const DEMO_HINT_MAX = 300;
 
 /** Fine-grained capabilities enforced on API + UI. */
 export const PERMISSIONS = [
@@ -149,7 +161,15 @@ export const PERMISSION_META: PermissionMeta[] = [
 
 const ALL = [...PERMISSIONS];
 
-const VIEWER: Permission[] = [
+/**
+ * A viewer's reading, without workflows or Git: browse and compare schemas,
+ * read history, inspect access, run SELECTs. Every permission that writes is
+ * absent. Whatever an admin adds here, the server lets a demo account reach
+ * only the routes that read (`DEMO_ALLOWED_WRITES` on the server): saving a
+ * connection, a secret, a workspace or a profile stays closed. What SQL it may
+ * run follows these permissions, so adding `editor.dml` makes a sandbox.
+ */
+const DEMO: Permission[] = [
   'schema.browse',
   'schema.compare',
   'compare.history',
@@ -163,9 +183,10 @@ const VIEWER: Permission[] = [
   'access.access',
   'access.inspector',
   'access.report',
-  'workflow.access',
-  'git.view',
 ];
+
+/** The demo's reading, plus workflows and Git to look at. Each role above builds on the one below. */
+const VIEWER: Permission[] = [...DEMO, 'workflow.access', 'git.view'];
 
 const EDITOR: Permission[] = [
   ...VIEWER,
@@ -209,6 +230,7 @@ const ADMIN: Permission[] = ALL;
 
 /** Built-in defaults when role_permissions has no rows for a role. */
 export const DEFAULT_ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
+  demo: DEMO,
   viewer: VIEWER,
   editor: EDITOR,
   owner: OWNER,

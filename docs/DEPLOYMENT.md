@@ -456,6 +456,42 @@ hostnames).
 **Always terminate TLS** (via your reverse proxy or platform) for any internet-facing
 deployment — Fox Schema handles database credentials.
 
+## Publishing a demo
+
+A public demo is one install with one shared login that anyone may use. Two
+settings make that safe:
+
+- **The Demo role.** Give the shared account the `demo` role (Access control →
+  Users). It browses and compares schemas, reads history and access reports,
+  and runs SELECTs. It cannot save or change anything — connections, secrets,
+  workspaces, variables, its own profile — and cannot run server-side code
+  cells, workflows or Git. The server enforces this on every request, whatever
+  workspace the account is in and whatever role a workspace gave it. A visitor
+  also cannot reset the shared password (forgot-password sends nothing for a
+  demo account) or sign the other visitors out. Its permissions are edited like
+  any role's; adding `editor.dml` there turns the demo into a sandbox, since
+  the SQL it may run follows those permissions.
+- **Demo mode** (Access control → Sign-in → Demo mode). Shows a demo banner on
+  every page and your sign-in hint — typically the shared login — on the
+  sign-in page. Anyone can read the hint.
+
+To set one up:
+
+1. Create the account with the `demo` role and a password you are happy to
+   publish.
+2. Give it the demo databases. It cannot add connections itself: as an admin,
+   join its workspace (Access control → Workspaces → Join), open it, add the
+   connections, then leave.
+3. Point those connections at **read-only database accounts** with a statement
+   timeout. The Demo role refuses writes, and the database account is what
+   stops a slow query from tying the demo up.
+4. Turn on demo mode and enter the hint.
+
+Limits worth knowing: the shared account's sign-in lockout is shared too — 50
+wrong passwords from all addresses within 15 minutes lock it for everyone until
+the window passes (a correct sign-in clears the count). Preferences such as the
+theme are one account's, so every visitor shares them.
+
 ## Origin policy
 
 The API holds database credentials and can run migrations, so only named browser

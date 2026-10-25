@@ -26,7 +26,7 @@ import {
   CAPPED_ROLE_COLUMNS,
   cappedRole,
   effectiveMemberRole,
-  PERSONAL_OWNER_JOIN,
+  CAPPED_ROLE_JOINS,
   requireWorkspacePermission,
   type StoredRoleRow,
 } from '../../platform/workspaces/workspace.service';
@@ -128,7 +128,7 @@ export class WorkspaceDirectory {
       `SELECT w.id, w.name, w.visibility, w.join_role, ${CAPPED_ROLE_COLUMNS},
               (SELECT COUNT(*) FROM workspace_members x WHERE x.workspace_id = w.id) AS member_count
          FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id
-         ${PERSONAL_OWNER_JOIN}
+         ${CAPPED_ROLE_JOINS}
         WHERE m.user_id = ? AND w.archived_at IS NULL
         ORDER BY CASE WHEN w.personal_owner_id = ? THEN 0 ELSE 1 END, w.name`,
       [userId, userId]
@@ -298,7 +298,7 @@ export class WorkspaceDirectory {
       `SELECT m.user_id, u.email, ${CAPPED_ROLE_COLUMNS}, a.email AS added_by, m.created_at
          FROM workspace_members m
          JOIN workspaces w ON w.id = m.workspace_id
-         ${PERSONAL_OWNER_JOIN}
+         ${CAPPED_ROLE_JOINS}
          JOIN users u ON u.id = m.user_id
          LEFT JOIN users a ON a.id = m.added_by
         WHERE m.workspace_id = ?
@@ -363,7 +363,7 @@ export class WorkspaceDirectory {
       `SELECT m.workspace_id, u.email, ${CAPPED_ROLE_COLUMNS}
          FROM workspace_members m
          JOIN workspaces w ON w.id = m.workspace_id
-         ${PERSONAL_OWNER_JOIN}
+         ${CAPPED_ROLE_JOINS}
          JOIN users u ON u.id = m.user_id
         WHERE m.role = 'owner' ORDER BY u.email`
     );

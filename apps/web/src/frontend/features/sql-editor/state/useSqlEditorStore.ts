@@ -28,6 +28,7 @@ import { seekFromLastRow, tableForOrderBy } from '@/features/sql-editor/lib/resu
 import { dialectFeatureReason, supportsDialectFeature } from '@/shared/lib/dialect-features';
 import type { SavedConnectionSummary } from '@/shared/api/authApi';
 import { resolveAppSecrets } from '@/shared/api/appSecretsApi';
+import { useAuthStore } from '@/platform/authStore';
 import { loadSchema } from '@/shared/api/schemaApi';
 import {
   collectMultiTableWriteWarnings,
@@ -1220,17 +1221,22 @@ export const useSqlEditorStore = create<SqlEditorState>()(
           });
 
         // Vault secrets (local + cloud) merge into vars for this Run; session Variables win on name clash.
+        // Only for an account that may read them: asking without `secrets.view`
+        // is refused every time, and a viewer (or a demo visitor) then saw
+        // "App Secrets unavailable" under every query it ran.
         let runVariables = get().variables;
-        try {
-          const vault = await resolveAppSecrets();
-          for (const [name, msg] of Object.entries(vault.errors)) {
-            appendWarning(`Secret "${name}": ${msg}`);
+        if (useAuthStore.getState().can('secrets.view')) {
+          try {
+            const vault = await resolveAppSecrets();
+            for (const [name, msg] of Object.entries(vault.errors)) {
+              appendWarning(`Secret "${name}": ${msg}`);
+            }
+            runVariables = mergeVaultSecretsIntoVariables(get().variables, vault.secrets);
+          } catch (err: unknown) {
+            appendWarning(
+              `App Secrets unavailable: ${err instanceof Error ? err.message : String(err)}`
+            );
           }
-          runVariables = mergeVaultSecretsIntoVariables(get().variables, vault.secrets);
-        } catch (err: unknown) {
-          appendWarning(
-            `App Secrets unavailable: ${err instanceof Error ? err.message : String(err)}`
-          );
         }
 
         const ranDisplay: string[] = [];

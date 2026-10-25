@@ -14,6 +14,7 @@ import type { Permission, WorkspaceRole } from '@foxschema/shared';
 import { type AuthModule, SESSION_COOKIE, SESSION_MAX_AGE_MS, type AuthUser } from './auth.service';
 import { sendError } from '../http/respond';
 import { ServiceError } from '../contracts/actor';
+import { DEMO_READ_ONLY, demoMayCall } from '../authorization/demo-access';
 
 /** Put the resolved session user's identity + grants on the request. */
 export function attachAuthUser(
@@ -82,6 +83,13 @@ export function authGuard(auth: AuthModule) {
       const session = await auth.resolveSession(readCookie(req, SESSION_COOKIE));
       if (!session) {
         sendError(res, 'unauthenticated', 'Authentication required');
+        return;
+      }
+      // A demo account reads; it writes only through routes that read (demo-access.ts).
+      // Matched on the registered route, `:params` and all, never the raw URL.
+      // Before the workspace reads below: a refused write needs none of them.
+      if (!demoMayCall(session.user.role, req.method, req.routeOptions?.url ?? '')) {
+        sendError(res, 'forbidden', DEMO_READ_ONLY);
         return;
       }
       if (session.launch && (await auth.registrationState()).required) {

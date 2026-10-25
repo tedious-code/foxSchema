@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Admin: how people sign in. SSO providers, the email relay for reset and
- * invite codes, and the public URL. Mounted at /api/admin/sign-in behind the
- * session guard; every route needs `admin.users`.
+ * invite codes, the public URL, and demo mode. Mounted at /api/admin/sign-in
+ * behind the session guard; every route needs `admin.users`.
  */
 import type { FastifyReply } from 'fastify';
 import { Router } from '../../platform/http/router';
@@ -16,8 +16,13 @@ import { rateLimit } from '../../platform/guards/rate-limit';
 import { isSsoProviderId, SignInSettings } from '../../platform/identity/sign-in-settings.service';
 import { AuthMailer } from '../../platform/identity/auth-mail';
 import { redirectUri } from '../../platform/identity/sso.service';
+import { DemoMode } from '../../platform/identity/demo-mode.service';
 
-export function createSignInSettingsRoutes(settings = new SignInSettings(), mailer = new AuthMailer(settings)): Router {
+export function createSignInSettingsRoutes(
+  settings = new SignInSettings(),
+  mailer = new AuthMailer(settings),
+  demo = new DemoMode()
+): Router {
   const router = Router();
   const guard = requirePermissions('admin.users');
   const testMailLimiter = rateLimit({ name: 'test-email', windowMs: 60 * 1000, max: 5 });
@@ -26,10 +31,10 @@ export function createSignInSettingsRoutes(settings = new SignInSettings(), mail
     sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Could not save');
 
   router.get('/', guard, async (req: AuthedRequest, res: FastifyReply) => {
-    const summary = await settings.summary();
+    const [summary, demoState] = await Promise.all([settings.summary(), demo.get()]);
     // The callback URL to register with each provider.
     const providers = summary.providers.map((p) => ({ ...p, redirectUri: redirectUri(req, p.id, summary.publicUrl) }));
-    res.send({ ...summary, providers });
+    res.send({ ...summary, providers, demo: demoState });
   });
 
   router.put('/providers/:id', guard, async (req: AuthedRequest, res: FastifyReply) => {
@@ -105,6 +110,15 @@ export function createSignInSettingsRoutes(settings = new SignInSettings(), mail
     try {
       await settings.savePublicUrl(typeof url === 'string' ? url : '');
       res.send({ ok: true });
+    } catch (error: unknown) {
+      fail(res, error);
+    }
+  });
+
+  /** Demo mode: a banner on every page, and this hint on the sign-in page. */
+  router.put('/demo', guard, async (req: AuthedRequest, res: FastifyReply) => {
+    try {
+      res.send({ demo: await demo.save((req.body ?? {}) as { on?: unknown; hint?: unknown }) });
     } catch (error: unknown) {
       fail(res, error);
     }

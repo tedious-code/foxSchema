@@ -221,3 +221,23 @@ describe('codes', () => {
     expect(apiRedeemCode).not.toHaveBeenCalled();
   });
 });
+
+describe('a demo install', () => {
+  const signInScreen = async (demo: { on: boolean; hint?: string } | null = null) => {
+    useAuthStore.setState({ status: 'anon', user: null, error: null, busy: false, setupState: null, demo });
+    render(<AuthPage />);
+    await screen.findByTestId('auth-login-form');
+  };
+
+  it('says so on the sign-in page, with the admin’s hint', async () => {
+    await signInScreen({ on: true, hint: 'Demo login: demo@example.com / try-fox-9' });
+    const hint = await screen.findByTestId('auth-demo-hint');
+    expect(hint.textContent).toMatch(/This is a demo of Fox/);
+    expect(hint.textContent).toMatch(/demo@example\.com \/ try-fox-9/);
+  });
+
+  it('shows nothing extra on an ordinary install, or when the server did not say', async () => {
+    await signInScreen({ on: false });
+    expect(screen.queryByTestId('auth-demo-hint')).toBeNull();
+  });
+});

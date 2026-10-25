@@ -14,15 +14,30 @@ import {
 
 describe('role ladder', () => {
   it('orders roles least → most privileged', () => {
-    expect(APP_ROLES).toEqual(['viewer', 'editor', 'owner', 'admin']);
+    expect(APP_ROLES).toEqual(['demo', 'viewer', 'editor', 'owner', 'admin']);
   });
 
   it('each role is a superset of the one below it', () => {
     const has = (r: (typeof APP_ROLES)[number]) => new Set(DEFAULT_ROLE_PERMISSIONS[r]);
-    for (const [lower, higher] of [['viewer', 'editor'], ['editor', 'owner'], ['owner', 'admin']] as const) {
+    for (const [lower, higher] of [['demo', 'viewer'], ['viewer', 'editor'], ['editor', 'owner'], ['owner', 'admin']] as const) {
       for (const p of has(lower)) {
         expect(has(higher).has(p), `${higher} should keep ${p} from ${lower}`).toBe(true);
       }
+    }
+  });
+
+  it('demo reads and holds nothing that writes, runs code on the server, or reaches beyond its workspace', () => {
+    const demo = new Set(DEFAULT_ROLE_PERMISSIONS.demo);
+    expect(demo.has('editor.run')).toBe(true);
+    expect(demo.has('schema.compare')).toBe(true);
+    for (const p of PERMISSIONS) {
+      const writes =
+        /\.(dml|ddl|grant|write|advanced|insert|update|delete|create|edit|migrate|force|drop|members|settings|design|run|manage|admin|users|roles)$/.test(p) &&
+        p !== 'editor.run';
+      if (writes) expect(demo.has(p), p).toBe(false);
+    }
+    for (const p of ['workflow.access', 'git.view', 'utility.access', 'secrets.view', 'editor.sidebar.secrets'] as const) {
+      expect(demo.has(p), p).toBe(false);
     }
   });
 

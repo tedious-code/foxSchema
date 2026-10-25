@@ -10,6 +10,7 @@ import { apiGetPreferences } from '@/shared/api/authApi';
 import { ToastHost } from '@/app/shell/ToastHost';
 import { AlertCircle, AlertTriangle, Loader2, X } from 'lucide-react';
 import { BackendOfflineBanner } from '@/app/shell/BackendOfflineBanner';
+import { DemoBanner } from '@/app/shell/DemoBanner';
 import { CommandPalette } from '@/app/shell/CommandPalette';
 import { WORKSPACE_VIEWS, redirectFor } from '@/app/features/featureRegistry';
 import type { ActiveView } from '@/platform/viewIds';
@@ -62,6 +63,7 @@ const Workspace: React.FC = () => {
       {/* Above every other banner: when the backend is gone, nothing else on
           screen is trustworthy and no other message explains why. */}
       <BackendOfflineBanner />
+      <DemoBanner />
 
       {accountReminder && (
         <Suspense fallback={null}>

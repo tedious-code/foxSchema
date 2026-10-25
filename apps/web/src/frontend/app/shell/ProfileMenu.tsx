@@ -1,4 +1,5 @@
 import React, { lazy, useEffect, useRef, useState } from 'react';
+import { isDemoRole } from '@foxschema/shared';
 import { createPortal } from 'react-dom';
 import { LogOut, Palette, ArrowUpCircle, Globe, Shield, MonitorX, MessageSquarePlus, UserPlus } from 'lucide-react';
 import { apiSignOutOthers } from '@/shared/api/authApi';
@@ -158,21 +159,24 @@ export function ProfileMenu(): React.ReactElement | null {
             <Globe className="w-4 h-4" /> foxschema.com
           </a>
 
-          <button
-            type="button"
-            data-testid="profile-sign-out-others"
-            onClick={() => {
-              setOpen(false);
-              apiSignOutOthers()
-                .then((n) =>
-                  toast({ tone: 'success', title: n === 0 ? 'No other sessions were open' : `Signed out ${n} other session${n === 1 ? '' : 's'}` })
-                )
-                .catch((e: unknown) => toast({ tone: 'warning', title: 'Could not sign out other sessions', body: e instanceof Error ? e.message : undefined }));
-            }}
-            className="w-full flex items-center gap-2 px-4 py-3 text-sm font-semibold text-slate-300 hover:text-slate-100 hover:bg-slate-800/60 transition cursor-pointer border-t border-slate-800"
-          >
-            <MonitorX className="w-4 h-4" /> Sign out other sessions
-          </button>
+          {/* A demo login is every visitor at once; the server refuses this for it. */}
+          {!isDemoRole(user?.role) && (
+            <button
+              type="button"
+              data-testid="profile-sign-out-others"
+              onClick={() => {
+                setOpen(false);
+                apiSignOutOthers()
+                  .then((n) =>
+                    toast({ tone: 'success', title: n === 0 ? 'No other sessions were open' : `Signed out ${n} other session${n === 1 ? '' : 's'}` })
+                  )
+                  .catch((e: unknown) => toast({ tone: 'warning', title: 'Could not sign out other sessions', body: e instanceof Error ? e.message : undefined }));
+              }}
+              className="w-full flex items-center gap-2 px-4 py-3 text-sm font-semibold text-slate-300 hover:text-slate-100 hover:bg-slate-800/60 transition cursor-pointer border-t border-slate-800"
+            >
+              <MonitorX className="w-4 h-4" /> Sign out other sessions
+            </button>
+          )}
 
           <button data-testid="profile-sign-out"
             type="button"

@@ -62,6 +62,16 @@ describe('ProfileMenu', () => {
     await vi.waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Signed out 2 other sessions' })));
   });
 
+  it('does not offer a demo login to sign the other visitors out', () => {
+    useAuthStore.setState({
+      user: { id: 'demo', email: 'demo@example.com', onboardingCompleted: true, role: 'demo', permissions: [] },
+    } as never);
+    render(<ProfileMenu />);
+    fireEvent.click(screen.getByTestId('profile-menu-trigger'));
+    expect(screen.getByTestId('profile-sign-out')).toBeTruthy();
+    expect(screen.queryByTestId('profile-sign-out-others')).toBeNull();
+  });
+
   it('opens Access control from the avatar menu for the local admin', async () => {
     render(<ProfileMenu />);
     fireEvent.click(screen.getByTestId('profile-menu-trigger'));

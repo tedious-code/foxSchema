@@ -128,7 +128,7 @@ export const PERMISSION_META: PermissionMeta[] = [
   { id: 'access.access', group: 'Access', label: 'Open Access', description: 'Switch to the Access workspace.' },
   { id: 'access.users', group: 'Access', label: 'Users', description: 'Manage database accounts (User Management).' },
   { id: 'access.builder', group: 'Access', label: 'Permission builder', description: 'Build GRANT / REVOKE intents for principals.' },
-  { id: 'access.diff', group: 'Access', label: 'Permission diff', description: 'Compare effective privileges between principals or environments.' },
+  { id: 'access.diff', group: 'Access', label: 'Insight', description: 'Compare effective privileges between principals or environments.' },
   { id: 'access.inspector', group: 'Access', label: 'Inspector', description: 'Inspect effective privileges for a principal.' },
   { id: 'access.report', group: 'Access', label: 'Access report', description: 'Generate access reports.' },
   { id: 'compare.history', group: 'Schema Sync', label: 'History', description: 'Open schema history / snapshots (Lokee).' },

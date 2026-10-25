@@ -13,6 +13,7 @@ export {
   type Verdict,
 } from './verify.js';
 export { resolveWorkflowFile, workflowFilesRoot, FILES_DIR_ENV } from './file-root.js';
+export { openWorkflowFile, type WorkflowFile } from './workflow-files.js';
 export { FileSinkPipe, escapeField, toRow, type FileSinkConfig } from './file-sink.js';
 export {
   CsvSourcePipe,

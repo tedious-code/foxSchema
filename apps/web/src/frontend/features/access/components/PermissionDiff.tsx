@@ -232,7 +232,7 @@ export const PermissionDiff: React.FC<{
     <div className="flex-1 flex min-h-0" data-testid="permission-diff">
       <div className="w-[46%] min-w-[380px] overflow-y-auto border-r border-slate-800 p-5 flex flex-col gap-4">
         <div>
-          <h2 className="text-sm font-bold text-slate-100">Permission Diff</h2>
+          <h2 className="text-sm font-bold text-slate-100">Insight</h2>
           <ol className="text-[11px] text-slate-400 mt-1.5 list-decimal pl-4 flex flex-col gap-0.5">
             <li>Choose the database, then the user or role.</li>
             <li>Load catalog — that reads the privileges this database already granted.</li>
@@ -344,7 +344,7 @@ export const PermissionDiff: React.FC<{
 
       <div className="flex-1 flex flex-col min-h-0 min-w-0">
         <div className="flex items-center justify-between border-b border-slate-800 px-4 py-2 shrink-0">
-          <span className="text-xs font-bold text-slate-300">Diff &amp; SQL</span>
+          <span className="text-xs font-bold text-slate-300">Insight &amp; SQL</span>
           <button
             type="button"
             data-testid="diff-copy-sql"

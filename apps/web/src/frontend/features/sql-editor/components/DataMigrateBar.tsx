@@ -39,6 +39,7 @@ import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore
 import { useSyncStore } from '@/features/compare';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import { dialectLabel } from '@/shared/lib/dialectLabel';
+import { dialectFeatures } from '@/shared/lib/dialect-features';
 
 export interface DataMigrateGrid {
   connectionId: string;
@@ -155,6 +156,13 @@ export const DataMigrateBar: React.FC<Props> = ({
   const [includeIdentity, setIncludeIdentity] = useState(false);
   /** Safety: one transaction for the whole batch (Stop mode). Off with Continue = per-op commits. */
   const [useTransaction, setUseTransaction] = useState(true);
+  // Redis, MongoDB and ClickHouse open no transaction, so every row is final
+  // as it runs. Shown and sent as off there, whatever was ticked: the server
+  // refuses the request, and a checked box promised a rollback that never came.
+  // Kept as derived state so switching back to a Postgres destination restores
+  // the user's own choice.
+  const destTransactions = dialectFeatures(dest.dialect).transactions;
+  const transactionOn = useTransaction && destTransactions.supported;
   /** Safety: Continue = skip failures; Stop = abort (rollback if transaction on). */
   const [continueOnError, setContinueOnError] = useState(false);
   /**
@@ -536,7 +544,7 @@ export const DataMigrateBar: React.FC<Props> = ({
         })
       : undefined;
     const script = [
-      `-- useTransaction=${useTransaction} continueOnError=${continueOnError} backup=${backupEnabled}`,
+      `-- useTransaction=${transactionOn} continueOnError=${continueOnError} backup=${backupEnabled}`,
       ...plans.map((p) => `-- ${p.op} ${p.keyLabel}\n${p.plan.displaySql};`),
     ].join('\n\n');
 
@@ -602,7 +610,7 @@ export const DataMigrateBar: React.FC<Props> = ({
           sql: p.plan.sql,
           params: p.plan.params,
         })),
-        { useTransaction, continueOnError, identityInsertTable }
+        { useTransaction: transactionOn, continueOnError, identityInsertTable }
       );
       results = out.results;
       failCount = out.failCount;
@@ -825,7 +833,13 @@ export const DataMigrateBar: React.FC<Props> = ({
           sql: p.plan.sql,
           params: p.plan.params,
         })),
-        { useTransaction: true, continueOnError: false }
+        // All or nothing where the destination can roll back. Where it cannot,
+        // the server would refuse the request, so the restore stops at the
+        // first failure instead and the progress list shows what went back.
+        {
+          useTransaction: dialectFeatures(backup.dialect).transactions.supported,
+          continueOnError: false,
+        }
       );
       setProgress(
         out.results.map((r) => ({
@@ -857,7 +871,13 @@ export const DataMigrateBar: React.FC<Props> = ({
             : `Restore finished with ${out.failCount} failure(s)`,
         body: out.rolledBack
           ? 'Transaction rolled back — destination unchanged by restore.'
-          : 'Reversed successful migrate ops from the Backup snapshot.',
+          : out.failCount > 0
+            ? // No rollback here: what was reversed before the failure stays
+              // reversed, and the rest is still as the migrate left it.
+              `Reversed ${out.results.filter((r) => r.status === 'SUCCESS').length} of ` +
+              `${out.results.length} ops before stopping; the rest are still as the migrate ` +
+              'left them. See progress.'
+            : 'Reversed successful migrate ops from the Backup snapshot.',
       });
       if (out.failCount === 0) setLastBackup(null);
       if (!out.rolledBack) await onAfterMigrate?.();
@@ -1063,15 +1083,21 @@ export const DataMigrateBar: React.FC<Props> = ({
           Safety
         </span>
         <label
-          className="inline-flex items-center gap-1 cursor-pointer select-none"
-          title="Wrap all ops in one transaction when Stop is selected. With Continue, each op uses its own transaction so a failure only rolls back that row."
+          className={`inline-flex items-center gap-1 select-none ${
+            destTransactions.supported ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
+          }`}
+          title={
+            destTransactions.reason ??
+            'Wrap all ops in one transaction when Stop is selected. With Continue, each op uses its own transaction so a failure only rolls back that row.'
+          }
         >
           <input
             type="checkbox"
             data-testid={`sql-data-migrate-tx-${statementIndex}`}
-            checked={useTransaction}
+            checked={transactionOn}
+            disabled={!destTransactions.supported}
             onChange={(e) => setUseTransaction(e.target.checked)}
-            className="rounded border-slate-600"
+            className="rounded border-slate-600 disabled:cursor-not-allowed"
           />
           Transaction
         </label>

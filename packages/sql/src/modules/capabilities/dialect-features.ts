@@ -40,7 +40,7 @@ import { supportsAccessBuilder } from '../access/intent.js';
 import { userManagementSupport } from '../access/user-sql.js';
 import { nonSqlPermissionsReason } from '../access/non-sql-engines.js';
 import { supportsCommandMode } from '../command-mode/cli.registry.js';
-import { PROVIDER_SETTINGS } from '../../providers/provider-settings.js';
+import { PROVIDER_SETTINGS, dialectHasTransactions } from '../../providers/provider-settings.js';
 import { fallbackReason, isKnownEngine, unknownEngineReason } from './feature-reasons.js';
 import { schemaCompareSupport } from './schema-compare.js';
 
@@ -57,7 +57,9 @@ export type DialectFeature =
   /** Wrap a statement in the engine's own client for a terminal. */
   | 'commandMode'
   /** Edit result rows in the grid, and apply a data comparison. */
-  | 'rowEditing';
+  | 'rowEditing'
+  /** Run a batch as one transaction, so a failure rolls back the writes before it. */
+  | 'transactions';
 
 export const DIALECT_FEATURES: readonly DialectFeature[] = [
   'schemaCompare',
@@ -65,6 +67,7 @@ export const DIALECT_FEATURES: readonly DialectFeature[] = [
   'userManagement',
   'commandMode',
   'rowEditing',
+  'transactions',
 ];
 
 /**
@@ -104,6 +107,9 @@ const DECLARED: Record<string, Partial<Record<DialectFeature, string>>> = {
     // The SQL Editor adapter is deliberately read-write for SQLite but not for
     // ClickHouse — see the acquire() comments in each adapter.
     rowEditing: 'The SQL Editor adapter rejects writes for ClickHouse.',
+    transactions:
+      'ClickHouse transactions are experimental and Fox Schema does not open one, ' +
+      'so a failure leaves earlier writes in place.',
   },
   // These two have no grants at all; the file's permissions are the access
   // control. Nothing to build, so the engine is the honest answer.
@@ -114,11 +120,21 @@ const DECLARED: Record<string, Partial<Record<DialectFeature, string>>> = {
     dbAccess: 'DuckDB has no grants — the file’s permissions are the access control.',
   },
   // Their schemaCompare reasons live with that check, in schema-compare.ts.
+  //
+  // The two transaction sentences blame different parties on purpose. Redis
+  // itself cannot undo a write; MongoDB can on a replica set, and it is Fox
+  // Schema that does not start one.
   redis: {
     commandMode: 'Redis does not take SQL, so there is nothing to hand to a client.',
+    transactions:
+      'Redis cannot undo a write — MULTI/EXEC queues commands but never rolls one ' +
+      'back — so a failure leaves earlier writes in place.',
   },
   mongodb: {
     commandMode: 'MongoDB does not take SQL, so there is nothing to hand to a client.',
+    transactions:
+      'Fox Schema writes to MongoDB without a transaction, because a standalone ' +
+      'server has none, so a failure leaves earlier writes in place.',
   },
 };
 
@@ -150,6 +166,10 @@ function buildFeatures(key: string): DialectFeatureSupport {
     commandMode: support(supportsCommandMode(key), () => say('commandMode')),
     // Nothing else owns this, so it is declared here and read from here.
     rowEditing: support(!declared.rowEditing, () => declared.rowEditing),
+    // The provider settings' `transactions` flag, which the editor's One
+    // transaction and `@foxschema/db`'s rollback answer read too. Data
+    // migrate's Transaction asks here for the sentence as well as the flag.
+    transactions: support(dialectHasTransactions(key), () => say('transactions')),
   });
 }
 

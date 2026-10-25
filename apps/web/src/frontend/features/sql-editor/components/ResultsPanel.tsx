@@ -27,6 +27,7 @@ import { useSqlEditorStore, type CredentialRun } from '@/features/sql-editor/sta
 import { useSyncStore } from '@/features/compare';
 import type { ResultsLayout } from '@/features/sql-editor/state/sqlEditorTabLogic';
 import { DataGrid, PANE_DEFAULT_H_PX, PANE_DEFAULT_PX, PANE_MIN_H_PX, PANE_MIN_PX } from './DataGrid';
+import { MissingDriverBanner } from './MissingDriverBanner';
 import { ResultChart } from './ResultChart';
 import { chartableSeries } from '../lib/resultChart';
 import type { SqlStatementResult } from '@/shared/api/sqlApi';
@@ -1870,9 +1871,17 @@ const CredentialResultsSection: React.FC<{
       </header>
 
       {run.status === 'error' && (
-        <div className="flex items-start gap-2 text-xs text-rose-400 bg-rose-950/40 border border-rose-500/20 rounded-md px-3 py-2 max-w-2xl">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" strokeWidth={SQL_ICON_STROKE} />
-          <span className="break-all">{run.error}</span>
+        <div className="flex max-w-2xl flex-col gap-2">
+          <div className="flex items-start gap-2 text-xs text-rose-400 bg-rose-950/40 border border-rose-500/20 rounded-md px-3 py-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" strokeWidth={SQL_ICON_STROKE} />
+            <span className="break-all">{run.error}</span>
+          </div>
+          <MissingDriverBanner
+            dialect={run.dialect}
+            error={run.error}
+            testId={`sql-install-driver-${run.connectionId}`}
+            onInstalled={() => onRefresh?.(run.connectionId)}
+          />
         </div>
       )}
 

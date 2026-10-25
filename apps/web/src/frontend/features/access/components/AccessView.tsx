@@ -31,7 +31,7 @@ const SECTIONS: {
 }[] = [
   { id: 'permission', label: 'Permissions', icon: ShieldCheck, permission: 'access.builder' },
   { id: 'users', label: 'Users', icon: UserCog, permission: 'access.users' },
-  { id: 'diff', label: 'Diff', icon: GitCompare, permission: 'access.diff' },
+  { id: 'diff', label: 'Insight', icon: GitCompare, permission: 'access.diff' },
 ];
 
 function loadConnectionId(connections: { id: string }[]): string {

@@ -180,6 +180,10 @@ export const AccessPermissionPanel: React.FC<{
         confirm.sql
       );
       if (!outcome.ok) {
+        // The statements before the failure stay applied, so re-read the
+        // catalog to show them — then say what failed, since a reload starts
+        // by clearing the error. The confirmation stays open either way.
+        if (outcome.applied > 0) await load({ force: true });
         setError(outcome.error);
         return;
       }

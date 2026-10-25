@@ -117,6 +117,13 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
   can write to. `postColumnChangeStatements` emits
   `CALL SYSPROC.ADMIN_CMD('REORG TABLE …')` before the keys/indexes are rebuilt.
   Bare `REORG TABLE` is a CLP command, not SQL, and cannot be sent over a connection.
+- **Index reorg (Utils / Edit table):** Db2 cannot reorganise a single index
+  (`REORG INDEX name` → SQL0270N reason 89). Defrag emits
+  `CALL SYSPROC.ADMIN_CMD('REORG INDEXES ALL FOR TABLE …')` then `RUNSTATS`
+  (`providers/db2/db2.index-fragmentation.ts`). Quote names as `SYSCAT` stores
+  them: fold the schema (and a single-case table) to uppercase before quoting;
+  keep mixed case on a delimited table name. Quoting the typed case
+  (`"demo_a"."ORDERS"`) is SQL2211N for a table the probe just listed.
 - `modifyColumnStatements` — `SET DATA TYPE` can't carry nullability; emit a
   **separate** `SET NOT NULL` / `DROP NOT NULL`.
 - `dropIndexStatement` / `dropTriggerStatement` schema-prefixed, no `ON table`.
@@ -137,6 +144,12 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
 ### ClickHouse (`clickhouse.sql-dialect.ts`)
 - `nullableTypeWrapper` ⇒ `Nullable(T)`; generator skips `NULL`/`NOT NULL` keywords.
 - No traditional indexes/triggers/FKs — those hooks are absent by design.
+- No transactions: the adapter's begin/commit/rollback are no-ops, so
+  `clickhouse.settings.ts` sets `transactions: false` (as Redis and MongoDB do).
+  `POST /sql/execute` refuses `transaction: true` there and the editor runs the
+  batch statement by statement with a warning. `POST /data-migrate/execute`
+  refuses `useTransaction: true` the same way, and Data migrate shows its
+  Transaction checkbox off and disabled.
 
 ### Wire-compatible variants — CockroachDB / YugabyteDB / TiDB
 - **CockroachDB** (`cockroachDb/`) and **YugabyteDB** (`yugabyteDb/`) are PostgreSQL

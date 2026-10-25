@@ -80,3 +80,30 @@ describe('WorkspaceRailButton', () => {
     expect(screen.queryByTestId('workspace-rail-btn')).toBeNull();
   });
 });
+
+describe('WorkspaceRailButton follows the server’s workspace', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('reloads once when the editor was on another workspace than the server opened', async () => {
+    // Switched elsewhere, or another account signed in on this browser: the
+    // editor hydrated from the old workspace and would save its scripts into
+    // the one that is open now.
+    localStorage.setItem('foxschema-active-workspace', 'team-a');
+    const reload = vi.fn();
+    render(<WorkspaceRailButton reload={reload} />);
+    await vi.waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+    expect(localStorage.getItem('foxschema-active-workspace')).toBe('own');
+  });
+
+  it('does not reload when they already agree, or on the first run', async () => {
+    const reload = vi.fn();
+    render(<WorkspaceRailButton reload={reload} />);
+    expect(await screen.findByTestId('workspace-rail-btn')).toBeTruthy();
+    expect(localStorage.getItem('foxschema-active-workspace')).toBe('own');
+    render(<WorkspaceRailButton reload={reload} />);
+    await screen.findAllByTestId('workspace-rail-btn');
+    expect(reload).not.toHaveBeenCalled();
+  });
+});

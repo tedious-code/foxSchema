@@ -539,6 +539,7 @@ describe('AccessView — Permission Diff stale catalog', () => {
     fetchDbAccess.mockResolvedValue(catalog('postgres', 'alice', 'only_on_postgres'));
 
     render(<AccessView />);
+    expect(screen.getByTestId('access-tab-diff').textContent).toBe('Insight');
     fireEvent.click(screen.getByTestId('access-tab-diff'));
 
     fireEvent.change(screen.getByTestId('access-connection'), { target: { value: 'c1' } });

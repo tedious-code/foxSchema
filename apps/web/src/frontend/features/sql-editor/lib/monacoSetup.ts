@@ -3,6 +3,9 @@
 import { loader } from '@monaco-editor/react';
 // Import only the editor core + the SQL dialects we use, not all ~90 languages
 import * as monaco from 'monaco-editor/editor/editor.api';
+// The slim editor API does not include the suggestion list. Without this
+// import, completion providers register and never appear.
+import 'monaco-editor/editor/contrib/suggest/browser/suggestController.js';
 import 'monaco-editor/languages/definitions/sql/register';
 import 'monaco-editor/languages/definitions/pgsql/register';
 import 'monaco-editor/languages/definitions/mysql/register';

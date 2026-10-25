@@ -7,7 +7,7 @@
  * reads it, so a row op cannot carry a second statement that only the
  * database sees.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeReply, routeHandler } from '../../platform/http/route-doubles';
 import { createDataMigrateRoutes } from './data-migrate.routes';
 import { executeDataMigrateOps } from './data-migrate-execute';
@@ -15,6 +15,8 @@ import { executeDataMigrateOps } from './data-migrate-execute';
 vi.mock('./data-migrate-execute', () => ({ executeDataMigrateOps: vi.fn(async () => ({ results: [] })) }));
 
 describe('POST /data-migrate/execute', () => {
+  beforeEach(() => vi.mocked(executeDataMigrateOps).mockClear());
+
   it('refuses an op that its database splits into two statements', async () => {
     const handler = routeHandler(
       createDataMigrateRoutes({
@@ -54,5 +56,48 @@ describe('POST /data-migrate/execute', () => {
     expect(sent.status).toBe(400);
     expect(sent.body.error).toMatch(/single statement/);
     expect(executeDataMigrateOps).not.toHaveBeenCalled();
+  });
+
+  describe('Transaction on an engine with none', () => {
+    const run = async (dialect: string, useTransaction: boolean | undefined) => {
+      const handler = routeHandler(
+        createDataMigrateRoutes({
+          resolveRef: vi.fn().mockResolvedValue({ dialect, option: {}, schema: undefined }),
+          dataMigrateHistory: {} as never,
+        }),
+        'POST',
+        '/data-migrate/execute'
+      );
+      const { reply, sent } = fakeReply();
+      const op = { op: 'insert', key: 'k1', sql: "INSERT INTO t (id, name) VALUES (1, 'a')" };
+      const body = { connectionId: 'c1', ops: [op], continueOnError: false, useTransaction };
+      await handler({ body, userId: 'u1', appRole: 'admin' } as never, reply as never);
+      return sent;
+    };
+
+    it('refuses to promise a rollback Redis cannot give', async () => {
+      // Its adapter's begin and rollback do nothing, so a mid-batch failure
+      // left the earlier rows written under a "rolled back" Transaction.
+      const sent = await run('redis', true);
+
+      expect(sent.status).toBe(400);
+      expect(sent.body.error).toMatch(/Redis cannot undo a write/);
+      expect(sent.body.error).toMatch(/Turn Transaction off/);
+      expect(executeDataMigrateOps).not.toHaveBeenCalled();
+    });
+
+    it('runs without one when the client does not ask', async () => {
+      // The flag defaulted to on when omitted; on Redis that default is the
+      // same false promise, so it follows the engine instead.
+      const sent = await run('redis', undefined);
+
+      expect(sent.status).not.toBe(400);
+      expect(vi.mocked(executeDataMigrateOps).mock.calls[0]?.[4]).toMatchObject({ useTransaction: false });
+    });
+
+    it('still wraps the batch where the engine can roll it back', async () => {
+      await run('postgres', true);
+      expect(vi.mocked(executeDataMigrateOps).mock.calls[0]?.[4]).toMatchObject({ useTransaction: true });
+    });
   });
 });

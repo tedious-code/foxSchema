@@ -41,6 +41,27 @@ const enc = encodeURIComponent;
 
 export const apiListWorkspaces = (): Promise<WorkspaceList> => api.get('/workspaces');
 
+export interface WorkspaceScript {
+  id: string;
+  title: string;
+  sql: string;
+  updatedBy: string | null;
+  updatedAt: string;
+}
+
+/** Scripts stored on the current workspace. Every member can open them. */
+export async function apiListWorkspaceScripts(): Promise<{ scripts: WorkspaceScript[]; canWrite: boolean }> {
+  return api.get('/workspaces/scripts');
+}
+
+export async function apiSaveWorkspaceScript(title: string, sql: string): Promise<WorkspaceScript> {
+  return (await api.post<{ script: WorkspaceScript }>('/workspaces/scripts', { title, sql })).script;
+}
+
+export async function apiDeleteWorkspaceScript(id: string): Promise<void> {
+  await api.delete(`/workspaces/scripts/${enc(id)}`);
+}
+
 export async function apiCreateWorkspace(name: string): Promise<WorkspaceItem> {
   return (await api.post<{ workspace: WorkspaceItem }>('/workspaces', { name })).workspace;
 }

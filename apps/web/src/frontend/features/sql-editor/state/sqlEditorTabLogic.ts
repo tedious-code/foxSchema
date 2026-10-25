@@ -202,7 +202,7 @@ export function indicesToRun(
 }
 
 /**
- * All statements inside an editor selection (selection wins over the strip).
+ * All statements inside an editor selection (selection wins over the rail's run checks).
  * Falls back to the trimmed selection text when the splitter finds nothing.
  */
 export function statementsFromSelection(selectedSql: string): string[] {
@@ -223,7 +223,7 @@ export function canExecuteWithoutDestination(statements: string[]): boolean {
 }
 
 /**
- * Statements the Run button would send for the active tab (selection overrides strip).
+ * Statements the Run button would send for the active tab (selection overrides the rail's run checks).
  */
 export function resolveRunStatements(
   sql: string,

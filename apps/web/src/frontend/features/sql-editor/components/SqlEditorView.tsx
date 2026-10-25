@@ -99,7 +99,7 @@ function loadSidebarCollapsed(): boolean {
 
 /**
  * SQL Editor workspace: multi-tab buffers, destination servers, schema explorer,
- * statement strip, layout toggle, Format/CSV. Results are per-tab and not persisted.
+ * run rail, layout toggle, Format/CSV. Results are per-tab and not persisted.
  */
 export const SqlEditorView: React.FC = () => {
   const canEditorDestinations = useAuthStore((s) => s.can('editor.sidebar.destinations'));

@@ -38,13 +38,7 @@ import {
   type SelectColumnPickerAnchor,
 } from './SelectColumnPicker';
 import { StatementRunGutter } from './StatementRunGutter';
-
-export interface RevealRequest {
-  startLine: number;
-  endLine: number;
-  /** Bump to re-trigger reveal for the same range. */
-  nonce: number;
-}
+import { statementCopyText } from '../lib/statementBadges';
 
 interface Props {
   value: string;
@@ -64,14 +58,14 @@ interface Props {
   onSelectionChange?: (hasSelection: boolean) => void;
   /** Caret moved — offset in the model, so Run can label the right statement. */
   onCaretChange?: (offset: number | null) => void;
-  /** Scroll and select a statement range. */
-  reveal?: RevealRequest | null;
 }
 
 /**
  * Editable Monaco pane for the SQL Editor. Notebook-style cell banding spans
  * each statement's line range; the glyph margin shows ✓ / ⚠ on the first line.
- * Run checkboxes sit in a rail on the left of that line.
+ * The run rail on the left numbers each statement In [n], with its play button,
+ * include checkbox and a copy-with-values button; clicking the number selects
+ * the statement.
  * Model language is FoxScript (`foxscript`) once Monarch + packs load.
  */
 export const SqlEditorPane: React.FC<Props> = ({
@@ -87,7 +81,6 @@ export const SqlEditorPane: React.FC<Props> = ({
   onRun,
   onSelectionChange,
   onCaretChange,
-  reveal,
 }) => {
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
@@ -104,6 +97,7 @@ export const SqlEditorPane: React.FC<Props> = ({
   const fontSizePref = useUiStore((s) => s.fontSize);
   const monacoFontSize = MONACO_FONT_PX[fontSizePref] ?? MONACO_FONT_PX.md;
   const variables = useSqlEditorStore((s) => s.variables);
+  const safeMode = useSqlEditorStore((s) => s.safeMode);
   const schemaCache = useSqlEditorStore((s) => s.schemaCache);
   const [editorLanguage, setEditorLanguage] = useState(() => monacoLanguage(dialect));
   const [columnPickerOpen, setColumnPickerOpen] = useState(false);
@@ -213,22 +207,22 @@ export const SqlEditorPane: React.FC<Props> = ({
     refreshFoxscriptSemanticTokens();
   }, [schemaCache]);
 
-  useEffect(() => {
+  /** Select a statement's lines (the rail's In [n] number was clicked). */
+  const revealStatement = (stmt: SplitStatement) => {
     const editor = editorRef.current;
-    if (!editor || !reveal) return;
+    if (!editor) return;
     const model = editor.getModel();
-    const endColumn = model ? model.getLineMaxColumn(reveal.endLine) : 1;
     const range = {
-      startLineNumber: reveal.startLine,
+      startLineNumber: stmt.startLine,
       startColumn: 1,
-      endLineNumber: reveal.endLine,
-      endColumn,
+      endLineNumber: stmt.endLine,
+      endColumn: model ? model.getLineMaxColumn(stmt.endLine) : 1,
     };
-    editor.revealRangeInCenter(range);
+    editor.revealRangeInCenterIfOutsideViewport(range);
     editor.setSelection(range);
     editor.focus();
     onSelectionChangeRef.current?.(true);
-  }, [reveal]);
+  };
 
   useEffect(() => {
     return () => {
@@ -267,8 +261,11 @@ export const SqlEditorPane: React.FC<Props> = ({
       editorEpoch={editorEpoch}
       running={cellRunning}
       sqlNeedsDestination={sqlNeedsDestination}
+      safeMode={safeMode}
       onToggle={(index) => onToggleStatement?.(index)}
       onRunCell={onRunCell}
+      onReveal={revealStatement}
+      copyTextFor={(stmt) => statementCopyText(stmt.text, variables)}
     />
     <div className="h-full min-w-0 flex-1">
     <Editor

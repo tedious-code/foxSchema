@@ -12,6 +12,7 @@ const apiAdminListWorkspaces = vi.fn();
 const apiArchiveWorkspace = vi.fn();
 const apiSelectWorkspace = vi.fn();
 const apiSetWorkspaceMember = vi.fn();
+const apiRestoreWorkspace = vi.fn();
 
 vi.mock('@/features/workspaces', () => ({
   loadWorkspaceSettingsDialog: async () => ({ default: () => null }),
@@ -19,6 +20,7 @@ vi.mock('@/features/workspaces', () => ({
   apiArchiveWorkspace: (...a: unknown[]) => apiArchiveWorkspace(...a),
   apiSelectWorkspace: (...a: unknown[]) => apiSelectWorkspace(...a),
   apiSetWorkspaceMember: (...a: unknown[]) => apiSetWorkspaceMember(...a),
+  apiRestoreWorkspace: (...a: unknown[]) => apiRestoreWorkspace(...a),
 }));
 
 import { AdminWorkspacesPanel } from './AdminWorkspacesPanel';
@@ -28,7 +30,7 @@ const personal = { ...shared, id: 'ben-own', name: "ben's workspace", personalOw
 const joined = { ...shared, id: 'ops', name: 'Ops', adminIsMember: true };
 
 beforeEach(() => {
-  for (const f of [apiAdminListWorkspaces, apiArchiveWorkspace, apiSelectWorkspace, apiSetWorkspaceMember]) f.mockReset();
+  for (const f of [apiAdminListWorkspaces, apiArchiveWorkspace, apiSelectWorkspace, apiSetWorkspaceMember, apiRestoreWorkspace]) f.mockReset();
   apiAdminListWorkspaces.mockResolvedValue([shared, personal, joined]);
   useAuthStore.setState({
     user: { id: 'admin', email: 'admin@x.com', onboardingCompleted: true, role: 'admin', permissions: [] },
@@ -80,5 +82,19 @@ describe('AdminWorkspacesPanel', () => {
     await screen.findByTestId('admin-workspace-books');
     fireEvent.click(screen.getByTestId('admin-workspaces-show-archived'));
     await waitFor(() => expect(apiAdminListWorkspaces).toHaveBeenLastCalledWith(true));
+  });
+
+  it('restores an archived workspace, and offers nothing else on it', async () => {
+    apiRestoreWorkspace.mockResolvedValue(undefined);
+    apiAdminListWorkspaces.mockResolvedValue([{ ...shared, archived: true }]);
+    render(<AdminWorkspacesPanel reload={vi.fn()} />);
+    await screen.findByTestId('admin-workspace-restore-books');
+    for (const gone of ['join', 'open', 'members', 'archive']) {
+      expect(screen.queryByTestId(`admin-workspace-${gone}-books`), gone).toBeNull();
+    }
+    fireEvent.click(screen.getByTestId('admin-workspace-restore-books'));
+    await waitFor(() => expect(apiRestoreWorkspace).toHaveBeenCalledWith('books'));
+    // And reads the list again, so the row shows it is back.
+    await waitFor(() => expect(apiAdminListWorkspaces).toHaveBeenCalledTimes(2));
   });
 });

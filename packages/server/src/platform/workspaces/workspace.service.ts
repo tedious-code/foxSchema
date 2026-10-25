@@ -18,6 +18,8 @@ import { randomUUID } from 'node:crypto';
 import {
   isAppRole,
   isWorkspaceRole,
+  lowerWorkspaceRole,
+  workspaceRoleAtMost,
   type AppRole,
   type WorkspaceRole,
 } from '@foxschema/shared';
@@ -37,6 +39,66 @@ export interface ResolvedWorkspace {
 export function personalRoleFor(accountRole: AppRole | string | null | undefined): WorkspaceRole {
   if (accountRole === 'admin') return 'owner';
   return isWorkspaceRole(accountRole) ? accountRole : 'viewer';
+}
+
+/**
+ * The most anyone can do in a workspace. A shared one: owner. A personal one:
+ * what its own account may do there. Sharing a personal workspace lends its
+ * connections; it never lends more than the account holds — otherwise a viewer
+ * could invite a colleague as owner, and between them run DDL and GRANT with
+ * credentials an admin handed out for reading.
+ */
+export function workspaceRoleCeiling(
+  personalOwnerId: string | null | undefined,
+  personalOwnerAccountRole: string | null | undefined
+): WorkspaceRole {
+  return personalOwnerId ? personalRoleFor(personalOwnerAccountRole) : 'owner';
+}
+
+/**
+ * `userId`'s role in `workspaceId` as it takes effect: the stored role, capped
+ * at the workspace's ceiling. Null when not a member. The cap is applied on
+ * read, so a membership granted before the ceiling existed, or an account
+ * demoted since, cannot keep more than the ceiling allows.
+ */
+export async function effectiveMemberRole(
+  store: MetadataStore,
+  workspaceId: string,
+  userId: string
+): Promise<WorkspaceRole | null> {
+  const row = await store.get<{ role: string; personal_owner_id: string | null; owner_role: string | null }>(
+    `SELECT m.role, w.personal_owner_id, o.app_role AS owner_role
+       FROM workspace_members m
+       JOIN workspaces w ON w.id = m.workspace_id
+       LEFT JOIN users o ON o.id = w.personal_owner_id
+      WHERE m.workspace_id = ? AND m.user_id = ?`,
+    [workspaceId, userId]
+  );
+  if (!row || !isWorkspaceRole(row.role)) return null;
+  return lowerWorkspaceRole(row.role, workspaceRoleCeiling(row.personal_owner_id, row.owner_role));
+}
+
+/**
+ * Refuse to give `role` in `workspaceId` when it is more than the granter may
+ * do there. An admin may give any role. Everyone else gives at most their own
+ * effective role — which in a personal workspace is its ceiling, and in a
+ * shared one is owner for anyone allowed to manage members at all, unless an
+ * admin widened `workspace.members` to a lesser role.
+ */
+export async function assertRoleGrantable(
+  store: MetadataStore,
+  actor: { userId: string; appRole: AppRole | string },
+  workspaceId: string,
+  role: WorkspaceRole
+): Promise<void> {
+  if (actor.appRole === 'admin') return;
+  const own = (await effectiveMemberRole(store, workspaceId, actor.userId)) ?? 'viewer';
+  if (!workspaceRoleAtMost(role, own)) {
+    throw new ServiceError(
+      'forbidden',
+      `You can give at most the ${own} role here: nobody gives more than they can do themselves.`
+    );
+  }
 }
 
 /** "ana's workspace" for ana@example.com. */
@@ -133,14 +195,23 @@ async function memberWorkspace(
   userId: string,
   workspaceId: string
 ): Promise<ResolvedWorkspace | null> {
-  const row = await store.get<{ id: string; name: string; personal_owner_id: string | null; role: string }>(
-    `SELECT w.id, w.name, w.personal_owner_id, m.role
+  const row = await store.get<{
+    id: string;
+    name: string;
+    personal_owner_id: string | null;
+    owner_role: string | null;
+    role: string;
+  }>(
+    `SELECT w.id, w.name, w.personal_owner_id, o.app_role AS owner_role, m.role
      FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id
+     LEFT JOIN users o ON o.id = w.personal_owner_id
      WHERE w.id = ? AND m.user_id = ? AND w.archived_at IS NULL`,
     [workspaceId, userId]
   );
   if (!row || !isWorkspaceRole(row.role)) return null;
-  return { id: row.id, name: row.name, personal: row.personal_owner_id === userId, role: row.role };
+  // The role this request acts with: capped like everywhere else (effectiveMemberRole).
+  const role = lowerWorkspaceRole(row.role, workspaceRoleCeiling(row.personal_owner_id, row.owner_role));
+  return { id: row.id, name: row.name, personal: row.personal_owner_id === userId, role };
 }
 
 /**

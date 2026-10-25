@@ -272,6 +272,16 @@ export function isWorkspaceRole(value: unknown): value is WorkspaceRole {
   return typeof value === 'string' && (WORKSPACE_ROLES as readonly string[]).includes(value);
 }
 
+/** True when `role` grants no more than `ceiling`: viewer < editor < owner. */
+export function workspaceRoleAtMost(role: WorkspaceRole, ceiling: WorkspaceRole): boolean {
+  return WORKSPACE_ROLES.indexOf(role) <= WORKSPACE_ROLES.indexOf(ceiling);
+}
+
+/** The lower of two workspace roles. */
+export function lowerWorkspaceRole(a: WorkspaceRole, b: WorkspaceRole): WorkspaceRole {
+  return workspaceRoleAtMost(a, b) ? a : b;
+}
+
 /**
  * Permissions that belong to the install rather than to a workspace, so they
  * come from the account role. `editor.advanced` runs code on the server:

@@ -125,6 +125,16 @@ export function createWorkspaceRoutes(
     }
   });
 
+  /** An admin brings an archived workspace back. */
+  router.post('/:id/restore', async (req: AuthedRequest, res: FastifyReply) => {
+    try {
+      await directory.restore(actorOf(req), id(req));
+      res.send({ ok: true });
+    } catch (error) {
+      fail(res, error);
+    }
+  });
+
   router.get('/:id/members', async (req: AuthedRequest, res: FastifyReply) => {
     try {
       res.send({ members: await directory.members(actorOf(req), id(req)) });

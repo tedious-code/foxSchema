@@ -139,6 +139,20 @@ describe('a shared workspace', () => {
     expect((await dir.listMine(admin.id)).some((w) => w.id === temp.id)).toBe(false);
     await expect(dir.select(admin.id, temp.id)).rejects.toMatchObject({ code: 'not_found' });
   });
+
+  it('an admin brings an archived workspace back, members and all; nobody else can', async () => {
+    const temp = await dir.create(actor(admin), 'Back again');
+    await dir.addMember(actor(admin), temp.id, ana.id, 'owner');
+    await dir.archive(actor(ana), temp.id);
+    expect((await dir.listMine(ana.id)).some((w) => w.id === temp.id)).toBe(false);
+
+    await expect(dir.restore(actor(ana), temp.id)).rejects.toMatchObject({ code: 'forbidden' });
+    await dir.restore(actor(admin), temp.id);
+    expect((await dir.listMine(ana.id)).find((w) => w.id === temp.id)).toMatchObject({ role: 'owner', memberCount: 2 });
+    await dir.select(ana.id, temp.id);
+    // Restoring one that is not archived says so rather than reporting success.
+    await expect(dir.restore(actor(admin), temp.id)).rejects.toMatchObject({ code: 'not_found' });
+  });
 });
 
 describe('personal workspaces', () => {

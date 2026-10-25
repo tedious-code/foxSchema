@@ -62,8 +62,16 @@ export function WorkspaceRailButton(): React.ReactElement | null {
       if (anchorRef.current?.contains(target) || popoverRef.current?.contains(target)) return;
       setOpen(false);
     };
+    // Escape closes it too, unless something inside used the key first.
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !event.defaultPrevented) setOpen(false);
+    };
     document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [open, anchorRef, popoverRef]);
 
   if (launch) return null;

@@ -18,6 +18,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   isWorkspaceRole,
+  lowerWorkspaceRole,
   permissionSatisfied,
   type AppRole,
   type Permission,
@@ -27,6 +28,11 @@ import { getStore } from '../../database/store';
 import type { MetadataStore } from '../../database/stores/types';
 import { RbacModule } from '../../platform/authorization/rbac.service';
 import { ServiceError } from '../../platform/contracts/actor';
+import {
+  assertRoleGrantable,
+  effectiveMemberRole,
+  workspaceRoleCeiling,
+} from '../../platform/workspaces/workspace.service';
 
 export const MEMBERS_CREATE_KEY = 'workspaces.members_create';
 
@@ -118,7 +124,7 @@ export class WorkspaceDirectory {
     if (actor.appRole === 'admin') return ws;
     // Everyone runs the membership of their own workspace, whatever its role there.
     if (permission === 'workspace.members' && ws.personal_owner_id === actor.userId) return ws;
-    const role = await this.roleIn(store, workspaceId, actor.userId);
+    const role = await effectiveMemberRole(store, workspaceId, actor.userId);
     if (!role) throw new ServiceError('not_found', 'Workspace not found');
     if (!permissionSatisfied(await this.rbac.permissionsForRole(role), permission)) {
       throw new ServiceError('forbidden', `Permission denied: this needs "${permission}" in this workspace.`);
@@ -140,12 +146,14 @@ export class WorkspaceDirectory {
       visibility: string;
       join_role: string;
       personal_owner_id: string | null;
+      owner_role: string | null;
       role: string;
       member_count: number;
     }>(
-      `SELECT w.id, w.name, w.visibility, w.join_role, w.personal_owner_id, m.role,
+      `SELECT w.id, w.name, w.visibility, w.join_role, w.personal_owner_id, o.app_role AS owner_role, m.role,
               (SELECT COUNT(*) FROM workspace_members x WHERE x.workspace_id = w.id) AS member_count
          FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id
+         LEFT JOIN users o ON o.id = w.personal_owner_id
         WHERE m.user_id = ? AND w.archived_at IS NULL
         ORDER BY CASE WHEN w.personal_owner_id = ? THEN 0 ELSE 1 END, w.name`,
       [userId, userId]
@@ -158,7 +166,8 @@ export class WorkspaceDirectory {
         visibility: r.visibility === 'public' ? 'public' : 'private',
         joinRole: isWorkspaceRole(r.join_role) ? r.join_role : 'viewer',
         personal: r.personal_owner_id === userId,
-        role: r.role as WorkspaceRole,
+        // What it acts with, not what was stored (effectiveMemberRole).
+        role: lowerWorkspaceRole(r.role as WorkspaceRole, workspaceRoleCeiling(r.personal_owner_id, r.owner_role)),
         memberCount: Number(r.member_count),
       }));
   }
@@ -288,12 +297,30 @@ export class WorkspaceDirectory {
     await store.run('UPDATE workspaces SET archived_at = ? WHERE id = ?', [new Date().toISOString(), workspaceId]);
   }
 
+  /**
+   * Bring an archived workspace back, with its members and rows as they were.
+   * Archiving promised its data is kept; without this, keeping it was all it
+   * did. Admins only: an archived workspace is hidden from its own members.
+   */
+  async restore(actor: WorkspaceActor, workspaceId: string): Promise<void> {
+    if (actor.appRole !== 'admin') throw new ServiceError('forbidden', 'Only an admin restores an archived workspace.');
+    const store = await getStore();
+    const result = await store.run('UPDATE workspaces SET archived_at = NULL WHERE id = ? AND archived_at IS NOT NULL', [
+      workspaceId,
+    ]);
+    if (result.changes === 0) throw new ServiceError('not_found', 'No archived workspace with that id.');
+  }
+
   async members(actor: WorkspaceActor, workspaceId: string): Promise<WorkspaceMember[]> {
     const store = await getStore();
     const ws = await this.workspace(store, workspaceId);
     if (actor.appRole !== 'admin' && !(await this.roleIn(store, workspaceId, actor.userId))) {
       throw new ServiceError('not_found', 'Workspace not found');
     }
+    const owner = ws.personal_owner_id
+      ? await store.get<{ app_role: string | null }>('SELECT app_role FROM users WHERE id = ?', [ws.personal_owner_id])
+      : undefined;
+    const ceiling = workspaceRoleCeiling(ws.personal_owner_id, owner?.app_role);
     const rows = await store.all<{ user_id: string; email: string; role: string; added_by: string | null; created_at: string }>(
       `SELECT m.user_id, u.email, m.role, a.email AS added_by, m.created_at
          FROM workspace_members m
@@ -308,7 +335,7 @@ export class WorkspaceDirectory {
       .map((r) => ({
         userId: r.user_id,
         email: r.email,
-        role: r.role as WorkspaceRole,
+        role: lowerWorkspaceRole(r.role as WorkspaceRole, ceiling),
         personalOwner: ws.personal_owner_id === r.user_id,
         addedBy: r.added_by,
         createdAt: r.created_at,
@@ -394,6 +421,7 @@ export class WorkspaceDirectory {
     if (ws.personal_owner_id === userId) {
       throw new ServiceError('conflict', 'Your role in your own workspace follows your account role.');
     }
+    await assertRoleGrantable(store, actor, workspaceId, role);
     // A personal workspace always keeps its account, so it never runs out of an owner.
     if (current === 'owner' && role !== 'owner' && !ws.personal_owner_id) await this.assertOwnerRemains(store, workspaceId, userId);
     await store.run('UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND user_id = ?', [role, workspaceId, userId]);

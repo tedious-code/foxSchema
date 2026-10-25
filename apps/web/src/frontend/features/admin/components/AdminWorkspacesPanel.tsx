@@ -8,7 +8,8 @@
  *
  * An admin opens one only by joining it, and joining puts the admin in its
  * member list, so nobody's workspace is looked into silently. From here an
- * admin can also run its members (hand ownership on) and archive it.
+ * admin can also run its members (hand ownership on), archive it, and bring an
+ * archived one back.
  */
 import React, { lazy, useCallback, useEffect, useState } from 'react';
 import { Layers, Loader2 } from 'lucide-react';
@@ -17,6 +18,7 @@ import { MountWhenOpened } from '@/shared/components/MountWhenOpened';
 import {
   apiAdminListWorkspaces,
   apiArchiveWorkspace,
+  apiRestoreWorkspace,
   apiSelectWorkspace,
   apiSetWorkspaceMember,
   loadWorkspaceSettingsDialog,
@@ -141,6 +143,17 @@ export const AdminWorkspacesPanel: React.FC<{ reload?: () => void }> = ({ reload
                   className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-200 disabled:opacity-50"
                 >
                   Members
+                </button>
+              )}
+              {w.archived && (
+                <button
+                  type="button"
+                  data-testid={`admin-workspace-restore-${w.id}`}
+                  disabled={busy}
+                  onClick={() => void run(() => apiRestoreWorkspace(w.id))}
+                  className="rounded-md border border-emerald-500/40 px-2 py-1 text-[11px] text-emerald-200 disabled:opacity-50"
+                >
+                  Restore
                 </button>
               )}
               {!w.archived && !w.personalOwner && (

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useAuthStore } from '@/platform/authStore';
 
 const apiListWorkspaces = vi.fn();
@@ -58,6 +58,14 @@ describe('WorkspaceRailButton', () => {
     fireEvent.click(button);
     expect(await screen.findByTestId('workspace-menu')).toBeTruthy();
     expect(screen.getByText('One workspace at a time')).toBeTruthy();
+  });
+
+  it('closes its menu on Escape', async () => {
+    render(<WorkspaceRailButton />);
+    fireEvent.click(await screen.findByTestId('workspace-rail-btn'));
+    await screen.findByTestId('workspace-rail-menu');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByTestId('workspace-rail-menu')).toBeNull());
   });
 
   it('marks the button when an invitation is waiting', async () => {

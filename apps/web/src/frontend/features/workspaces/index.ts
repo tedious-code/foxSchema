@@ -10,6 +10,7 @@
 export {
   apiAdminListWorkspaces,
   apiArchiveWorkspace,
+  apiRestoreWorkspace,
   apiSelectWorkspace,
   apiSetWorkspaceMember,
   type AdminWorkspaceRow,

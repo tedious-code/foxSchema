@@ -22,6 +22,7 @@ import type { MetadataStore } from '../../database/stores/types';
 import { RbacModule } from '../../platform/authorization/rbac.service';
 import { AuthModule, type IssuedCode } from '../../platform/identity/auth.service';
 import { ServiceError } from '../../platform/contracts/actor';
+import { assertRoleGrantable, effectiveMemberRole } from '../../platform/workspaces/workspace.service';
 import type { WorkspaceActor } from './workspace-directory.service';
 
 export const OWNERS_INVITE_NEW_KEY = 'workspaces.owners_invite_new';
@@ -69,12 +70,9 @@ export class WorkspaceInvites {
   private async requireMembers(store: MetadataStore, actor: WorkspaceActor, workspaceId: string) {
     const ws = await this.liveWorkspace(store, workspaceId);
     if (actor.appRole === 'admin' || ws.personal_owner_id === actor.userId) return ws;
-    const row = await store.get<{ role: string }>(
-      'SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?',
-      [workspaceId, actor.userId]
-    );
-    if (!row || !isWorkspaceRole(row.role)) throw new ServiceError('not_found', 'Workspace not found');
-    if (!permissionSatisfied(await this.rbac.permissionsForRole(row.role), 'workspace.members')) {
+    const role = await effectiveMemberRole(store, workspaceId, actor.userId);
+    if (!role) throw new ServiceError('not_found', 'Workspace not found');
+    if (!permissionSatisfied(await this.rbac.permissionsForRole(role), 'workspace.members')) {
       throw new ServiceError('forbidden', 'Only someone who manages members here can invite.');
     }
     return ws;
@@ -95,6 +93,7 @@ export class WorkspaceInvites {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ServiceError('invalid_input', 'Enter an email address.');
     const store = await getStore();
     const ws = await this.requireMembers(store, actor, workspaceId);
+    await assertRoleGrantable(store, actor, workspaceId, role);
 
     let user = await store.get<{ id: string }>('SELECT id FROM users WHERE email = ?', [email]);
     let newAccount: IssuedCode | undefined;

@@ -80,6 +80,11 @@ export async function apiArchiveWorkspace(id: string): Promise<void> {
   await api.post(`/workspaces/${enc(id)}/archive`, {});
 }
 
+/** Admins: bring an archived workspace back, members and data as they were. */
+export async function apiRestoreWorkspace(id: string): Promise<void> {
+  await api.post(`/workspaces/${enc(id)}/restore`, {});
+}
+
 export async function apiWorkspaceMembers(id: string): Promise<WorkspaceMember[]> {
   return (await api.get<{ members: WorkspaceMember[] }>(`/workspaces/${enc(id)}/members`)).members;
 }

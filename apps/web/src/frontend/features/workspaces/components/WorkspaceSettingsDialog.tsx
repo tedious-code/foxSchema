@@ -10,6 +10,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Layers, X } from 'lucide-react';
+import { workspaceRoleAtMost } from '@foxschema/shared';
 import { useAuthStore } from '@/platform/authStore';
 import {
   apiArchiveWorkspace,
@@ -66,6 +67,14 @@ export const WorkspaceSettingsDialog: React.FC<{
     load().catch((e: unknown) => setError(e instanceof Error ? e.message : 'Could not load the workspace'));
   }, [load]);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !e.defaultPrevented) onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   const run = async (action: () => Promise<void>, done?: string) => {
     setBusy(true);
     setError(null);
@@ -84,6 +93,14 @@ export const WorkspaceSettingsDialog: React.FC<{
   const isOwner = workspace?.role === 'owner' || me?.role === 'admin';
   /** Who may invite and change roles: owners, admins, and everyone in their own workspace. */
   const managesMembers = isOwner || workspace?.personal === true;
+  /**
+   * The highest role the caller can give here: any for an admin, otherwise its
+   * own. In a personal workspace that is the account's role, so a viewer shares
+   * it as viewer. The server refuses the same (assertRoleGrantable).
+   */
+  const grantCeiling: WorkspaceRole = me?.role === 'admin' ? 'owner' : (workspace?.role ?? 'viewer');
+  const canGive = (r: WorkspaceRole) => workspaceRoleAtMost(r, grantCeiling);
+  const ceilingHint = `You can give up to ${grantCeiling} here: nobody gives more than they can do themselves.`;
 
   return createPortal(
     <div
@@ -233,7 +250,7 @@ export const WorkspaceSettingsDialog: React.FC<{
                   className="bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-100"
                 >
                   {ROLES.map((r) => (
-                    <option key={r} value={r}>
+                    <option key={r} value={r} disabled={!canGive(r)} title={canGive(r) ? undefined : ceilingHint}>
                       {r}
                     </option>
                   ))}
@@ -247,6 +264,11 @@ export const WorkspaceSettingsDialog: React.FC<{
                   Invite
                 </button>
               </form>
+              {grantCeiling !== 'owner' && (
+                <p data-testid="workspace-invite-ceiling" className="text-[11px] text-slate-500">
+                  {ceilingHint}
+                </p>
+              )}
               {newAccount && (
                 <div data-testid="workspace-invite-new-account" className="rounded-md border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-100">
                   {newAccount.delivery === 'email'
@@ -312,7 +334,7 @@ export const WorkspaceSettingsDialog: React.FC<{
                         className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-slate-100"
                       >
                         {ROLES.map((r) => (
-                          <option key={r} value={r}>
+                          <option key={r} value={r} disabled={!canGive(r)} title={canGive(r) ? undefined : ceilingHint}>
                             {r}
                           </option>
                         ))}

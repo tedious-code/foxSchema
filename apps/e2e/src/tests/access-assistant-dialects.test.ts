@@ -441,7 +441,14 @@ describe.skipIf(configured.length === 0)('Access Assistant (all configured diale
           await driver.locator(byTestId('diff-action-0-deny')).click();
           const schema = driver.locator(byTestId('diff-schema-0'));
           if ((await schema.count()) > 0) await schema.fill(getSourceConfig(dialect)!.schema || 'dbo');
-          await driver.locator(byTestId('diff-load-catalog')).click();
+          // The catalog read is limited to 20 a minute, and by here a full run
+          // has read it many times: a refusal left no preview. Wait it out.
+          await clickRateLimited(driver, {
+            click: () => driver.locator(byTestId('diff-load-catalog')).click(),
+            path: /^\/api\/schema\/db-access$/,
+            label: 'Load catalog',
+            returnErrors: true,
+          });
 
           const denied = await driver
             .waitForFunction(

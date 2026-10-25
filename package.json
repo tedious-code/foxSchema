@@ -100,8 +100,9 @@
     "monaco-editor": "0.57.0",
     "nanoid": "3.3.18",
     "postcss": "8.5.26",
-    "dompurify": "3.4.15",
+    "dompurify": "3.4.17",
     "adm-zip": "0.6.1",
+    "@azure/msal-node": "7.1.1",
     "react-dom": "19.3.1"
   }
 }

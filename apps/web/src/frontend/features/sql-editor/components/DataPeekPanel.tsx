@@ -24,6 +24,7 @@ import {
   peekBaseFilterLabel,
 } from '@/shared/lib/tablePreview';
 import type { InboundForeignKey } from '@/shared/lib/tablePreview';
+import { clampDataPeekLimit } from '@/features/sql-editor/state/sqlEditorDataPeek';
 import { DataGrid } from './DataGrid';
 import { usePeekGridCrud } from './usePeekGridCrud';
 import { PeekInsight } from './PeekInsight';
@@ -70,7 +71,13 @@ const PeekFilterBar: React.FC<{
     const draftOrderBy = orderByRef.current;
     const draftLimit = limitRef.current;
     const parsed = Number.parseInt(draftLimit, 10);
-    const nextLimit = Number.isFinite(parsed) ? parsed : entry.limit;
+    // Clamped here as the store does, and written back, so the box always shows
+    // the limit in force: an emptied box or a typo above the cap used to stay.
+    const nextLimit = Number.isFinite(parsed) ? clampDataPeekLimit(parsed) : entry.limit;
+    if (draftLimit !== String(nextLimit)) {
+      setLimit(String(nextLimit));
+      limitRef.current = String(nextLimit);
+    }
     // Skip no-op applies (e.g. blur after an already-committed clear).
     if (
       draftWhere === entry.whereClause &&
@@ -672,6 +679,10 @@ export const DataPeekPanel: React.FC = () => {
       if (e.key !== 'Escape') return;
       // Row editor / write confirm own Escape — do not close the whole peek.
       if (childOverlayOpen) return;
+      // Something inside already used this Escape: the grid clearing a cell
+      // selection, or its save-as-variable dialog closing. Closing the peek
+      // too threw away every panel the reader had drilled open.
+      if (e.defaultPrevented) return;
       closeDataPeek();
     };
     window.addEventListener('keydown', onKey);

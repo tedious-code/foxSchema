@@ -176,6 +176,7 @@ const ROUTES: RouteExpectation[] = [
   { method: 'POST', path: '/api/workspaces', status: 400 },
   { method: 'PATCH', path: '/api/workspaces/:id', status: 404 },
   { method: 'POST', path: '/api/workspaces/:id/archive', status: 404 },
+  { method: 'POST', path: '/api/workspaces/:id/restore', status: 404 },
   { method: 'GET', path: '/api/workspaces/:id/members', status: 404 },
   { method: 'PUT', path: '/api/workspaces/:id/members/:userId', status: 400 },
   { method: 'DELETE', path: '/api/workspaces/:id/members/:userId', status: 404 },

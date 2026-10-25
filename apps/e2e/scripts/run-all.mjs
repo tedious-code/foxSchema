@@ -107,8 +107,8 @@ const ALWAYS = [
   },
   {
     key: 'workspaces',
-    file: 'src/tests/workspaces.test.ts',
-    label: 'Workspaces: create, switch, settings',
+    file: 'src/tests/workspaces.test.ts src/tests/workspaces-sharing-limits.test.ts',
+    label: 'Workspaces: create, switch, settings, sharing limits',
   },
   {
     key: 'sql-editor',

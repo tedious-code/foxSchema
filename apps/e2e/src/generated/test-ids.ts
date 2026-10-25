@@ -639,6 +639,8 @@ export const TestIds = {
       adminWorkspaceMembers: (id: string | number) => `admin-workspace-members-${id}`,
       /** button · Open */
       adminWorkspaceOpen: (id: string | number) => `admin-workspace-open-${id}`,
+      /** button · Restore */
+      adminWorkspaceRestore: (id: string | number) => `admin-workspace-restore-${id}`,
       /** div */
       adminWorkspaces: 'admin-workspaces',
       /** p */
@@ -3539,6 +3541,8 @@ export const TestIds = {
     WorkspaceSettingsDialog: {
       /** li */
       workspaceInvite: (id: string | number) => `workspace-invite-${id}`,
+      /** p */
+      workspaceInviteCeiling: 'workspace-invite-ceiling',
       /** input · teammate@company.com */
       workspaceInviteEmail: 'workspace-invite-email',
       /** form */
@@ -3742,6 +3746,7 @@ export type TestId =
   | `admin-workspace-join-${string}`
   | `admin-workspace-members-${string}`
   | `admin-workspace-open-${string}`
+  | `admin-workspace-restore-${string}`
   | 'admin-workspaces'
   | 'admin-workspaces-error'
   | 'admin-workspaces-list'
@@ -5203,6 +5208,7 @@ export type TestId =
   | `workflow-variables-environment-${string}`
   | 'workflow-view'
   | `workspace-invite-${string}`
+  | 'workspace-invite-ceiling'
   | 'workspace-invite-email'
   | 'workspace-invite-form'
   | 'workspace-invite-new-account'

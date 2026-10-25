@@ -2,7 +2,7 @@
 
 # Fox Schema
 
-*0.3.X COMMING SOON, NEED TO DO MORE MANUALLY TEST *
+##0.3.X COMMING SOON, NEED TO DO MORE MANUALLY TEST *
 
 **Compare schemas · generate migrations · run SQL — across 14 SQL dialects.**
 

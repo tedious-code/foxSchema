@@ -198,7 +198,7 @@ describe('AccessPermissionPanel — one session', () => {
   });
 
   it('keeps the confirmation open when apply fails', async () => {
-    runAccessSql.mockResolvedValue({ ok: false, error: 'role "r" does not exist' });
+    runAccessSql.mockResolvedValue({ ok: false, error: 'role "r" does not exist', applied: 0 });
     await grantsStageFor('alice');
     const loads = fetchDbAccess.mock.calls.length;
     fireEvent.click(await screen.findByTestId('access-grants-preset-read-write'));
@@ -207,6 +207,24 @@ describe('AccessPermissionPanel — one session', () => {
     await waitFor(() => expect(screen.getByTestId('access-permission-error').textContent).toMatch(/role "r" does not exist/));
     expect(screen.getByTestId('access-permission-confirm')).toBeTruthy();
     expect(fetchDbAccess.mock.calls.length).toBe(loads);
+  });
+
+  it('re-reads the catalog when part of the script was applied before the failure', async () => {
+    // Statements run in order and stop at the failure; the ones before it stay
+    // applied, so the grid must not keep showing the grants as they were.
+    runAccessSql.mockResolvedValue({
+      ok: false,
+      error: 'Statement 2 of 2 failed: permission denied. The 1 before it was applied.',
+      applied: 1,
+    });
+    await grantsStageFor('alice');
+    const loads = fetchDbAccess.mock.calls.length;
+    fireEvent.click(await screen.findByTestId('access-grants-preset-read-write'));
+    fireEvent.click(await screen.findByTestId('access-grants-open-sql'));
+    fireEvent.click(await screen.findByTestId('access-permission-apply'));
+    await waitFor(() => expect(fetchDbAccess.mock.calls.length).toBeGreaterThan(loads));
+    expect(screen.getByTestId('access-permission-error').textContent).toMatch(/The 1 before it was applied/);
+    expect(screen.getByTestId('access-permission-confirm')).toBeTruthy();
   });
 
   it('hides Apply without the Grant privileges permission', async () => {

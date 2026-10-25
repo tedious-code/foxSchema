@@ -1,0 +1,1617 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Generated from docs/FEATURE_MAP.md and the feature inventory. The live planning board is a shared page;
+     this copy shows the map, workflows, schema, engines and coverage. Open it in a browser. -->
+<style>body{margin:0}[hidden]{display:none!important}</style>
+<title>Fox Feature Map</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Schibsted+Grotesk:wght@600;700&display=swap">
+<style>
+/* Layout: a working tool. A header with the inventory's measurements, a tab bar,
+   one panel at a time. The board's columns scroll sideways inside their own box. */
+:root {
+  --bg: #f3f4f6;
+  --surface: #ffffff;
+  --surface-2: #eceef2;
+  --ink: #1b2230;
+  --ink-2: #4a5466;
+  --muted: #6f7988;
+  --line: #dde1e7;
+  --line-2: #c5cbd4;
+  --accent: #b9521d;
+  --accent-ink: #ffffff;
+  --accent-soft: #f9e6dc;
+  --series: #2a78d6;
+  --good: #0a8f0a;
+  --warning: #b07800;
+  --serious: #c45a2c;
+  --critical: #c23434;
+  --scrim: rgba(17, 22, 30, 0.42);
+  --f-display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1318; --surface: #171c23; --surface-2: #1f262f; --ink: #e7eaef; --ink-2: #b3bbc7;
+    --muted: #8b95a4; --line: #29313b; --line-2: #3a4450; --accent: #f08a57; --accent-ink: #1b0f08;
+    --accent-soft: #3a2418; --series: #3987e5; --good: #2fbf2f; --warning: #e0a42a; --serious: #ec835a;
+    --critical: #ef6a6a; --scrim: rgba(0, 0, 0, 0.6); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1318; --surface: #171c23; --surface-2: #1f262f; --ink: #e7eaef; --ink-2: #b3bbc7;
+  --muted: #8b95a4; --line: #29313b; --line-2: #3a4450; --accent: #f08a57; --accent-ink: #1b0f08;
+  --accent-soft: #3a2418; --series: #3987e5; --good: #2fbf2f; --warning: #e0a42a; --serious: #ec835a;
+  --critical: #ef6a6a; --scrim: rgba(0, 0, 0, 0.6); color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+.wrap { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+a { color: var(--accent); }
+code, .mono { font-family: var(--f-mono); font-size: 0.86em; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--series); outline-offset: 2px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.2; }
+h2 { font-size: 1.35rem; }
+h3 { font-size: 1.02rem; }
+.eyebrow { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.lede { color: var(--ink-2); max-width: 68ch; margin: 0; }
+
+/* Header */
+header.top { background: var(--surface); border-bottom: 1px solid var(--line); }
+header.top .wrap { padding-block: 18px 0; display: grid; gap: 14px; }
+.titlerow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; justify-content: space-between; }
+.titlerow h1 { font-size: clamp(1.5rem, 3.4vw, 2rem); letter-spacing: -0.01em; }
+.titlerow h1 span { color: var(--accent); }
+.stamp { color: var(--muted); font-size: 0.82rem; }
+.stats { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 0; padding: 0; list-style: none; }
+.stats li { display: flex; align-items: baseline; gap: 6px; color: var(--ink-2); font-size: 0.86rem; }
+.stats b { font-family: var(--f-display); font-size: 1.15rem; color: var(--ink); font-weight: 700; }
+nav.tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; margin-bottom: -1px; }
+nav.tabs::-webkit-scrollbar { display: none; }
+nav.tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 14px; color: var(--ink-2); font-weight: 500; cursor: pointer; white-space: nowrap; }
+nav.tabs button:hover { color: var(--ink); }
+nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+
+main .wrap { padding-block: 22px 56px; }
+.panel { display: grid; gap: 22px; }
+.panel:not(.active) { position: absolute; left: -300vw; top: 0; width: 1180px; visibility: hidden; pointer-events: none; }
+.section { display: grid; gap: 12px; min-width: 0; }
+.sechead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+
+/* Controls */
+.btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-2); background: var(--surface); padding: 7px 12px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 0.9rem; }
+.btn:hover { border-color: var(--ink-2); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.danger { border-color: var(--critical); color: var(--critical); }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.toolbar .grow { flex: 1 1 200px; min-width: 0; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field label { font-size: 0.78rem; color: var(--muted); font-weight: 600; }
+input[type="text"], input[type="search"], input[type="date"], select, textarea {
+  width: 100%; border: 1px solid var(--line-2); background: var(--surface); border-radius: 6px; padding: 7px 10px; min-width: 0;
+}
+textarea { resize: vertical; min-height: 84px; }
+.seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 7px 12px; cursor: pointer; font-size: 0.88rem; color: var(--ink-2); }
+.seg button + button { border-left: 1px solid var(--line-2); }
+.seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--ink); font-weight: 600; }
+
+/* Chips and pills */
+.kind { display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; color: var(--ink-2); font-weight: 500; }
+.kind svg { width: 14px; height: 14px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.prio { font: 600 0.72rem/1 var(--f-mono); padding: 3px 6px; border-radius: 4px; border: 1px solid var(--line-2); color: var(--ink-2); }
+.prio.P0 { border-color: var(--critical); color: var(--critical); }
+.prio.P1 { border-color: var(--serious); color: var(--serious); }
+.state { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 0.86rem; }
+.state i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.state.scheduled i { background: var(--series); }
+.state.progress i { background: var(--warning); }
+.state.review i { background: var(--serious); }
+.state.done i { background: var(--good); }
+.state.blocked i { background: var(--critical); border-radius: 1px; }
+.fid { font-family: var(--f-mono); font-size: 0.78rem; color: var(--ink-2); background: var(--surface-2); padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+.tag { font-size: 0.78rem; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); }
+
+/* Plan */
+.summary { display: flex; flex-wrap: wrap; gap: 8px; }
+.summary button { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 6px 10px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.summary button[aria-pressed="true"] { border-color: var(--ink-2); background: var(--surface-2); }
+.summary b { font-family: var(--f-display); font-size: 1.05rem; }
+.notice { border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 12px 14px; color: var(--ink-2); }
+.notice.warn { border-color: var(--serious); }
+.board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(250px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 6px; align-items: start; }
+.col { background: var(--surface-2); border-radius: var(--radius); padding: 10px; display: grid; gap: 8px; min-height: 120px; align-content: start; }
+.col.drop { outline: 2px dashed var(--series); outline-offset: -4px; }
+.colhead { display: flex; align-items: center; justify-content: space-between; padding: 2px 2px 4px; }
+.colhead .n { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.85rem; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 11px; display: grid; gap: 7px; cursor: pointer; text-align: left; width: 100%; }
+.card:hover { border-color: var(--line-2); }
+.card[draggable="true"] { cursor: grab; }
+.card .r1 { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.card .t { font-weight: 600; line-height: 1.35; }
+.card .r3 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 0.8rem; color: var(--muted); }
+.owner { display: inline-flex; align-items: center; gap: 5px; }
+.owner img { width: 18px; height: 18px; border-radius: 50%; }
+.overdue { color: var(--critical); font-weight: 600; }
+.empty { text-align: center; padding: 28px 16px; color: var(--muted); border: 1px dashed var(--line-2); border-radius: var(--radius); }
+.colempty { color: var(--muted); font-size: 0.82rem; padding: 6px 2px; }
+.sched { display: grid; gap: 16px; }
+.sched h3 { font-size: 0.95rem; display: flex; gap: 10px; align-items: baseline; }
+.sched h3 .n { color: var(--muted); font-weight: 400; font-family: var(--f-body); font-size: 0.85rem; }
+.rows { display: grid; gap: 6px; }
+.row { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 10px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; cursor: pointer; text-align: left; width: 100%; }
+.row .t { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.row .meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 640px) { .row { grid-template-columns: 1fr; } .row .meta { justify-content: flex-start; } }
+
+/* Tables */
+.tablebox { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 0.74rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--surface-2); position: sticky; top: 0; }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.yes { color: var(--good); font-weight: 600; }
+td.no { color: var(--muted); }
+
+/* Features */
+.areas { display: flex; flex-wrap: wrap; gap: 6px; }
+.areas button { border: 1px solid var(--line-2); background: var(--surface); border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: 0.86rem; }
+.areas button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap: 14px; }
+.fcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 10px; min-width: 0; align-content: start; }
+.fcard .h { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; }
+.fcard .subs { display: flex; flex-wrap: wrap; gap: 5px; }
+.fcard dl { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 5px 12px; margin: 0; font-size: 0.86rem; }
+.fcard dt { color: var(--muted); font-weight: 600; font-size: 0.78rem; padding-top: 1px; }
+.fcard dd { margin: 0; color: var(--ink-2); overflow-wrap: anywhere; }
+.fcard .foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 10px; }
+.openlink { font-size: 0.86rem; color: var(--ink-2); }
+
+/* Diagrams */
+.diagram { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; overflow-x: auto; display: grid; gap: 8px; }
+.diagram pre.mermaid { margin: 0; background: transparent; min-width: 0; }
+.diagram p { margin: 0; color: var(--ink-2); font-size: 0.9rem; max-width: 72ch; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap: 14px; }
+
+/* Charts */
+.chart { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 10px; min-width: 0; position: relative; }
+.chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.chart .lbl { fill: var(--ink-2); font: 12px var(--f-mono); }
+.chart .val { fill: var(--ink); font: 600 12px var(--f-body); font-variant-numeric: tabular-nums; }
+.chart .tick { fill: var(--muted); font: 11px var(--f-body); font-variant-numeric: tabular-nums; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .base { stroke: var(--line-2); stroke-width: 1; }
+.chart .bar { fill: var(--series); }
+.chart .hit { fill: transparent; cursor: default; }
+.chart .hit:hover + .bar, .chart .bar.on { filter: brightness(1.12); }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--surface); font-size: 0.8rem; padding: 6px 8px; border-radius: 5px; white-space: nowrap; z-index: 3; }
+
+/* Dialog */
+.scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 20; display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.dialog { background: var(--surface); border-radius: 10px; width: min(640px, 100%); max-height: 100%; overflow: auto; display: grid; gap: 14px; padding: 18px; border: 1px solid var(--line); }
+.dialog .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 12px; }
+.dialog .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
+.dialog fieldset { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px 12px; margin: 0; display: grid; gap: 10px; }
+.dialog legend { font-size: 0.78rem; color: var(--muted); font-weight: 600; padding: 0 4px; }
+.picker { position: relative; }
+.hits { position: absolute; left: 0; right: 0; top: calc(100% + 4px); background: var(--surface); border: 1px solid var(--line-2); border-radius: 6px; z-index: 2; display: grid; max-height: 220px; overflow: auto; }
+.hits button { display: flex; align-items: center; gap: 8px; border: 0; background: none; padding: 7px 10px; cursor: pointer; text-align: left; }
+.hits button:hover { background: var(--surface-2); }
+.hits img { width: 20px; height: 20px; border-radius: 50%; }
+.confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--critical); font-weight: 600; font-size: 0.9rem; }
+.toast { position: fixed; bottom: max(16px, env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--surface); padding: 8px 14px; border-radius: 6px; z-index: 30; font-size: 0.9rem; }
+@media (prefers-reduced-motion: no-preference) { .card, .btn, .row { transition: border-color 0.12s ease; } }
+
+/* Bars (single series, magnitude) */
+.bars { display: grid; gap: 4px; }
+.brow { display: grid; grid-template-columns: minmax(7rem, 12.5rem) minmax(0, 1fr); gap: 10px; align-items: center; min-height: 24px; padding-right: 2.6rem; }
+.blbl { font: 12px var(--f-mono); color: var(--ink-2); text-align: right; overflow-wrap: anywhere; }
+.btrack { position: relative; height: 16px; background-image: repeating-linear-gradient(to right, var(--line) 0 1px, transparent 1px 100%); background-size: calc(100% / var(--n)) 100%; border-left: 1px solid var(--line-2); }
+.bfill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--series); border-radius: 0 4px 4px 0; }
+.bval { position: absolute; top: 50%; transform: translateY(-50%); font: 600 12px var(--f-body); color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.brow:hover .bfill { filter: brightness(1.12); }
+.baxis { min-height: 18px; }
+.bticks { position: relative; height: 16px; }
+.bticks span { position: absolute; transform: translateX(-50%); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.toolbar select { width: auto; max-width: 100%; }
+@media (max-width: 640px) { .toolbar select { flex: 1 1 140px; } .brow { grid-template-columns: minmax(6rem, 9rem) minmax(0, 1fr); } }
+</style>
+
+</head>
+<body>
+<script>window.FOX_MAP_STATIC = true;</script>
+<header class="top">
+  <div class="wrap">
+    <div class="titlerow">
+      <h1>Fox <span>Feature Map</span></h1>
+      <div class="stamp">Measured on <code>main</code> · <code>91d4165c09</code> · 2026-10-25 · mirrors <code>docs/FEATURE_MAP.md</code></div>
+    </div>
+    <ul class="stats" aria-label="Inventory">
+      <li><b>33</b> features</li>
+      <li><b>153</b> HTTP routes</li>
+      <li><b>17</b> server modules</li>
+      <li><b>14</b> web features</li>
+      <li><b>16</b> engines</li>
+      <li><b>28</b> metadata tables</li>
+      <li><b>49</b> e2e specs</li>
+      <li><b>~530</b> unit-test files</li>
+    </ul>
+    <nav class="tabs" role="tablist" aria-label="Views">
+      <button role="tab" id="tab-plan" data-tab="plan" aria-selected="true">Plan</button>
+      <button role="tab" id="tab-features" data-tab="features" aria-selected="false">Features</button>
+      <button role="tab" id="tab-workflows" data-tab="workflows" aria-selected="false">Workflows</button>
+      <button role="tab" id="tab-schema" data-tab="schema" aria-selected="false">Schema</button>
+      <button role="tab" id="tab-engines" data-tab="engines" aria-selected="false">Engines</button>
+      <button role="tab" id="tab-coverage" data-tab="coverage" aria-selected="false">Coverage</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <!-- PLAN -->
+    <section class="panel active" id="panel-plan" role="tabpanel" aria-labelledby="tab-plan">
+      <div class="sechead">
+        <div class="section" style="gap:4px">
+          <h2>Work plan</h2>
+          <p class="lede">Bug fixes, improvements, tests, new sub-features and manual-test passes, each tied to a feature. Everyone with access sees the same board.</p>
+        </div>
+        <button class="btn primary" id="add-item" type="button">+ Add work item</button>
+      </div>
+      <div class="notice warn" id="ro-note" hidden>You can read this board but not change it. Ask the page's owner for Contributor access to edit it.</div>
+      <div class="notice" id="offline-note" hidden>The shared board is not available in this view, so work items cannot load. Open the page on claude.ai while signed in to see and edit them.</div>
+      <div class="toolbar">
+        <div class="grow"><input type="search" id="q" placeholder="Search titles, details, links…" aria-label="Search work items"></div>
+        <select id="f-feature" aria-label="Feature"></select>
+        <select id="f-kind" aria-label="Kind"></select>
+        <select id="f-owner" aria-label="Owner">
+          <option value="">Anyone</option>
+          <option value="me">Mine</option>
+          <option value="none">Unassigned</option>
+        </select>
+        <div class="seg" role="group" aria-label="View">
+          <button type="button" data-view="board" aria-pressed="true">Board</button>
+          <button type="button" data-view="schedule" aria-pressed="false">Schedule</button>
+          <button type="button" data-view="manual" aria-pressed="false">Manual tests</button>
+        </div>
+      </div>
+      <div class="summary" id="summary" aria-label="Filter by status"></div>
+      <div id="plan-body"></div>
+    </section>
+
+    <!-- FEATURES -->
+    <section class="panel" id="panel-features" role="tabpanel" aria-labelledby="tab-features">
+      <div class="section">
+        <h2>System</h2>
+        <p class="lede">Clients reach one Fastify server through the same guards; features read and write the metadata store and reach the target databases through the driver package.</p>
+        <div class="two">
+          <div class="diagram"><pre class="mermaid">flowchart LR
+  subgraph clients[Clients]
+    WEB["Web app&lt;br/&gt;apps/web (React)"]
+    CLI["foxschema CLI + TUI&lt;br/&gt;apps/cli"]
+  end
+  subgraph server["Fox server — packages/server (Fastify)"]
+    PLAT["platform&lt;br/&gt;identity · RBAC · workspaces&lt;br/&gt;connections · guards"]
+    FEAT["17 feature modules&lt;br/&gt;153 routes"]
+  end
+  WFS["Workflow server :8081&lt;br/&gt;apps/workflow-server&lt;br/&gt;+ packages/workflow-engine"]
+  META[("Metadata store&lt;br/&gt;SQLite · 28 tables")]
+  ENG[("Target databases&lt;br/&gt;16 engines")]
+
+  WEB -- "/api (session cookie)" --&gt; PLAT
+  CLI -- "serves the app, and runs compare /&lt;br/&gt;migrate / snapshot on the packages" --&gt; FEAT
+  PLAT --&gt; FEAT
+  FEAT --&gt; META
+  FEAT -- "packages/db drivers" --&gt; ENG
+  FEAT -- "engine proxy (workflow.*)" --&gt; WFS
+  WFS -- "internal: resolve a granted connection" --&gt; FEAT
+  WFS --&gt; ENG</pre></div>
+          <div class="diagram"><pre class="mermaid">flowchart LR
+  R[Request] --&gt; O["Origin policy&lt;br/&gt;+ rate limit"] --&gt; S["Session guard&lt;br/&gt;(auth.guard)"] --&gt; W["Workspace scope&lt;br/&gt;(resolveWorkspace)"]
+  W --&gt; P["Permission guard&lt;br/&gt;requirePermissions()"] --&gt; H["Feature route&lt;br/&gt;→ service"]
+  H --&gt; C["Connection resolver&lt;br/&gt;(decrypts the saved connection)"] --&gt; D["Driver&lt;br/&gt;packages/db"]
+  H --&gt; M[("Metadata store")]</pre><p>Every request passes origin, session, workspace and permission checks before a feature runs.</p></div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="sechead"><h2>Features</h2><span class="stamp">Each card: what it does, where it opens, its API, code, permissions, tables and tests.</span></div>
+        <div class="areas" id="areas" role="group" aria-label="Area"></div>
+        <div class="fgrid" id="fgrid"></div>
+      </div>
+    </section>
+
+    <!-- WORKFLOWS -->
+    <section class="panel" id="panel-workflows" role="tabpanel" aria-labelledby="tab-workflows">
+      <div class="section" style="gap:4px">
+        <h2>Workflows</h2>
+        <p class="lede">The paths a change usually crosses. Read the one you are touching before changing a step in it.</p>
+      </div>
+      <div class="diagram"><h3>Compare → deploy</h3><pre class="mermaid">sequenceDiagram
+  actor U as User
+  participant W as Web: Compare
+  participant S as Server
+  participant D as Target DB
+  participant H as Snapshots (Lokee)
+  U-&gt;&gt;W: pick source and target connections
+  W-&gt;&gt;S: POST /api/schema/load (both sides)
+  S-&gt;&gt;D: read catalog (packages/db)
+  W-&gt;&gt;S: POST /api/compare
+  S--&gt;&gt;W: diff tree + migration plan (packages/sql)
+  U-&gt;&gt;W: select objects, Execute
+  W-&gt;&gt;W: execute gate — missing FK or narrowing opens a review, else confirm
+  W-&gt;&gt;S: POST /api/migration/execute (NDJSON stream)
+  S-&gt;&gt;S: target lock, schema.migrate (+ force rules)
+  S-&gt;&gt;D: run DDL in plan order
+  S-&gt;&gt;S: record migration_runs (+ git_* when from Git)
+  S-&gt;&gt;H: capture a version (lokee_versions)
+  S--&gt;&gt;W: progress events → Applies</pre><p>The execute gate, the target lock and the history capture are the steps a schema change must keep.</p></div>
+      <div class="diagram"><h3>SQL editor — Run</h3><pre class="mermaid">flowchart TD
+  A[Run / ⌘↵ / ▶ on a row] --&gt; B{Selection?}
+  B -- yes --&gt; C[statements in the selection]
+  B -- no --&gt; D{Run checks ticked?}
+  D -- yes --&gt; E[ticked statements]
+  D -- no --&gt; F[statement at the caret]
+  C &amp; E &amp; F --&gt; G[split: SQL statements and code cells]
+  G --&gt; H[classify per destination dialect&lt;br/&gt;read / dml / ddl / grant]
+  H --&gt; I{Safe mode and a write?}
+  I -- yes --&gt; J[confirm dialog&lt;br/&gt;no-WHERE acknowledgement]
+  I -- no --&gt; K
+  J --&gt; K{One transaction?}
+  K -- "yes, engine rolls back" --&gt; L[one batch per destination]
+  K -- "engine cannot roll back" --&gt; X[refused with the reason]
+  K -- no --&gt; M[statement by statement]
+  L &amp; M --&gt; N[POST /api/sql/execute&lt;br/&gt;permission per category]
+  N --&gt; O[schema applied, page wrap / LIMIT OFFSET, adapter]
+  O --&gt; P[results by credential / side by side&lt;br/&gt;→ data compare, peek, edit]
+  G -. code cell .-&gt; Q[POST /api/sql/code-cell&lt;br/&gt;worker sandbox, sql bridge, Server Beam]
+  Q --&gt; P</pre><p>Which statements run, how each is classified for its destination's dialect, and where Safe mode and One transaction step in.</p></div>
+      <div class="two">
+        <div class="diagram"><h3>Data compare → data migrate</h3><pre class="mermaid">flowchart LR
+  A[Same SELECT on ≥2 destinations] --&gt; B[Side by side + Compare data]
+  B --&gt; C[align rows by key columns]
+  C --&gt; D[add / edit / delete per target&lt;br/&gt;Sync column picks rows]
+  D --&gt; E[Preview SQL]
+  E --&gt; F{Safe mode}
+  F -- confirm --&gt; G[POST /api/data-migrations/start]
+  G --&gt; H[backup snapshot of affected rows]
+  H --&gt; I[POST /api/data-migrate/execute&lt;br/&gt;Transaction only where it can roll back&lt;br/&gt;stop or continue on error]
+  I --&gt; J[POST /api/data-migrations/:id/finish&lt;br/&gt;data_migrate_runs]
+  J --&gt; K[History: restore from snapshot]</pre></div>
+        <div class="diagram"><h3>Snapshots — capture, compare, revert</h3><pre class="mermaid">flowchart LR
+  A[Capture&lt;br/&gt;POST /api/lokee/capture] --&gt; B[(objects by content hash&lt;br/&gt;lokee_objects / shapes)]
+  B --&gt; C[version N&lt;br/&gt;lokee_versions + version_objects]
+  C --&gt; D[timeline · graph · compare two versions]
+  D --&gt; E[inspect an object across versions]
+  D --&gt; F[revert: plan → run on the live DB]
+  D --&gt; G[force-migrate a version to another DB&lt;br/&gt;schema.migrate.force]
+  F &amp; G --&gt; H[new version records where it came from]</pre></div>
+      </div>
+      <div class="two">
+        <div class="diagram"><h3>Workflow engine</h3><pre class="mermaid">sequenceDiagram
+  actor U as User
+  participant W as Web: Workflow
+  participant S as Server (proxy)
+  participant E as Workflow server
+  participant D as Database
+  U-&gt;&gt;W: design pipes, save
+  W-&gt;&gt;S: /api/workflow/* (workflow.design)
+  S-&gt;&gt;S: refuse connections not usable in this workspace
+  S-&gt;&gt;E: forward (WORKFLOW_ENGINE_TOKEN)
+  U-&gt;&gt;W: run
+  E-&gt;&gt;S: POST /api/workflow-internal/connections/resolve
+  S--&gt;&gt;E: granted connection (workflow_connection_grants)
+  E-&gt;&gt;D: SQL pipe
+  E--&gt;&gt;W: run events, a human gate waits for an answer</pre></div>
+        <div class="diagram"><h3>Access — inspect, build, apply</h3><pre class="mermaid">flowchart LR
+  A[Pick connection] --&gt; B[Inspector: who holds what]
+  B --&gt; C[Builder: intent → GRANT / REVOKE / account DDL&lt;br/&gt;providers/*/access-sql, user-sql]
+  C --&gt; D[Grants stage: review the SQL]
+  D --&gt; E[execute in order&lt;br/&gt;stops at the first failure]
+  E --&gt; F[Insight / Report: what changed]</pre></div>
+      </div>
+    </section>
+
+    <!-- SCHEMA -->
+    <section class="panel" id="panel-schema" role="tabpanel" aria-labelledby="tab-schema">
+      <div class="section" style="gap:4px">
+        <h2>Metadata schema</h2>
+        <p class="lede">28 tables in <code>packages/server/src/database/schema.ts</code>, 31 append-only migrations. Solid lines are declared foreign keys; dotted lines are id columns the code joins on.</p>
+      </div>
+      <div class="diagram"><h3>Identity and workspaces</h3><pre class="mermaid">erDiagram
+  users ||--o| user_preferences : has
+  users ||--o{ sessions : "signs in"
+  users ||--o{ auth_codes : "codes for"
+  users ||--o{ workspace_members : "member of"
+  workspaces ||--o{ workspace_members : has
+  workspaces ||--o{ workspace_invites : has
+  workspaces ||--o{ workspace_scripts : shares
+  users {
+    text id PK
+    text email
+    text app_role
+    int active
+    int email_verified
+  }
+  sessions {
+    text token PK
+    text user_id FK
+    text via
+    ts expires_at
+  }
+  auth_codes {
+    text code_hash
+    text user_id FK
+    text purpose
+    ts expires_at
+  }
+  user_preferences {
+    text user_id PK
+    text last_workspace_id
+    text theme
+  }
+  workspaces {
+    text id PK
+    text name
+    text visibility
+    text personal_owner_id
+    ts archived_at
+  }
+  workspace_members {
+    text workspace_id
+    text user_id
+    text role
+  }
+  workspace_invites {
+    text id PK
+    text workspace_id
+    text email
+    text role
+    ts expires_at
+  }
+  workspace_scripts {
+    text id PK
+    text workspace_id
+    text title
+    big sql
+  }
+  role_permissions {
+    text role
+    text permission
+  }
+  app_settings {
+    text key PK
+    big value
+  }</pre></div>
+      <div class="diagram"><h3>Connections, secrets, data and workflow</h3><pre class="mermaid">erDiagram
+  users ||--o{ connections : owns
+  users ||--o{ app_secrets : owns
+  users ||--o{ cloud_provider_credentials : owns
+  users ||--o{ data_migrate_runs : runs
+  users ||--o{ backup_settings : saves
+  workspaces ||..o{ connections : "workspace_id"
+  workspaces ||..o{ app_secrets : "workspace_id"
+  workspaces ||..o{ cloud_provider_credentials : "workspace_id"
+  workspaces ||..o{ data_migrate_runs : "workspace_id"
+  workspaces ||..o| workflow_settings : "workspace_id"
+  connections ||..o{ workflow_connection_grants : "granted to workflows"
+  connections {
+    text id PK
+    text user_id FK
+    text workspace_id
+    text dialect
+    text encrypted_config
+  }
+  app_secrets {
+    text id PK
+    text name
+    text source
+    text encrypted_value
+  }
+  cloud_provider_credentials {
+    text id PK
+    text provider
+    text encrypted_config
+  }
+  data_migrate_runs {
+    text id PK
+    text status
+    text dialect
+    text table_name
+    text ops_json
+    text snapshot_json
+  }
+  backup_settings {
+    text user_id
+    text dialect
+    text settings
+  }
+  workflow_settings {
+    text workspace_id PK
+    text config_json
+  }
+  workflow_connection_grants {
+    text connection_id
+    text user_id
+  }</pre></div>
+      <div class="diagram"><h3>Migrations, Git and snapshots</h3><pre class="mermaid">erDiagram
+  users ||--o{ migration_runs : runs
+  git_repos ||..o{ migration_runs : "git_repo_id"
+  git_repos ||..o{ git_applied : tracks
+  git_repos ||..o{ git_activity : logs
+  migration_runs ||..o{ git_applied : "run_id"
+  users ||--o{ lokee_databases : captures
+  lokee_databases ||--o{ lokee_versions : has
+  lokee_versions ||--o{ lokee_version_objects : lists
+  lokee_databases ||--o{ lokee_latest_objects : "current state"
+  lokee_version_objects }o..|| lokee_objects : "object_hash"
+  lokee_objects }o..o| lokee_shapes : "shape_hash"
+  migration_runs ||..o{ lokee_versions : "migration_run_id"
+  migration_runs {
+    text id PK
+    text status
+    text dialect
+    text script
+    text git_repo_id
+    text workspace_id
+  }
+  git_repos {
+    text id PK
+    text remote_url
+    text default_branch
+    text encrypted_token
+  }
+  git_applied {
+    text id PK
+    text repo_id
+    text path
+    text commit_oid
+    text run_id
+  }
+  git_activity {
+    text id PK
+    text repo_id
+    text action
+  }
+  lokee_databases {
+    text id PK
+    text fingerprint
+    text dialect
+    text workspace_id
+  }
+  lokee_versions {
+    text id PK
+    text database_id FK
+    int version_number
+    text root_hash
+    text parent_version_id
+    text migration_run_id
+  }
+  lokee_version_objects {
+    text version_id FK
+    text object_key
+    text operation
+    text object_hash
+  }
+  lokee_objects {
+    text hash PK
+    text object_key
+    text object_type
+    text shape_hash
+  }
+  lokee_latest_objects {
+    text database_id FK
+    text object_key
+    text object_hash
+  }
+  lokee_shapes {
+    text shape_hash PK
+    text shape_json
+  }</pre></div>
+      <div class="section">
+        <h3>Which feature owns each table</h3>
+        <div class="tablebox"><table id="owners"><thead><tr><th>Table</th><th>Feature</th><th class="num">Columns</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- ENGINES -->
+    <section class="panel" id="panel-engines" role="tabpanel" aria-labelledby="tab-engines">
+      <div class="section" style="gap:4px">
+        <h2>Engines and capabilities</h2>
+        <p class="lede">From <code>dialectFeatures()</code>, the one table every screen asks. A missing capability carries a reason the app shows instead of the control.</p>
+      </div>
+      <div class="tablebox"><table id="matrix"></table></div>
+      <p class="lede">Redis and MongoDB run a fail-closed SQL subset in the editor: single-table SELECT, INSERT, UPDATE and DELETE with <code>column = value</code> predicates. DDL auto-commits on MySQL, MariaDB, TiDB, Oracle and CockroachDB, so their transactions cannot undo DDL that already ran.</p>
+    </section>
+
+    <!-- COVERAGE -->
+    <section class="panel" id="panel-coverage" role="tabpanel" aria-labelledby="tab-coverage">
+      <div class="section" style="gap:4px">
+        <h2>Coverage</h2>
+        <p class="lede">Where the API surface is, and how many test files guard each package. A feature with many routes and few tests is where a regression is most likely to slip through.</p>
+      </div>
+      <div class="two">
+        <div class="chart" id="chart-routes"></div>
+        <div class="chart" id="chart-tests"></div>
+      </div>
+      <div class="section">
+        <h3>End-to-end suites</h3>
+        <p class="lede">49 Playwright specs in 33 groups, run with <code>npm run test:e2e:all</code>. Dialect suites need their Docker container and a fresh seed.</p>
+        <div class="areas" id="e2e-groups"></div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<div id="dialog-root"></div>
+<div id="toast-root"></div>
+
+<script>
+// Reference data: the inventory of what Fox Schema ships, measured from the
+// codebase on main 91d4165c09 (2026-10-25). Mirrors docs/FEATURE_MAP.md.
+// Work items are not here: they live in the page's shared store.
+const AREAS = [
+  { id: 'platform', name: 'Platform' },
+  { id: 'schema', name: 'Schema' },
+  { id: 'editor', name: 'SQL editor & data' },
+  { id: 'utilities', name: 'Utilities' },
+  { id: 'access', name: 'Access' },
+  { id: 'workflow', name: 'Workflow' },
+  { id: 'tools', name: 'CLI & engines' },
+];
+
+const FEATURES = [
+  { id: 'platform.auth', area: 'platform', name: 'Sign-in & accounts',
+    subs: ['Password sign-in', 'Register', 'First-run setup code', 'Launch session', 'Email verification', 'Forgot / reset password', 'SSO: Google, Microsoft, GitHub, broker', 'Sign out other sessions', 'Onboarding wizard'],
+    ui: 'Sign-in page, account banners', api: '/api/auth (17), /api/signup (3), /api/user (2)',
+    code: 'server auth, users, platform/identity · web auth', perms: 'public routes',
+    tables: 'users, sessions, auth_codes, user_preferences', tests: 'server 9 · web 3 · e2e auth-recovery, smoke' },
+  { id: 'platform.admin', area: 'platform', name: 'Administration',
+    subs: ['Users: create, invite, role, activate, set password, issue code', 'Hand over admin', 'Role → permission matrix', 'One admin or several', 'Sign-in settings: providers, mail, broker, public URL', 'Every workspace'],
+    ui: 'Profile → Access control', api: '/api/admin (19)',
+    code: 'server admin · web admin', perms: 'admin.users, admin.roles',
+    tables: 'users, role_permissions, app_settings', tests: 'server 3 · web 4 · e2e admin-policy' },
+  { id: 'platform.workspaces', area: 'platform', name: 'Workspaces',
+    subs: ['Rail button and menu', 'Create, switch, archive', 'Settings', 'Members and workspace roles', 'Invites: accept, decline, 14 days', 'Public discover and join', 'Shared workspace scripts'],
+    ui: 'Rail button under the Fox mark', api: '/api/workspaces (20)',
+    code: 'server workspaces, platform/workspaces · web workspaces', perms: 'workspace.members, workspace.settings, workspace.create',
+    tables: 'workspaces, workspace_members, workspace_invites, workspace_scripts', tests: 'server 4 · web 2 · e2e workspaces' },
+  { id: 'platform.connections', area: 'platform', name: 'Connections & drivers',
+    subs: ['Credential manager', 'Connection form: password, Windows, LDAP', 'SSL and pool', 'SQLite / DuckDB file picker', 'Schema list', 'Connection test', 'Driver check and Install driver', 'Cloud provider credentials'],
+    ui: 'Creds (rail), connection modal', api: '/api/connections (4), /api/connection/test, /api/db/test, /api/driver (2)',
+    code: 'server connections, platform/connections, internal/driver-install · web connections', perms: 'workspace role; admin.drivers to install',
+    tables: 'connections, cloud_provider_credentials', tests: 'server 1 · web 1' },
+  { id: 'platform.secrets', area: 'platform', name: 'App secrets',
+    subs: ['Vault entries', 'Cloud secret providers', 'Resolve a secret'],
+    ui: 'Creds → secrets, editor Secrets panel', api: '/api/app-secrets (9)',
+    code: 'server admin (app-secrets mount)', perms: 'secrets.view, create, edit, delete',
+    tables: 'app_secrets, cloud_provider_credentials', tests: 'none dedicated' },
+  { id: 'platform.system', area: 'platform', name: 'Shell, health & updates',
+    subs: ['Activity rail and top toolbar', 'Command palette', 'Home', 'Backend-offline banner', 'Activity', 'App info and config', 'Update check and apply', 'Email and update settings', 'Send feedback'],
+    ui: 'App shell, Prefs', api: '/api/health, /api/config, /api/app-info, /api/activity, /api/updates (2)',
+    code: 'server system · web app/shell, app/settings, feedback', perms: '—',
+    tables: 'app_settings', tests: 'server 1 · web 2 · e2e smoke, lazy-loading, send-feedback, auto-error-catch' },
+
+  { id: 'schema.compare', area: 'schema', name: 'Compare & deploy',
+    subs: ['Connection pair', 'Browse bar', 'Schema tree', 'Object detail: DDL diff, blueprint, tabs', 'Diff briefing', 'Cross-dialect readiness', 'Dependency and validation warnings', 'Execute gate: missing FK, narrowing', 'Deploy confirm', 'Streamed migration progress'],
+    ui: 'Compare (rail)', api: '/api/compare, /api/schema/load, /api/schema/list, /api/migration/execute',
+    code: 'server compare, schema, migration · web compare, schema-diff · sql schema-diff, migrations, dialect', perms: 'schema.browse, schema.compare, schema.migrate',
+    tables: 'migration_runs', tests: 'sql 12 · web 14 · e2e compare-flow, execute-gate, schema-browse, 14 dialect suites' },
+  { id: 'schema.applies', area: 'schema', name: 'Migration history',
+    subs: ['Runs list', 'Script and results', 'Delete runs'],
+    ui: 'Applies (rail)', api: '/api/migrations (5)',
+    code: 'server migration · web migrations', perms: 'schema.migrate',
+    tables: 'migration_runs', tests: 'server 3 · web 1' },
+  { id: 'schema.git', area: 'schema', name: 'Migrations in Git',
+    subs: ['Repositories (bare local copies)', 'Branches', 'Fetch, pull, push', 'Commit a migration', 'Preview', 'Applied tracking', 'Activity'],
+    ui: 'Compare → Git, Admin', api: '/api/git (15)',
+    code: 'server git · web git', perms: 'git.view, git.manage',
+    tables: 'git_repos, git_applied, git_activity, migration_runs.git_*', tests: 'server 4 · web 1 · e2e git-migrations' },
+  { id: 'schema.snapshots', area: 'schema', name: 'Snapshots (Lokee)',
+    subs: ['Capture', 'Databases', 'Version timeline', 'Graph', 'Version compare', 'Change chart', 'Object inspector', 'Revert: plan → run', 'Force-migrate: plan → run', 'Rename a version'],
+    ui: 'Snapshots (rail)', api: '/api/lokee (11)',
+    code: 'server history · web lokee-weave · sql lokee-weave', perms: 'compare.history, schema.migrate.force',
+    tables: 'lokee_databases, lokee_versions, lokee_version_objects, lokee_objects, lokee_latest_objects, lokee_shapes', tests: 'sql 15 · server 3 · web 14 · e2e schema-history, schema-revert, schema-version-revert-edges' },
+
+  { id: 'editor.run', area: 'editor', name: 'Editor & run',
+    subs: ['Tabs, stored per workspace', 'Destinations', 'Run rail: In [n], ▶, include, Safe-mode marks, copy with values', 'Selection and caret run', 'Safe mode confirm', 'One transaction', 'Per-dialect write classification', 'Format SQL+JS', 'Clause-aware completions', 'Column picker', 'Shortcuts'],
+    ui: 'Editor (rail)', api: '/api/sql/execute',
+    code: 'server sql-editor (sql-execute, sql-page-wrap) · web sql-editor · sql sql-text, sql-editor', perms: 'editor.access, editor.run, editor.dml, editor.ddl, editor.grant',
+    tables: '—', tests: 'server 7 · web 59 (feature) · sql 16 · e2e sql-editor-smoke, -sqlite, -join-typing, -running-state' },
+  { id: 'editor.code', area: 'editor', name: 'FoxScript code cells',
+    subs: ['JS, TS, Node, Node-TS cells', 'Transpile', 'sql bridge: bound params, sql.list, sql.raw', '-- @set', 'Server Beam: sql.on(source / target)', 'faker, lodash, date-fns', 'Built-in samples'],
+    ui: 'Editor', api: '/api/sql/code-cell, /api/sql/code-cell/transpile',
+    code: 'server sql-editor (code-cell-*) · web sql-editor/lib', perms: 'editor.advanced (install-wide)',
+    tables: '—', tests: 'e2e sql-editor-code-cell-faker' },
+  { id: 'editor.results', area: 'editor', name: 'Results grid',
+    subs: ['By credential / side by side', 'Paging: rows per page, Next, Prev, seek', 'Cell and row edit', 'Copy and CSV export', 'Chart', 'Maximize', 'Runs drawer', 'Warnings'],
+    ui: 'Editor', api: 'with /api/sql/execute',
+    code: 'web ResultsPanel, DataGrid', perms: 'editor.datagrid.insert, update, delete',
+    tables: '—', tests: 'e2e sql-editor-result-edit, -copy-export' },
+  { id: 'editor.datacompare', area: 'editor', name: 'Data compare & migrate',
+    subs: ['Compare toggle and Source', 'Diff cells', 'Key columns', 'Add, edit, delete', 'Sync column', 'Apply: Transaction where it can roll back, stop or continue, backup snapshot', 'History', 'Preview SQL', 'Multi-target'],
+    ui: 'Editor, side by side', api: '/api/data-migrate/execute, /api/data-migrations (5)',
+    code: 'server data-migrate · web DataMigrateBar', perms: 'editor.dml',
+    tables: 'data_migrate_runs', tests: 'server 4 · e2e sql-editor-compare-multi-target' },
+  { id: 'editor.peek', area: 'editor', name: 'Data peek',
+    subs: ['Cmd/Ctrl-click to open', 'Stacked panels', 'WHERE, ORDER BY, limit', 'Paging', 'Row editor: add, edit, clone, delete, generators', 'Insight tab', 'FK drill and referenced-by', 'Date picker'],
+    ui: 'Editor', api: 'with /api/sql/execute',
+    code: 'web DataPeekPanel, PeekRowEditor, usePeekGridCrud', perms: 'editor.datagrid.*',
+    tables: '—', tests: 'e2e sql-editor-peek-row-form, -peek-stacking' },
+  { id: 'editor.explorer', area: 'editor', name: 'Schema explorer & blueprint',
+    subs: ['Connection picker', 'Object tree', 'Insert names', 'Object source script', 'Table blueprint: create, edit', 'New table', 'Install driver banner'],
+    ui: 'Editor sidebar', api: '/api/schema/load',
+    code: 'web SqlSchemaExplorer, TableBlueprintModal, MissingDriverBanner', perms: 'editor.sidebar.schema, schema.browse',
+    tables: '—', tests: 'e2e sql-editor-blueprint, -column-picker' },
+  { id: 'editor.library', area: 'editor', name: 'Bookmarks, variables & scripts',
+    subs: ['Bookmarks', 'Samples', 'Recent', 'Variables', 'Secrets', 'Shared workspace scripts'],
+    ui: 'Editor sidebar', api: '/api/workspaces/scripts (3)',
+    code: 'web SqlBookmarksPanel, SqlVariablesPanel, SqlSecretsPanel', perms: 'editor.variables.*, editor.sidebar.*',
+    tables: 'workspace_scripts', tests: 'counted with editor.run' },
+  { id: 'editor.files', area: 'editor', name: 'File import & query',
+    subs: ['Chunked upload sessions', 'Column detection', 'Import into a table', 'Query an uploaded CSV, JSON or NDJSON file', 'Capacity', 'Database-file picker'],
+    ui: 'Editor → Files, Utils → Query files', api: '/api/files (11)',
+    code: 'server files (parse worker pool)', perms: 'editor.run',
+    tables: '—', tests: 'server 9' },
+
+  { id: 'utilities.indexes', area: 'utilities', name: 'Index management',
+    subs: ['Fragmentation', 'Custom probe: one read-only SELECT', 'Batch', 'Rebuild, reorg, optimize SQL', 'Db2: every index on the table', 'Drop'],
+    ui: 'Utils (rail)', api: '/api/schema/index-fragmentation, -batch',
+    code: 'server access (index-fragmentation) · sql utilities', perms: 'utility.access, utility.index.drop',
+    tables: '—', tests: 'sql 7 · e2e sql-editor-utilities, -utilities-dialects' },
+  { id: 'utilities.clone', area: 'utilities', name: 'Clone table',
+    subs: ['Clone a table definition and rows'],
+    ui: 'Utils', api: 'through /api/sql/execute', code: 'web CloneTableModal', perms: 'utility.access, editor.ddl',
+    tables: '—', tests: 'utilities e2e' },
+  { id: 'utilities.insights', area: 'utilities', name: 'Server insights',
+    subs: ['Server insights', 'Table insight', 'Query files'],
+    ui: 'Utils', api: '/api/schema/dba-utility, /api/schema/table-insight',
+    code: 'server access (dba-utilities)', perms: 'utility.access', tables: '—', tests: 'utilities e2e' },
+  { id: 'utilities.backup', area: 'utilities', name: 'Backup & Restore',
+    subs: ['Per-engine command builders', 'Server-side SQL backup after confirmation', 'Recorded backups', 'Saved defaults'],
+    ui: 'Utils', api: '/api/backup-settings (2)',
+    code: 'server backup · sql providers/*/*.backup.ts', perms: 'utility.access',
+    tables: 'backup_settings', tests: 'server 2 · e2e backup-restore-ui, backup-commands-dialects' },
+  { id: 'utilities.dbaccess', area: 'utilities', name: 'DB users & grants',
+    subs: ['Database Access modal'],
+    ui: 'Utils', api: '/api/schema/db-access', code: 'server access (db-access)', perms: 'utility.access, editor.grant',
+    tables: '—', tests: 'e2e database-access-dialects' },
+
+  { id: 'access.accounts', area: 'access', name: 'Database accounts',
+    subs: ['Create', 'Rename', 'Drop', 'Passwords (per-engine DDL)'],
+    ui: 'Access (rail)', api: '/api/schema/db-access',
+    code: 'web access (UserManagement) · sql access, providers/*/*.user-sql.ts', perms: 'access.access, access.users',
+    tables: '—', tests: 'sql 13 · web 12' },
+  { id: 'access.builder', area: 'access', name: 'Permission builder',
+    subs: ['Intent → GRANT / REVOKE', 'Grants stage', 'Object picker', 'Executes, stops at the first failure'],
+    ui: 'Access', api: '/api/schema/db-access',
+    code: 'web AccessPermissionPanel, AccessGrantsStage · sql providers/*/*.access-sql.ts', perms: 'access.builder, editor.grant',
+    tables: '—', tests: 'e2e access-assistant-sqlite, access-assistant-dialects' },
+  { id: 'access.inspector', area: 'access', name: 'Inspector & Insight',
+    subs: ['Who holds what', 'Insight: privilege compare', 'Permission matrix'],
+    ui: 'Access', api: '/api/schema/db-access',
+    code: 'web PermissionInspector, PermissionDiff, PermissionMatrix', perms: 'access.inspector, access.diff',
+    tables: '—', tests: 'access tests' },
+  { id: 'access.report', area: 'access', name: 'Access report',
+    subs: ['Report of grants and accounts'],
+    ui: 'Access', api: '/api/schema/db-access', code: 'web AccessReport', perms: 'access.report',
+    tables: '—', tests: 'access tests' },
+
+  { id: 'workflow.designer', area: 'workflow', name: 'Designer',
+    subs: ['Workflows list', 'Canvas: pipes and edges', 'Palette', 'Inspector', 'Triggers', 'SQL, script, HTTP and delimited editors', 'Dependencies'],
+    ui: 'Workflow (rail)', api: 'engine proxy under /api/workflow',
+    code: 'web workflow · workflow-engine definitions', perms: 'workflow.access, workflow.design',
+    tables: "engine's own store", tests: 'web 12 · e2e workflow-designer-roundtrip' },
+  { id: 'workflow.pipes', area: 'workflow', name: 'Pipes',
+    subs: ['db: SQL on every dialect, Postgres and MySQL sources', 'http: request, multi-http, transform, sink, cookies', 'notify: email, SMS, SMTP', 'control: loop, split, merge, goto, human gate, sub-workflow', 'utility: CSV, delimited, JSON, script, text, transforms, verify, files', 'trigger'],
+    ui: 'Designer palette', api: 'engine',
+    code: 'packages/workflow-engine/src/pipes/*', perms: 'workflow.design',
+    tables: '—', tests: 'workflow-engine 87' },
+  { id: 'workflow.runs', area: 'workflow', name: 'Runs',
+    subs: ['Execution panel', 'Cancel a live run', 'Answer a human gate', 'Variables', 'Credentials'],
+    ui: 'Workflow', api: 'engine proxy',
+    code: 'web RunsPanel, ExecutionPanel, VariablesPanel, CredentialsPanel', perms: 'workflow.run',
+    tables: "engine's own store", tests: 'workflow tests' },
+  { id: 'workflow.engine', area: 'workflow', name: 'Engine control plane',
+    subs: ['Settings and health', 'Saved-connection grants', 'Internal resolve and engine-config routes (token-guarded)'],
+    ui: 'Workflow → Engine', api: '/api/workflow (5), /api/workflow-internal (2)',
+    code: 'server workflow · apps/workflow-server · workflow-contract', perms: 'workflow.admin',
+    tables: 'workflow_settings, workflow_connection_grants', tests: 'server 6 · workflow-server 19 · e2e workflow-smoke' },
+
+  { id: 'cli', area: 'tools', name: 'foxschema CLI & TUI',
+    subs: ['setup', 'open', 'compare', 'migrate', 'snapshot', 'history', 'connections', 'drivers (install db2)', 'doctor', 'search', 'shortcut', 'reset-password', 'TUI screens'],
+    ui: 'Terminal', api: 'packages + local server', code: 'apps/cli', perms: '—',
+    tables: 'metadata store', tests: 'cli 25' },
+  { id: 'engines.dialects', area: 'tools', name: '16 database engines',
+    subs: ['SQL generation', 'Schema compare', 'Statement splitting', 'Type mapping', 'Drivers and pooling', 'Capability flags'],
+    ui: '—', api: '—', code: 'packages/sql/src/providers · packages/db/src/providers', perms: '—',
+    tables: '—', tests: 'sql 86 · db 24 · 14 dialect e2e suites' },
+];
+
+const ENGINES = {
+  cols: ['Schema compare', 'DB access', 'User mgmt', 'Command mode', 'Row editing', 'Transactions'],
+  rows: [
+    ['PostgreSQL', 1, 1, 1, 1, 1, 1], ['CockroachDB', 1, 1, 1, 1, 1, 1], ['YugabyteDB', 1, 1, 1, 1, 1, 1],
+    ['MySQL', 1, 1, 1, 1, 1, 1], ['MariaDB', 1, 1, 1, 1, 1, 1], ['TiDB', 1, 1, 1, 1, 1, 1],
+    ['Db2', 1, 1, 1, 1, 1, 1], ['SQL Server', 1, 1, 1, 1, 1, 1], ['Azure SQL', 1, 1, 1, 1, 1, 1],
+    ['Oracle', 1, 1, 1, 1, 1, 1], ['Redshift', 1, 1, 1, 1, 1, 1], ['SQLite', 1, 0, 0, 1, 1, 1],
+    ['DuckDB', 1, 0, 0, 1, 1, 1], ['ClickHouse', 1, 0, 1, 1, 0, 0], ['Redis', 0, 0, 0, 0, 1, 0],
+    ['MongoDB', 0, 0, 0, 0, 1, 0],
+  ],
+};
+
+// Routes per feature, from the 153 pinned in http-contract.test.ts.
+const ROUTES = [
+  ['platform.auth', 22], ['platform.workspaces', 20], ['platform.admin', 19], ['schema.git', 15],
+  ['schema.snapshots', 11], ['editor.files', 11], ['platform.secrets', 9], ['platform.connections', 8],
+  ['workflow.engine', 7], ['platform.system', 6], ['editor.datacompare', 6], ['schema.applies', 5],
+  ['utilities + access', 5], ['schema.compare', 4], ['editor.run + code', 3], ['utilities.backup', 2],
+];
+
+// Unit-test files per package.
+const TESTS = [
+  ['apps/web', 175], ['packages/server', 100], ['packages/workflow-engine', 87], ['packages/sql', 86],
+  ['apps/cli', 25], ['packages/db', 24], ['apps/workflow-server', 19], ['packages/shared', 12],
+  ['packages/workflow-contract', 1], ['packages/ui-shared', 1],
+];
+
+const E2E_GROUPS = ['PostgreSQL', 'MySQL', 'MariaDB', 'SQL Server', 'Oracle', 'DB2', 'SQLite', 'Azure SQL', 'ClickHouse', 'Redshift', 'CockroachDB', 'YugabyteDB', 'TiDB', 'DuckDB', 'Smoke', 'Sign-in', 'One admin or several', 'Workspaces', 'SQL Editor (14 specs)', 'Send feedback', 'Browse', 'History', 'Revert', 'Revert edges', 'Access SQLite', 'Workflow', 'Utilities', 'DB Access', 'Access all', 'Migrations in Git', 'Execute gate', 'Backup & Restore', 'Backup commands'];
+
+// Metadata table → owning feature, column count (schema.ts, 31 migrations).
+const TABLES = [
+  ['users', 'platform.auth', 11], ['sessions', 'platform.auth', 6], ['auth_codes', 'platform.auth', 6], ['user_preferences', 'platform.auth', 7],
+  ['role_permissions', 'platform.admin', 2], ['app_settings', 'platform.system', 3],
+  ['workspaces', 'platform.workspaces', 8], ['workspace_members', 'platform.workspaces', 5], ['workspace_invites', 'platform.workspaces', 10], ['workspace_scripts', 'editor.library', 8],
+  ['connections', 'platform.connections', 7], ['cloud_provider_credentials', 'platform.secrets', 7], ['app_secrets', 'platform.secrets', 8],
+  ['migration_runs', 'schema.applies', 18], ['git_repos', 'schema.git', 12], ['git_applied', 'schema.git', 9], ['git_activity', 'schema.git', 6],
+  ['lokee_databases', 'schema.snapshots', 10], ['lokee_versions', 'schema.snapshots', 19], ['lokee_version_objects', 'schema.snapshots', 6], ['lokee_objects', 'schema.snapshots', 9], ['lokee_latest_objects', 'schema.snapshots', 4], ['lokee_shapes', 'schema.snapshots', 3],
+  ['data_migrate_runs', 'editor.datacompare', 19], ['backup_settings', 'utilities.backup', 4],
+  ['workflow_settings', 'workflow.engine', 3], ['workflow_connection_grants', 'workflow.engine', 3], ['schema_migrations', 'platform.system', 3],
+];
+
+// Dialects: one plannable entry per engine, its checklist drawn from what the
+// engine supports (ENGINES above) plus the gotchas DIALECTS.md records.
+AREAS.push({ id: 'dialects', name: 'Dialects' });
+const DIALECTS = [
+  ['postgres', 'PostgreSQL', 'postgres', 'dialects/postgres', 'Run applies search_path. Renaming a role on md5 clears its password. The dev container trusts every login, so a passing password test proves nothing there.'],
+  ['cockroachdb', 'CockroachDB', 'cockroachDb', 'dialects/cockroachdb', 'DDL auto-commits (autocommit_before_ddl), so a failed migration leaves earlier DDL applied.'],
+  ['yugabytedb', 'YugabyteDB', 'yugabyteDb', 'dialects/yugabytedb', 'The dev container can stick on a stale master list; recreate its volume.'],
+  ['mysql', 'MySQL', 'mysql', 'dialects/mysql', 'DDL auto-commits. Executable comments (/*! … */) can carry writes. Table names are case-sensitive on Linux.'],
+  ['mariadb', 'MariaDB', 'mariaDb', 'dialects/mariadb', 'DDL auto-commits. Shares the mysql2 driver with MySQL.'],
+  ['tidb', 'TiDB', 'tiDb', 'dialects/tidb', 'DDL auto-commits.'],
+  ['db2', 'Db2', 'db2', 'dialects/db2', 'Fold the schema to uppercase, keep the table as SYSCAT stores it. REORG goes through SYSPROC.ADMIN_CMD. ibm_db needs a native build and has none for linux/arm64.'],
+  ['sqlserver', 'SQL Server', 'sqlServer', 'dialects/mssql', 'Dropping a database user leaves the server login.'],
+  ['azuresql', 'Azure SQL', 'azureSql', 'dialects/azuresql', 'TLS with certificate verification is on by default.'],
+  ['oracle', 'Oracle', 'oracle', 'dialects/oracle', 'DDL auto-commits. Quoted names keep their case. The e2e account needs dictionary access to list roles.'],
+  ['redshift', 'Redshift', 'redshift', 'dialects/redshift', 'Renaming a user always clears its password.'],
+  ['sqlite', 'SQLite', 'sqlLite', 'dialects/sqlite', 'A file, not a server. No grants. ALTER TABLE is limited, so some migrations rebuild the table.'],
+  ['duckdb', 'DuckDB', 'duckDb', 'dialects/duckdb', 'A file, not a server. No grants.'],
+  ['clickhouse', 'ClickHouse', 'clickHouse', 'dialects/clickhouse', 'No row editing and no transactions. GRANT exists, but Fox has no permission builder for it yet.'],
+  ['redis', 'Redis', 'redis', 'redis-browse, redis-editor (feat/redis-tables)', 'Runs the SQL subset. Keys read as tables: prefixes, lists, sets, sorted sets, streams and JSON (feat/redis-tables). The dev container falls back to no AUTH.'],
+  ['mongodb', 'MongoDB', 'mongodb', '—', 'Runs the SQL subset. Auth is off in the dev container.'],
+];
+for (const [id, name, dir, e2e, watch] of DIALECTS) {
+  const row = ENGINES.rows.find((r) => r[0] === name) || [name, 0, 0, 0, 0, 0, 0];
+  const [, compare, dbAccess, users, , rowEditing, tx] = row;
+  const subset = id === 'redis' || id === 'mongodb';
+  const subs = ['Connect, test and browse the schema', 'Driver check and Install driver'];
+  if (compare) subs.push('Compare two schemas', 'Generate and run migration DDL', 'Snapshots: capture, compare, revert');
+  subs.push(subset ? 'Run the SQL subset (SELECT / INSERT / UPDATE / DELETE)' : 'Run SQL; writes classified for this dialect', 'Results paging');
+  if (rowEditing) subs.push('Row editing and data peek');
+  subs.push('Data compare and migrate between two databases');
+  if (dbAccess) subs.push('Access: inspect, GRANT / REVOKE');
+  if (users) subs.push('Database accounts: create, rename, drop');
+  subs.push(tx ? 'One transaction rolls back' : 'One transaction refused with its reason');
+  subs.push('Backup command builder');
+  if (!subset) subs.push('Index fragmentation and maintenance SQL');
+  FEATURES.push({
+    id: 'dialect.' + id, area: 'dialects', name,
+    subs, ui: 'Every screen with a connection picker', api: 'all connection-backed routes',
+    code: 'packages/sql/src/providers/' + dir + ' · packages/db/src/providers/' + dir, perms: '—', tables: '—',
+    tests: 'e2e ' + e2e + ' · provider unit tests in packages/sql and packages/db', watch,
+  });
+}
+
+</script>
+<script>
+(function () {
+  'use strict';
+
+  const KINDS = [
+    { id: 'bug', label: 'Bug', icon: '<rect x="7" y="7" width="10" height="13" rx="5"/><path d="M9 7a3 3 0 0 1 6 0M12 11v9M4 10l3 1.5M20 10l-3 1.5M3 15h4M17 15h4M5 20l2.5-2M19 20l-2.5-2"/>' },
+    { id: 'improvement', label: 'Improvement', icon: '<path d="M12 19V5M6 11l6-6 6 6"/>' },
+    { id: 'test', label: 'Test', icon: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/>' },
+    { id: 'feature', label: 'New sub-feature', icon: '<path d="M12 5v14M5 12h14"/>' },
+    { id: 'manual', label: 'Manual test', icon: '<rect x="6" y="4.5" width="12" height="16" rx="2"/><path d="M9.5 4.5h5v3h-5zM9 12h6M9 16h4"/>' },
+  ];
+  const STATUSES = [
+    { id: 'backlog', label: 'Backlog', cls: '' },
+    { id: 'scheduled', label: 'Scheduled', cls: 'scheduled' },
+    { id: 'progress', label: 'In progress', cls: 'progress' },
+    { id: 'review', label: 'In review', cls: 'review' },
+    { id: 'blocked', label: 'Blocked', cls: 'blocked' },
+    { id: 'done', label: 'Done', cls: 'done' },
+  ];
+  const PRIOS = [
+    { id: 'P0', label: 'P0 · data loss or security' },
+    { id: 'P1', label: 'P1 · breaks a feature' },
+    { id: 'P2', label: 'P2 · normal' },
+    { id: 'P3', label: 'P3 · when there is time' },
+  ];
+  const RESULTS = [
+    { id: '', label: 'Not run', cls: '' },
+    { id: 'pass', label: 'Pass', cls: 'done' },
+    { id: 'partial', label: 'Partial', cls: 'progress' },
+    { id: 'fail', label: 'Fail', cls: 'blocked' },
+  ];
+  // The copy kept in the repo (docs/feature-map.html) has no shared board.
+  const STATIC = Boolean(window.FOX_MAP_STATIC);
+  const TABS = STATIC ? ['features', 'workflows', 'schema', 'engines', 'coverage'] : ['plan', 'features', 'workflows', 'schema', 'engines', 'coverage'];
+  const FEATURE_BY_ID = Object.fromEntries(FEATURES.map((f) => [f.id, f]));
+  const KIND_BY_ID = Object.fromEntries(KINDS.map((k) => [k.id, k]));
+  const STATUS_BY_ID = Object.fromEntries(STATUSES.map((s) => [s.id, s]));
+
+  const S = { tab: 'plan', view: 'board', q: '', feature: '', kind: '', owner: '', status: '', area: '' };
+  let db = null;
+  let user = null;
+  let meId = null;
+  let readOnly = false;
+  let dbState = 'loading';
+  let items = [];
+  let profiles = {};
+
+  const $ = (sel, root) => (root || document).querySelector(sel);
+  const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
+
+  /** Build an element. Strings become text nodes, so stored text never becomes markup. */
+  function h(tag, attrs, ...kids) {
+    const node = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (v === null || v === undefined || v === false) continue;
+      if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2), v);
+      else if (k === 'class') node.className = v;
+      else node.setAttribute(k, v === true ? '' : String(v));
+    }
+    for (const kid of kids.flat()) {
+      if (kid === null || kid === undefined || kid === false) continue;
+      node.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+    }
+    return node;
+  }
+  function svgIcon(markup) {
+    const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    s.setAttribute('viewBox', '0 0 24 24');
+    s.setAttribute('aria-hidden', 'true');
+    s.innerHTML = markup; // constant icon markup from this file
+    return s;
+  }
+  function kindChip(id) {
+    const k = KIND_BY_ID[id] || KINDS[1];
+    return h('span', { class: 'kind' }, svgIcon(k.icon), k.label);
+  }
+  function stateChip(statusId) {
+    const s = STATUS_BY_ID[statusId] || STATUSES[0];
+    return h('span', { class: 'state ' + s.cls }, h('i'), s.label);
+  }
+  function resultChip(resultId) {
+    const r = RESULTS.find((x) => x.id === (resultId || '')) || RESULTS[0];
+    return h('span', { class: 'state ' + r.cls }, h('i'), r.label);
+  }
+  function prioPill(p) {
+    return h('span', { class: 'prio ' + (p || 'P2'), title: (PRIOS.find((x) => x.id === p) || PRIOS[2]).label }, p || 'P2');
+  }
+
+  const store = {
+    get(k) { try { return localStorage.getItem('foxmap:' + k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem('foxmap:' + k, v); } catch { /* private window */ } },
+  };
+
+  function toast(text) {
+    const root = $('#toast-root');
+    root.textContent = '';
+    const t = h('div', { class: 'toast', role: 'status' }, text);
+    root.append(t);
+    setTimeout(() => { if (t.parentNode) t.remove(); }, 3200);
+  }
+
+  // ---- dates ---------------------------------------------------------------
+  function parseDay(s) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+    return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+  }
+  function today() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function fmtDay(s) {
+    const d = parseDay(s);
+    if (!d) return '';
+    const opts = d.getFullYear() === new Date().getFullYear() ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' };
+    return new Intl.DateTimeFormat(undefined, opts).format(d);
+  }
+  function isOpen(it) { return it.status !== 'done'; }
+  function isOverdue(it) { const d = parseDay(it.target); return Boolean(d && isOpen(it) && d < today()); }
+
+  // ---- tabs ----------------------------------------------------------------
+  function showTab(tab, push) {
+    if (!TABS.includes(tab)) tab = TABS[0];
+    S.tab = tab;
+    for (const b of $$('nav.tabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
+    for (const p of $$('.panel')) p.classList.toggle('active', p.id === 'panel-' + tab);
+    store.set('tab', tab);
+    if (push && location.hash !== '#' + tab) {
+      try { history.replaceState(null, '', '#' + tab); } catch { /* sandbox */ }
+    }
+  }
+
+  // ---- plan: filters -------------------------------------------------------
+  function fillSelects() {
+    const fsel = $('#f-feature');
+    fsel.textContent = '';
+    fsel.append(h('option', { value: '' }, 'All features'));
+    for (const a of AREAS) {
+      const g = h('optgroup', { label: a.name });
+      for (const f of FEATURES.filter((x) => x.area === a.id)) g.append(h('option', { value: f.id }, f.id + ' — ' + f.name));
+      fsel.append(g);
+    }
+    const ksel = $('#f-kind');
+    ksel.textContent = '';
+    ksel.append(h('option', { value: '' }, 'All kinds'));
+    for (const k of KINDS) ksel.append(h('option', { value: k.id }, k.label));
+  }
+
+  function matches(it, ignoreStatus) {
+    if (S.feature && it.feature !== S.feature) return false;
+    if (S.kind && it.kind !== S.kind) return false;
+    if (S.owner === 'me' && (!meId || it.owner !== meId)) return false;
+    if (S.owner === 'none' && it.owner) return false;
+    if (!ignoreStatus && S.status && it.status !== S.status) return false;
+    if (S.q) {
+      const hay = [it.title, it.detail, it.links, it.feature, it.sub, it.sprint].join(' ').toLowerCase();
+      if (!hay.includes(S.q.toLowerCase())) return false;
+    }
+    return true;
+  }
+  const PRIO_RANK = { P0: 0, P1: 1, P2: 2, P3: 3 };
+  function byPriority(a, b) {
+    const p = (PRIO_RANK[a.priority] ?? 2) - (PRIO_RANK[b.priority] ?? 2);
+    if (p) return p;
+    const da = a.target || '9999', dbb = b.target || '9999';
+    if (da !== dbb) return da < dbb ? -1 : 1;
+    return String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
+  }
+
+  // ---- plan: rendering -----------------------------------------------------
+  function renderSummary() {
+    const root = $('#summary');
+    root.textContent = '';
+    const visible = items.filter((it) => matches(it, true));
+    const open = visible.filter(isOpen).length;
+    root.append(
+      h('button', { type: 'button', 'aria-pressed': String(!S.status), onclick: () => { S.status = ''; renderPlan(); } }, h('b', {}, String(open)), 'open of ' + visible.length)
+    );
+    for (const s of STATUSES) {
+      const n = visible.filter((it) => it.status === s.id).length;
+      root.append(
+        h('button', { type: 'button', 'aria-pressed': String(S.status === s.id), onclick: () => { S.status = S.status === s.id ? '' : s.id; renderPlan(); } }, stateChip(s.id), h('b', {}, String(n)))
+      );
+    }
+  }
+
+  function ownerNode(id) {
+    const n = h('span', { class: 'owner', 'data-owner': id || '' });
+    paintOwner(n, id);
+    return n;
+  }
+  function paintOwner(node, id) {
+    node.textContent = '';
+    if (!id) { node.textContent = 'Unassigned'; return; }
+    const p = profiles[id];
+    if (p) node.append(h('img', { src: p.avatarUrl, alt: '' }), p.name || 'Someone');
+    else node.textContent = id === meId ? 'You' : 'Someone';
+  }
+  async function resolveOwners() {
+    if (!user) return;
+    const ids = [...new Set(items.map((i) => i.owner).filter(Boolean))];
+    if (!ids.length) return;
+    try { profiles = await user.profiles(ids); } catch { return; }
+    for (const n of $$('[data-owner]')) paintOwner(n, n.getAttribute('data-owner'));
+  }
+
+  function card(it) {
+    const canDrag = dbState === 'ready' && !readOnly;
+    const c = h('article', {
+      class: 'card', tabindex: '0', role: 'button', draggable: canDrag ? 'true' : 'false',
+      'data-id': it.id, 'aria-label': (it.title || 'Untitled') + ' — open',
+      onclick: () => openEditor(it),
+      onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEditor(it); } },
+      ondragstart: (e) => { e.dataTransfer.setData('text/plain', it.id); e.dataTransfer.effectAllowed = 'move'; },
+    },
+      h('div', { class: 'r1' }, kindChip(it.kind), prioPill(it.priority)),
+      h('div', { class: 't' }, it.title || 'Untitled'),
+      h('div', { class: 'r3' },
+        h('span', { class: 'fid' }, it.feature || '—'),
+        ownerNode(it.owner),
+        it.target ? h('span', { class: isOverdue(it) ? 'overdue' : '' }, (isOverdue(it) ? 'Overdue · ' : '') + fmtDay(it.target)) : null
+      )
+    );
+    return c;
+  }
+
+  function renderBoard(body, list) {
+    const cols = S.status ? STATUSES.filter((s) => s.id === S.status) : STATUSES;
+    const board = h('div', { class: 'board', role: 'list' });
+    for (const s of cols) {
+      const inCol = list.filter((it) => it.status === s.id).sort(byPriority);
+      const col = h('div', { class: 'col', role: 'listitem', 'data-status': s.id, 'aria-label': s.label },
+        h('div', { class: 'colhead' }, stateChip(s.id), h('span', { class: 'n' }, String(inCol.length))),
+        inCol.length ? inCol.map(card) : h('div', { class: 'colempty' }, dbState === 'ready' ? 'Nothing here.' : '')
+      );
+      col.addEventListener('dragover', (e) => { if (readOnly || dbState !== 'ready') return; e.preventDefault(); col.classList.add('drop'); });
+      col.addEventListener('dragleave', () => col.classList.remove('drop'));
+      col.addEventListener('drop', (e) => {
+        e.preventDefault();
+        col.classList.remove('drop');
+        const id = e.dataTransfer.getData('text/plain');
+        if (id) void moveTo(id, s.id);
+      });
+      board.append(col);
+    }
+    body.append(board);
+  }
+
+  function weekStart(d) { const x = new Date(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); return x; }
+  function renderSchedule(body, list) {
+    const shown = list.filter((it) => (S.status ? true : isOpen(it)));
+    const groups = new Map();
+    const overdue = [];
+    const nodate = [];
+    for (const it of shown) {
+      if (isOverdue(it)) { overdue.push(it); continue; }
+      const d = parseDay(it.target);
+      if (!d) { nodate.push(it); continue; }
+      const k = weekStart(d).toISOString().slice(0, 10);
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(it);
+    }
+    const wrap = h('div', { class: 'sched' });
+    const fmtWeek = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    const section = (title, rows, extraCls) => {
+      if (!rows.length) return;
+      rows.sort((a, b) => (a.target || '').localeCompare(b.target || '') || byPriority(a, b));
+      wrap.append(h('div', { class: 'section' },
+        h('h3', { class: extraCls || '' }, title, h('span', { class: 'n' }, rows.length + (rows.length === 1 ? ' item' : ' items'))),
+        h('div', { class: 'rows' }, rows.map(row))
+      ));
+    };
+    section('Overdue', overdue, 'overdue');
+    for (const k of [...groups.keys()].sort()) section('Week of ' + fmtWeek.format(new Date(k + 'T00:00:00')), groups.get(k));
+    section('No target date', nodate);
+    if (!wrap.childNodes.length) wrap.append(emptyState());
+    body.append(wrap);
+  }
+  function row(it) {
+    return h('article', {
+      class: 'row', tabindex: '0', role: 'button', onclick: () => openEditor(it),
+      onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEditor(it); } },
+    },
+      h('span', { class: isOverdue(it) ? 'overdue mono' : 'mono' }, it.target ? fmtDay(it.target) : '—'),
+      h('span', { class: 't' }, it.title || 'Untitled', ' ', h('span', { class: 'fid' }, it.feature || '—')),
+      h('span', { class: 'meta' }, kindChip(it.kind), stateChip(it.status), prioPill(it.priority), ownerNode(it.owner))
+    );
+  }
+
+  function renderManual(body) {
+    const feats = S.feature ? FEATURES.filter((f) => f.id === S.feature) : FEATURES;
+    const tbody = h('tbody');
+    for (const f of feats) {
+      const mine = items.filter((it) => it.feature === f.id && it.kind === 'manual');
+      const ran = mine.filter((it) => it.manual && it.manual.lastRun).sort((a, b) => String(b.manual.lastRun).localeCompare(String(a.manual.lastRun)));
+      const last = ran[0];
+      const openPasses = mine.filter(isOpen);
+      const next = openPasses.map((it) => it.target).filter(Boolean).sort()[0];
+      tbody.append(h('tr', {},
+        h('td', {}, h('span', { class: 'fid' }, f.id), ' ', f.name),
+        h('td', { class: 'num' }, last ? fmtDay(last.manual.lastRun) : '—'),
+        h('td', {}, resultChip(last ? last.manual.result : '')),
+        h('td', { class: 'num' }, String(openPasses.length)),
+        h('td', { class: 'num' }, next ? fmtDay(next) : '—'),
+        h('td', {}, canWrite() ? h('button', { class: 'btn', type: 'button', onclick: () => openEditor(null, { feature: f.id, kind: 'manual', status: 'scheduled' }) }, 'Plan a pass') : '')
+      ));
+    }
+    body.append(h('div', { class: 'tablebox' },
+      h('table', {}, h('thead', {}, h('tr', {},
+        h('th', {}, 'Feature'), h('th', { class: 'num' }, 'Last manual run'), h('th', {}, 'Result'),
+        h('th', { class: 'num' }, 'Open passes'), h('th', { class: 'num' }, 'Next'), h('th', {}, '')
+      )), tbody)
+    ));
+  }
+
+  function emptyState() {
+    if (dbState === 'loading') return h('div', { class: 'empty' }, 'Loading the shared board…');
+    if (dbState === 'absent') return h('div', { class: 'empty' }, 'Work items appear here once the shared board is available.');
+    if (!items.length) return h('div', { class: 'empty' }, 'No work items yet. Use “Add work item” to plan the first bug fix, test or manual-test pass.');
+    return h('div', { class: 'empty' }, 'No work items match these filters.');
+  }
+
+  function renderPlan() {
+    $('#ro-note').hidden = !(readOnly && dbState === 'ready');
+    $('#offline-note').hidden = dbState !== 'absent';
+    $('#add-item').hidden = !canWrite();
+    for (const b of $$('.seg [data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === S.view));
+    $('#f-feature').value = S.feature;
+    $('#f-kind').value = S.kind;
+    $('#f-owner').value = S.owner;
+    renderSummary();
+    const body = $('#plan-body');
+    body.textContent = '';
+    const list = items.filter((it) => matches(it, false));
+    if (S.view === 'manual') renderManual(body);
+    else if (dbState !== 'ready' || !list.length) {
+      if (S.view === 'board' && dbState === 'ready' && items.length) renderBoard(body, list);
+      else body.append(emptyState());
+    } else if (S.view === 'schedule') renderSchedule(body, list);
+    else renderBoard(body, list);
+    void resolveOwners();
+  }
+
+  // ---- writes ----------------------------------------------------------------
+  function canWrite() { return dbState === 'ready' && !readOnly; }
+  function bodyOf(it) { const { id, ...rest } = it; return rest; }
+
+  function handleWriteError(e) {
+    const code = e && e.code;
+    if (code === 'invalid_argument') {
+      readOnly = true;
+      toast('You can read this board but not change it.');
+      renderAll();
+    } else if (code === 'quota_exceeded') {
+      toast('The board is full. Delete finished items to make room.');
+    } else if (code === 'revoked' || code === 'not_granted') {
+      dbState = 'absent';
+      renderAll();
+    } else {
+      toast('Could not save. Check your connection and try again.');
+    }
+  }
+  async function save(id, body) {
+    if (!canWrite()) return false;
+    const now = new Date().toISOString();
+    try {
+      if (id) await db.doc('items/' + id).set({ ...body, updatedAt: now });
+      else await db.collection('items').doc().set({ ...body, createdAt: now, updatedAt: now, createdBy: meId || null });
+      return true;
+    } catch (e) {
+      handleWriteError(e);
+      return false;
+    }
+  }
+  async function moveTo(id, status) {
+    const it = items.find((x) => x.id === id);
+    if (!it || it.status === status) return;
+    if (await save(id, { ...bodyOf(it), status })) toast('Moved to ' + STATUS_BY_ID[status].label);
+  }
+  async function remove(id) {
+    if (!canWrite()) return false;
+    try { await db.doc('items/' + id).delete(); return true; } catch (e) { handleWriteError(e); return false; }
+  }
+
+  // ---- editor dialog ---------------------------------------------------------
+  let lastFocus = null;
+  function closeDialog() {
+    $('#dialog-root').textContent = '';
+    document.removeEventListener('keydown', onDialogKey);
+    if (lastFocus && document.contains(lastFocus)) lastFocus.focus();
+  }
+  function onDialogKey(e) { if (e.key === 'Escape') { e.preventDefault(); closeDialog(); } }
+
+  function openEditor(it, preset) {
+    lastFocus = document.activeElement;
+    const editing = Boolean(it);
+    const ro = !canWrite();
+    const v = it ? { ...bodyOf(it) } : {
+      title: '', feature: S.feature || '', sub: '', kind: S.kind || 'bug', status: 'backlog', priority: 'P2',
+      owner: null, target: '', sprint: '', links: '', detail: '', manual: { lastRun: '', result: '', notes: '' }, ...(preset || {}),
+    };
+    v.manual = { lastRun: '', result: '', notes: '', ...(v.manual || {}) };
+    let owner = v.owner || null;
+
+    const opt = (value, label, sel) => h('option', { value, selected: sel ? 'selected' : null }, label);
+    const fTitle = h('input', { type: 'text', id: 'ed-title', value: v.title || '', required: true, disabled: ro, maxlength: '200' });
+    const fFeature = h('select', { id: 'ed-feature', disabled: ro });
+    fFeature.append(opt('', 'Choose a feature…', !v.feature));
+    for (const a of AREAS) {
+      const g = h('optgroup', { label: a.name });
+      for (const f of FEATURES.filter((x) => x.area === a.id)) g.append(opt(f.id, f.id + ' — ' + f.name, f.id === v.feature));
+      fFeature.append(g);
+    }
+    const fSub = h('select', { id: 'ed-sub', disabled: ro });
+    const fillSubs = () => {
+      fSub.textContent = '';
+      fSub.append(opt('', 'The whole feature', !v.sub));
+      const f = FEATURE_BY_ID[fFeature.value];
+      for (const s of (f ? f.subs : [])) fSub.append(opt(s, s, s === v.sub));
+    };
+    fillSubs();
+    fFeature.addEventListener('change', () => { v.sub = ''; fillSubs(); });
+    const fKind = h('select', { id: 'ed-kind', disabled: ro }, KINDS.map((k) => opt(k.id, k.label, k.id === v.kind)));
+    const fStatus = h('select', { id: 'ed-status', disabled: ro }, STATUSES.map((s) => opt(s.id, s.label, s.id === v.status)));
+    const fPrio = h('select', { id: 'ed-prio', disabled: ro }, PRIOS.map((p) => opt(p.id, p.label, p.id === v.priority)));
+    const fTarget = h('input', { type: 'date', id: 'ed-target', value: v.target || '', disabled: ro });
+    const fSprint = h('input', { type: 'text', id: 'ed-sprint', value: v.sprint || '', disabled: ro, placeholder: 'e.g. 0.2.36x, November', maxlength: '80' });
+    const fLinks = h('input', { type: 'text', id: 'ed-links', value: v.links || '', disabled: ro, placeholder: 'PR, branch, issue or plan', maxlength: '400' });
+    const fDetail = h('textarea', { id: 'ed-detail', disabled: ro, maxlength: '4000', placeholder: 'What and why. For a bug: what happens, and what should.' });
+    fDetail.value = v.detail || '';
+    const fRun = h('input', { type: 'date', id: 'ed-run', value: v.manual.lastRun || '', disabled: ro });
+    const fResult = h('select', { id: 'ed-result', disabled: ro }, RESULTS.map((r) => opt(r.id, r.label, r.id === (v.manual.result || ''))));
+    const fNotes = h('textarea', { id: 'ed-notes', disabled: ro, maxlength: '2000', placeholder: 'Steps walked, what failed, environment' });
+    fNotes.value = v.manual.notes || '';
+
+    // Owner: stored as an id, shown by name.
+    const ownerShown = h('span', { class: 'owner' });
+    const paintChosen = () => paintOwner(ownerShown, owner);
+    paintChosen();
+    const fOwnerSearch = h('input', { type: 'search', id: 'ed-owner', placeholder: user ? 'Search people…' : 'Names need sign-in', disabled: ro || !user, autocomplete: 'off' });
+    const hits = h('div', { class: 'hits', hidden: true });
+    const showHits = async (q) => {
+      if (!user) return;
+      let list = [];
+      try { list = await user.search(q); } catch { list = []; }
+      hits.textContent = '';
+      for (const p of list) {
+        hits.append(h('button', { type: 'button', onclick: () => { owner = p.id; profiles[p.id] = p; paintChosen(); hits.hidden = true; fOwnerSearch.value = ''; } }, h('img', { src: p.avatarUrl, alt: '' }), p.name || 'Someone'));
+      }
+      hits.hidden = !list.length;
+    };
+    fOwnerSearch.addEventListener('focus', () => void showHits(''));
+    fOwnerSearch.addEventListener('input', () => void showHits(fOwnerSearch.value));
+    fOwnerSearch.addEventListener('blur', () => setTimeout(() => { hits.hidden = true; }, 180));
+    const meBtn = h('button', { class: 'btn ghost', type: 'button', disabled: ro || !meId, onclick: () => { owner = meId; paintChosen(); } }, 'Assign to me');
+    const clearBtn = h('button', { class: 'btn ghost', type: 'button', disabled: ro, onclick: () => { owner = null; paintChosen(); } }, 'Clear');
+
+    const err = h('p', { class: 'overdue', hidden: true });
+    const confirmRow = h('div', { class: 'confirm', hidden: true },
+      'Delete this item for everyone?',
+      h('button', { class: 'btn danger', type: 'button', onclick: async () => { if (await remove(it.id)) { closeDialog(); toast('Deleted'); } } }, 'Delete'),
+      h('button', { class: 'btn', type: 'button', onclick: () => { confirmRow.hidden = true; } }, 'Keep it')
+    );
+
+    const onSave = async (e) => {
+      e.preventDefault();
+      const title = fTitle.value.trim();
+      if (!title || !fFeature.value) {
+        err.hidden = false;
+        err.textContent = !title ? 'Give the item a title.' : 'Choose the feature it belongs to.';
+        (title ? fFeature : fTitle).focus();
+        return;
+      }
+      const body = {
+        ...(it ? bodyOf(it) : {}),
+        title, feature: fFeature.value, sub: fSub.value, kind: fKind.value, status: fStatus.value, priority: fPrio.value,
+        owner: owner || null, target: fTarget.value, sprint: fSprint.value.trim(), links: fLinks.value.trim(), detail: fDetail.value,
+        manual: { lastRun: fRun.value, result: fResult.value, notes: fNotes.value },
+      };
+      if (await save(editing ? it.id : null, body)) { closeDialog(); toast(editing ? 'Saved' : 'Added'); }
+    };
+
+    const field = (label, control, id) => h('div', { class: 'field' }, h('label', { for: id }, label), control);
+    const form = h('form', { class: 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'ed-h', onsubmit: onSave },
+      h('div', { class: 'sechead' },
+        h('h2', { id: 'ed-h' }, ro ? 'Work item' : editing ? 'Edit work item' : 'New work item'),
+        editing && it.createdAt ? h('span', { class: 'stamp' }, 'Updated ' + fmtDay(String(it.updatedAt || it.createdAt).slice(0, 10))) : null
+      ),
+      field('Title', fTitle, 'ed-title'),
+      h('div', { class: 'grid2' }, field('Feature', fFeature, 'ed-feature'), field('Sub-feature', fSub, 'ed-sub')),
+      h('div', { class: 'grid2' }, field('Kind', fKind, 'ed-kind'), field('Status', fStatus, 'ed-status'), field('Priority', fPrio, 'ed-prio')),
+      h('div', { class: 'field' }, h('label', { for: 'ed-owner' }, 'Owner'),
+        h('div', { class: 'toolbar' }, ownerShown, meBtn, clearBtn),
+        h('div', { class: 'picker' }, fOwnerSearch, hits)
+      ),
+      h('div', { class: 'grid2' }, field('Target date', fTarget, 'ed-target'), field('Sprint or milestone', fSprint, 'ed-sprint')),
+      field('Links', fLinks, 'ed-links'),
+      field('Detail', fDetail, 'ed-detail'),
+      h('fieldset', {}, h('legend', {}, 'Manual test — last run'),
+        h('div', { class: 'grid2' }, field('Run on', fRun, 'ed-run'), field('Result', fResult, 'ed-result')),
+        field('Notes', fNotes, 'ed-notes')
+      ),
+      err,
+      confirmRow,
+      h('div', { class: 'actions' },
+        editing && !ro ? h('button', { class: 'btn danger', type: 'button', onclick: () => { confirmRow.hidden = false; } }, 'Delete') : h('span'),
+        h('div', { class: 'toolbar' },
+          h('button', { class: 'btn', type: 'button', onclick: closeDialog }, ro ? 'Close' : 'Cancel'),
+          ro ? null : h('button', { class: 'btn primary', type: 'submit' }, editing ? 'Save' : 'Add item')
+        )
+      )
+    );
+    const scrim = h('div', { class: 'scrim', onclick: (e) => { if (e.target === scrim) closeDialog(); } }, form);
+    $('#dialog-root').textContent = '';
+    $('#dialog-root').append(scrim);
+    document.addEventListener('keydown', onDialogKey);
+    (ro ? form.querySelector('button') : fTitle).focus();
+  }
+
+  // ---- features --------------------------------------------------------------
+  function renderAreas() {
+    const root = $('#areas');
+    root.textContent = '';
+    const mk = (id, label) => h('button', { type: 'button', 'aria-pressed': String(S.area === id), onclick: () => { S.area = id; renderAreas(); renderFeatures(); } }, label);
+    root.append(mk('', 'All'));
+    for (const a of AREAS) root.append(mk(a.id, a.name));
+  }
+  function renderFeatures() {
+    const grid = $('#fgrid');
+    grid.textContent = '';
+    for (const f of FEATURES.filter((x) => !S.area || x.area === S.area)) {
+      const open = items.filter((it) => it.feature === f.id && isOpen(it)).length;
+      const dl = h('dl', {});
+      for (const [k, val] of [['Opens in', f.ui], ['API', f.api], ['Code', f.code], ['Perms', f.perms], ['Tables', f.tables], ['Tests', f.tests], ['Watch', f.watch]]) {
+        if (!val) continue;
+        dl.append(h('dt', {}, k), h('dd', {}, val));
+      }
+      grid.append(h('article', { class: 'fcard' },
+        h('div', { class: 'h' }, h('h3', {}, f.name), h('span', { class: 'fid' }, f.id)),
+        h('div', { class: 'subs' }, f.subs.map((s) => h('span', { class: 'tag' }, s))),
+        dl,
+        h('div', { class: 'foot' },
+          h('button', { class: 'btn ghost openlink', type: 'button', onclick: () => { S.feature = f.id; S.status = ''; showTab('plan', true); renderPlan(); } },
+            dbState === 'ready' ? (open ? open + ' open work item' + (open === 1 ? '' : 's') + ' →' : 'No open work →') : 'Work items →'),
+          canWrite() ? h('button', { class: 'btn', type: 'button', onclick: () => openEditor(null, { feature: f.id }) }, 'Plan work') : null
+        )
+      ));
+    }
+  }
+
+  // ---- schema, engines, coverage ---------------------------------------------
+  function renderOwners() {
+    const tb = $('#owners tbody');
+    for (const [t, f, n] of TABLES) tb.append(h('tr', {}, h('td', {}, h('code', {}, t)), h('td', {}, h('span', { class: 'fid' }, f), ' ', (FEATURE_BY_ID[f] || {}).name || ''), h('td', { class: 'num' }, String(n))));
+  }
+  function renderMatrix() {
+    const t = $('#matrix');
+    t.append(h('thead', {}, h('tr', {}, h('th', {}, 'Engine'), ENGINES.cols.map((c) => h('th', {}, c)))));
+    const tb = h('tbody');
+    for (const [name, ...caps] of ENGINES.rows) {
+      tb.append(h('tr', {}, h('td', {}, name), caps.map((c) => h('td', { class: c ? 'yes' : 'no' }, c ? '✓ Yes' : '— No'))));
+    }
+    t.append(tb);
+  }
+  function niceStep(max) {
+    for (const s of [1, 2, 5, 10, 20, 25, 50, 100, 200]) if (max / s <= 5) return s;
+    return 500;
+  }
+  function barChart(rootId, title, note, rows, labelHead) {
+    const root = $('#' + rootId);
+    const max = Math.max(...rows.map((r) => r[1]));
+    const step = niceStep(max);
+    const top = Math.ceil(max / step) * step;
+    const ticks = [];
+    for (let v = 0; v <= top; v += step) ticks.push(v);
+    const tip = h('div', { class: 'tip', hidden: true });
+    const bars = h('div', { class: 'bars', style: '--n:' + (ticks.length - 1) });
+    for (const [label, value] of rows) {
+      const pct = (value / top) * 100;
+      const r = h('div', { class: 'brow' },
+        h('span', { class: 'blbl' }, label),
+        h('span', { class: 'btrack' },
+          h('span', { class: 'bfill', style: 'width:' + pct.toFixed(2) + '%' }),
+          h('span', { class: 'bval', style: 'left:calc(' + pct.toFixed(2) + '% + 6px)' }, String(value))
+        )
+      );
+      r.addEventListener('mousemove', (e) => {
+        const box = root.getBoundingClientRect();
+        tip.textContent = label + ': ' + value;
+        tip.hidden = false;
+        tip.style.left = Math.min(e.clientX - box.left + 12, box.width - 160) + 'px';
+        tip.style.top = (e.clientY - box.top - 34) + 'px';
+      });
+      r.addEventListener('mouseleave', () => { tip.hidden = true; });
+      bars.append(r);
+    }
+    const axis = h('div', { class: 'brow baxis', 'aria-hidden': 'true' }, h('span'),
+      h('span', { class: 'bticks' }, ticks.map((v) => h('span', { style: 'left:' + ((v / top) * 100).toFixed(2) + '%' }, String(v)))));
+    bars.append(axis);
+    const table = h('div', { class: 'tablebox', hidden: true },
+      h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, labelHead), h('th', { class: 'num' }, 'Count'))),
+        h('tbody', {}, rows.map(([l, v]) => h('tr', {}, h('td', {}, l), h('td', { class: 'num' }, String(v)))))));
+    const toggle = h('button', { class: 'btn ghost', type: 'button', onclick: () => {
+      table.hidden = !table.hidden; bars.hidden = !table.hidden;
+      toggle.textContent = table.hidden ? 'Show as table' : 'Show as chart';
+    } }, 'Show as table');
+    root.append(
+      h('div', { class: 'sechead' }, h('div', {}, h('h3', {}, title), h('div', { class: 'stamp' }, note)), toggle),
+      bars, table, tip
+    );
+  }
+  function renderCoverage() {
+    barChart('chart-routes', 'HTTP routes by feature', '153 routes pinned by http-contract.test.ts', ROUTES, 'Feature');
+    barChart('chart-tests', 'Unit-test files by package', 'Files named *.test.ts(x), excluding e2e', TESTS, 'Package');
+    const g = $('#e2e-groups');
+    for (const name of E2E_GROUPS) g.append(h('span', { class: 'tag' }, name));
+  }
+
+  function renderAll() { renderPlan(); renderFeatures(); }
+
+  // ---- store connection ------------------------------------------------------
+  async function connect() {
+    let cl = window.claude;
+    if (!cl || typeof cl.use !== 'function') {
+      await new Promise((r) => setTimeout(r, 1200));
+      cl = window.claude;
+    }
+    if (!cl || typeof cl.use !== 'function') { dbState = 'absent'; renderAll(); return; }
+    try { user = await cl.use('user'); } catch { user = null; }
+    try { db = await cl.use('db'); } catch { db = null; }
+    if (!db) { dbState = 'absent'; renderAll(); return; }
+    if (user) {
+      try { meId = await user.id(); } catch { meId = null; }
+      try { if ((await user.can('data.write')) === false) readOnly = true; } catch { /* keep controls */ }
+    }
+    db.collection('items').onSnapshot(
+      (snap) => {
+        items = snap.docs.filter((d) => d.exists).map((d) => ({ id: d.id, ...d.data() }));
+        dbState = 'ready';
+        renderAll();
+      },
+      (e) => {
+        if (e && ['revoked', 'not_granted', 'capability_disabled', 'capability_removed'].includes(e.code)) dbState = 'absent';
+        else toast('The board stopped updating. Reload the page to reconnect.');
+        renderAll();
+      }
+    );
+  }
+
+  // ---- boot ------------------------------------------------------------------
+  function boot() {
+    fillSelects();
+    renderAreas();
+    renderOwners();
+    renderMatrix();
+    renderCoverage();
+    const savedView = store.get('view');
+    if (savedView && ['board', 'schedule', 'manual'].includes(savedView)) S.view = savedView;
+    for (const b of $$('nav.tabs button')) b.addEventListener('click', () => showTab(b.dataset.tab, true));
+    for (const b of $$('.seg [data-view]')) b.addEventListener('click', () => { S.view = b.dataset.view; store.set('view', S.view); renderPlan(); });
+    $('#q').addEventListener('input', (e) => { S.q = e.target.value; renderPlan(); });
+    $('#f-feature').addEventListener('change', (e) => { S.feature = e.target.value; renderPlan(); });
+    $('#f-kind').addEventListener('change', (e) => { S.kind = e.target.value; renderPlan(); });
+    $('#f-owner').addEventListener('change', (e) => { S.owner = e.target.value; renderPlan(); });
+    $('#add-item').addEventListener('click', () => openEditor(null));
+    if (STATIC) {
+      $('#tab-plan').hidden = true;
+      $('#panel-plan').hidden = true;
+      dbState = 'absent';
+    }
+    const hash = (location.hash || '').replace('#', '');
+    const saved = store.get('tab');
+    showTab(TABS.includes(hash) ? hash : TABS.includes(saved) ? saved : TABS[0], false);
+    renderAll();
+    if (!STATIC) void connect();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
+})();
+
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+  if (window.mermaid) {
+    mermaid.initialize({ startOnLoad: false, theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default' });
+    mermaid.run({ querySelector: 'pre.mermaid' });
+  }
+</script>
+</body>
+</html>

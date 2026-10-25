@@ -710,6 +710,28 @@ const MIGRATIONS: Migration[] = [
       ];
     },
   },
+  {
+    id: 31,
+    name: 'workspace_scripts',
+    statements: (d) => {
+      const t = types(d);
+      return [
+        // SQL the whole workspace shares. Bookmarks stay in the browser;
+        // these are on the server so every member opens the same script.
+        `CREATE TABLE IF NOT EXISTS workspace_scripts (
+           id ${t.id} PRIMARY KEY,
+           workspace_id ${t.id} NOT NULL,
+           title ${t.str} NOT NULL,
+           "sql" ${t.big} NOT NULL,
+           created_by ${t.id} NOT NULL,
+           updated_by ${t.id} NOT NULL,
+           created_at ${t.ts} NOT NULL,
+           updated_at ${t.ts} NOT NULL
+         )`,
+        `CREATE INDEX idx_workspace_scripts_ws ON workspace_scripts(workspace_id, updated_at)`,
+      ];
+    },
+  },
 ];
 
 const SIGNUP_WIZARD_SHOWN_KEY = 'signup.wizard_shown';

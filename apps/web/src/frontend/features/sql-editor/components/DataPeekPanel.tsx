@@ -14,14 +14,19 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { GripVertical, Loader2, X } from 'lucide-react';
+import { GripVertical, Loader2, Plus, X } from 'lucide-react';
 import { useSqlEditorStore, type DataPeekEntry } from '@/features/sql-editor/state/useSqlEditorStore';
 import {
   foreignKeyLinksFor,
   fkDrillTableName,
   fkKey,
   inboundForeignKeysFor,
+  joinPeekOrder,
+  joinPeekWhere,
   peekBaseFilterLabel,
+  splitPeekOrder,
+  splitPeekWhere,
+  type PeekSort,
 } from '@/shared/lib/tablePreview';
 import type { InboundForeignKey } from '@/shared/lib/tablePreview';
 import { clampDataPeekLimit } from '@/features/sql-editor/state/sqlEditorDataPeek';
@@ -39,6 +44,13 @@ const MIN_PANEL_HEIGHT = 200;
 const MAX_PANEL_HEIGHT = 900;
 
 /**
+ * Test id for one filter row. The first row keeps the original unsuffixed id,
+ * so existing selectors and the generated catalog stay as they were.
+ */
+const rowTestId = (base: string, id: string, index: number): string =>
+  index === 0 ? `${base}-${id}` : `${base}-${id}-${index}`;
+
+/**
  * Quick data peek UI (see file header).
  */
 const PeekFilterBar: React.FC<{
@@ -47,22 +59,24 @@ const PeekFilterBar: React.FC<{
 }> = ({ entry, disabled }) => {
   const updateDataPeekFilters = useSqlEditorStore((s) => s.updateDataPeekFilters);
   const clearDataPeekBaseFilter = useSqlEditorStore((s) => s.clearDataPeekBaseFilter);
-  const [where, setWhere] = useState(entry.whereClause);
-  const [orderBy, setOrderBy] = useState(entry.orderByClause);
+  const [wheres, setWheres] = useState(() => splitPeekWhere(entry.whereClause));
+  const [orders, setOrders] = useState(() => splitPeekOrder(entry.orderByClause));
   const [limit, setLimit] = useState(String(entry.limit));
+  const whereJoined = joinPeekWhere(wheres);
+  const orderJoined = joinPeekOrder(orders);
   // Refs so Apply / debounce always read the latest draft (Enter right after
   // clear must not re-submit the previous WHERE).
-  const whereRef = useRef(where);
-  const orderByRef = useRef(orderBy);
+  const whereRef = useRef(whereJoined);
+  const orderByRef = useRef(orderJoined);
   const limitRef = useRef(limit);
-  whereRef.current = where;
-  orderByRef.current = orderBy;
+  whereRef.current = whereJoined;
+  orderByRef.current = orderJoined;
   limitRef.current = limit;
   const baseFilter = peekBaseFilterLabel(entry.title, entry.tableName, entry.baseParams);
 
   useEffect(() => {
-    setWhere(entry.whereClause);
-    setOrderBy(entry.orderByClause);
+    setWheres(splitPeekWhere(entry.whereClause));
+    setOrders(splitPeekOrder(entry.orderByClause));
     setLimit(String(entry.limit));
   }, [entry.id, entry.whereClause, entry.orderByClause, entry.limit]);
 
@@ -105,21 +119,21 @@ const PeekFilterBar: React.FC<{
     const parsed = Number.parseInt(limit, 10);
     const nextLimit = Number.isFinite(parsed) ? parsed : entry.limit;
     if (
-      where === entry.whereClause &&
-      orderBy === entry.orderByClause &&
+      whereJoined === entry.whereClause &&
+      orderJoined === entry.orderByClause &&
       nextLimit === entry.limit
     ) {
       return;
     }
     // Clearing WHERE should refresh promptly; other edits can wait briefly.
-    const delay = where.trim() === '' && entry.whereClause.trim() !== '' ? 120 : 450;
+    const delay = whereJoined.trim() === '' && entry.whereClause.trim() !== '' ? 120 : 450;
     const timer = window.setTimeout(() => {
       apply();
     }, delay);
     return () => window.clearTimeout(timer);
   }, [
-    where,
-    orderBy,
+    whereJoined,
+    orderJoined,
     limit,
     entry.whereClause,
     entry.orderByClause,
@@ -166,64 +180,130 @@ const PeekFilterBar: React.FC<{
           </span>
         </div>
       )}
-      <label className="flex items-center gap-1 min-w-0 flex-[2] basis-[12rem]">
-        <span className="text-xs font-bold uppercase tracking-wide text-slate-400 shrink-0">
-          Where
-        </span>
-        <span className="relative flex-1 min-w-0">
-          <input
-            type="text"
-            data-testid={`data-peek-where-${entry.id}`}
-            placeholder="e.g. ARCHIVED = false — or clear to fetch all"
-            value={where}
-            disabled={disabled}
-            onChange={(e) => setWhere(e.target.value)}
-            onKeyDown={onKeyDown}
-            onBlur={() => apply()}
-            className="w-full min-w-0 rounded border border-slate-700 bg-slate-950 px-1.5 py-1.5 pr-7 text-sm font-mono font-semibold text-slate-100 placeholder:text-slate-600 focus:outline-none accent-focus"
-          />
-          {where.trim() !== '' && (
-            <button
-              type="button"
-              data-testid={`data-peek-where-clear-${entry.id}`}
-              title="Clear WHERE and fetch all rows"
-              disabled={disabled}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                setWhere('');
-                whereRef.current = '';
-                void updateDataPeekFilters(entry.id, {
-                  whereClause: '',
-                  orderByClause: orderByRef.current,
-                  limit: (() => {
-                    const parsed = Number.parseInt(limitRef.current, 10);
-                    return Number.isFinite(parsed) ? parsed : entry.limit;
-                  })(),
-                });
-              }}
-              className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-40"
-            >
-              <X className="w-3 h-3" strokeWidth={SQL_ICON_STROKE} />
-            </button>
-          )}
-        </span>
-      </label>
-      <label className="flex items-center gap-1 min-w-0 flex-1 basis-[9rem]">
-        <span className="text-xs font-bold uppercase tracking-wide text-slate-400 shrink-0">
-          Order by
-        </span>
-        <input
-          type="text"
-          data-testid={`data-peek-order-${entry.id}`}
-          placeholder="ID DESC"
-          value={orderBy}
+      <div className="flex min-w-0 flex-[2] basis-full flex-col gap-1">
+        {wheres.map((row, index) => (
+          <label key={`where-${index}`} className="flex items-center gap-1 min-w-0">
+            <span className="w-14 shrink-0 text-xs font-bold uppercase tracking-wide text-slate-400">
+              {index === 0 ? 'Where' : 'And'}
+            </span>
+            <span className="relative flex-1 min-w-0">
+              <input
+                type="text"
+                data-testid={rowTestId('data-peek-where', entry.id, index)}
+                placeholder={index === 0 ? "status = 'gold'" : 'another condition'}
+                value={row}
+                disabled={disabled}
+                onChange={(e) =>
+                  setWheres((rows) => rows.map((item, i) => (i === index ? e.target.value : item)))
+                }
+                onKeyDown={onKeyDown}
+                onBlur={() => apply()}
+                className="w-full min-w-0 rounded border border-slate-700 bg-slate-950 px-1.5 py-1.5 pr-7 text-sm font-mono font-semibold text-slate-100 placeholder:text-slate-600 focus:outline-none accent-focus"
+              />
+              {(row.trim() !== '' || wheres.length > 1) && (
+                <button
+                  type="button"
+                  data-testid={rowTestId('data-peek-where-clear', entry.id, index)}
+                  title={wheres.length > 1 ? 'Remove this condition' : 'Clear WHERE and fetch all rows'}
+                  disabled={disabled}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    const next = wheres.length === 1 ? [''] : wheres.filter((_, i) => i !== index);
+                    setWheres(next);
+                    // Set the ref first: `apply` reads the refs, not this render's state.
+                    whereRef.current = joinPeekWhere(next);
+                    apply();
+                  }}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-40"
+                >
+                  <X className="w-3 h-3" strokeWidth={SQL_ICON_STROKE} />
+                </button>
+              )}
+            </span>
+          </label>
+        ))}
+        <button
+          type="button"
+          data-testid={`data-peek-where-add-${entry.id}`}
           disabled={disabled}
-          onChange={(e) => setOrderBy(e.target.value)}
-          onKeyDown={onKeyDown}
-          onBlur={() => apply()}
-          className="w-full min-w-0 rounded border border-slate-700 bg-slate-950 px-1.5 py-1.5 text-sm font-mono font-semibold text-slate-100 placeholder:text-slate-600 focus:outline-none accent-focus"
-        />
-      </label>
+          onClick={() => setWheres((rows) => [...rows, ''])}
+          className="self-start inline-flex items-center gap-1 rounded px-1 py-0.5 text-xs font-semibold text-slate-400 hover:text-slate-100 disabled:opacity-40"
+        >
+          <Plus className="w-3 h-3" strokeWidth={SQL_ICON_STROKE} />
+          Add condition
+        </button>
+      </div>
+      <div className="flex min-w-0 flex-1 basis-full flex-col gap-1">
+        {orders.map((row, index) => (
+          <label key={`order-${index}`} className="flex items-center gap-1 min-w-0">
+            <span className="w-14 shrink-0 text-xs font-bold uppercase tracking-wide text-slate-400">
+              {index === 0 ? 'Order' : 'Then'}
+            </span>
+            <input
+              type="text"
+              data-testid={rowTestId('data-peek-order', entry.id, index)}
+              placeholder="created_at"
+              value={row.expr}
+              disabled={disabled}
+              onChange={(e) =>
+                setOrders((rows) =>
+                  rows.map((item, i) => (i === index ? { ...item, expr: e.target.value } : item))
+                )
+              }
+              onKeyDown={onKeyDown}
+              onBlur={() => apply()}
+              className="w-full min-w-0 flex-1 rounded border border-slate-700 bg-slate-950 px-1.5 py-1.5 text-sm font-mono font-semibold text-slate-100 placeholder:text-slate-600 focus:outline-none accent-focus"
+            />
+            <select
+              data-testid={rowTestId('data-peek-order-dir', entry.id, index)}
+              value={row.dir}
+              disabled={disabled}
+              onChange={(e) =>
+                setOrders((rows) =>
+                  rows.map((item, i) =>
+                    i === index ? { ...item, dir: e.target.value as PeekSort['dir'] } : item
+                  )
+                )
+              }
+              onBlur={() => apply()}
+              className="shrink-0 rounded border border-slate-700 bg-slate-950 px-1 py-1.5 text-xs font-bold text-slate-100 focus:outline-none accent-focus"
+            >
+              <option value="">—</option>
+              <option value="ASC">ASC</option>
+              <option value="DESC">DESC</option>
+            </select>
+            {(row.expr.trim() !== '' || orders.length > 1) && (
+              <button
+                type="button"
+                data-testid={rowTestId('data-peek-order-clear', entry.id, index)}
+                title="Remove this sort"
+                disabled={disabled}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  const next =
+                    orders.length === 1 ? [{ expr: '', dir: '' as const }] : orders.filter((_, i) => i !== index);
+                  setOrders(next);
+                  orderByRef.current = joinPeekOrder(next);
+                  apply();
+                }}
+                className="shrink-0 p-0.5 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-800 disabled:opacity-40"
+              >
+                <X className="w-3 h-3" strokeWidth={SQL_ICON_STROKE} />
+              </button>
+            )}
+          </label>
+        ))}
+        <button
+          type="button"
+          data-testid={`data-peek-order-add-${entry.id}`}
+          disabled={disabled}
+          onClick={() => setOrders((rows) => [...rows, { expr: '', dir: '' }])}
+          className="self-start inline-flex items-center gap-1 rounded px-1 py-0.5 text-xs font-semibold text-slate-400 hover:text-slate-100 disabled:opacity-40"
+        >
+          <Plus className="w-3 h-3" strokeWidth={SQL_ICON_STROKE} />
+          Add sort
+        </button>
+      </div>
       <label className="flex items-center gap-1 shrink-0">
         <span className="text-xs font-bold uppercase tracking-wide text-slate-400">
           Limit

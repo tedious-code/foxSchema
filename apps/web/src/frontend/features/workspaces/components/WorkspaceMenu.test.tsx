@@ -68,11 +68,12 @@ describe('WorkspaceMenu', () => {
     apiSelectWorkspace.mockResolvedValue(undefined);
     const reload = vi.fn();
     render(<WorkspaceMenu onOpenSettings={() => undefined} reload={reload} />);
-    const current = await screen.findByTestId('workspace-menu-item-own');
-    expect(current.getAttribute('aria-current')).toBe('true');
+    const current = (await screen.findByTestId('workspace-menu-select')) as HTMLSelectElement;
+    expect(current.value).toBe('own');
+    expect(screen.getByTestId('workspace-menu-item-team')).toBeTruthy();
     expect(screen.queryByTestId('workspace-menu-create')).toBeNull();
 
-    fireEvent.click(screen.getByTestId('workspace-menu-item-team'));
+    fireEvent.change(current, { target: { value: 'team' } });
     await waitFor(() => expect(apiSelectWorkspace).toHaveBeenCalledWith('team'));
     expect(reload).toHaveBeenCalled();
   });

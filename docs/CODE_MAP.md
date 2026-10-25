@@ -89,7 +89,7 @@ modules/     One folder per domain, named to match the frontend feature
 | `lokee-weave` | Content-addressed schema versioning and revert |
 | `sql-editor` | FoxScript parsing, code cells, SELECT aliasing, the SQL subset |
 | `access` | Permission intent, effective access, GRANT/REVOKE and account DDL (facades; emitters live in `providers/<dialect>`) |
-| `utilities` | DBA queries: server insights, index fragmentation, backup/restore command builders |
+| `utilities` | DBA queries: server insights, index fragmentation (`isSafeIndexFragmentationCustomSql`: one read-only SELECT; Db2 defrag is `providers/db2/db2.index-fragmentation.ts`), backup/restore command builders |
 
 `dialect` and `sql-text` are the foundations: the other folders build on
 them, never the reverse.
@@ -140,7 +140,7 @@ database/    The metadata store and its migrations.
 
 | Folder | What it covers |
 |---|---|
-| `access` | Database permission inspection and DBA utilities |
+| `access` | Database permission inspection and DBA utilities. Index-fragmentation custom SQL is gated read-only in `index-fragmentation.service.ts` (same tokenizer as `/sql/execute`). |
 | `system` | Health and version, updates, app info, the metadata-database probe, activity |
 | `admin` | Users and roles, secrets, cloud credentials, policy |
 | `backup` | Per-user backup defaults (`GET`/`PUT /api/backup-settings`). Commands themselves are built in `@foxschema/sql` (`modules/utilities/backup.ts` + `providers/<d>/*.backup.ts`); the panel runs only a server-side SQL backup, after confirmation, and lists the backups the server recorded (`backupHistoryQuery`); restores are never run. |
@@ -153,10 +153,10 @@ database/    The metadata store and its migrations.
 | `history` | Schema history and revert (Lokee Weave) |
 | `migration` | Applying DDL migrations, and their run history |
 | `schema` | Reading a schema |
-| `sql-editor` | SQL editor, code cells, sandboxed execution |
+| `sql-editor` | SQL editor, code cells, sandboxed execution. `sql-execute.service.ts` (`runStatements`) applies the saved schema (`adapter.setCurrentSchema`) then optionally `BEGIN`s one transaction for the batch; paging wrap is `sql-page-wrap.service.ts`. |
 | `users` | Profile, preferences, first-run wizard |
 | `workspaces` | Shared workspaces: create, switch, members, invites, public or private (`/api/workspaces`). Which workspace a request acts in is `platform/workspaces`. Admins list every workspace (`GET /all`) and open one only by joining. |
-| `workflow` | Workflow engine settings and health; the engine proxy (an allowlist of engine routes, each behind a `workflow.*` permission); saved-connection grants; and the token-guarded internal routes the engine calls to resolve a granted connection and read its settings. Runbook: [workflow.md](workflow.md). |
+| `workflow` | Workflow engine settings and health; the engine proxy (an allowlist of engine routes, each behind a `workflow.*` permission); saved-connection grants; and the token-guarded internal routes the engine calls to resolve a granted connection and read its settings. Save, run, and steering (cancel / resume / answer a paused run) refuse a connection the caller cannot use in this workspace (`WorkflowConnectionGrants.notUsableBy`). Runbook: [workflow.md](workflow.md). |
 
 Every feature folder has an `index.ts` exporting its `ServerFeatureModule`
 and its public API; other features import only that
@@ -245,10 +245,10 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | `lokee-weave` | Schema history graph and version compare (Snapshots workspace) |
 | `migrations` | Migration run history (Applies on the rail) |
 | `schema-diff` | Diff rendering shared by compare and history |
-| `sql-editor` | SQL editor, its store, results grid, data peek, the shared Monaco setup (`monaco.ts`) (Index/Clone/Query files live in `utilities`) |
+| `sql-editor` | SQL editor, its store (`oneTransaction`, `selectOnlyConnection` so the schema browser's connection is the one Run hits), results grid, data peek, the shared Monaco setup (`monaco.ts`) (Index/Clone/Query files live in `utilities`) |
 | `utilities` | Own workspace: clone table, index management, backup & restore commands, server insights, query files, DB users & grants |
-| `workflow` | Workflow designer (canvas, inspector, triggers, SQL and script editors), runs, variables, credentials and engine settings — through the engine proxy, plus linking saved connections to workflows |
-| `workspaces` | Switcher and settings in the profile menu: create, invite, join public, members. Admin → Workspaces lists every workspace; opening one is joining. |
+| `workflow` | Workflow designer (canvas, inspector, triggers, SQL and script editors), runs (`RunsPanel` cancel / answer a paused human gate), variables, credentials and engine settings — through the engine proxy, plus linking saved connections to workflows |
+| `workspaces` | The rail's workspace button (`WorkspaceRailButton`) and the menu it opens: switch, invite, join public, members, settings. Admin → Workspaces lists every workspace; opening one is joining. Editor localStorage is keyed by workspace (`shared/lib/editorWorkspaceStorage.ts`). |
 
 ## Where does my change go?
 

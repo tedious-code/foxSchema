@@ -38,7 +38,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuthStore } from '@/platform/authStore';
 import { useUiStore } from '@/platform/uiStore';
 import { toast } from '../lib/notify';
-import type { PipeDef, PipelineDef, WorkflowDef } from '@foxschema/workflow-engine/definitions';
+import type { z } from 'zod';
+import type { WorkflowDef, pipeSchema, pipelineSchema } from '@foxschema/workflow-engine/definitions';
 import { api, type RunStartResult } from '../api/engineClient';
 import type { KnowsEveryField } from '../lib/engineShapes';
 import {
@@ -139,17 +140,13 @@ type PipelineCanvas = Pipeline & {
   edges: Edge[];
 };
 type Dependency = WorkflowDependency;
-type SavedPipe = {
-  id: string;
-  role: PipeData['role'];
-  type: string;
-  intent?: string;
-  config?: Record<string, unknown>;
-  concurrency?: number;
-  retry?: { attempts?: number };
-  credentialId?: string;
-  timeoutMs?: number;
-};
+/**
+ * What the designer saves for a pipe: the engine's input shape — what its
+ * schema parses, defaults applied on that side. A hand-kept copy knew only
+ * `retry.attempts`, so saving dropped a policy's backoff, delay, jitter and
+ * `on`, and the run fell back to the defaults.
+ */
+type SavedPipe = z.input<typeof pipeSchema>;
 /**
  * Fields of a workflow the designer does not edit. Kept from the document that
  * was opened and written back on save — dropping them reset an imported
@@ -159,13 +156,7 @@ type CarriedFields = Pick<WorkflowDef, 'version' | 'origin' | 'errorHandler'> & 
 type SavedWorkflow = Partial<CarriedFields> & {
   id: string;
   name: string;
-  pipelines: Array<{
-    id: string;
-    name: string;
-    task?: string;
-    pipes: SavedPipe[];
-    edges?: Array<{ from: string; to: string; fromPort?: string }>;
-  }>;
+  pipelines: Array<z.input<typeof pipelineSchema>>;
   dependencies?: Dependency[];
   triggers?: WorkflowTrigger[];
   onOverlap?: OverlapPolicy;
@@ -178,10 +169,8 @@ type SavedWorkflow = Partial<CarriedFields> & {
   middleware?: Array<{ name: string; config: Record<string, unknown> }>;
 };
 
-const _pipeKnown: KnowsEveryField<SavedPipe, PipeDef> = true;
-const _pipelineKnown: KnowsEveryField<SavedWorkflow['pipelines'][number], PipelineDef> = true;
 const _workflowKnown: KnowsEveryField<SavedWorkflow, WorkflowDef> = true;
-void [_pipeKnown, _pipelineKnown, _workflowKnown];
+void _workflowKnown;
 
 function parsePipeConfig(node: PipeNodeType): Record<string, unknown> {
   try {
@@ -200,8 +189,9 @@ function serializePipe(node: PipeNodeType): SavedPipe {
     ...(intent ? { intent } : {}),
     config: parsePipeConfig(node),
     concurrency: node.data.concurrency,
-    ...(node.data.retryAttempts !== 3
-      ? { retry: { attempts: node.data.retryAttempts } }
+    // The canvas edits only `attempts`; the rest of a policy rides along.
+    ...(node.data.retry || node.data.retryAttempts !== 3
+      ? { retry: { ...node.data.retry, attempts: node.data.retryAttempts } }
       : {}),
     ...(node.data.credentialId
       ? { credentialId: node.data.credentialId }
@@ -306,6 +296,7 @@ function toPipelineCanvas(
           config: JSON.stringify(pipe.config ?? {}, null, 2),
           concurrency: pipe.concurrency ?? 1,
           retryAttempts: pipe.retry?.attempts ?? 3,
+          ...(pipe.retry ? { retry: pipe.retry } : {}),
           credentialId: pipe.credentialId ?? '',
           ...(pipe.timeoutMs !== undefined ? { timeoutMs: pipe.timeoutMs } : {}),
           inputs: ports?.inputs ?? [],

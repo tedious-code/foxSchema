@@ -442,7 +442,9 @@ export function buildAccessReport(opts: {
 
   return {
     principals: rows,
-    roleCount: principals.filter((p) => p.kind !== 'user').length,
+    // Roles that hold nothing never appear in `rows`. Counting them here made
+    // the Users tile negative on Db2, which returns many system roles.
+    roleCount: rows.filter((r) => r.kind !== 'user').length,
     grantedPrivilegeCount: privileges.filter((p) => p.state !== 'deny').length,
     findings,
     distribution: [

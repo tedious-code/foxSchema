@@ -28,6 +28,7 @@ import {
 import type { DbObjectType, TableSchema } from '@/shared/lib/types';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import { TableBlueprintModal, type BlueprintMode } from './TableBlueprintModal';
+import { MissingDriverBanner } from './MissingDriverBanner';
 import { isScriptableObject, objectSourceScript } from '../lib/objectSourceScript';
 import { fetchDbaUtility } from '@/shared/api/schemaApi';
 import { connectionNeedsSecret } from '@/shared/lib/provider-settings';
@@ -61,6 +62,11 @@ export function peekModifierLabel(): string {
   const platform =
     typeof navigator === 'undefined' ? '' : navigator.platform || navigator.userAgent || '';
   return /mac|iphone|ipad/i.test(platform) ? 'Cmd' : 'Ctrl';
+}
+
+/** Connection chosen in Select schema. Completions read that schema's tables. */
+export function schemaExplorerConnectionId(): string {
+  return readStoredExplorerId();
 }
 
 function readStoredExplorerId(): string {
@@ -319,6 +325,15 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
             <p className="text-[11px] text-amber-300 break-words font-medium" data-testid="sql-schema-missing">
               {schemaMissingHint}
             </p>
+          )}
+          {conn && (
+            <MissingDriverBanner
+              dialect={conn.dialect}
+              error={entry?.status === 'error' ? entry.error : undefined}
+              onInstalled={() => {
+                if (explorerId) void ensureSchema(explorerId, { force: true, scope: entry?.scope });
+              }}
+            />
           )}
           {entry?.status === 'error' && (
             <p className="text-[11px] text-rose-400 break-words font-medium">{entry.error}</p>

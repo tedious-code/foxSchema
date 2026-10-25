@@ -3,6 +3,51 @@
 Notes for the next release. At ship time, rename this file to that version's
 `RELEASE_<version>.md` and use it as the GitHub Release body.
 
+## One workspace on the rail
+
+The workspace you are in sits under the Fox mark on the left rail — switch,
+invites (amber dot), settings, public join, and create. It is no longer inside
+the profile menu. A launch session hides the button. SQL editor tabs in this
+browser follow the workspace.
+
+## SQL Editor: the schema you are browsing, and one transaction
+
+Run applies the saved connection's schema (`CURRENT SCHEMA` / `search_path`)
+so unqualified names resolve to the tables the explorer shows, not the
+database user's default. Picking a connection in the explorer checks that
+destination alone. **One transaction** wraps a multi-statement SQL run per
+destination; a failure rolls it back. Code cells and `-- @set` stay statement
+by statement. Redis, MongoDB and ClickHouse cannot roll back, so a Run with One
+transaction is refused there.
+
+## SQL Editor: the run rail, and installing a missing driver
+
+Each statement's ▶ and run checkbox sit on a rail left of the editor, with its
+**In [n]** number — the one the Run tooltip and `Out [n]` use. Click the number
+to select the statement. With Safe mode on it turns amber for a write Run will
+confirm, and red with `!` for an UPDATE or DELETE with no WHERE. Two statements
+on one line get a row each, and a long statement's row stays at the top while
+you read through it. Hover a row for its copy button, which copies the
+statement with its variables filled in (secrets masked).
+
+When a credential's driver package is missing, the schema browser and a failed
+run — in either results layout — offer **Install driver**. Installing runs npm
+on the server, so it needs the new **Install drivers** permission (admins by
+default, from the account role); without it the banner gives the command to run.
+Every Install button shares one status, and the server runs one install at a time.
+
+## Workflow: steer a paused run; connections stay in their workspace
+
+**Runs** can cancel a live job and answer **Ask a person**. Saving or running
+a workflow that names another workspace's connection is refused — the engine
+is install-wide; the connection is not.
+
+## Index custom SQL is read-only; Db2 reorgs the table's indexes
+
+A custom fragmentation probe must be one `SELECT`. GRANT / REVOKE scripts stop
+at the first failure. Db2 defrag reorganises every index on the table, quoting
+catalog names.
+
 ## Left-rail views
 
 - **Snapshots** is its own left-rail view (schema history / Lokee). **Applies**

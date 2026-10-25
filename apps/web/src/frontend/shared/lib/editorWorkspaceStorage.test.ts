@@ -10,6 +10,7 @@ import {
   activeEditorWorkspaceId,
   claimEditorWorkspace,
   editorStorageKey,
+  followServerWorkspace,
   prepareWorkspaceSwitch,
 } from './editorWorkspaceStorage';
 
@@ -47,6 +48,34 @@ describe('editor workspace storage', () => {
     expect(editorStorageKey()).toBe(`${SQL_EDITOR_PERSIST_KEY}:ws-b`);
     expect(localStorage.getItem(`${SQL_EDITOR_PERSIST_KEY}:ws-a`)).toBe(snapshot('SELECT 1'));
     undo();
+    expect(activeEditorWorkspaceId()).toBe('ws-a');
+  });
+});
+
+describe('following the workspace the server opened', () => {
+  it('claims on the first run, and is a no-op while they agree', () => {
+    localStorage.setItem(SQL_EDITOR_PERSIST_KEY, snapshot('select 1'));
+    expect(followServerWorkspace('ws-a')).toBe('claimed');
+    expect(editorStorageKey()).toBe(`${SQL_EDITOR_PERSIST_KEY}:ws-a`);
+    expect(followServerWorkspace('ws-a')).toBe('same');
+  });
+
+  it('moves to the server’s workspace when it is not the one this browser last used', () => {
+    // Switched in another browser, taken out of ws-a, or another account
+    // signed in here: the editor must not keep showing — and saving into — ws-a.
+    claimEditorWorkspace('ws-a');
+    localStorage.setItem(`${SQL_EDITOR_PERSIST_KEY}:ws-a`, snapshot('a secret query'));
+    expect(followServerWorkspace('ws-b')).toBe('moved');
+    expect(activeEditorWorkspaceId()).toBe('ws-b');
+    expect(editorStorageKey()).toBe(`${SQL_EDITOR_PERSIST_KEY}:ws-b`);
+    // ws-a keeps its scripts; nothing was copied across.
+    expect(localStorage.getItem(`${SQL_EDITOR_PERSIST_KEY}:ws-a`)).toBe(snapshot('a secret query'));
+    expect(localStorage.getItem(`${SQL_EDITOR_PERSIST_KEY}:ws-b`)).toBeNull();
+  });
+
+  it('ignores an empty id rather than unscoping the editor', () => {
+    claimEditorWorkspace('ws-a');
+    expect(followServerWorkspace('  ')).toBe('same');
     expect(activeEditorWorkspaceId()).toBe('ws-a');
   });
 });

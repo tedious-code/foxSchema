@@ -97,9 +97,12 @@ optional — use **Skip for now** if you prefer. It only appears once per instal
 
 You land on **Home**: continue last compare / last query, **Snapshots**, **Utilities**,
 and saved connections (grouped by dialect). **⌘K** / **Ctrl+K** searches the same
-rail workspaces the left rail shows, plus recents. The left rail is **Compare**,
-**Editor**, **Utils**, **Access**, **Workflow**, **Snapshots**, then **Creds** and
-**Applies** at the bottom.
+views the left rail shows, plus recents. The left rail is the Fox mark (Home),
+the **workspace** button (the one workspace this account is acting in), then
+**Compare**, **Editor**, **Utils**, **Access**, **Workflow**, **Snapshots**, and
+**Creds** and **Applies** at the bottom. A launch session (`foxschema open`
+before you create an account) hides the workspace button — you are already in
+the install owner's personal workspace.
 
 Saved connections, snapshots, migration runs and secrets belong to a
 **workspace** — every account has its own, and you can share others. See
@@ -127,9 +130,14 @@ manage its members, whatever your role there.
 
 ### Switch, create, invite
 
-1. Open the **profile menu** (avatar at the foot of the left rail). The
-   **Workspace** list is the workspaces you are in — click one to switch.
-2. **Workspace settings** opens the current one: rename, members, invites,
+One workspace is open at a time. Switching reloads the app, and the SQL
+editor's saved tabs follow that workspace (they live in this browser, keyed by
+workspace id).
+
+1. Click the **workspace** button under the Fox mark on the left rail. It
+   names the workspace you are in. An amber dot means you have invitations.
+2. The menu is switch, invites, **Workspace settings**, browse public, and
+   **New workspace**. Settings opens the current one: rename, members, invites,
    public / private.
 3. **New workspace** creates a shared one and makes you its owner. Admins
    always can; other accounts only when an admin turns on **Members can create
@@ -137,11 +145,12 @@ manage its members, whatever your role there.
    has their own personal workspace. A new shared workspace starts private.
 
 To bring someone in: Workspace settings → invite by email with a role
-(`viewer` / `editor` / `owner`). They see it under **Invitations** in their
-profile menu and join only when they **Accept** (14 days to accept; **Decline**
-drops it). Inviting an email with no account creates one as a viewer — only an
-admin can, unless **Workspace owners can invite new people** is on. Only an
-admin ever sees that new account’s one-time code; otherwise it is emailed.
+(`viewer` / `editor` / `owner`). They see it under **Invitations** in the
+workspace menu and join only when they **Accept** (14 days to accept;
+**Decline** drops it). Inviting an email with no account creates one as a
+viewer — only an admin can, unless **Workspace owners can invite new people**
+is on. Only an admin ever sees that new account’s one-time code; otherwise it
+is emailed.
 
 ### Public vs private
 
@@ -295,8 +304,14 @@ compare / migrate). It lives in the same local web UI you open with `foxschema`.
 2. On the left rail, click **Editor** (next to **Compare**).
 3. Under **Destinations**, check one or more saved connections — the same SQL runs
    against every checked server (handy for comparing data across environments).
-4. Type SQL in the editor. Multiple statements are fine; use the **statement strip**
-   under the editor to enable/disable individual statements before Run. Or **select**
+   Picking a connection in the **Schema explorer** checks that one alone, so Run
+   hits the tables on screen; check more Destinations afterwards to fan out.
+4. Type SQL in the editor. Multiple statements are fine. The **run rail** on the
+   left of the editor gives each statement a row on its first line: its **In [n]**
+   number (the one the Run tooltip and `Out [n]` use — click it to select the
+   statement), a ▶ that runs that cell alone, and a checkbox that includes it in
+   **Run**. With Safe mode on, the number turns amber for a write Run will ask you
+   to confirm and red with `!` for an UPDATE or DELETE with no WHERE. Or **select**
    a statement (or any SQL) in the editor — Run becomes **Run selection** and only
    that text is executed (variables still expand).
 5. Click **Run**. Results appear below, grouped by connection (stack or side-by-side).
@@ -355,13 +370,22 @@ Tips:
   `table.` and `alias.` still suggest columns. A name that is both a schema and
   a table keeps its **columns** (`orders.`). An unknown qualifier shows a short
   explanation instead of an empty popup.
+  Run applies that connection's saved schema the same way a migration does
+  (`SET CURRENT SCHEMA` / `search_path` / equivalent), so an unqualified
+  `ORDERS` resolves to the schema you saved — not the database user's default
+  (Db2 would otherwise look in the auth-id schema).
   **Edit table** shows each index’s fragmentation % for every dialect (physical or
   estimated probe; SQLite / DuckDB / ClickHouse / Redshift list indexes when no
-  native % exists). Paste custom SELECT if the default fails, and use the wrench
-  to insert rebuild/reorg/optimize/REINDEX SQL when useful. The index form opens
-  under the selected index (no jump to a form at the bottom of the section).
-  Index Management, Clone Table, and Query files live in **Utils** — see
-  [Utilities](#utilities).
+  native % exists). Paste custom SELECT if the default fails — it must be **one
+  read-only** `SELECT` (or `WITH … SELECT`); a write, `SELECT … INTO`, or a
+  second statement is refused. Use the wrench to insert rebuild/reorg/optimize/REINDEX
+  SQL when useful. On **Db2**, that SQL reorganises **every** index on the table
+  (`REORG INDEXES ALL FOR TABLE` through `SYSPROC.ADMIN_CMD`) and quotes catalog
+  names: the schema folded to uppercase, the table exactly as the catalog stores
+  it, so a table created as `"orders"` is not aimed at `ORDERS`.
+  The index form opens under the selected index (no jump to a form at the bottom
+  of the section). Index Management, Clone Table, and Query files live in
+  **Utils** — see [Utilities](#utilities).
 - **Data peek** — two ways in:
   - **Schema:** hold **Cmd** (macOS) or **Ctrl** (Windows/Linux) and click a
     table, view or MQT to see its rows without writing a query.
@@ -412,8 +436,8 @@ Tips:
   ```
 
   Typing `${{` / `${{name.` autocompletes names and table columns. Hover a ref for
-  its value (or `N×M table`). Hover a statement in the strip (when it uses vars) to
-  preview **query with values** and **Copy**. Statements in one Run are sequential
+  its value (or `N×M table`). Hover a statement's row on the run rail and click its
+  copy button to copy it with its values filled in (secrets stay masked). Statements in one Run are sequential
   so later SQL can use vars set by earlier `@set`. Multi-destination: `@set` uses
   the first successful server’s result. Substitution is local (values are pasted
   into the SQL text before send — not database bind parameters). Missing/empty
@@ -539,6 +563,14 @@ Tips:
   rows (`ON CONFLICT DO UPDATE`, `ON DUPLICATE KEY UPDATE`, `INSERT OR REPLACE`),
   and DDL need an extra confirmation before run. Plain INSERT (including insert
   CTEs and `ON CONFLICT DO NOTHING`) does not.
+- **One transaction** — when on, every SQL statement in that Run is one
+  transaction **per destination**. A failure rolls the batch back and leaves
+  later statements unrun (the result row says so). Code cells and `-- @set`
+  stay statement by statement — the checkbox then warns instead of wrapping.
+  Engines that auto-commit DDL (MySQL, MariaDB, TiDB, Oracle, CockroachDB) cannot
+  undo DDL that already ran. Redis, MongoDB and ClickHouse cannot roll back at all,
+  so a multi-statement Run with One transaction is refused there — run it without.
+  This is separate from Data migrate's Transaction assist.
 
 Writes and DDL are allowed when you confirm them. **SQLite** connections are
 read-write (the file is opened that way on purpose). **ClickHouse** grid row
@@ -556,12 +588,17 @@ saved credential at the top, then a tool:
 
 - **Index Management** — indexes grouped by table; filter by name or minimum
   fragmentation %; fetch fragmentation in batch (`POST /schema/index-fragmentation-batch`);
-  defragment selected indexes or all filtered rows.
+  defragment selected indexes or all filtered rows. Custom probe SQL is the
+  same read-only rule as Edit table (one `SELECT`). **Db2** cannot reorg a
+  single index: defrag runs `REORG INDEXES ALL FOR TABLE` plus `RUNSTATS`
+  through `SYSPROC.ADMIN_CMD`, quoting names the way `SYSCAT` stores them.
 - **Clone Table** — archive a huge table as `name_1` / next free `name_N` (or a
   fixed starting number), then recreate an empty table with the original name and
   columns so apps keep working. Toggle **Keep indexes** and **Foreign keys (auto)**
-  for the new table; Insert SQL or Apply. Inbound FKs from other tables still point
-  at the archive until you update them.
+  for the new table; Insert SQL or Apply. Apply stops at the first failed
+  statement and is not one transaction — if it stops after rename, recover by
+  renaming the archive back. Inbound FKs from other tables still point at the
+  archive until you update them.
 - **Backup & Restore** — Fox Schema writes the backup and restore commands
   for this connection. The amber banner says *where* they run, because that is
   what the folder means:
@@ -639,13 +676,21 @@ Developer / ops runbook: [workflow.md](workflow.md). Env vars:
 4. **Designer**: drop a trigger (Manual, Schedule, Webhook, API Endpoint, …) and
    pipes. Picking a saved connection on a **SQL query** / **SQL write** pipe
    **links** it — Fox Schema records the grant; the pipe never holds a password.
+   A saved connection belongs to **this workspace**. Saving or running a
+   workflow that names another workspace's connection is refused (403) — the
+   engine is install-wide, so this check is what keeps A's password out of B.
 5. **Run** from the designer, or let cron / webhook / poll fire. **Runs** lists
-   history. **Variables** and **Credentials** are per-engine; linked Fox Schema
-   connections show up as `foxschema-…` credentials.
+   history. A live run can be **cancelled**. A run paused on **Ask a person**
+   shows the question there: **Send answer** continues it, **Resume** without
+   an answer retries the gate. Steering reads the run's snapshot, so a run that
+   already used a foreign connection cannot be cancelled or answered from this
+   workspace either. **Variables** and **Credentials** are per-engine; linked
+   Fox Schema connections show up as `foxschema-…` credentials.
 
 Permissions (multi-user): **Open Workflow** to see the pane; **Design** to edit;
-**Run** to start jobs; **Workflow admin** for the Engine tab. Viewers can open
-Workflow and read runs without seeing Designer chrome.
+**Run** to start, cancel, and answer a paused job; **Workflow admin** for the
+Engine tab. Viewers can open Workflow and read runs without seeing Designer
+chrome.
 
 ## Access control
 
@@ -654,8 +699,8 @@ On a multi-user install, **Profile → Access control** assigns Fox Schema
 that is **app** access, not GRANT on a connected database. What you may do to
 saved connections and schema in the current workspace also follows your
 **workspace** role there ([Workspaces](#workspaces)). Code cells, Git,
-workflow and creating workspaces stay on the account role: owning a workspace
-does not grant them. **Admins: One / Several**, **Members can create
+workflow, creating workspaces and **Install drivers** stay on the account role:
+owning a workspace does not grant them. **Admins: One / Several**, **Members can create
 workspaces** and **Workspace owners can invite new people** sit on the same
 panel. **Workspaces** (the tab) lists every workspace; an admin opens one only
 by joining.
@@ -690,7 +735,10 @@ API (`POST /schema/db-access`):
 - **Utils → DB users & grants** (needs **Use utilities**).
 
 Either family may load the catalog. Running GRANT / REVOKE still needs
-**Grant privileges** (`editor.grant`). SQLite / DuckDB have no GRANT catalog;
+**Grant privileges** (`editor.grant`). The script runs statement by statement
+and **stops at the first failure** — later steps assume earlier ones (USAGE ON
+SCHEMA before ON ALL TABLES). Statements before the failure stay applied;
+nothing is wrapped in a transaction. SQLite / DuckDB have no GRANT catalog;
 ClickHouse has no permission builder yet.
 
 The Access workspace opens on **Permissions** (a principal list). Pick a user
@@ -832,8 +880,11 @@ line). Stop it with `foxschema stop`.
 **Port already in use (Docker).** Change `PORT` in `.env` and restart
 (`docker compose -f docker-compose.app.yml up -d`).
 
-**"driver not installed" for a database type.** Some drivers are optional/platform-
-specific (notably IBM Db2 / `ibm_db`). Prefer:
+**"driver not installed" for a database type.** The credential form, the SQL
+editor's schema browser and a failed run all offer **Install driver**. Installing
+runs npm on the server, so it needs the **Install drivers** permission (admins by
+default); without it the banner gives the command to run instead. Some drivers are
+optional/platform-specific (notably IBM Db2 / `ibm_db`). Prefer:
 
 ```bash
 foxschema drivers install db2
@@ -861,8 +912,9 @@ the `/data` volume — make sure you didn't remove it (`docker compose down -v` 
 volumes). See [DEPLOYMENT.md](DEPLOYMENT.md).
 
 **Saved connections disappeared after a switch.** They belong to the
-**workspace** you were in. Open the profile menu → **Workspace** and switch
-back; each workspace has its own connections, snapshots and runs.
+**workspace** you were in. Click the workspace button under the Fox mark and
+switch back; each workspace has its own connections, snapshots and runs. SQL
+editor tabs follow that workspace too (they are stored in this browser).
 
 **Signed out while the UI was open.** A session unused for **8 hours** ends,
 whatever its 7-day expiry (`FOX_SESSION_IDLE_HOURS`; `0` turns the idle limit
@@ -874,7 +926,8 @@ separate process. Check **Workflow → Engine** health. New installs default to
 **Disabled** — set **Enabled** and Save. `FOXFLOW_ENCRYPTION_KEY` is required at
 engine boot. Saved connections need both `WORKFLOW_ENGINE_TOKEN` (same value on
 FoxSchema and the engine) and an explicit grant (pick the connection on a SQL
-pipe). The published Docker image does not start the engine. See
+pipe). A 403 on save or run usually means the workflow names a connection from
+another workspace. The published Docker image does not start the engine. See
 [workflow.md](workflow.md).
 
 Still stuck? Open a GitHub issue with what you did and the error you saw.

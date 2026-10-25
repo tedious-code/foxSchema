@@ -20,6 +20,9 @@ export const redisSettings: ProviderConnectionSettings = {
   defaultPort: 6379,
   defaultSchema: '0',
   schemaRequired: false,
+  // MULTI/EXEC queues commands; it cannot undo one that ran. The adapter opens
+  // nothing, so every command is final as it runs.
+  transactions: false,
 
   buildConnectionString(option: ConnectionOptions): string {
     if (option.connectionString?.trim()) return option.connectionString.trim();

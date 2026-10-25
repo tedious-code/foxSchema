@@ -9,6 +9,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import type { Permission } from '@foxschema/shared';
+import { dialectFeatureReason } from '@foxschema/sql';
 import { fakeReply, routeHandler } from '../../platform/http/route-doubles';
 import { createEditorRoutes } from './editor.routes';
 import { runStatements } from './sql-execute.service';
@@ -116,5 +117,71 @@ describe('POST /sql/execute stopOnError and transaction', () => {
     expect(flags()).toEqual({ stopOnError: false, transaction: false });
     await execute('postgres', ['editor.run'], { statements: ['SELECT 1'], stopOnError: 'yes', transaction: 'yes' });
     expect(flags()).toEqual({ stopOnError: false, transaction: false });
+  });
+});
+
+describe('POST /sql/execute as one transaction', () => {
+  // A COMMIT inside the batch made what came before it permanent; a later
+  // failure then rolled back nothing, and the editor reported a rollback.
+  it.each(['COMMIT', 'BEGIN', 'ROLLBACK;', 'START TRANSACTION', 'END'])(
+    'refuses a batch that runs %s itself, before touching the database',
+    async (control) => {
+      const { sent, ran } = await execute('postgres', ['editor.run', 'editor.dml', 'editor.ddl'], {
+        statements: ['INSERT INTO t VALUES (1)', control, 'INSERT INTO t VALUES (2)'],
+        transaction: true,
+      });
+      expect(sent.status).toBe(400);
+      expect(sent.body.error).toMatch(/One transaction/);
+      expect(ran).toBe(false);
+    },
+  );
+
+  it.each([
+    ['clickhouse', 'ClickHouse'],
+    ['redis', 'Redis'],
+    ['mongodb', 'MongoDB'],
+  ])('refuses one transaction on %s, which has nothing to roll back', async (dialect, label) => {
+    // Its adapter opens no transaction: each statement commits as it runs,
+    // so a failure leaves the earlier ones while the editor said rolled back.
+    const { sent, ran } = await execute(dialect, ['editor.run', 'editor.dml', 'editor.ddl'], {
+      statements: ['SELECT 1', 'SELECT 2'],
+      transaction: true,
+    });
+    expect(sent.status).toBe(400);
+    expect(sent.body.error).toContain(label);
+    // The sentence Data migrate's disabled Transaction checkbox shows.
+    expect(sent.body.error).toContain(dialectFeatureReason(dialect, 'transactions'));
+    expect(sent.body.error).toMatch(/One transaction cannot roll this batch back/);
+    expect(ran).toBe(false);
+
+    const plain = await execute(dialect, ['editor.run', 'editor.dml', 'editor.ddl'], {
+      statements: ['SELECT 1', 'SELECT 2'],
+    });
+    expect(plain.ran).toBe(true);
+  });
+
+  it('does not tell a MongoDB user their database has no transactions', async () => {
+    // It has them on a replica set; Fox Schema's adapter does not open one.
+    const { sent } = await execute('mongodb', ['editor.run', 'editor.dml', 'editor.ddl'], {
+      statements: ['SELECT 1', 'SELECT 2'],
+      transaction: true,
+    });
+    expect(sent.body.error).not.toMatch(/MongoDB has no transactions/);
+    expect(sent.body.error).toMatch(/Fox Schema writes to MongoDB without a transaction/);
+  });
+
+  it('runs the same batch statement by statement when not asked for one transaction', async () => {
+    const { ran } = await execute('postgres', ['editor.run', 'editor.dml', 'editor.ddl'], {
+      statements: ['INSERT INTO t VALUES (1)', 'COMMIT', 'INSERT INTO t VALUES (2)'],
+    });
+    expect(ran).toBe(true);
+  });
+
+  it('keeps savepoints, which stay inside the transaction', async () => {
+    const { ran } = await execute('postgres', ['editor.run', 'editor.dml', 'editor.ddl'], {
+      statements: ['SAVEPOINT s1', 'INSERT INTO t VALUES (1)', 'ROLLBACK TO SAVEPOINT s1'],
+      transaction: true,
+    });
+    expect(ran).toBe(true);
   });
 });

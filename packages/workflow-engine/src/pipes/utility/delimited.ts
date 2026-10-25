@@ -451,10 +451,72 @@ export function parseLine(
   return lineToRecords(line, options);
 }
 
+/** One record a text line produced, and what the column rules made of it. */
+export interface TextRow {
+  /** The values as split, before any rule converted them. */
+  raw: Record<string, string>;
+  record: Record<string, unknown>;
+  /** Why a column rule refused it, or null. */
+  failure: string | null;
+  /** 1-based line it came from. */
+  line: number;
+}
+
+/**
+ * Text records, line by line: offset, empty lines, the header, the flat map
+ * and the column rules — the one reading the run and the designer preview
+ * share, so the preview shows what a run will read. `push` takes the next
+ * line and returns the records it produced (none for a skipped line).
+ */
+export class TextRowReader {
+  private lineNumber = 0;
+  private headerDone: boolean;
+  private readonly rules: ReturnType<typeof columnRules>;
+  private readonly compiled: ReturnType<typeof compileColumnRules>;
+
+  /** `resumeAfter`: lines a checkpoint already covers, which also puts the header behind it. */
+  constructor(
+    private readonly options: TextParseOptions,
+    private readonly resumeAfter = 0,
+  ) {
+    this.headerDone = (options.header ?? 'none') === 'none' || resumeAfter > 0;
+    this.rules = columnRules(options);
+    this.compiled = compileColumnRules(this.rules);
+  }
+
+  /** The last line number pushed. */
+  get line(): number {
+    return this.lineNumber;
+  }
+
+  push(text: string): TextRow[] {
+    this.lineNumber++;
+    const { offset = 0, skipEmpty = true, header = 'none' } = this.options;
+    if (this.lineNumber <= offset || this.lineNumber <= this.resumeAfter) return [];
+    if (skipEmpty && text.trim() === '') return [];
+    const parsed = parseLine(text, this.options);
+    if (!this.headerDone) {
+      this.headerDone = true;
+      if (header === 'skip') return [];
+      // auto: drop only when the line names its own columns.
+      if (parsed[0] && isHeaderRecord(parsed[0], configuredNames(this.options))) return [];
+    }
+    return parsed.map((raw) => {
+      const applied = applyColumnRules(raw, this.rules, this.compiled);
+      return {
+        raw,
+        record: applied.record,
+        failure: applied.failures.length > 0 ? describeFailures(applied.failures) : null,
+        line: this.lineNumber,
+      };
+    });
+  }
+}
+
 /**
  * Parse a whole text block and apply per-column rules, reporting both the
  * converted records and every column failure by record index — the preview
- * path, which must show what the run would produce *and* what it would reject.
+ * path, read by the same {@link TextRowReader} as a run.
  *
  * `lines[i]` is the 1-based source line for `records[i]`, so schema failures
  * (which only know the record index) can still report which row failed.
@@ -467,43 +529,20 @@ export function parseTextRows(
   invalid: InvalidRecord[];
   lines: number[];
 } {
-  const { offset = 0, skipEmpty = true, header = 'none' } = options;
-  const rules = columnRules(options);
-  const compiled = compileColumnRules(rules);
   // Lines as the run reads them (`readLines`): split on `\n`, a trailing `\r`
   // dropped, no line after a final newline. Splitting on a bare `\r` too made
   // a classic-Mac file preview as many rows and then run as one.
   const sourceLines = text.split('\n').map((line) => line.replace(/\r$/, ''));
   if (sourceLines[sourceLines.length - 1] === '') sourceLines.pop();
+  const reader = new TextRowReader(options);
   const records: Record<string, unknown>[] = [];
   const invalid: InvalidRecord[] = [];
   const lines: number[] = [];
-  let headerDone = header === 'none';
-
-  for (let i = offset; i < sourceLines.length; i++) {
-    const lineNumber = i + 1;
-    const line = sourceLines[i]!;
-    if (skipEmpty && line.trim() === '') continue;
-    const parsed = parseLine(line, options);
-    if (!headerDone) {
-      headerDone = true;
-      if (header === 'skip') continue;
-      // auto: drop only when the line names its own columns.
-      if (parsed[0] && isHeaderRecord(parsed[0], configuredNames(options))) {
-        continue;
-      }
-    }
-    for (const raw of parsed) {
-      const applied = applyColumnRules(raw, rules, compiled);
-      if (applied.failures.length > 0) {
-        invalid.push({
-          index: records.length,
-          line: lineNumber,
-          message: describeFailures(applied.failures),
-        });
-      }
-      records.push(applied.record);
-      lines.push(lineNumber);
+  for (const line of sourceLines) {
+    for (const row of reader.push(line)) {
+      if (row.failure !== null) invalid.push({ index: records.length, line: row.line, message: row.failure });
+      records.push(row.record);
+      lines.push(row.line);
     }
   }
   return { records, invalid, lines };
@@ -536,6 +575,128 @@ export function rejectBatch(
     records,
     port: REJECTS_PORT,
   };
+}
+
+/** How a source names a position in its errors and on rejected rows. */
+export interface EmitterPositions {
+  /** Checkpoint cursor key: `row`, `line`, `index`. */
+  cursorKey: string;
+  /** Key the position is stored under on a rejected row: `_row`, `_line`, `_index`. */
+  positionKey: string;
+  /** How an error names the position: `CSV row`, `line`, `index`. */
+  label: string;
+  /**
+   * `record` cuts a batch the moment it is full. `boundary` cuts only in
+   * {@link BatchEmitter.drain}: a text line can flat-map to several records
+   * and its cursor is the line, so a line must never straddle two batches.
+   */
+  cut: 'record' | 'boundary';
+}
+
+/** Why a record was refused before it reached the data stream. */
+export type RecordFailure = { reason: 'to parse' | 'validation' | 'schema'; message: string };
+
+/**
+ * The batching every file source shares: applies `onInvalid` to records that
+ * failed, cuts data batches (with a cursor) and reject batches (cursor-less,
+ * on the `rejects` port) at `batchSize`, and flushes rejects before the final
+ * data batch so the run's last checkpoint covers everything emitted.
+ *
+ * CSV, text and JSON each kept their own copy of this, and the copies had
+ * drifted — where they cut, what the last cursor named, how errors read.
+ */
+export class BatchEmitter {
+  private records: Record<string, unknown>[] = [];
+  private first = 0;
+  private last = 0;
+  private rejects: Record<string, unknown>[] = [];
+  private firstReject = 0;
+  private lastReject = 0;
+  private pending: RecordBatch[] = [];
+
+  constructor(
+    private readonly pipeId: string,
+    private readonly config: {
+      batchSize: number;
+      onInvalid: 'fail' | 'skip' | 'reject';
+      schema?: Record<string, unknown>;
+    },
+    private readonly positions: EmitterPositions,
+  ) {}
+
+  /**
+   * One record at `position`. `failure` is set when it already failed (did not
+   * parse, a column rule refused it); otherwise the schema, if any, decides.
+   * A rejected record is stored as `rejectAs` (the raw values, say) when given.
+   */
+  add(
+    record: Record<string, unknown>,
+    position: number,
+    failure: RecordFailure | null = null,
+    rejectAs: Record<string, unknown> = record,
+  ): void {
+    const schemaMessage = failure === null && this.config.schema ? validateAgainstSchema(this.config.schema, record) : null;
+    const refused = failure ?? (schemaMessage === null ? null : { reason: 'schema' as const, message: schemaMessage });
+    if (refused !== null) {
+      if (this.config.onInvalid === 'fail') {
+        throw new Error(`${this.positions.label} ${position} failed ${refused.reason}: ${refused.message}`);
+      }
+      if (this.config.onInvalid === 'reject') {
+        if (this.rejects.length === 0) this.firstReject = position;
+        this.lastReject = position;
+        this.rejects.push({ ...rejectAs, _error: refused.message, [this.positions.positionKey]: position });
+        if (this.positions.cut === 'record' && this.rejects.length === this.config.batchSize) this.cutRejects();
+      }
+      return; // skip and reject both leave the data stream
+    }
+    if (this.records.length === 0) this.first = position;
+    this.last = position;
+    this.records.push(record);
+    if (this.positions.cut === 'record' && this.records.length === this.config.batchSize) this.cutData(this.last);
+  }
+
+  /** Batches that are ready. In `boundary` mode, call at each boundary: this is where they are cut. */
+  *drain(): Iterable<RecordBatch> {
+    if (this.positions.cut === 'boundary') {
+      if (this.rejects.length >= this.config.batchSize) this.cutRejects();
+      if (this.records.length >= this.config.batchSize) this.cutData(this.last);
+    }
+    yield* this.pending.splice(0);
+  }
+
+  /**
+   * Everything left: rejects first, then the final data batch. Its cursor is
+   * `lastPosition` — the last position read — when given, so rows after the
+   * last good one that were skipped or rejected are not read again on resume.
+   */
+  *flush(lastPosition?: number): Iterable<RecordBatch> {
+    yield* this.pending.splice(0);
+    if (this.rejects.length > 0) this.cutRejects();
+    yield* this.pending.splice(0);
+    if (this.records.length > 0) {
+      yield this.dataBatch(Math.max(this.last, lastPosition ?? this.last));
+      this.records = [];
+    }
+  }
+
+  private cutRejects(): void {
+    this.pending.push(rejectBatch(this.pipeId, this.firstReject, this.lastReject, this.rejects));
+    this.rejects = [];
+  }
+
+  private cutData(end: number): void {
+    this.pending.push(this.dataBatch(end));
+    this.records = [];
+  }
+
+  private dataBatch(end: number): RecordBatch {
+    return {
+      id: `${this.pipeId}:0:${this.first}-${end}`,
+      partitionId: '0',
+      records: this.records,
+      cursor: { [this.positions.cursorKey]: end },
+    };
+  }
 }
 
 /**

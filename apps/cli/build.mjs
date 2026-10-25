@@ -22,8 +22,8 @@ const DRIVER_EXTERNAL = [
 ];
 
 // Bundle the CLI to a single ESM file. @foxschema/* TS sources are inlined;
-// native drivers stay external (resolved from node_modules at runtime, like the
-// desktop sidecar). The banner shims `require` for any bundled CJS deps.
+// native drivers stay external (resolved from node_modules at runtime). The
+// banner shims `require` for any bundled CJS deps.
 //
 // The tui/ subtree is deliberately NOT part of this bundle — src/index.ts's
 // `tui` command loads it via a *computed* dynamic import (`new URL(...,

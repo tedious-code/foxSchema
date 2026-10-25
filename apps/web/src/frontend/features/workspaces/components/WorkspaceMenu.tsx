@@ -8,7 +8,7 @@
  * because every open view holds data from the old workspace.
  */
 import React, { useEffect, useState } from 'react';
-import { Check, Compass, Layers, Plus, Settings2 } from 'lucide-react';
+import { Compass, Plus, Settings2 } from 'lucide-react';
 import { prepareWorkspaceSwitch } from '@/shared/lib/editorWorkspaceStorage';
 import {
   apiAcceptInvite,
@@ -171,28 +171,23 @@ export const WorkspaceMenu: React.FC<{
           ))}
         </div>
       )}
-      <p className="px-4 pb-1 text-xs text-slate-500 uppercase tracking-wider font-bold">Workspace</p>
-      <ul>
-        {list.workspaces.map((w) => (
-          <li key={w.id}>
-            <button
-              type="button"
-              data-testid={`workspace-menu-item-${w.id}`}
-              disabled={busy}
-              onClick={() => void switchTo(w.id)}
-              aria-current={w.id === list.currentId ? 'true' : undefined}
-              className="w-full flex items-center gap-2 px-4 py-1.5 text-left text-sm text-slate-300 hover:bg-slate-800/60 disabled:opacity-60"
-            >
-              <Layers className="w-3.5 h-3.5 shrink-0 text-slate-500" />
-              <span className="flex-1 truncate" title={w.name}>
-                {w.name}
-              </span>
-              <span className="text-[10px] uppercase tracking-wide text-slate-500">{w.role}</span>
-              {w.id === list.currentId && <Check className="w-3.5 h-3.5 text-emerald-400" />}
-            </button>
-          </li>
-        ))}
-      </ul>
+      <label className="flex flex-col gap-1 px-4 pb-1">
+        <span className="text-xs text-slate-500 uppercase tracking-wider font-bold">Workspace</span>
+        <select
+          data-testid="workspace-menu-select"
+          aria-label="Workspace"
+          value={list.currentId}
+          disabled={busy}
+          onChange={(e) => void switchTo(e.target.value)}
+          className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100 outline-none accent-focus"
+        >
+          {list.workspaces.map((w) => (
+            <option key={w.id} value={w.id} data-testid={`workspace-menu-item-${w.id}`}>
+              {w.name} · {w.role}
+            </option>
+          ))}
+        </select>
+      </label>
       {current && (
         <button
           type="button"

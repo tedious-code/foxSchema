@@ -113,7 +113,9 @@ checks access itself; its button follows its nav item's permission (`navId`).
 
 The rail, the lazy view, prefetch-on-hover, the "you lost access, go home"
 redirect and the view's part of the top toolbar (`toolbar: { start, end, below }`)
-all read this entry. Adding a view touches no shell file.
+all read this entry. Adding a view touches no shell file. The workspace button
+under the Fox mark is shell (`WorkspaceRailButton`), not a view — do not add it
+to the view registry.
 
 Keep components local until a second feature needs them; then move the
 product-neutral part to `shared/`, not to another feature.

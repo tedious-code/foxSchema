@@ -5,12 +5,10 @@
  *
  * Workflow engine — moved from FoxAgent (packages/pipes/utility/src/file-sink.ts).
  */
-import { appendFile, mkdir, stat, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
 import { z } from 'zod';
 import type { PipeContext, RecordBatch, SinkPipe } from '../../registry/index.js';
 import { definePipeMetadata, type PipeMetadata } from '../../sdk/index.js';
-import { resolveWorkflowFile } from './file-root.js';
+import { openWorkflowFile } from './workflow-files.js';
 
 /**
  * Write records to a delimited file.
@@ -148,16 +146,13 @@ export class FileSinkPipe implements SinkPipe {
   }
 
   async write(batch: RecordBatch, context: PipeContext): Promise<void> {
-    const parsedConfig = configSchema.parse(context.pipe.config);
+    const config = configSchema.parse(context.pipe.config);
     if (batch.records.length === 0) return;
-    const config = { ...parsedConfig, path: await resolveWorkflowFile(parsedConfig.path) };
+    const file = await openWorkflowFile(config.path);
 
-    const key = `${context.workflowRunId}:${config.path}`;
+    const key = `${context.workflowRunId}:${file.path}`;
     const first = !this.started.has(key);
     if (first) this.started.add(key);
-
-    // eslint-disable-next-line security/detect-non-literal-fs-filename -- the target path is this sink's own configuration
-    await mkdir(dirname(config.path), { recursive: true });
 
     const body =
       batch.records.map((record) => toRow(record, config)).join(config.newline) +
@@ -171,24 +166,13 @@ export class FileSinkPipe implements SinkPipe {
     // Overwrite truncates once per run, not once per batch — otherwise batch
     // two erases batch one and the file only ever holds the last chunk.
     if (first && config.mode === 'overwrite') {
-      // eslint-disable-next-line security/detect-non-literal-fs-filename -- the target path is this sink's own configuration
-      await writeFile(config.path, header + body, 'utf8');
+      await file.write(header + body);
       return;
     }
 
     // Appending to a file that does not exist yet still needs its header;
     // appending to one that already has rows must not get a second.
-    const lead = first && header && (await isEmpty(config.path)) ? header : '';
-    // eslint-disable-next-line security/detect-non-literal-fs-filename -- the target path is this sink's own configuration
-    await appendFile(config.path, lead + body, 'utf8');
-  }
-}
-
-async function isEmpty(path: string): Promise<boolean> {
-  try {
-    // eslint-disable-next-line security/detect-non-literal-fs-filename -- the target path is this sink's own configuration
-    return (await stat(path)).size === 0;
-  } catch {
-    return true; // does not exist yet
+    const lead = first && header && (await file.isEmpty()) ? header : '';
+    await file.append(lead + body);
   }
 }

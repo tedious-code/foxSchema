@@ -604,3 +604,78 @@ describe('engine proxy — saved connections stay with their workspace', () => {
     expect(res.statusCode).toBe(200);
   });
 });
+
+describe('engine proxy — every route that reaches a foreign connection refuses', () => {
+  const usesForeign = {
+    id: 'wf-1',
+    pipelines: [{ id: 'main', pipes: [{ id: 'q', type: 'source.db.sql', credentialId: 'foxschema-conn-a', config: {} }] }],
+  };
+  const engineWith = (workflow: unknown) => (call: Call) => {
+    const path = new URL(call.url).pathname;
+    if (call.init.method === 'GET' && (path === '/api/workflows/wf-1' || path === '/api/runs/r1/snapshot')) {
+      return Response.json(workflow);
+    }
+    return Response.json({ ok: true });
+  };
+  const all = ['workflow.access', 'workflow.design', 'workflow.run'] as Permission[];
+
+  // Steering a run reaches what the run's connection returned (a human gate's
+  // question can quote rows), so it is held to the run's snapshot like reading.
+  it.each([
+    ['cancel', 'POST', '/api/workflow/engine/runs/r1/cancel'],
+    ['resume', 'POST', '/api/workflow/engine/runs/r1/resume'],
+    ['read the gate questions of', 'GET', '/api/workflow/engine/runs/r1/inputs'],
+    ['answer the gate of', 'POST', '/api/workflow/engine/runs/r1/inputs'],
+    ['read the detail of', 'GET', '/api/workflow/engine/runs/r1'],
+    ['read the failure summary of', 'GET', '/api/workflow/engine/runs/r1/failure'],
+    ['extract a pipeline out of', 'POST', '/api/workflow/engine/workflows/wf-1/extract-pipeline'],
+  ] as const)('refuses to %s a run or workflow using it', async (_label, method, url) => {
+    const { server, calls } = await serve(all, { foreignConnections: ['conn-a'], respond: engineWith(usesForeign) });
+    const res = await server.inject({ method, url, payload: method === 'POST' ? {} : undefined });
+    expect(res.statusCode, `${method} ${url}`).toBe(403);
+    expect(calls.every((call) => call.init.method === 'GET')).toBe(true);
+    expect(calls.map((call) => new URL(call.url).pathname)).not.toContain(url.replace('/api/workflow/engine', '/api'));
+  });
+
+  it('refuses an import whose package names the connection, without asking the engine', async () => {
+    const { server, calls } = await serve(all, { foreignConnections: ['conn-a'] });
+    const res = await server.inject({
+      method: 'POST',
+      url: '/api/workflow/engine/workflows/import',
+      payload: { package: { format: 'foxflow.workflow', workflow: usesForeign } },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('finds the connection wherever the document names it — in a pipe’s config too', async () => {
+    const { server, calls } = await serve(all, { foreignConnections: ['conn-a'] });
+    const res = await server.inject({
+      method: 'PUT',
+      url: '/api/workflow/engine/workflows/wf-2',
+      payload: {
+        id: 'wf-2',
+        pipelines: [{ id: 'main', pipes: [{ id: 'q', type: 'sink.db.sql', config: { credentialId: 'foxschema-conn-a' } }] }],
+      },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('lets a member steer and read a run using the connection', async () => {
+    const { server, calls } = await serve(all, { respond: engineWith(usesForeign) });
+    for (const [method, url] of [
+      ['POST', '/api/workflow/engine/runs/r1/cancel'],
+      ['GET', '/api/workflow/engine/runs/r1'],
+    ] as const) {
+      const res = await server.inject({ method, url, payload: method === 'POST' ? {} : undefined });
+      expect(res.statusCode, `${method} ${url}`).toBe(200);
+    }
+    expect(calls.map((call) => `${call.init.method} ${new URL(call.url).pathname}`)).toEqual([
+      'GET /api/runs/r1/snapshot',
+      'POST /api/runs/r1/cancel',
+      'GET /api/runs/r1/snapshot',
+      'GET /api/runs/r1',
+    ]);
+  });
+});

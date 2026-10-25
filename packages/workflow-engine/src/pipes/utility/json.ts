@@ -5,8 +5,6 @@
  *
  * Workflow engine — moved from FoxAgent (packages/pipes/utility/src/json.ts).
  */
-import { createReadStream } from 'node:fs';
-import { open, readFile } from 'node:fs/promises';
 import * as z from 'zod';
 import type {
   PipeContext,
@@ -21,10 +19,9 @@ import {
   rejectPolicyField,
   type PipeMetadata,
 } from '../../sdk/index.js';
-import { validateAgainstSchema } from '../../common/index.js';
-import { rejectBatch } from './delimited.js';
+import { BatchEmitter } from './delimited.js';
 import { readLines } from './text.js';
-import { resolveWorkflowFile } from './file-root.js';
+import { openWorkflowFile, type WorkflowFile } from './workflow-files.js';
 
 const configSchema = z.object({
   path: z.string().min(1),
@@ -71,45 +68,53 @@ export class JsonSourcePipe implements SourcePipe {
   }
 
   async *read(context: PipeContext): AsyncIterable<RecordBatch> {
-    const parsedConfig = configSchema.parse(context.pipe.config);
-    const config = { ...parsedConfig, path: await resolveWorkflowFile(parsedConfig.path) };
+    const config = configSchema.parse(context.pipe.config);
+    const file = await openWorkflowFile(config.path);
     const format =
-      config.format === 'auto' ? await detectFormat(config.path) : config.format;
+      config.format === 'auto' ? await detectFormat(file) : config.format;
     yield* format === 'array'
-      ? this.readArray(context, config)
-      : this.readNdjson(context, config);
+      ? this.readArray(context, config, file)
+      : this.readNdjson(context, config, file);
   }
 
   private async *readArray(
     context: PipeContext,
     config: Config,
+    file: WorkflowFile,
   ): AsyncIterable<RecordBatch> {
-    // eslint-disable-next-line security/detect-non-literal-fs-filename -- the source file path is this pipe's own configuration
-    const parsed: unknown = JSON.parse(await readFile(config.path, 'utf8'));
+    const parsed: unknown = JSON.parse(await file.readText());
     if (!Array.isArray(parsed)) {
-      throw new Error(`${config.path}: expected a top-level JSON array`);
+      throw new Error(`${file.path}: expected a top-level JSON array`);
     }
     const resumeAfter = Number(context.checkpoint?.cursor.index ?? 0);
-    const emitter = new BatchEmitter(context.pipe.id, config, 'index', '_index');
+    const emitter = new BatchEmitter(context.pipe.id, config, {
+      cursorKey: 'index',
+      positionKey: '_index',
+      label: 'index',
+      cut: 'record',
+    });
     for (let i = 0; i < parsed.length; i++) {
       const position = i + 1; // 1-based, matching row/line cursors
       if (position <= resumeAfter) continue;
-      emitter.add(toRecord(parsed[i]), position, null);
+      emitter.add(toRecord(parsed[i]), position);
     }
-    yield* emitter.flush();
+    yield* emitter.flush(parsed.length);
   }
 
   private async *readNdjson(
     context: PipeContext,
     config: Config,
+    file: WorkflowFile,
   ): AsyncIterable<RecordBatch> {
     const resumeAfter = Number(context.checkpoint?.cursor.line ?? 0);
-    const emitter = new BatchEmitter(context.pipe.id, config, 'line', '_line');
+    const emitter = new BatchEmitter(context.pipe.id, config, {
+      cursorKey: 'line',
+      positionKey: '_line',
+      label: 'line',
+      cut: 'record',
+    });
     let lineNumber = 0;
-    for await (const line of readLines(
-      // eslint-disable-next-line security/detect-non-literal-fs-filename -- the source file path is this pipe's own configuration
-      createReadStream(config.path, { encoding: 'utf8' }),
-    )) {
+    for await (const line of readLines(file.readStream())) {
       lineNumber++;
       if (lineNumber <= resumeAfter) continue;
       if (line.trim() === '') continue;
@@ -117,14 +122,14 @@ export class JsonSourcePipe implements SourcePipe {
       try {
         value = JSON.parse(line);
       } catch (error) {
-        emitter.add({ _raw: line }, lineNumber, (error as Error).message);
+        emitter.add({ _raw: line }, lineNumber, { reason: 'to parse', message: (error as Error).message });
         yield* emitter.drain();
         continue;
       }
-      emitter.add(toRecord(value), lineNumber, null);
+      emitter.add(toRecord(value), lineNumber);
       yield* emitter.drain();
     }
-    yield* emitter.flush();
+    yield* emitter.flush(lineNumber);
   }
 }
 
@@ -135,107 +140,7 @@ function toRecord(value: unknown): Record<string, unknown> {
     : { value: value ?? null };
 }
 
-async function detectFormat(path: string): Promise<'array' | 'ndjson'> {
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- the source file path is this pipe's own configuration
-  const handle = await open(path, 'r');
-  try {
-    const buffer = Buffer.alloc(1024);
-    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
-    const head = buffer.toString('utf8', 0, bytesRead).replace(/^\uFEFF/, '');
-    return head.trimStart().startsWith('[') ? 'array' : 'ndjson';
-  } finally {
-    await handle.close();
-  }
-}
-
-/**
- * Shared batching/validation for both JSON layouts: validates each record,
- * applies onInvalid, and cuts data batches (with a cursor) and reject batches
- * (cursor-less, `rejects` port) at `batchSize`.
- */
-class BatchEmitter {
-  private records: Record<string, unknown>[] = [];
-  private first = 0;
-  private last = 0;
-  private rejects: Record<string, unknown>[] = [];
-  private firstReject = 0;
-  private lastReject = 0;
-  private pending: RecordBatch[] = [];
-
-  constructor(
-    private readonly pipeId: string,
-    private readonly config: Config,
-    private readonly cursorKey: 'index' | 'line',
-    private readonly positionKey: '_index' | '_line',
-  ) {}
-
-  /** `parseError` marks records that never parsed (NDJSON bad lines). */
-  add(
-    record: Record<string, unknown>,
-    position: number,
-    parseError: string | null,
-  ): void {
-    const message =
-      parseError ??
-      (this.config.schema
-        ? validateAgainstSchema(this.config.schema, record)
-        : null);
-    if (message !== null) {
-      if (this.config.onInvalid === 'fail') {
-        throw new Error(
-          `${this.cursorKey} ${position} failed ${parseError ? 'to parse' : 'schema'}: ${message}`,
-        );
-      }
-      if (this.config.onInvalid === 'reject') {
-        if (this.rejects.length === 0) this.firstReject = position;
-        this.lastReject = position;
-        this.rejects.push({
-          ...record,
-          _error: message,
-          [this.positionKey]: position,
-        });
-        if (this.rejects.length === this.config.batchSize) {
-          this.pending.push(
-            rejectBatch(this.pipeId, this.firstReject, this.lastReject, this.rejects),
-          );
-          this.rejects = [];
-        }
-      }
-      return;
-    }
-    if (this.records.length === 0) this.first = position;
-    this.last = position;
-    this.records.push(record);
-    if (this.records.length === this.config.batchSize) {
-      this.pending.push(this.dataBatch());
-      this.records = [];
-    }
-  }
-
-  /** Batches that became full since the last call. */
-  *drain(): Iterable<RecordBatch> {
-    yield* this.pending.splice(0);
-  }
-
-  /** Everything left: rejects first, then the final (cursor-bearing) batch. */
-  *flush(): Iterable<RecordBatch> {
-    yield* this.drain();
-    if (this.rejects.length > 0) {
-      yield rejectBatch(this.pipeId, this.firstReject, this.lastReject, this.rejects);
-      this.rejects = [];
-    }
-    if (this.records.length > 0) {
-      yield this.dataBatch();
-      this.records = [];
-    }
-  }
-
-  private dataBatch(): RecordBatch {
-    return {
-      id: `${this.pipeId}:0:${this.first}-${this.last}`,
-      partitionId: '0',
-      records: this.records,
-      cursor: { [this.cursorKey]: this.last },
-    };
-  }
+async function detectFormat(file: WorkflowFile): Promise<'array' | 'ndjson'> {
+  const head = (await file.readHead(1024)).text.replace(/^\uFEFF/, '');
+  return head.trimStart().startsWith('[') ? 'array' : 'ndjson';
 }

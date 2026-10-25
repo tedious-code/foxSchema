@@ -74,6 +74,24 @@ describe('DataPeekPanel Insight tab', () => {
     await waitFor(() => expect(fetchTableInsight).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('data-peek-insight')).toBeTruthy();
   });
+
+  it('adds a second WHERE and a second ORDER BY', async () => {
+    render(<DataPeekPanel />);
+    fireEvent.click(screen.getByTestId('data-peek-where-add-e1'));
+    fireEvent.change(screen.getByTestId('data-peek-where-e1'), { target: { value: "status = 'gold'" } });
+    fireEvent.change(screen.getByTestId('data-peek-where-e1-1'), { target: { value: 'active = 1' } });
+    fireEvent.click(screen.getByTestId('data-peek-order-add-e1'));
+    fireEvent.change(screen.getByTestId('data-peek-order-e1'), { target: { value: 'created_at' } });
+    fireEvent.change(screen.getByTestId('data-peek-order-dir-e1'), { target: { value: 'DESC' } });
+    fireEvent.change(screen.getByTestId('data-peek-order-e1-1'), { target: { value: 'id' } });
+    fireEvent.change(screen.getByTestId('data-peek-order-dir-e1-1'), { target: { value: 'ASC' } });
+    fireEvent.click(screen.getByTestId('data-peek-apply-e1'));
+    await waitFor(() => {
+      const peek = useSqlEditorStore.getState().dataPeek;
+      expect(peek?.entries[0]?.whereClause).toBe("status = 'gold' AND active = 1");
+      expect(peek?.entries[0]?.orderByClause).toBe('created_at DESC, id ASC');
+    });
+  });
 });
 
 vi.mock('@/features/compare/state/useSyncStore', () => ({

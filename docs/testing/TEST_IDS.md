@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **991** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1000** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -154,7 +154,7 @@ Every control has a test ID: **991** buttons, text boxes, selects and textareas.
   - `diff-tables-{index}-item-{name}` · input in ObjectPicker
   - `diff-tables-{index}-list` · div in ObjectPicker
   - `diff-unsupported` · div
-  - `permission-diff` · div · Permission Diff
+  - `permission-diff` · div · Insight
 - **PermissionInspector** · `features/access/components/PermissionInspector.tsx`
   - `inspector-chain` · section · Why does this principal have access?
   - `inspector-connection` · select · Choose a saved connection…
@@ -338,6 +338,7 @@ Every control has a test ID: **991** buttons, text boxes, selects and textareas.
   - `admin-workspace-join-{id}` · button · Join
   - `admin-workspace-members-{id}` · button · Members
   - `admin-workspace-open-{id}` · button · Open
+  - `admin-workspace-restore-{id}` · button · Restore
   - `admin-workspaces` · div
   - `admin-workspaces-error` · p
   - `admin-workspaces-list` · ul
@@ -944,6 +945,9 @@ Every control has a test ID: **991** buttons, text boxes, selects and textareas.
 - **controls** · `shared/components/controls.tsx`
   - `{testId}` · div · passed in by the parent
   - `{testId}-{value}` · button · passed in by the parent
+- **DriverInstallHints** · `shared/components/DriverInstallHints.tsx`
+  - `driver-install-error` · p
+  - `driver-install-needs-admin` · p
 - **ErrorBoundary** · `shared/components/ErrorBoundary.tsx`
   - `app-error-boundary-dismiss` · button · Dismiss
 - **FilterPicker** · `shared/components/FilterPicker.tsx`
@@ -1088,7 +1092,13 @@ Every control has a test ID: **991** buttons, text boxes, selects and textareas.
   - `data-peek-filters-{id}` · div
   - `data-peek-grid-{id}` · div
   - `data-peek-limit-{id}` · input
-  - `data-peek-order-{id}` · input · ID DESC
+  - `data-peek-order-{id}` · input · created_at
+  - `data-peek-order-{id}-{index}` · input · created_at
+  - `data-peek-order-add-{id}` · button · Add sort
+  - `data-peek-order-clear-{id}` · button · Remove this sort
+  - `data-peek-order-clear-{id}-{index}` · button · Remove this sort
+  - `data-peek-order-dir-{id}` · select · — ASC DESC
+  - `data-peek-order-dir-{id}-{index}` · select · — ASC DESC
   - `data-peek-refby-{table}-{fkKey}` · button
   - `data-peek-referenced-by-{id}` · div
   - `data-peek-resize-{entryId}` · div · Resize data peek panel
@@ -1096,8 +1106,11 @@ Every control has a test ID: **991** buttons, text boxes, selects and textareas.
   - `data-peek-tab-insight-{id}` · button · Insight
   - `data-peek-tab-rows-{id}` · button · Rows
   - `data-peek-tabs-{id}` · div
-  - `data-peek-where-{id}` · input · e.g. ARCHIVED = false — or clear to fetch all
-  - `data-peek-where-clear-{id}` · button · Clear WHERE and fetch all rows
+  - `data-peek-where-{id}` · input
+  - `data-peek-where-{id}-{index}` · input
+  - `data-peek-where-add-{id}` · button · Add condition
+  - `data-peek-where-clear-{id}` · button
+  - `data-peek-where-clear-{id}-{index}` · button
 - **EditorTabBar** · `features/sql-editor/components/EditorTabBar.tsx`
   - `sql-editor-tabs` · div
   - `sql-tab-add` · button · New tab
@@ -1115,6 +1128,9 @@ Every control has a test ID: **991** buttons, text boxes, selects and textareas.
   - `file-imports-panel` · div
   - `file-imports-refresh` · button · Refresh
   - `file-imports-table-head` · div
+- **MissingDriverBanner** · `features/sql-editor/components/MissingDriverBanner.tsx`
+  - `{testId}` · button · Install the driver package on the server · passed in by the parent
+  - `{testId}-banner` · div · passed in by the parent
 - **PeekDatePicker** · `features/sql-editor/components/PeekDatePicker.tsx`
   - `peek-date-day-{y}-{m}-{day}` · button
   - `peek-date-today` · button · ›
@@ -1169,6 +1185,10 @@ Every control has a test ID: **991** buttons, text boxes, selects and textareas.
   - `{testId}-bar-{i}` · rect · passed in by the parent
 - **ResultsPanel** · `features/sql-editor/components/ResultsPanel.tsx`
   - `sql-cred-refresh` · button · Refresh this server
+  - `sql-install-driver-{connectionId}` · button in MissingDriverBanner · Install the driver package on the server
+  - `sql-install-driver-{connectionId}-banner` · div in MissingDriverBanner
+  - `sql-pane-install-driver-{connectionId}` · button in MissingDriverBanner · Install the driver package on the server
+  - `sql-pane-install-driver-{connectionId}-banner` · div in MissingDriverBanner
   - `sql-pane-resize` · div · Drag to resize this table
   - `sql-pane-retry-{connectionId}` · button · Retry this server
   - `sql-result-{statementIndex}-{action}` · data
@@ -1233,6 +1253,11 @@ Every control has a test ID: **991** buttons, text boxes, selects and textareas.
   - `sql-recent-list` · div
   - `sql-recent-open-{id}` · button
   - `sql-recent-tab` · button · Recent
+  - `sql-workspace-script-delete-{id}` · button · Delete workspace script
+  - `sql-workspace-script-error` · p
+  - `sql-workspace-script-open-{id}` · button
+  - `sql-workspace-script-save` · button · Save the current query for everyone in this workspace
+  - `sql-workspace-scripts-tab` · button · Workspace
 - **SqlEditorView** · `features/sql-editor/components/SqlEditorView.tsx`
   - `sql-bookmark-save` · button · Save current query as a bookmark (uses the tab title)
   - `sql-bookmark-save-toolbar` · button · Bookmark this query (uses the tab title)
@@ -1335,16 +1360,12 @@ Every control has a test ID: **991** buttons, text boxes, selects and textareas.
   - `sql-variable-value-edit-{name}` · input
   - `sql-variable-value-input` · input · value
   - `sql-variables` · div
-- **StatementStrip** · `features/sql-editor/components/StatementStrip.tsx`
-  - `sql-statement-cell-{i}` · div
-  - `sql-statement-copy` · button
-  - `sql-statement-copy-row-{i}` · button
+- **StatementRunGutter** · `features/sql-editor/components/StatementRunGutter.tsx`
+  - `sql-statement-copy-{i}` · button
+  - `sql-statement-gutter` · div · Statement run checks
   - `sql-statement-include-{i}` · input
-  - `sql-statement-reveal-{i}` · button · In [ ]:
+  - `sql-statement-label-{i}` · button
   - `sql-statement-run-{i}` · button
-  - `sql-statement-strip` · div
-  - `sql-statement-strip-resize` · div · Resize statement list
-  - `sql-statement-values-popover` · div
 - **TableBlueprintModal** · `features/sql-editor/components/TableBlueprintModal.tsx`
   - `{testId}` · div · passed in by the parent
   - `{testId}-toggle` · button · passed in by the parent
@@ -1847,11 +1868,12 @@ Every control has a test ID: **991** buttons, text boxes, selects and textareas.
   - `workspace-menu-invite-accept-{id}` · button · Accept
   - `workspace-menu-invite-decline-{id}` · button · Decline
   - `workspace-menu-invites` · div
-  - `workspace-menu-item-{id}` · button
+  - `workspace-menu-item-{id}` · option
   - `workspace-menu-public` · div
   - `workspace-menu-public-{id}` · div
   - `workspace-menu-public-empty` · p
   - `workspace-menu-public-join-{id}` · button · Join
+  - `workspace-menu-select` · select · Workspace
   - `workspace-menu-settings` · button · Workspace settings
 - **WorkspaceRailButton** · `features/workspaces/components/WorkspaceRailButton.tsx`
   - `workspace-rail-btn` · button
@@ -1859,6 +1881,7 @@ Every control has a test ID: **991** buttons, text boxes, selects and textareas.
   - `workspace-rail-menu` · div
 - **WorkspaceSettingsDialog** · `features/workspaces/components/WorkspaceSettingsDialog.tsx`
   - `workspace-invite-{id}` · li
+  - `workspace-invite-ceiling` · p
   - `workspace-invite-email` · input · teammate@company.com
   - `workspace-invite-form` · form
   - `workspace-invite-new-account` · div

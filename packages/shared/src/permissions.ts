@@ -89,6 +89,7 @@ export const PERMISSIONS = [
   // Administration
   'admin.users',
   'admin.roles',
+  'admin.drivers',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -137,7 +138,7 @@ export const PERMISSION_META: PermissionMeta[] = [
   { id: 'access.access', group: 'Access', label: 'Open Access', description: 'Switch to the Access workspace.' },
   { id: 'access.users', group: 'Access', label: 'Users', description: 'Manage database accounts (User Management).' },
   { id: 'access.builder', group: 'Access', label: 'Permission builder', description: 'Build GRANT / REVOKE intents for principals.' },
-  { id: 'access.diff', group: 'Access', label: 'Permission diff', description: 'Compare effective privileges between principals or environments.' },
+  { id: 'access.diff', group: 'Access', label: 'Insight', description: 'Compare effective privileges between principals or environments.' },
   { id: 'access.inspector', group: 'Access', label: 'Inspector', description: 'Inspect effective privileges for a principal.' },
   { id: 'access.report', group: 'Access', label: 'Access report', description: 'Generate access reports.' },
   { id: 'compare.history', group: 'Schema Sync', label: 'History', description: 'Open schema history / snapshots (Lokee).' },
@@ -152,6 +153,7 @@ export const PERMISSION_META: PermissionMeta[] = [
   { id: 'workspace.create', group: 'Workspace', label: 'Create workspaces', description: 'Create workspaces besides your own. Install-wide: comes from the account role, not a workspace role.' },
   { id: 'admin.users', group: 'Admin', label: 'Manage users', description: 'List FoxSchema logins, assign app roles, and activate or deactivate accounts. Not the same as database users on a connected server.' },
   { id: 'admin.roles', group: 'Admin', label: 'Configure roles', description: 'Edit which FoxSchema permissions each app role receives, including Grant privileges for database GRANT/REVOKE.' },
+  { id: 'admin.drivers', group: 'Admin', label: 'Install drivers', description: 'Install a database driver package on the server (npm install, and a native build for Db2). It downloads and runs code on the machine Fox Schema runs on, for every workspace. Install-wide: comes from the account role, not a workspace role.' },
 ];
 
 const ALL = [...PERMISSIONS];
@@ -306,11 +308,31 @@ export function isWorkspaceRole(value: unknown): value is WorkspaceRole {
   return typeof value === 'string' && (WORKSPACE_ROLES as readonly string[]).includes(value);
 }
 
+/** True when `role` grants no more than `ceiling`: viewer < editor < owner. */
+export function workspaceRoleAtMost(role: WorkspaceRole, ceiling: WorkspaceRole): boolean {
+  return WORKSPACE_ROLES.indexOf(role) <= WORKSPACE_ROLES.indexOf(ceiling);
+}
+
+/** The lower of two workspace roles. */
+export function lowerWorkspaceRole(a: WorkspaceRole, b: WorkspaceRole): WorkspaceRole {
+  return workspaceRoleAtMost(a, b) ? a : b;
+}
+
+/**
+ * The highest workspace role an account can give: any for an admin, otherwise
+ * its own effective role there. The server enforces it; the settings dialog
+ * offers only what it allows.
+ */
+export function workspaceGrantCeiling(accountRole: string, ownRole: WorkspaceRole | null): WorkspaceRole {
+  return accountRole === 'admin' ? 'owner' : (ownRole ?? 'viewer');
+}
+
 /**
  * Permissions that belong to the install rather than to a workspace, so they
  * come from the account role. `editor.advanced` runs code on the server:
- * owning a workspace must never grant it. Workflows and Git repositories are
- * install-wide, and so is managing accounts and creating workspaces.
+ * owning a workspace must never grant it, nor `admin.drivers`, which installs
+ * packages on it. Workflows and Git repositories are install-wide, and so is
+ * managing accounts and creating workspaces.
  */
 export const INSTALL_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>([
   'editor.advanced',
@@ -322,6 +344,7 @@ export const INSTALL_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>(
   'git.manage',
   'admin.users',
   'admin.roles',
+  'admin.drivers',
   'workspace.create',
 ]);
 

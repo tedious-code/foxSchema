@@ -12,16 +12,13 @@
  * that account's first sign-in.
  */
 import { randomUUID } from 'node:crypto';
-import {
-  isWorkspaceRole,
-  permissionSatisfied,
-  type WorkspaceRole,
-} from '@foxschema/shared';
+import { isWorkspaceRole, type WorkspaceRole } from '@foxschema/shared';
 import { getStore } from '../../database/store';
 import type { MetadataStore } from '../../database/stores/types';
 import { RbacModule } from '../../platform/authorization/rbac.service';
 import { AuthModule, type IssuedCode } from '../../platform/identity/auth.service';
 import { ServiceError } from '../../platform/contracts/actor';
+import { assertRoleGrantable, requireWorkspacePermission } from '../../platform/workspaces/workspace.service';
 import type { WorkspaceActor } from './workspace-directory.service';
 
 export const OWNERS_INVITE_NEW_KEY = 'workspaces.owners_invite_new';
@@ -63,21 +60,20 @@ export class WorkspaceInvites {
   }
 
   /**
-   * Throw unless `actor` may manage members of `workspaceId`: admins
-   * anywhere, everyone in their own workspace, otherwise `workspace.members`.
+   * The workspace, once `actor` may manage its members, with the highest role
+   * they can give (`requireWorkspacePermission`).
    */
   private async requireMembers(store: MetadataStore, actor: WorkspaceActor, workspaceId: string) {
     const ws = await this.liveWorkspace(store, workspaceId);
-    if (actor.appRole === 'admin' || ws.personal_owner_id === actor.userId) return ws;
-    const row = await store.get<{ role: string }>(
-      'SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?',
-      [workspaceId, actor.userId]
+    const actorRole = await requireWorkspacePermission(
+      store,
+      actor,
+      ws,
+      'workspace.members',
+      (role) => this.rbac.permissionsForRole(role),
+      'Only someone who manages members here can invite.'
     );
-    if (!row || !isWorkspaceRole(row.role)) throw new ServiceError('not_found', 'Workspace not found');
-    if (!permissionSatisfied(await this.rbac.permissionsForRole(row.role), 'workspace.members')) {
-      throw new ServiceError('forbidden', 'Only someone who manages members here can invite.');
-    }
-    return ws;
+    return { ...ws, actorRole };
   }
 
   /**
@@ -95,6 +91,7 @@ export class WorkspaceInvites {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ServiceError('invalid_input', 'Enter an email address.');
     const store = await getStore();
     const ws = await this.requireMembers(store, actor, workspaceId);
+    assertRoleGrantable(ws.actorRole, role);
 
     let user = await store.get<{ id: string }>('SELECT id FROM users WHERE email = ?', [email]);
     let newAccount: IssuedCode | undefined;

@@ -11,6 +11,7 @@ Living documents describe the tree as it is. Plans and release notes are history
 | What the product is and how to install it | [README](../README.md), [install.md](install.md) |
 | How to use the app | [user-guide.md](user-guide.md) |
 | Where code lives | [CODE_MAP.md](CODE_MAP.md) |
+| What each feature is, what it touches, and how to plan work on it | [FEATURE_MAP.md](FEATURE_MAP.md) |
 | How the system is put together | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | File and symbol names | [CONVENTIONS.md](CONVENTIONS.md) |
 | How to work in this repo | [CONTRIBUTING.md](../CONTRIBUTING.md), [AGENTS.md](../AGENTS.md) |
@@ -61,6 +62,7 @@ Finished or in-progress design notes. Do not treat them as the map of the code. 
 | Feature-module schedule | [plans/2026-10-10-feature-architecture.md](plans/2026-10-10-feature-architecture.md) |
 | Workspaces and admin policy | [plans/2026-10-09-workspaces-and-admin-policy.md](plans/2026-10-09-workspaces-and-admin-policy.md) |
 | SQL editor | [plans/sql-editor.md](plans/sql-editor.md) |
+| Data Compare at 2,000 rows, SQL Tracer, Redis keys as tables | [plans/2026-10-17-data-compare-and-sql-tracer.md](plans/2026-10-17-data-compare-and-sql-tracer.md) |
 | Test ids | [plans/2026-10-03-test-ids.md](plans/2026-10-03-test-ids.md) |
 | Migrations in Git | [plans/2026-10-02-migrations-in-git.md](plans/2026-10-02-migrations-in-git.md) |
 | Seed and migration ordering | [plans/2026-07-01-seed-test-matrix.md](plans/2026-07-01-seed-test-matrix.md), [plans/2026-07-01-migration-ordering-bugs.md](plans/2026-07-01-migration-ordering-bugs.md) |

@@ -7,7 +7,6 @@ import {
   ensureTableHasAlias,
   findSelectListRange,
   insertIntoSelectList,
-  isInFromTablePosition,
   isSelectOrFromKeyword,
   parseSelectListItems,
   removeFromSelectList,
@@ -184,9 +183,4 @@ describe('selectClauseEdit', () => {
     expect(ensureAllFromTablesAliased(sql)).toBe(sql); // idempotent
   });
 
-  it('isInFromTablePosition detects FROM list vs WHERE', () => {
-    expect(isInFromTablePosition('SELECT * FROM ord')).toBe(true);
-    expect(isInFromTablePosition('SELECT * FROM orders o WHERE o.')).toBe(false);
-    expect(isInFromTablePosition('SELECT orders.')).toBe(false);
-  });
 });

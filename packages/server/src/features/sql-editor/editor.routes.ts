@@ -21,7 +21,14 @@ import {
   isDatagridAction,
   type Permission,
 } from '@foxschema/shared';
-import { sqlStatementCategories, statementVerb, errorMessage } from '@foxschema/sql';
+import {
+  dialectFeatureReason,
+  dialectHasTransactions,
+  errorMessage,
+  isTransactionControl,
+  sqlStatementCategories,
+  statementVerb,
+} from '@foxschema/sql';
 import { isSingleSqlStatement } from '../../platform/statements/single-statement';
 import { clampOffset, parseSqlSeek } from './sql-page-wrap.service';
 import { makeBeamCellQueryRunner, makeCellQueryRunner } from './code-cell-query.service';
@@ -101,6 +108,17 @@ export function createEditorRoutes(deps: EditorRouteDeps): Router {
       sendError(res, 'invalid_input', `Every statement must be a non-empty string under ${deps.MAX_STATEMENT_LENGTH} characters.`);
       return;
     }
+    // A batch run as one transaction cannot steer the transaction itself: a
+    // COMMIT inside it made the statements before it permanent, and a later
+    // failure then rolled back nothing while the editor said it had.
+    if (transaction === true && (statements as string[]).some((sql) => isTransactionControl(sql))) {
+      sendError(
+        res,
+        'invalid_input',
+        'One transaction cannot include BEGIN, COMMIT or ROLLBACK. Run this batch without One transaction.',
+      );
+      return;
+    }
     // Resolve the connection before classifying: what a statement does depends
     // on how its database reads the text (a backslash, a `#`, a `$$` mean
     // different things to MySQL and PostgreSQL), so the gate needs the dialect.
@@ -112,6 +130,19 @@ export function createEditorRoutes(deps: EditorRouteDeps): Router {
       return;
     }
     const { dialect } = resolved;
+    // On an engine with no transaction, BEGIN and ROLLBACK do nothing: each
+    // statement commits as it runs, and a failure would leave the earlier ones
+    // in place while the editor said the batch had rolled back. The sentence
+    // is the one Data migrate shows: "X has no transactions" was wrong for
+    // MongoDB, which has them on a replica set and is simply not given one.
+    if (transaction === true && !dialectHasTransactions(dialect)) {
+      sendError(
+        res,
+        'invalid_input',
+        `${dialectFeatureReason(dialect, 'transactions')} One transaction cannot roll this batch back, so run it without One transaction.`,
+      );
+      return;
+    }
     // Scan for writes only once the statements are known to be bounded strings.
     // Fail-closed: anything not provably a read needs `editor.write`, so a verb
     // the classifier doesn't recognize is denied instead of executed.

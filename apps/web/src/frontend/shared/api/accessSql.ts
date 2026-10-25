@@ -20,8 +20,13 @@ import { splitSqlStatements } from '@foxschema/ui-shared';
 import type { ConnectionRef } from './schemaApi';
 import { executeSql } from './sqlApi';
 
-/** Every statement succeeded, or which one failed and what ran around it. */
-export type AccessSqlOutcome = { ok: true } | { ok: false; error: string };
+/**
+ * Every statement succeeded, or which one failed and what ran around it.
+ * `applied` counts the statements that ran before the failure and stay
+ * applied — a caller re-reads the catalog when it is above zero, or it shows
+ * grants as they were before part of the script landed.
+ */
+export type AccessSqlOutcome = { ok: true } | { ok: false; error: string; applied: number };
 
 /**
  * Execute a grant/revoke script statement by statement.
@@ -46,14 +51,18 @@ export async function runAccessSql(
   const failedAt = results.findIndex((r) => !r.ok);
   if (failedAt === -1 && results.length === statements.length) return { ok: true };
   if (failedAt === -1) {
-    return { ok: false, error: `Only ${results.length} of ${statements.length} statements ran.` };
+    return { ok: false, error: `Only ${results.length} of ${statements.length} statements ran.`, applied: results.length };
   }
   const failure = results[failedAt]!;
   const error = 'error' in failure ? failure.error : 'failed';
-  if (statements.length === 1) return { ok: false, error };
+  if (statements.length === 1) return { ok: false, error, applied: 0 };
   const notRun = statements.length - failedAt - 1;
   const before = failedAt === 0 ? '' : ` The ${failedAt} before it ${failedAt === 1 ? 'was' : 'were'} applied.`;
   const after = notRun === 0 ? '' : ` The ${notRun} after it did not run.`;
   const reason = error.trim().replace(/\.$/, '');
-  return { ok: false, error: `Statement ${failedAt + 1} of ${statements.length} failed: ${reason}.${before}${after}` };
+  return {
+    ok: false,
+    error: `Statement ${failedAt + 1} of ${statements.length} failed: ${reason}.${before}${after}`,
+    applied: failedAt,
+  };
 }

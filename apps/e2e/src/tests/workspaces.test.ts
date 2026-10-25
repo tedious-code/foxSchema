@@ -67,7 +67,7 @@ afterAll(async () => {
 describe('workspaces', () => {
   it('the rail shows the account’s own workspace as current', async () => {
     await openMenu();
-    expect(await driver.locator(byTestId(`workspace-menu-item-${personalId}`)).getAttribute('aria-current')).toBe('true');
+    expect(await driver.locator(byTestId('workspace-menu-select')).inputValue()).toBe(personalId);
   });
 
   it('an admin creates a workspace from the menu and lands in it', async () => {
@@ -81,7 +81,7 @@ describe('workspaces', () => {
     created.push(ws.id);
     expect(list.json.currentId).toBe(ws.id);
     await openMenu();
-    expect(await driver.locator(byTestId(`workspace-menu-item-${ws.id}`)).getAttribute('aria-current')).toBe('true');
+    expect(await driver.locator(byTestId('workspace-menu-select')).inputValue()).toBe(ws.id);
     await saveScreenshot(driver, 'workspaces-menu-new-current');
   });
 

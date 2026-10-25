@@ -16,7 +16,7 @@ import { Layers } from 'lucide-react';
 import { useAuthStore } from '@/platform/authStore';
 import { MountWhenOpened } from '@/shared/components/MountWhenOpened';
 import { useAnchoredPopover } from '@/shared/lib/useAnchoredPopover';
-import { claimEditorWorkspace } from '@/shared/lib/editorWorkspaceStorage';
+import { followServerWorkspace } from '@/shared/lib/editorWorkspaceStorage';
 import { apiListWorkspaces, apiMyInvites, type WorkspaceList } from '../api/workspacesApi';
 
 const WorkspaceMenu = lazy(() => import('./WorkspaceMenu').then((m) => ({ default: m.WorkspaceMenu })));
@@ -29,7 +29,15 @@ function mark(name: string): string {
   return (word.charAt(0) || 'W').toUpperCase();
 }
 
-export function WorkspaceRailButton(): React.ReactElement | null {
+/** Module-level, so the effect that may call it does not re-run on every render. */
+const reloadPage = () => window.location.reload();
+
+export function WorkspaceRailButton({
+  reload = reloadPage,
+}: {
+  /** Replaced in tests; the app reloads when the editor follows the server. */
+  reload?: () => void;
+} = {}): React.ReactElement | null {
   const launch = useAuthStore((s) => s.launch);
   const [open, setOpen] = useState(false);
   const [list, setList] = useState<WorkspaceList | null>(null);
@@ -43,7 +51,11 @@ export function WorkspaceRailButton(): React.ReactElement | null {
     apiListWorkspaces()
       .then((next) => {
         if (!alive) return;
-        claimEditorWorkspace(next.currentId);
+        // The server decides which workspace is open; the editor follows it.
+        if (followServerWorkspace(next.currentId) === 'moved') {
+          reload();
+          return;
+        }
         setList(next);
       })
       .catch(() => undefined);
@@ -53,7 +65,7 @@ export function WorkspaceRailButton(): React.ReactElement | null {
     return () => {
       alive = false;
     };
-  }, [launch]);
+  }, [launch, reload]);
 
   useEffect(() => {
     if (!open) return;
@@ -62,8 +74,16 @@ export function WorkspaceRailButton(): React.ReactElement | null {
       if (anchorRef.current?.contains(target) || popoverRef.current?.contains(target)) return;
       setOpen(false);
     };
+    // Escape closes it too, unless something inside used the key first.
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !event.defaultPrevented) setOpen(false);
+    };
     document.addEventListener('mousedown', onClick);
-    return () => document.removeEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [open, anchorRef, popoverRef]);
 
   if (launch) return null;

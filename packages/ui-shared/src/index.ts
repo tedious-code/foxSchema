@@ -34,7 +34,8 @@ export type {
 
 // Engines: connection settings, the registry, and wire-compatible families.
 export {
-  DIALECTS, IBM_DB_VERSION, PROVIDER_SETTINGS, dialectFamily, getProviderSettings, isFileDialect,
+  DIALECTS, IBM_DB_VERSION, PROVIDER_SETTINGS, dialectFamily, dialectHasTransactions, getProviderSettings,
+  isFileDialect,
 } from '@foxschema/sql';
 export type { Dialect } from '@foxschema/sql';
 
@@ -67,7 +68,7 @@ export {
   checkStatement, codeCellHasReturn, codeCellNeedsTs, collectMultiTableWriteWarnings,
   countReferencedTables, dmlLacksWhere, extractTableAliases, findCodeFences, firstKeyword,
   isCodeCellKind, isInsertWriteStatement, isMutatingDmlStatement, isNodeCodeCellKind,
-  isPageableStatement, isSqlQuery, isWriteStatement, makeSqlQuery, nodeCodeCellWireKind,
+  isPageableStatement, isSqlQuery, isTransactionControl, isWriteStatement, makeSqlQuery, nodeCodeCellWireKind,
   parseCodeCell, placeholderStyleFor, qualifiedNameParts, quoteIdentifierIfNeeded,
   quoteSqlIdentifier, referencedTableNames, renderSqlQuery, requiresWritePermission,
   splitSqlStatements, sqlTag, statementVerb, stripCodeFenceMarkers, stripFullLineSqlComments,
@@ -111,8 +112,8 @@ export {
   collapsedColumnsFor, compileFoxScriptPlan, foxScriptExecutableTexts, isCodeCellLast,
   isCodeCellVars, normalizeCodeCellReturn, parseCodeCellImports, parseFoxScript, parseSqlSubset,
   parseTopLevelOrderBy, prepareCodeCellImports, resolveCodeCellImportBindings, rowKeyFor,
-  runCodeCellBody, splitSelectItems, subsetValue, tablesInOrigins, uniqueKeyCoversOrder,
-  uniqueKeysFromTable,
+  runCodeCellBody, splitSelectItems, splitTopLevel, subsetValue, tablesInOrigins,
+  uniqueKeyCoversOrder, uniqueKeysFromTable,
 } from '@foxschema/sql';
 export type {
   CodeCellAllowedPackage, CodeCellErr, CodeCellImportSpec, CodeCellLast, CodeCellOk, CodeCellResult,

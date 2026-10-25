@@ -33,6 +33,7 @@ export {
   withConnectionString,
   isFileDialect,
   dialectFamily,
+  dialectHasTransactions,
   DEFAULT_PORTS,
   connectionNeedsSecret,
   authMethodsForDialect,

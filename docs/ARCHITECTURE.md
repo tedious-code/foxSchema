@@ -155,6 +155,13 @@ connection grant follows the connection’s workspace.
   (`GET /api/workspaces/discover`, `POST /:id/join`). Join role is viewer or
   editor, never owner. An invite never adds: the invitee accepts
   (`POST /api/workspaces/invites/:id/accept`, 14-day TTL).
+- **UI.** One workspace is open. `WorkspaceRailButton` sits under the Fox mark
+  on the activity rail (not the profile menu) and opens the same
+  `WorkspaceMenu` (switch, invites, settings, public join, create). A launch
+  session hides it. Switching is still `POST /api/workspaces/:id/select` then
+  reload. Editor tabs/scripts in this browser are keyed by workspace id
+  (`editorWorkspaceStorage.ts`); the unscoped blob is claimed once by the first
+  workspace the rail sees.
 
 Startup `backfillWorkspaces` gives each account a personal workspace and moves
 rows that still have `workspace_id` null or `'local'` into their author’s.
@@ -285,8 +292,10 @@ largest files when it fails. Everything else loads when it is used:
   `prefetchView` on hover or focus, so a view's code is usually already loaded by the time
   the click lands.
 - **Panels that open on a click** (admin console, credentials, applies history, new
-  connection) are `lazy()` inside `MountWhenOpened`. That mounts a panel on its first open
-  and keeps it mounted afterwards, so its state survives closing exactly as before.
+  connection, the workspace menu) are `lazy()` inside `MountWhenOpened`. That mounts a
+  panel on its first open and keeps it mounted afterwards, so its state survives
+  closing exactly as before. The workspace button is shell, not a view — it is
+  not in the view registry.
 - **Heavy libraries** (sql-formatter, Prettier, faker, lodash, date-fns, zod, ajv) load
   through `shared/lib/loadOnce.ts`: one shared promise, retried after a failure. A
   component that needs one while rendering uses `useLoaded(loader)`, which re-renders
@@ -337,7 +346,7 @@ Rendering on the hot paths (what to keep when editing these components):
   (`cachedPlan`), so Execute, the Git commit check and the review notes share one build.
 - The Compare tree rows, the permission matrix rows and the results panel are
   `React.memo` and are passed stable props; an inline callback or a default `[]` prop
-  breaks that. The statement strip caches each statement's checks by its text.
+  breaks that. The run rail caches each statement's Safe-mode badge by its text.
 
 ## SQL text: one tokenizer, dialect readings
 
@@ -377,6 +386,13 @@ Constraints:
    `packages/sql/src/providers/provider-settings.ts` (`dialect-registry.test.ts`
    fails until they match `PROVIDER_SETTINGS`). Nothing in `apps/web` needs
    editing — the frontend re-exports this registry.
+   If the adapter's `beginTransaction` / `rollbackTransaction` do nothing, set
+   `transactions: false` in `<name>.settings.ts`: the editor then refuses
+   One transaction there instead of reporting a rollback that never happened,
+   Data migrate's Transaction checkbox is off and disabled, and `@foxschema/db`
+   reports neither DML nor DDL rollback. Say why in the `transactions` entry of
+   `modules/capabilities/dialect-features.ts` — it is the checkbox's tooltip,
+   and `dialect-features.test.ts` fails until each such engine has one.
 4. Add `parseType`/`renderType` round-trip tests in `type-mapping.test.ts`
 5. Verify each optional hook against real DDL — the generic fallbacks are often wrong for DROP INDEX/TRIGGER/FK
 6. Say how the engine lexes SQL in `modules/sql-text/sql-readings.ts` (comments,

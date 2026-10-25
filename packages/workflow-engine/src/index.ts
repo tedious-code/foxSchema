@@ -33,6 +33,8 @@ export {
   ConditionPipe,
   createDefaultPipeRegistry,
   resolveWorkflowFile,
+  openWorkflowFile,
+  type WorkflowFile,
   workflowFilesRoot,
   FILES_DIR_ENV,
 } from './pipes/utility/index.js';

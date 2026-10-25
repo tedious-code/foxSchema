@@ -13,10 +13,17 @@ import { sendError } from '../../platform/http/respond';
 import { ServiceError } from '../../platform/contracts/actor';
 import { WorkspaceDirectory, type WorkspaceActor } from './workspace-directory.service';
 import { WorkspaceInvites } from './workspace-invites.service';
+import { WorkspaceScripts } from './workspace-scripts.service';
 import { AuthMailer } from '../../platform/identity/auth-mail';
 
 function actorOf(req: AuthedRequest): WorkspaceActor {
   return { userId: req.userId!, appRole: req.appRole ?? 'viewer', permissions: req.permissions ?? new Set() };
+}
+
+/** The workspace this request acts in, or a clear error when none is selected. */
+function workspaceOf(req: AuthedRequest): string {
+  if (!req.workspaceId) throw new ServiceError('invalid_input', 'No workspace is selected.');
+  return req.workspaceId;
 }
 
 function fail(res: FastifyReply, error: unknown): void {
@@ -27,7 +34,8 @@ function fail(res: FastifyReply, error: unknown): void {
 export function createWorkspaceRoutes(
   directory = new WorkspaceDirectory(),
   invites = new WorkspaceInvites(),
-  mailer = new AuthMailer()
+  mailer = new AuthMailer(),
+  scripts = new WorkspaceScripts()
 ): Router {
   const router = Router();
   const id = (req: AuthedRequest) => String(req.params.id ?? '');
@@ -78,6 +86,33 @@ export function createWorkspaceRoutes(
     }
   });
 
+  /** Scripts every member of the current workspace can open. */
+  router.get('/scripts', async (req: AuthedRequest, res: FastifyReply) => {
+    try {
+      res.send(await scripts.list(req.userId!, workspaceOf(req)));
+    } catch (error) {
+      fail(res, error);
+    }
+  });
+
+  router.post('/scripts', async (req: AuthedRequest, res: FastifyReply) => {
+    const body = (req.body ?? {}) as { title?: unknown; sql?: unknown };
+    try {
+      res.send({ script: await scripts.save(req.userId!, workspaceOf(req), body.title, body.sql) });
+    } catch (error) {
+      fail(res, error);
+    }
+  });
+
+  router.delete('/scripts/:scriptId', async (req: AuthedRequest, res: FastifyReply) => {
+    try {
+      await scripts.remove(req.userId!, workspaceOf(req), String(req.params.scriptId ?? ''));
+      res.send({ ok: true });
+    } catch (error) {
+      fail(res, error);
+    }
+  });
+
   /** Where this session acts, everywhere it may, and whether it may make more. */
   router.get('/', async (req: AuthedRequest, res: FastifyReply) => {
     const actor = actorOf(req);
@@ -119,6 +154,16 @@ export function createWorkspaceRoutes(
   router.post('/:id/archive', async (req: AuthedRequest, res: FastifyReply) => {
     try {
       await directory.archive(actorOf(req), id(req));
+      res.send({ ok: true });
+    } catch (error) {
+      fail(res, error);
+    }
+  });
+
+  /** An admin brings an archived workspace back. */
+  router.post('/:id/restore', async (req: AuthedRequest, res: FastifyReply) => {
+    try {
+      await directory.restore(actorOf(req), id(req));
       res.send({ ok: true });
     } catch (error) {
       fail(res, error);

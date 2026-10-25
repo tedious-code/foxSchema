@@ -23,7 +23,8 @@ import {
   parseFoxScript,
   type SplitStatement,
 } from '@/shared/lib/sql-splitter';
-import { ensureSqlCompletions } from '../lib/completion';
+import { ensureSqlCompletions, shouldOpenClauseSuggest } from '../lib/completion';
+import { disarmPasswordAutofill } from '../lib/passwordAutofill';
 import { applyFoxscriptMarkers, clearFoxscriptMarkers } from '../lib/foxscriptDiagnostics';
 import {
   setSqlCaretOffsetGetter,
@@ -36,18 +37,19 @@ import {
   SelectColumnPicker,
   type SelectColumnPickerAnchor,
 } from './SelectColumnPicker';
-
-export interface RevealRequest {
-  startLine: number;
-  endLine: number;
-  /** Bump to re-trigger reveal for the same range. */
-  nonce: number;
-}
+import { StatementRunGutter } from './StatementRunGutter';
+import { statementCopyText } from '../lib/statementBadges';
 
 interface Props {
   value: string;
-  /** Pre-split statements from the parent (kept for API compatibility / strip). */
   statements: SplitStatement[];
+  /** Statement indexes included in toolbar Run. */
+  checkedStatements?: number[];
+  onToggleStatement?: (index: number) => void;
+  /** Per-cell play, same pipeline as toolbar Run. */
+  onRunCell?: (index: number) => void;
+  cellRunning?: boolean;
+  sqlNeedsDestination?: boolean;
   dialect: string;
   onChange: (value: string) => void;
   /** Ctrl/Cmd+Enter shortcut → run. */
@@ -56,23 +58,29 @@ interface Props {
   onSelectionChange?: (hasSelection: boolean) => void;
   /** Caret moved — offset in the model, so Run can label the right statement. */
   onCaretChange?: (offset: number | null) => void;
-  /** Statement strip click → scroll/select that range. */
-  reveal?: RevealRequest | null;
 }
 
 /**
  * Editable Monaco pane for the SQL Editor. Notebook-style cell banding spans
  * each statement's line range; the glyph margin shows ✓ / ⚠ on the first line.
+ * The run rail on the left numbers each statement In [n], with its play button,
+ * include checkbox and a copy-with-values button; clicking the number selects
+ * the statement.
  * Model language is FoxScript (`foxscript`) once Monarch + packs load.
  */
 export const SqlEditorPane: React.FC<Props> = ({
   value,
+  statements,
+  checkedStatements = [],
+  onToggleStatement,
+  onRunCell,
+  cellRunning = false,
+  sqlNeedsDestination = false,
   dialect,
   onChange,
   onRun,
   onSelectionChange,
   onCaretChange,
-  reveal,
 }) => {
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
@@ -89,12 +97,14 @@ export const SqlEditorPane: React.FC<Props> = ({
   const fontSizePref = useUiStore((s) => s.fontSize);
   const monacoFontSize = MONACO_FONT_PX[fontSizePref] ?? MONACO_FONT_PX.md;
   const variables = useSqlEditorStore((s) => s.variables);
+  const safeMode = useSqlEditorStore((s) => s.safeMode);
   const schemaCache = useSqlEditorStore((s) => s.schemaCache);
   const [editorLanguage, setEditorLanguage] = useState(() => monacoLanguage(dialect));
   const [columnPickerOpen, setColumnPickerOpen] = useState(false);
   const [columnPickerAnchor, setColumnPickerAnchor] = useState<SelectColumnPickerAnchor | null>(
     null
   );
+  const [editorEpoch, setEditorEpoch] = useState(0);
   const editorOptions = useMemo(
     () => ({
       ...MONACO_EDITOR_BASE_OPTIONS,
@@ -143,8 +153,8 @@ export const SqlEditorPane: React.FC<Props> = ({
             glyphMarginHoverMessage: {
               value: ok
                 ? isCode
-                  ? 'Code cell looks complete — use the strip ▶ to run this cell'
-                  : 'Statement looks complete — use the strip ▶ to run this cell'
+                  ? 'Code cell looks complete — use the ▶ on the left to run this cell'
+                  : 'Statement looks complete — use the ▶ on the left to run this cell'
                 : status.reasons.join(' · '),
             },
             stickiness: 1,
@@ -197,22 +207,22 @@ export const SqlEditorPane: React.FC<Props> = ({
     refreshFoxscriptSemanticTokens();
   }, [schemaCache]);
 
-  useEffect(() => {
+  /** Select a statement's lines (the rail's In [n] number was clicked). */
+  const revealStatement = (stmt: SplitStatement) => {
     const editor = editorRef.current;
-    if (!editor || !reveal) return;
+    if (!editor) return;
     const model = editor.getModel();
-    const endColumn = model ? model.getLineMaxColumn(reveal.endLine) : 1;
     const range = {
-      startLineNumber: reveal.startLine,
+      startLineNumber: stmt.startLine,
       startColumn: 1,
-      endLineNumber: reveal.endLine,
-      endColumn,
+      endLineNumber: stmt.endLine,
+      endColumn: model ? model.getLineMaxColumn(stmt.endLine) : 1,
     };
-    editor.revealRangeInCenter(range);
+    editor.revealRangeInCenterIfOutsideViewport(range);
     editor.setSelection(range);
     editor.focus();
     onSelectionChangeRef.current?.(true);
-  }, [reveal]);
+  };
 
   useEffect(() => {
     return () => {
@@ -237,6 +247,27 @@ export const SqlEditorPane: React.FC<Props> = ({
 
   return (
     <>
+    {/* A form with no password field, so Enter stays in the editor. Without
+        it Chrome treats this origin's saved login as belonging to the textarea. */}
+    <form
+      autoComplete="off"
+      className="flex h-full min-h-0 w-full"
+      onSubmit={(event) => event.preventDefault()}
+    >
+    <StatementRunGutter
+      statements={statements}
+      checked={checkedStatements}
+      editorRef={editorRef}
+      editorEpoch={editorEpoch}
+      running={cellRunning}
+      sqlNeedsDestination={sqlNeedsDestination}
+      safeMode={safeMode}
+      onToggle={(index) => onToggleStatement?.(index)}
+      onRunCell={onRunCell}
+      onReveal={revealStatement}
+      copyTextFor={(stmt) => statementCopyText(stmt.text, variables)}
+    />
+    <div className="h-full min-w-0 flex-1">
     <Editor
       height="100%"
       theme={monacoTheme}
@@ -246,6 +277,14 @@ export const SqlEditorPane: React.FC<Props> = ({
       onMount={(editor, monaco) => {
         editorRef.current = editor;
         monacoRef.current = monaco;
+        setEditorEpoch((n) => n + 1);
+        const disarm = () => disarmPasswordAutofill(editor.getDomNode?.() ?? null);
+        disarm();
+        // Monaco writes autocomplete="off" while building the textarea, and
+        // Chrome ignores "off" on a site that has a saved login. Stamp again
+        // after that write, and whenever the editor is focused.
+        requestAnimationFrame(disarm);
+        editor.onDidFocusEditorText(disarm);
         ensureSqlCompletions(monaco);
         ensureFoxscriptVirtualProviders(monaco);
         ensureFoxscriptSemanticTokens(monaco, () => useSqlEditorStore.getState().schemaCache);
@@ -260,6 +299,22 @@ export const SqlEditorPane: React.FC<Props> = ({
             applyFoxscriptMarkers(monaco, model, fox);
             syncFoxscriptVirtualDocs(monaco, model, fox);
           }
+        });
+        // `onDidType` is on Monaco's ICodeEditor but not in the public
+        // editor.api typings, so it is reached through one narrow cast.
+        const typing = editor as typeof editor & {
+          onDidType?: (listener: (text: string) => void) => void;
+        };
+        typing.onDidType?.((typed: string) => {
+          if (typed !== ' ' && typed !== '=') return;
+          const model = editor.getModel?.();
+          const pos = editor.getPosition?.();
+          if (!model || !pos) return;
+          // The clause keyword touching the caret is on the caret's own line,
+          // so read that line instead of copying the whole buffer per space.
+          const before = model.getLineContent(pos.lineNumber).slice(0, pos.column - 1);
+          if (!shouldOpenClauseSuggest(before)) return;
+          editor.trigger('keyboard', 'editor.action.triggerSuggest', { auto: true });
         });
         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => onRunRef.current?.());
         // Ctrl/Cmd+S → bookmark current query
@@ -357,6 +412,8 @@ export const SqlEditorPane: React.FC<Props> = ({
       }}
       options={editorOptions}
     />
+    </div>
+    </form>
     <SelectColumnPicker
       open={columnPickerOpen}
       anchor={columnPickerAnchor}

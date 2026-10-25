@@ -7,9 +7,10 @@
  * switching is `select` and a reload — every request after it, from any
  * tab, acts there.
  */
+import type { WorkspaceRole } from '@foxschema/shared';
 import { api } from '@/shared/api/client';
 
-export type WorkspaceRole = 'viewer' | 'editor' | 'owner';
+export type { WorkspaceRole };
 
 export interface WorkspaceItem {
   id: string;
@@ -40,6 +41,27 @@ export interface WorkspaceList {
 const enc = encodeURIComponent;
 
 export const apiListWorkspaces = (): Promise<WorkspaceList> => api.get('/workspaces');
+
+export interface WorkspaceScript {
+  id: string;
+  title: string;
+  sql: string;
+  updatedBy: string | null;
+  updatedAt: string;
+}
+
+/** Scripts stored on the current workspace. Every member can open them. */
+export async function apiListWorkspaceScripts(): Promise<{ scripts: WorkspaceScript[]; canWrite: boolean }> {
+  return api.get('/workspaces/scripts');
+}
+
+export async function apiSaveWorkspaceScript(title: string, sql: string): Promise<WorkspaceScript> {
+  return (await api.post<{ script: WorkspaceScript }>('/workspaces/scripts', { title, sql })).script;
+}
+
+export async function apiDeleteWorkspaceScript(id: string): Promise<void> {
+  await api.delete(`/workspaces/scripts/${enc(id)}`);
+}
 
 export async function apiCreateWorkspace(name: string): Promise<WorkspaceItem> {
   return (await api.post<{ workspace: WorkspaceItem }>('/workspaces', { name })).workspace;
@@ -78,6 +100,11 @@ export async function apiJoinWorkspace(id: string): Promise<WorkspaceRole> {
 
 export async function apiArchiveWorkspace(id: string): Promise<void> {
   await api.post(`/workspaces/${enc(id)}/archive`, {});
+}
+
+/** Admins: bring an archived workspace back, members and data as they were. */
+export async function apiRestoreWorkspace(id: string): Promise<void> {
+  await api.post(`/workspaces/${enc(id)}/restore`, {});
 }
 
 export async function apiWorkspaceMembers(id: string): Promise<WorkspaceMember[]> {

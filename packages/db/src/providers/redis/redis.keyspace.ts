@@ -351,7 +351,9 @@ export async function sampleKeyspace(
     const colon = key.indexOf(':');
     if (colon <= 0) return;
     const prefix = key.slice(0, colon);
-    prefixes.set(prefix, [...(prefixes.get(prefix) ?? []), { key, type }]);
+    const entries = prefixes.get(prefix);
+    if (entries) entries.push({ key, type });
+    else prefixes.set(prefix, [{ key, type }]);
   });
 
   // Up to `rowsPerTable` keys of every prefix, read together with the types already known.
@@ -361,7 +363,10 @@ export async function sampleKeyspace(
   const byPrefix = new Map<string, KeyRead[]>();
   samples.forEach((s, i) => {
     const read = reads[i];
-    if (read) byPrefix.set(s.prefix, [...(byPrefix.get(s.prefix) ?? []), read]);
+    if (!read) return;
+    const list = byPrefix.get(s.prefix);
+    if (list) list.push(read);
+    else byPrefix.set(s.prefix, [read]);
   });
 
   const tables: KeyspaceTable[] = ordered.map(([prefix]) => {

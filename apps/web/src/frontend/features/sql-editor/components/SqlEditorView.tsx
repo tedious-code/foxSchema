@@ -1,5 +1,4 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { isSubsetDialect } from '@foxschema/ui-shared';
 import {
   Loader2,
   Play,
@@ -176,8 +175,8 @@ export const SqlEditorView: React.FC = () => {
   const [dragOver, setDragOver] = useState<number | null>(null);
   const secretsPanelRef = useRef<SqlSecretsPanelHandle>(null);
   const schemaExplorerRef = useRef<SqlSchemaExplorerHandle>(null);
-  /** The browsed connection's dialect: Redis and MongoDB have no tables to create. */
-  const [explorerDialect, setExplorerDialect] = useState<string | null>(null);
+  /** Whether the browsed connection has tables to create (not Redis or MongoDB). */
+  const [explorerCanCreateTable, setExplorerCanCreateTable] = useState(true);
   const [secretsRefreshing, setSecretsRefreshing] = useState(false);
   const [runsOpen, setRunsOpen] = useState(false);
 
@@ -525,7 +524,7 @@ export const SqlEditorView: React.FC = () => {
               height={sectionHeights.schema}
               onResizeHeight={(h) => setSectionHeight('schema', h)}
               actions={
-                explorerDialect && isSubsetDialect(explorerDialect) ? undefined : (
+                !explorerCanCreateTable ? undefined : (
                   <button
                     type="button"
                     data-testid="sql-schema-new-table"
@@ -540,7 +539,7 @@ export const SqlEditorView: React.FC = () => {
               }
               {...drag}
             >
-              <SqlSchemaExplorer ref={schemaExplorerRef} onDialectChange={setExplorerDialect} />
+              <SqlSchemaExplorer ref={schemaExplorerRef} onCanCreateTableChange={setExplorerCanCreateTable} />
             </SqlSidebarSection>
           );
         default:
@@ -552,7 +551,7 @@ export const SqlEditorView: React.FC = () => {
       canEditorBookmarks,
       canEditorVariables,
       canVariablesRead,
-      explorerDialect,
+      explorerCanCreateTable,
       canEditorSecrets,
       canSecretsView,
       canEditorSchema,

@@ -23,23 +23,38 @@
  * SMEMBERS, no LRANGE 0 -1).
  */
 
-/** Key types that read as a table of their own rather than as one row. */
-export const COLLECTION_TYPES: ReadonlySet<string> = new Set(['list', 'set', 'zset', 'stream']);
-
 /** What `TYPE` answers for a RedisJSON document (the module, or Redis 8). */
 export const JSON_TYPE = 'ReJSON-RL';
 
-/** Elements fetched per command while reading a collection. */
+/** Elements fetched per command while reading a collection, and keys per pipelined batch. */
 const CHUNK = 500;
 
 /**
  * Most elements one query examines while filtering or skipping. A WHERE on a
  * list has to read elements to test them; this keeps one page of the editor
- * from walking a million-element list.
+ * from walking a million-element list, or a WHERE that matches nothing from
+ * walking a whole cache.
  */
 export const MAX_SCAN = 50_000;
 
 type Row = Record<string, unknown>;
+
+/**
+ * A node-redis scan iterator (SCAN, SSCAN) a batch of names at a time.
+ * node-redis v6 yields a batch per step; older clients yielded one name.
+ * Assuming the single shape made `String(['a','b'])` the key, so every scan
+ * silently returned nothing.
+ */
+export async function* scanBatches(iterator: AsyncIterable<unknown>): AsyncIterable<string[]> {
+  for await (const batch of iterator) yield (Array.isArray(batch) ? batch : [batch]).map(String);
+}
+
+/** `fn` over every item, CHUNK at a time: node-redis pipelines commands issued together, so a batch is one round trip. */
+async function inBatches<T, R>(items: readonly T[], fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = [];
+  for (let i = 0; i < items.length; i += CHUNK) out.push(...(await Promise.all(items.slice(i, i + CHUNK).map(fn))));
+  return out;
+}
 
 /**
  * A JSON object's top-level fields as cell values, or null when `text` is not
@@ -47,7 +62,8 @@ type Row = Record<string, unknown>;
  * one value, and flattening `a.b.c` into columns would invent a schema.
  */
 export function jsonObjectFields(text: string | null | undefined): Row | null {
-  if (typeof text !== 'string' || text.trimStart()[0] !== '{') return null;
+  // A regex, not trimStart(): that copies the whole value to read one character.
+  if (typeof text !== 'string' || !/^\s*\{/.test(text)) return null;
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -73,20 +89,111 @@ async function readJsonDocument(client: any, key: string): Promise<string | null
   }
 }
 
-/** How many elements a collection key holds, or null for other types. */
-export async function collectionLength(client: any, key: string, type: string): Promise<number | null> {
-  switch (type) {
-    case 'list':
-      return Number(await client.lLen(key));
-    case 'set':
-      return Number(await client.sCard(key));
-    case 'zset':
-      return Number(await client.zCard(key));
-    case 'stream':
-      return Number(await client.xLen(key));
-    default:
-      return null;
+/** A list element or stream entry: its JSON fields when it is a JSON object, else the raw value. */
+function elementRow(lead: Row, value: unknown): Row {
+  const fields = typeof value === 'string' ? jsonObjectFields(value) : null;
+  return fields ? { ...lead, ...fields } : { ...lead, value };
+}
+
+/** LRANGE / ZRANGE `size` at a time from index `start`. */
+async function* rangeChunks<T>(
+  fetch: (from: number, to: number) => Promise<T[]>,
+  toRow: (item: T, index: number) => Row,
+  start: number,
+  size: number
+): AsyncIterable<Row[]> {
+  for (let at = start; ; at += size) {
+    const items = await fetch(at, at + size - 1);
+    if (items.length > 0) yield items.map((item, i) => toRow(item, at + i));
+    if (items.length < size) return;
   }
+}
+
+/** One collection type: how a key of it reads as a table. */
+interface CollectionSpec {
+  /** The columns before JSON elements widen the table, with their types (text unless named). */
+  columns: string[];
+  columnTypes?: Record<string, string>;
+  length(client: any, key: string): Promise<unknown>;
+  /** Rows `size` at a time, from element `start` when `indexed`, else from the first. */
+  chunks(client: any, key: string, start: number, size: number): AsyncIterable<Row[]>;
+  /** LRANGE / ZRANGE start at an element index, so an unfiltered page skips nothing. */
+  indexed: boolean;
+}
+
+/** Every key type that reads as a table of its own rather than as one row. */
+const COLLECTIONS = new Map<string, CollectionSpec>([
+  [
+    'list',
+    {
+      columns: ['index', 'value'],
+      columnTypes: { index: 'integer' },
+      indexed: true,
+      length: (c, k) => c.lLen(k),
+      chunks: (c, k, start, size) =>
+        rangeChunks<string>((a, b) => c.lRange(k, a, b), (v, i) => elementRow({ index: i }, v), start, size),
+    },
+  ],
+  [
+    'zset',
+    {
+      columns: ['member', 'score'],
+      columnTypes: { score: 'double' },
+      indexed: true,
+      length: (c, k) => c.zCard(k),
+      chunks: (c, k, start, size) =>
+        rangeChunks<{ value: string; score: number }>(
+          (a, b) => c.zRangeWithScores(k, a, b),
+          (m) => ({ member: m.value, score: m.score }),
+          start,
+          size
+        ),
+    },
+  ],
+  [
+    'set',
+    {
+      columns: ['member'],
+      indexed: false,
+      length: (c, k) => c.sCard(k),
+      // SSCAN's COUNT is only a hint, so a set reads CHUNK per step whatever the page.
+      async *chunks(c, k) {
+        for await (const members of scanBatches(c.sScanIterator(k, { COUNT: CHUNK }))) {
+          yield members.map((member) => ({ member }));
+        }
+      },
+    },
+  ],
+  [
+    'stream',
+    {
+      columns: ['entry_id'],
+      indexed: false,
+      length: (c, k) => c.xLen(k),
+      async *chunks(c, k, _start, size) {
+        let from = '-';
+        for (;;) {
+          const entries: Array<{ id: string; message: Record<string, string> }> = await c.xRange(k, from, '+', {
+            COUNT: size,
+          });
+          if (entries.length > 0) {
+            yield entries.map((e) => ({ entry_id: e.id, ...e.message }));
+            // Exclusive start (`(id`) so the last entry is not read twice.
+            from = `(${entries[entries.length - 1]!.id}`;
+          }
+          if (entries.length < size) return;
+        }
+      },
+    },
+  ],
+]);
+
+/** Key types that read as a table of their own rather than as one row. */
+export const COLLECTION_TYPES: ReadonlySet<string> = new Set(COLLECTIONS.keys());
+
+/** A column's type as the explorer shows it. Redis stores text; a list's index and a sorted set's score are numbers. */
+export function columnType(column: string, storeType: string): string {
+  return COLLECTIONS.get(storeType)?.columnTypes?.[column] ?? 'text';
 }
 
 /** `users:7` under the table `users` → `7`; a key outside it keeps its name. */
@@ -94,105 +201,60 @@ function idWithin(table: string, key: string): string {
   return key.startsWith(`${table}:`) ? key.slice(table.length + 1) : key;
 }
 
-/** What a key read as: the row, and which shape it took. */
-interface KeyRead {
-  row: Row | null;
-  shape: 'hash' | 'json' | 'string' | 'collection' | 'none';
-}
-
-async function readKey(client: any, table: string, key: string): Promise<KeyRead> {
-  const type = String(await client.type(key));
-  const id = idWithin(table, key);
-  switch (type) {
-    case 'none':
-      return { row: null, shape: 'none' };
-    case 'hash': {
-      const hash = await client.hGetAll(key);
-      if (!hash || Object.keys(hash).length === 0) return { row: null, shape: 'none' };
-      return { row: { id, ...hash }, shape: 'hash' };
-    }
-    case 'string': {
-      const value = await client.get(key);
-      if (value === null) return { row: null, shape: 'none' };
-      const fields = jsonObjectFields(value);
-      return fields ? { row: { id, ...fields }, shape: 'json' } : { row: { id, value }, shape: 'string' };
-    }
-    case JSON_TYPE: {
-      const text = await readJsonDocument(client, key);
-      if (text === null) return { row: { id, type }, shape: 'json' };
-      const fields = jsonObjectFields(text);
-      return { row: fields ? { id, ...fields } : { id, value: text }, shape: 'json' };
-    }
-    default:
-      return { row: { id, type, length: await collectionLength(client, key, type) }, shape: 'collection' };
-  }
+/** A key read as a row, the type it holds, and the shape the row took. */
+export interface KeyRead {
+  row: Row;
+  type: string;
+  shape: 'hash' | 'json' | 'string' | 'collection';
 }
 
 /**
- * One key of a prefix table as a row, or null when it no longer exists.
+ * One key of the prefix table `table` as a row, or null when it no longer
+ * exists. Pass `type` when it is already known, to skip the TYPE lookup.
  *
  * A collection key under a prefix still gets a row — its type and size — so the
  * prefix lists everything under it; its elements are read through its own
  * table (the key's full name).
  */
-export async function readKeyRow(client: any, table: string, key: string): Promise<Row | null> {
-  return (await readKey(client, table, key)).row;
-}
-
-/** A list element or stream entry: its JSON fields when it is a JSON object, else the raw value. */
-function elementRow(lead: Row, value: unknown): Row {
-  const fields = typeof value === 'string' ? jsonObjectFields(value) : null;
-  return fields ? { ...lead, ...fields } : { ...lead, value };
-}
-
-async function* listChunks(client: any, key: string, start: number): AsyncIterable<Row[]> {
-  for (let at = start; ; at += CHUNK) {
-    const items: string[] = await client.lRange(key, at, at + CHUNK - 1);
-    if (items.length > 0) yield items.map((v, i) => elementRow({ index: at + i }, v));
-    if (items.length < CHUNK) return;
-  }
-}
-
-async function* sortedSetChunks(client: any, key: string, start: number): AsyncIterable<Row[]> {
-  for (let at = start; ; at += CHUNK) {
-    const items: Array<{ value: string; score: number }> = await client.zRangeWithScores(key, at, at + CHUNK - 1);
-    if (items.length > 0) yield items.map((m) => ({ member: m.value, score: m.score }));
-    if (items.length < CHUNK) return;
-  }
-}
-
-async function* setChunks(client: any, key: string): AsyncIterable<Row[]> {
-  // node-redis yields a batch of members per step; older clients yielded one.
-  for await (const batch of client.sScanIterator(key, { COUNT: CHUNK })) {
-    const members = Array.isArray(batch) ? batch : [batch];
-    yield members.map((m: unknown) => ({ member: String(m) }));
-  }
-}
-
-async function* streamChunks(client: any, key: string): AsyncIterable<Row[]> {
-  let from = '-';
-  for (;;) {
-    const entries: Array<{ id: string; message: Record<string, string> }> = await client.xRange(key, from, '+', {
-      COUNT: CHUNK,
-    });
-    if (entries.length > 0) {
-      yield entries.map((e) => ({ entry_id: e.id, ...e.message }));
-      // Exclusive start (`(id`) so the last entry is not read twice.
-      from = `(${entries[entries.length - 1]!.id}`;
+export async function readKey(client: any, table: string, key: string, type?: string): Promise<KeyRead | null> {
+  const t = type ?? String(await client.type(key));
+  const id = idWithin(table, key);
+  switch (t) {
+    case 'none':
+      return null;
+    case 'hash': {
+      const hash = await client.hGetAll(key);
+      if (!hash || Object.keys(hash).length === 0) return null;
+      return { row: { id, ...hash }, type: t, shape: 'hash' };
     }
-    if (entries.length < CHUNK) return;
+    case 'string': {
+      const value = await client.get(key);
+      if (value === null) return null;
+      const fields = jsonObjectFields(value);
+      return fields ? { row: { id, ...fields }, type: t, shape: 'json' } : { row: { id, value }, type: t, shape: 'string' };
+    }
+    case JSON_TYPE: {
+      const text = await readJsonDocument(client, key);
+      if (text === null) return { row: { id, type: t }, type: t, shape: 'json' };
+      const fields = jsonObjectFields(text);
+      return { row: fields ? { id, ...fields } : { id, value: text }, type: t, shape: 'json' };
+    }
+    default: {
+      const spec = COLLECTIONS.get(t);
+      return { row: { id, type: t, length: spec ? Number(await spec.length(client, key)) : null }, type: t, shape: 'collection' };
+    }
   }
 }
 
 /**
  * `limit` rows after skipping `offset` matching ones, examining at most
- * `MAX_SCAN` elements.
+ * `MAX_SCAN` rows.
  */
-async function takePage(
+export async function takePage(
   chunks: AsyncIterable<Row[]>,
   offset: number,
   limit: number,
-  matches: (row: Row) => boolean
+  matches: (row: Row) => boolean = () => true
 ): Promise<Row[]> {
   const out: Row[] = [];
   let skipped = 0;
@@ -213,49 +275,24 @@ async function takePage(
 }
 
 /**
- * A page of a collection key's elements.
+ * A page of a collection key's elements, those `matches` keeps when given.
  *
- * Unfiltered lists and sorted sets start reading at `offset` itself (they are
- * indexed); a filter, a set or a stream has to read from the start and skip.
+ * An unfiltered list or sorted set starts reading at `offset` itself (they are
+ * indexed); a filter, a set or a stream reads from the start and skips.
  */
 export async function readCollection(
   client: any,
   key: string,
   type: string,
-  opts: { offset: number; limit: number; matches: (row: Row) => boolean; filtered: boolean }
+  opts: { offset: number; limit: number; matches?: (row: Row) => boolean }
 ): Promise<Row[]> {
-  const { offset, limit, matches, filtered } = opts;
-  if (limit <= 0) return [];
-  const indexedStart = filtered ? 0 : offset;
-  const skip = filtered ? offset : 0;
-  switch (type) {
-    case 'list':
-      return takePage(listChunks(client, key, indexedStart), skip, limit, matches);
-    case 'zset':
-      return takePage(sortedSetChunks(client, key, indexedStart), skip, limit, matches);
-    case 'set':
-      return takePage(setChunks(client, key), offset, limit, matches);
-    case 'stream':
-      return takePage(streamChunks(client, key), offset, limit, matches);
-    default:
-      return [];
-  }
-}
-
-/** The columns a collection table has before any JSON elements widen it. */
-export function collectionColumns(type: string): string[] {
-  switch (type) {
-    case 'list':
-      return ['index', 'value'];
-    case 'set':
-      return ['member'];
-    case 'zset':
-      return ['member', 'score'];
-    case 'stream':
-      return ['entry_id'];
-    default:
-      return [];
-  }
+  const { offset, limit, matches } = opts;
+  const spec = COLLECTIONS.get(type);
+  if (!spec || limit <= 0) return [];
+  const start = spec.indexed && !matches ? offset : 0;
+  // Unfiltered, the page needs only the elements up to its end: never read more per command.
+  const size = matches ? CHUNK : Math.min(CHUNK, offset - start + limit);
+  return takePage(spec.chunks(client, key, start, size), offset - start, limit, matches);
 }
 
 export interface KeyspaceTable {
@@ -290,72 +327,62 @@ export async function sampleKeyspace(
 
   const keys: string[] = [];
   let sampled = false;
-  outer: for await (const batch of client.scanIterator({ COUNT: CHUNK })) {
-    for (const k of Array.isArray(batch) ? batch : [batch]) {
+  outer: for await (const batch of scanBatches(client.scanIterator({ COUNT: CHUNK }))) {
+    for (const k of batch) {
       if (keys.length >= maxKeys) {
         sampled = true;
         break outer;
       }
-      keys.push(String(k));
+      keys.push(k);
     }
   }
-  // node-redis pipelines commands issued together, so one round trip per batch.
-  const types: string[] = [];
-  for (let i = 0; i < keys.length; i += CHUNK) {
-    const batch = keys.slice(i, i + CHUNK);
-    types.push(...(await Promise.all(batch.map((k) => client.type(k).then(String)))));
-  }
+  const types = await inBatches(keys, async (k): Promise<string> => String(await client.type(k)));
 
-  const prefixes = new Map<string, { keys: string[]; types: Set<string> }>();
+  const prefixes = new Map<string, Array<{ key: string; type: string }>>();
   const collections: KeyspaceTable[] = [];
   keys.forEach((key, i) => {
     const type = types[i]!;
     if (type === 'none') return;
-    if (COLLECTION_TYPES.has(type)) {
-      collections.push({ name: key, storeType: type, kind: 'collection', columns: collectionColumns(type) });
+    const spec = COLLECTIONS.get(type);
+    if (spec) {
+      collections.push({ name: key, storeType: type, kind: 'collection', columns: [...spec.columns] });
       return;
     }
     const colon = key.indexOf(':');
     if (colon <= 0) return;
     const prefix = key.slice(0, colon);
-    const entry = prefixes.get(prefix) ?? { keys: [], types: new Set<string>() };
-    entry.keys.push(key);
-    entry.types.add(type);
-    prefixes.set(prefix, entry);
+    prefixes.set(prefix, [...(prefixes.get(prefix) ?? []), { key, type }]);
   });
 
-  const tables: KeyspaceTable[] = [];
-  for (const [prefix, entry] of [...prefixes.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+  // Up to `rowsPerTable` keys of every prefix, read together with the types already known.
+  const ordered = [...prefixes.entries()].sort(([a], [b]) => a.localeCompare(b));
+  const samples = ordered.flatMap(([prefix, entries]) => entries.slice(0, rowsPerTable).map((e) => ({ prefix, ...e })));
+  const reads = await inBatches(samples, (s) => readKey(client, s.prefix, s.key, s.type));
+  const byPrefix = new Map<string, KeyRead[]>();
+  samples.forEach((s, i) => {
+    const read = reads[i];
+    if (read) byPrefix.set(s.prefix, [...(byPrefix.get(s.prefix) ?? []), read]);
+  });
+
+  const tables: KeyspaceTable[] = ordered.map(([prefix]) => {
     const columns = new Set<string>(['id']);
     const kinds = new Set<string>();
-    for (const key of entry.keys.slice(0, rowsPerTable)) {
-      const { row, shape } = await readKey(client, prefix, key);
-      if (!row) continue;
+    for (const { row, shape } of byPrefix.get(prefix) ?? []) {
       kinds.add(shape);
       for (const field of Object.keys(row)) columns.add(field);
     }
-    tables.push({
-      name: prefix,
-      storeType: kinds.size === 1 ? [...kinds][0]! : 'mixed',
-      kind: 'prefix',
-      columns: [...columns],
-    });
-  }
+    return { name: prefix, storeType: kinds.size === 1 ? [...kinds][0]! : 'mixed', kind: 'prefix', columns: [...columns] };
+  });
 
-  for (const table of collections.sort((a, b) => a.name.localeCompare(b.name))) {
-    if (table.storeType === 'list' || table.storeType === 'stream') {
-      // JSON elements widen the table: their fields become columns.
-      const head = await readCollection(client, table.name, table.storeType, {
-        offset: 0,
-        limit: 20,
-        matches: () => true,
-        filtered: false,
-      });
-      const columns = new Set(table.columns);
-      for (const row of head) for (const field of Object.keys(row)) columns.add(field);
-      table.columns = [...columns];
-    }
-    tables.push(table);
-  }
+  // JSON elements widen a list or stream: the fields of its first elements become columns.
+  collections.sort((a, b) => a.name.localeCompare(b.name));
+  const widen = collections.filter((t) => t.storeType === 'list' || t.storeType === 'stream');
+  const heads = await inBatches(widen, (t) => readCollection(client, t.name, t.storeType, { offset: 0, limit: 20 }));
+  widen.forEach((table, i) => {
+    const columns = new Set(table.columns);
+    for (const row of heads[i]!) for (const field of Object.keys(row)) columns.add(field);
+    table.columns = [...columns];
+  });
+  tables.push(...collections);
   return { tables, sampled };
 }

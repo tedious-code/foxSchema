@@ -120,3 +120,25 @@ describe('when the install requires migrations committed to Git', () => {
     expect(execute).not.toHaveBeenCalled();
   });
 });
+
+describe('force-migrate onto an engine without a SQL dialect', () => {
+  // Redis and MongoDB load as a keyspace sample, and `resolveDialect` answers
+  // Db2 for a name it does not know: a plan here would be Db2 DDL for Redis.
+  it.each(['/lokee/databases/:id/force-migrate/plan', FORCE])('%s refuses a Redis target before reading it', async (path) => {
+    const { d, execute } = deps('safe');
+    d.resolveRef.mockResolvedValue({ dialect: 'redis', option: { host: 'h', database: '0' }, schema: '' });
+    const { reply, sent } = fakeReply();
+    await handlerFor(d, path)(
+      {
+        body: { connectionId: 'c', versionId: 'v1', confirmLossy: true, confirmForce: true },
+        params: { id: 'db1' },
+        userId: 'u1',
+        workspaceId: 'w1',
+      } as never,
+      reply as never
+    );
+    expect(sent.status).toBe(400);
+    expect(d.loadScopedTables).not.toHaveBeenCalled();
+    expect(execute).not.toHaveBeenCalled();
+  });
+});

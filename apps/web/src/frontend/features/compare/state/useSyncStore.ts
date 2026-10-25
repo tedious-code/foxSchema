@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { buildBrowseResult } from '@/shared/lib/browse';
-import { connectionNeedsSecret } from '@/shared/lib/provider-settings';
+import { needsSessionPassword } from '@/shared/lib/provider-settings';
 import { schemaCompareBlocker } from '@/shared/lib/dialect-features';
 import {
   testConnection as apiTestConnection,
@@ -282,11 +282,7 @@ export const useSyncStore = create<SyncState>()(
         // connected to disconnected on every credential reload — saving any
         // other connection knocked the source offline with no way back but
         // reconnecting by hand.
-        const canRetest = !!(
-          conn.hasPassword ||
-          sessionPassword ||
-          !connectionNeedsSecret(conn.dialect, conn.authMethod, conn.username)
-        );
+        const canRetest = !needsSessionPassword(conn, sessionPassword);
         if (side === 'source') {
           patch.selectedSourceConnectionId = id;
           patch.sourceConfig = config;

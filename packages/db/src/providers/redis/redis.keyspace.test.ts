@@ -13,11 +13,12 @@ import {
   MAX_SCAN,
   jsonObjectFields,
   readCollection,
-  readKeyRow,
+  readKey,
   sampleKeyspace,
 } from './redis.keyspace.js';
 
-const all = () => true;
+/** The row a key reads as, or null. */
+const readKeyRow = async (c: RedisClientDouble, table: string, key: string) => (await readKey(c, table, key))?.row ?? null;
 
 describe('jsonObjectFields', () => {
   it('reads a JSON object’s top-level fields, nested values as JSON text', () => {
@@ -37,7 +38,7 @@ describe('jsonObjectFields', () => {
   });
 });
 
-describe('readKeyRow', () => {
+describe('readKey', () => {
   it('reads a hash as its fields, a plain string as one value', async () => {
     const c = new RedisClientDouble()
       .set('users:1', { type: 'hash', value: { name: 'Ana' } })
@@ -74,11 +75,28 @@ describe('readCollection', () => {
 
   it('pages a list by index, across chunk boundaries, without reading it whole', async () => {
     const c = new RedisClientDouble().set('l', { type: 'list', value: list(1200) });
-    const page = await readCollection(c, 'l', 'list', { offset: 990, limit: 20, matches: all, filtered: false });
+    const page = await readCollection(c, 'l', 'list', { offset: 990, limit: 20 });
     expect(page.map((r) => r.index)).toEqual(Array.from({ length: 20 }, (_, i) => 990 + i));
     expect(page[0]).toEqual({ index: 990, value: 'v990' });
-    // Started at the offset itself: one LRANGE (990..1489 holds all 20), not two from 0.
+    // Started at the offset itself: one LRANGE, not two from 0.
     expect(c.calls.filter((x) => x === 'LRANGE').length).toBe(1);
+  });
+
+  it('reads no more of a list or stream than an unfiltered page shows', async () => {
+    const c = new RedisClientDouble()
+      .set('l', { type: 'list', value: list(1200) })
+      .set('s', { type: 'stream', value: list(1200).map((v, i) => ({ id: `1-${String(i).padStart(4, '0')}`, message: { v } })) });
+    const ranges: number[][] = [];
+    const lRange = c.lRange.bind(c);
+    c.lRange = (key, start, stop) => (ranges.push([start, stop]), lRange(key, start, stop));
+    const counts: number[] = [];
+    const xRange = c.xRange.bind(c);
+    c.xRange = (key, from, to, opts) => (counts.push(opts.COUNT), xRange(key, from, to, opts));
+
+    await readCollection(c, 'l', 'list', { offset: 990, limit: 20 });
+    await readCollection(c, 's', 'stream', { offset: 10, limit: 20 });
+    expect(ranges).toEqual([[990, 1009]]);
+    expect(counts).toEqual([30]);
   });
 
   it('expands a list of JSON objects into their fields', async () => {
@@ -86,7 +104,7 @@ describe('readCollection', () => {
       type: 'list',
       value: ['{"kind":"click","x":1}', 'not json', '{"kind":"view"}'],
     });
-    expect(await readCollection(c, 'events', 'list', { offset: 0, limit: 10, matches: all, filtered: false })).toEqual([
+    expect(await readCollection(c, 'events', 'list', { offset: 0, limit: 10 })).toEqual([
       { index: 0, kind: 'click', x: 1 },
       { index: 1, value: 'not json' },
       { index: 2, kind: 'view' },
@@ -99,7 +117,6 @@ describe('readCollection', () => {
       offset: 1,
       limit: 2,
       matches: (r) => r.value === 'a',
-      filtered: true,
     });
     expect(page).toEqual([
       { index: 2, value: 'a' },
@@ -109,7 +126,7 @@ describe('readCollection', () => {
 
   it('stops filtering after MAX_SCAN elements instead of walking a huge list', async () => {
     const c = new RedisClientDouble().set('big', { type: 'list', value: list(MAX_SCAN + 5_000) });
-    const page = await readCollection(c, 'big', 'list', { offset: 0, limit: 10, matches: () => false, filtered: true });
+    const page = await readCollection(c, 'big', 'list', { offset: 0, limit: 10, matches: () => false });
     expect(page).toEqual([]);
     expect(c.calls.filter((x) => x === 'LRANGE').length).toBeLessThanOrEqual(MAX_SCAN / 500 + 1);
   });
@@ -123,7 +140,7 @@ describe('readCollection', () => {
         { value: 'cy', score: 30 },
       ],
     });
-    expect(await readCollection(c, 'board', 'zset', { offset: 1, limit: 5, matches: all, filtered: false })).toEqual([
+    expect(await readCollection(c, 'board', 'zset', { offset: 1, limit: 5 })).toEqual([
       { member: 'bo', score: 20 },
       { member: 'cy', score: 30 },
     ]);
@@ -132,7 +149,7 @@ describe('readCollection', () => {
   it('reads a set’s members a scan batch at a time', async () => {
     const members = Array.from({ length: 700 }, (_, i) => `m${i}`);
     const c = new RedisClientDouble().set('tags', { type: 'set', value: members });
-    const page = await readCollection(c, 'tags', 'set', { offset: 600, limit: 50, matches: all, filtered: false });
+    const page = await readCollection(c, 'tags', 'set', { offset: 600, limit: 50 });
     expect(page.map((r) => r.member)).toEqual(members.slice(600, 650));
   });
 
@@ -142,14 +159,14 @@ describe('readCollection', () => {
       message: { n: String(i) },
     }));
     const c = new RedisClientDouble().set('log', { type: 'stream', value: entries });
-    const page = await readCollection(c, 'log', 'stream', { offset: 498, limit: 4, matches: all, filtered: false });
+    const page = await readCollection(c, 'log', 'stream', { offset: 498, limit: 4 });
     expect(page.map((r) => r.n)).toEqual(['498', '499', '500', '501']);
     expect(page[0]).toEqual({ entry_id: entries[498]!.id, n: '498' });
   });
 
   it('reads nothing for an empty page', async () => {
     const c = new RedisClientDouble().set('l', { type: 'list', value: ['a'] });
-    expect(await readCollection(c, 'l', 'list', { offset: 0, limit: 0, matches: all, filtered: false })).toEqual([]);
+    expect(await readCollection(c, 'l', 'list', { offset: 0, limit: 0 })).toEqual([]);
     expect(c.calls).toEqual([]);
   });
 });
@@ -191,6 +208,8 @@ describe('sampleKeyspace', () => {
     // hash with no prefix has no `prefix:*` keys to read.
     expect(byName.queue).toBeUndefined();
     expect(byName.lonely).toBeUndefined();
+    // One TYPE per key: the sampled rows reuse the types already read.
+    expect(c.calls.filter((x) => x === 'TYPE').length).toBe(c.keys.size);
   });
 
   it('says when the keyspace was larger than the sample', async () => {

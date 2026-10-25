@@ -27,16 +27,9 @@ import {
   type TableSchema,
 } from '@foxschema/sql';
 import { redisAdapter } from './redis.adapter.js';
-import { sampleKeyspace, type KeyspaceSample } from './redis.keyspace.js';
+import { columnType, sampleKeyspace, type KeyspaceSample } from './redis.keyspace.js';
 
 const DIALECT = 'redis';
-
-/** Column types as the explorer shows them. Redis stores text; index and score are numbers. */
-function columnType(name: string, storeType: string): string {
-  if (name === 'index' && storeType === 'list') return 'integer';
-  if (name === 'score' && storeType === 'zset') return 'double';
-  return 'text';
-}
 
 /** Database numbers that hold keys, from `INFO keyspace` (`db3:keys=12,…`). */
 export function databasesFromInfo(info: string): string[] {

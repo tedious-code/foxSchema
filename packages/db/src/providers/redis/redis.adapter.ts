@@ -1,7 +1,7 @@
 import { type ConnectionOptions, type DriverAdapter, parseSqlSubset, subsetValue } from '@foxschema/sql';
 import { credentialedCacheKey } from '../../cores/pool-cache.js';
 import { requireDriver } from '../../cores/driver-loader.js';
-import { COLLECTION_TYPES, JSON_TYPE, readCollection, readKeyRow } from './redis.keyspace.js';
+import { COLLECTION_TYPES, JSON_TYPE, readCollection, readKey, scanBatches, takePage } from './redis.keyspace.js';
 
 /**
  * Redis behind the SQL editor, for the cache-maintenance case.
@@ -99,11 +99,6 @@ class RedisAdapter implements DriverAdapter {
     return `${table}:${String(id)}`;
   }
 
-  /** Read one key as a row, whatever type it holds. */
-  private readRow(client: any, table: string, key: string): Promise<Record<string, unknown> | null> {
-    return readKeyRow(client, table, key);
-  }
-
   /** The collection type when `table` names a list, set, sorted set or stream key itself. */
   private async collectionType(client: any, table: string): Promise<string | null> {
     const type = String(await client.type(table));
@@ -150,8 +145,7 @@ class RedisAdapter implements DriverAdapter {
             await readCollection(client, intent.table, collection, {
               offset: intent.offset ?? 0,
               limit: intent.limit ?? 100,
-              matches: (row) => redisRowMatchesPredicates(row, intent.where, params),
-              filtered: intent.where.length > 0,
+              matches: intent.where.length ? (row) => redisRowMatchesPredicates(row, intent.where, params) : undefined,
             })
           ) as T[];
         }
@@ -159,43 +153,28 @@ class RedisAdapter implements DriverAdapter {
         const id = idFrom(intent.where);
         const extra = extraWhere(intent.where);
         if (id !== undefined) {
-          const row = await this.readRow(client, intent.table, this.keyFor(intent.table, id));
+          const row = (await readKey(client, intent.table, this.keyFor(intent.table, id)))?.row;
           if (!row || (intent.offset ?? 0) > 0) return [] as T[];
           // Non-id predicates must still hold — otherwise `WHERE id = 1 AND
           // status = 'active'` would return the inactive row.
           if (!redisRowMatchesPredicates(row, extra, params)) return [] as T[];
           return project([row]) as T[];
         }
-        // No id: scan the prefix. Bounded by LIMIT so browsing a large cache
-        // cannot walk the whole keyspace. Filter *before* counting toward the
-        // limit, or `WHERE name = ? LIMIT 2` would sample the first two keys
-        // and then discard non-matches.
-        const limit = intent.limit ?? 100;
-        let skip = intent.offset ?? 0;
-        const rows: Record<string, unknown>[] = [];
-        // node-redis v6 yields a *batch* of keys per iteration; older clients
-        // yielded one key. Normalising both is not defensive noise — assuming
-        // the single-key shape made String(['a','b']) the key, so every scan
-        // silently returned nothing.
-        outer: for await (const batch of client.scanIterator({
-          MATCH: `${intent.table}:*`,
-          COUNT: 200,
-        })) {
-          const keys: string[] = Array.isArray(batch)
-            ? batch.map((k) => String(k))
-            : [String(batch)];
-          for (const k of keys) {
-            const row = await this.readRow(client, intent.table, k);
-            if (!row) continue;
-            if (!redisRowMatchesPredicates(row, extra, params)) continue;
-            if (skip > 0) {
-              skip--;
-              continue;
-            }
-            rows.push(row);
-            if (rows.length >= limit) break outer;
+        // No id: scan the prefix, a SCAN batch at a time with its keys read
+        // together (node-redis pipelines them). takePage filters *before*
+        // counting toward LIMIT, or `WHERE name = ? LIMIT 2` would sample the
+        // first two keys and then discard non-matches, and it stops after
+        // MAX_SCAN keys, so a WHERE that matches nothing cannot walk a cache.
+        const table = intent.table;
+        async function* prefixRows(): AsyncIterable<Record<string, unknown>[]> {
+          for await (const keys of scanBatches(client.scanIterator({ MATCH: `${table}:*`, COUNT: 200 }))) {
+            const reads = await Promise.all(keys.map((k) => readKey(client, table, k)));
+            yield reads.flatMap((read) => (read ? [read.row] : []));
           }
         }
+        const rows = await takePage(prefixRows(), intent.offset ?? 0, intent.limit ?? 100, (row) =>
+          redisRowMatchesPredicates(row, extra, params)
+        );
         return project(rows) as T[];
       }
       case 'insert': {
@@ -218,20 +197,21 @@ class RedisAdapter implements DriverAdapter {
         if (id === undefined) {
           throw new Error('Redis: UPDATE needs `id` in the WHERE clause to address a key.');
         }
-        await this.refuseCollectionWrite(client, intent.table);
         const key = this.keyFor(intent.table, id);
-        const row = await this.readRow(client, intent.table, key);
-        if (!row) return [{ rowCount: 0 }] as T[];
+        const [, read] = await Promise.all([
+          this.refuseCollectionWrite(client, intent.table),
+          readKey(client, intent.table, key),
+        ]);
+        if (!read) return [{ rowCount: 0 }] as T[];
         // A JSON document or a string reads as fields too, but HSET on it is
         // WRONGTYPE. Say what it is instead of failing with that.
-        const type = String(await client.type(key));
-        if (type !== 'hash') {
-          const what = type === JSON_TYPE ? 'JSON document' : type;
+        if (read.type !== 'hash') {
+          const what = read.type === JSON_TYPE ? 'JSON document' : read.type;
           throw new Error(`Redis: "${key}" is a ${what}; only hash keys are updated field by field.`);
         }
         // Must honour every AND predicate. Ignoring `status = 'active'` here
         // would overwrite a key the WHERE clause excluded — silent data loss.
-        if (!redisRowMatchesPredicates(row, extraWhere(intent.where), params)) {
+        if (!redisRowMatchesPredicates(read.row, extraWhere(intent.where), params)) {
           return [{ rowCount: 0 }] as T[];
         }
         const set: Record<string, string> = {};
@@ -248,9 +228,12 @@ class RedisAdapter implements DriverAdapter {
         if (id === undefined) {
           throw new Error('Redis: DELETE needs `id` in the WHERE clause to address a key.');
         }
-        await this.refuseCollectionWrite(client, intent.table);
         const key = this.keyFor(intent.table, id);
-        const row = await this.readRow(client, intent.table, key);
+        const [, read] = await Promise.all([
+          this.refuseCollectionWrite(client, intent.table),
+          readKey(client, intent.table, key),
+        ]);
+        const row = read?.row;
         if (!row) return [{ rowCount: 0 }] as T[];
         // Same rule as UPDATE: `DELETE … WHERE id = 1 AND status = 'active'`
         // must not remove an inactive row.

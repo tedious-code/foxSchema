@@ -81,6 +81,23 @@ export function connectionNeedsSecret(
   return true;
 }
 
+/** The fields of a saved connection the password rule reads. */
+export interface SecretGateConnection {
+  dialect: string;
+  authMethod?: string | null;
+  username?: string | null;
+  hasPassword?: boolean;
+}
+
+/**
+ * Whether using this connection must first ask for its password: the engine
+ * needs a secret (`connectionNeedsSecret`), none was saved with it, and none
+ * was given this session. The one copy of the rule every prompt and gate reads.
+ */
+export function needsSessionPassword(conn: SecretGateConnection, sessionPassword?: string | null): boolean {
+  return !conn.hasPassword && connectionNeedsSecret(conn.dialect, conn.authMethod, conn.username) && !sessionPassword;
+}
+
 export function parseWindowsAccount(
   username?: string,
   domain?: string

@@ -8,6 +8,7 @@ import {
   assertWindowsAccount,
   authMethodsForDialect,
   connectionNeedsSecret,
+  needsSessionPassword,
   normalizeAuthMethod,
   parseWindowsAccount,
   passwordFieldLabel,
@@ -54,6 +55,15 @@ describe('connection auth methods', () => {
     expect(connectionNeedsSecret('mongodb', undefined, 'admin')).toBe(true);
     // Every SQL server still asks, user or not.
     expect(connectionNeedsSecret('postgres', 'password', '')).toBe(true);
+  });
+
+  it('asks for a password only when none is saved or given this session, and the engine needs one', () => {
+    expect(needsSessionPassword({ dialect: 'postgres' })).toBe(true);
+    expect(needsSessionPassword({ dialect: 'postgres', hasPassword: true })).toBe(false);
+    expect(needsSessionPassword({ dialect: 'postgres' }, 'typed-this-session')).toBe(false);
+    expect(needsSessionPassword({ dialect: 'sqlite' })).toBe(false);
+    expect(needsSessionPassword({ dialect: 'redis' })).toBe(false);
+    expect(needsSessionPassword({ dialect: 'redis', username: 'app' })).toBe(true);
   });
 
   it('parses DOMAIN\\user and an explicit domain field', () => {

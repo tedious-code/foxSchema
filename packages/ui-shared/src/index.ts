@@ -42,7 +42,7 @@ export type { Dialect } from '@foxschema/sql';
 // Connection strings, sign-in methods, error text, and small helpers.
 export {
   DEFAULT_PORTS, assertWindowsAccount, authMethodsForDialect, buildConnectionString,
-  connectionNeedsSecret, dialectOffersAuthMethods, errorMessage, escapeRegExp, nonSecretFingerprint,
+  connectionNeedsSecret, needsSessionPassword, dialectOffersAuthMethods, errorMessage, escapeRegExp, nonSecretFingerprint,
   normalizeAuthMethod, parseWindowsAccount, passwordFieldLabel, resolveAuthMethod,
   withConnectionString,
 } from '@foxschema/sql';
@@ -59,7 +59,7 @@ export type {
 
 // What each engine supports, and why not when it does not.
 export {
-  dialectFeatureReason, dialectFeatures, schemaCompareBlocker, supportsDialectFeature,
+  dialectFeatureReason, dialectFeatures, hasSqlDialect, schemaCompareBlocker, supportsDialectFeature,
 } from '@foxschema/sql';
 export type { DialectFeature, FeatureSupport } from '@foxschema/sql';
 

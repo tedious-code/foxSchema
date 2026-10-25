@@ -36,6 +36,7 @@ export {
   dialectHasTransactions,
   DEFAULT_PORTS,
   connectionNeedsSecret,
+  needsSessionPassword,
   authMethodsForDialect,
   dialectOffersAuthMethods,
   normalizeAuthMethod,

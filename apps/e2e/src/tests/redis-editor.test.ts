@@ -16,13 +16,13 @@
  * Requires the web app + API and the dev Redis container (`foxschema-redis`).
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { execFileSync } from 'node:child_process';
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Page } from 'playwright';
 import { buildDriver, quitDriver, clickWhen, waitFor } from '../helpers/driver.js';
 import { sessionCookie } from '../helpers/app-session.js';
+import { redisBatch, redisCli as redis, redisDel, redisHash as hash, redisKeys as keys, redisReachable } from '../helpers/redis.js';
 import { saveScreenshot } from '../helpers/screenshot.js';
 import { byTestId } from '../helpers/test-ids.js';
 import { AppPage } from '../pages/AppPage.js';
@@ -43,35 +43,6 @@ const CONN = { a: `Redis A ${RUN}`, b: `Redis B ${RUN}`, s: `Redis S ${RUN}` };
 /** One line per sample as it finishes (see the samples test). */
 const SAMPLE_LOG = process.env.FOX_SAMPLE_LOG ?? join(tmpdir(), 'fox-redis-samples.log');
 
-function redis(db: number, ...args: string[]): string {
-  return execFileSync('docker', ['exec', '-i', 'foxschema-redis', 'redis-cli', '-n', String(db), ...args], {
-    encoding: 'utf8',
-    stdio: ['pipe', 'pipe', 'pipe'],
-  }).trim();
-}
-
-function redisReachable(): boolean {
-  try {
-    return redis(0, 'PING') === 'PONG';
-  } catch {
-    return false;
-  }
-}
-
-/** Every key in `db` matching `pattern`. */
-function keys(db: number, pattern: string): string[] {
-  const out = redis(db, '--scan', '--pattern', pattern);
-  return out ? out.split('\n').filter(Boolean).sort() : [];
-}
-
-/** A hash as an object. */
-function hash(db: number, key: string): Record<string, string> {
-  const flat = redis(db, 'HGETALL', key).split('\n').filter((l) => l !== '');
-  const out: Record<string, string> = {};
-  for (let i = 0; i + 1 < flat.length; i += 2) out[flat[i]!] = flat[i + 1]!;
-  return out;
-}
-
 function seed(): void {
   const users: Array<[string, string, string]> = [
     ['1', 'Ana', 'free'],
@@ -80,23 +51,26 @@ function seed(): void {
     ['4', 'Di', 'free'],
     ['5', 'Ed', 'team'],
   ];
-  for (const [id, name, plan] of users) redis(0, 'HSET', `${T.users}:${id}`, 'name', name, 'plan', plan);
-  redis(0, 'SET', `${T.docs}:a`, JSON.stringify({ title: 'Hello', tags: ['x'], n: 1 }));
-  redis(0, 'SET', `${T.docs}:b`, JSON.stringify({ title: 'World', n: 2 }));
-  redis(0, 'RPUSH', T.jobs, JSON.stringify({ job: 'send', to: 'ana' }), JSON.stringify({ job: 'bill', to: 'bo' }), 'plain-entry');
-  redis(0, 'SADD', T.tags, 'red', 'green', 'blue');
-  redis(0, 'ZADD', T.board, '30', 'cy', '10', 'al', '20', 'bo');
-  redis(0, 'XADD', T.log, '*', 'level', 'info', 'msg', 'started');
-  redis(0, 'XADD', T.log, '*', 'level', 'warn', 'msg', 'slow');
-
+  redisBatch(0, [
+    ...users.map(([id, name, plan]) => ['HSET', `${T.users}:${id}`, 'name', name, 'plan', plan]),
+    ['SET', `${T.docs}:a`, JSON.stringify({ title: 'Hello', tags: ['x'], n: 1 })],
+    ['SET', `${T.docs}:b`, JSON.stringify({ title: 'World', n: 2 })],
+    ['RPUSH', T.jobs, JSON.stringify({ job: 'send', to: 'ana' }), JSON.stringify({ job: 'bill', to: 'bo' }), 'plain-entry'],
+    ['SADD', T.tags, 'red', 'green', 'blue'],
+    ['ZADD', T.board, '30', 'cy', '10', 'al', '20', 'bo'],
+    ['XADD', T.log, '*', 'level', 'info', 'msg', 'started'],
+    ['XADD', T.log, '*', 'level', 'warn', 'msg', 'slow'],
+  ]);
   // B: user 1 the same, 2 changed, 6 only here; 3–5 only in A.
-  redis(1, 'HSET', `${T.users}:1`, 'name', 'Ana', 'plan', 'free');
-  redis(1, 'HSET', `${T.users}:2`, 'name', 'Bo', 'plan', 'free');
-  redis(1, 'HSET', `${T.users}:6`, 'name', 'Fay', 'plan', 'pro');
+  redisBatch(1, [
+    ['HSET', `${T.users}:1`, 'name', 'Ana', 'plan', 'free'],
+    ['HSET', `${T.users}:2`, 'name', 'Bo', 'plan', 'free'],
+    ['HSET', `${T.users}:6`, 'name', 'Fay', 'plan', 'pro'],
+  ]);
 }
 
 function cleanup(): void {
-  for (const db of [0, 1, 2]) for (const k of keys(db, `${P}*`)) redis(db, 'DEL', k);
+  for (const db of [0, 1, 2]) redisDel(db, keys(db, `${P}*`));
 }
 
 describe.skipIf(!redisReachable())('SQL Editor · Redis', () => {
@@ -237,7 +211,7 @@ describe.skipIf(!redisReachable())('SQL Editor · Redis', () => {
     if (driver) await quitDriver(driver);
     for (const id of connectionIds) await api('DELETE', `/connections/${id}`);
     cleanup();
-    for (const k of keys(2, '*')) if (!sandboxBefore.has(k)) redis(2, 'DEL', k);
+    redisDel(2, keys(2, '*').filter((k) => !sandboxBefore.has(k)));
   });
 
   // ── Basic SQL ──────────────────────────────────────────────────────────
@@ -430,7 +404,6 @@ describe.skipIf(!redisReachable())('SQL Editor · Redis', () => {
           outcomes.map((o) => `${o.ok ? 'OK  ' : 'FAIL'} ${o.id}${o.ok ? '' : ` — ${o.error}`}`).join('\n')
       );
 
-      // None may hang, and none may stop without saying why.
       // None may hang, hit the paging bug, or stop without saying why.
       for (const o of outcomes) {
         expect(o.error, o.id).not.toMatch(/^HUNG|Paging failed|Unsupported clause: \* FROM \(/);
@@ -525,6 +498,37 @@ describe.skipIf(!redisReachable())('SQL Editor · Redis', () => {
     }, 60_000);
   });
 
+  // ── Schema explorer ───────────────────────────────────────────────────
+
+  describe('schema explorer', () => {
+    beforeAll(async () => {
+      await destinations(CONN.a);
+    }, 60_000);
+
+    it('lists each prefix and collection key with its type, and offers no table to create', async () => {
+      await sql.ensureSidebarSectionOpen('schema');
+      for (const [name, type] of [
+        [T.users, 'hash'],
+        [T.docs, 'json'],
+        [T.jobs, 'list'],
+        [T.tags, 'set'],
+        [T.board, 'zset'],
+        [T.log, 'stream'],
+      ] as const) {
+        const badge = byTestId(`sql-explorer-store-type-${name}`);
+        await waitFor(driver, badge, 30_000);
+        expect((await driver.locator(badge).innerText()).toLowerCase(), name).toBe(type);
+      }
+      // A key has no DDL: no blueprint for any of them, and none of the three
+      // ways to create a table (the blueprint would write Db2 DDL for Redis).
+      expect(await driver.locator(`${byTestId('sql-schema-explorer')} ${byTestId('sql-open-blueprint')}`).count()).toBe(0);
+      for (const id of ['sql-schema-new-table', 'sql-new-table', 'sql-new-table-empty'] as const) {
+        expect(await driver.locator(byTestId(id)).count(), id).toBe(0);
+      }
+      await saveScreenshot(driver, 'redis-explorer');
+    }, 120_000);
+  });
+
   // ── Data peek ─────────────────────────────────────────────────────────
 
   describe('Data peek', () => {
@@ -540,12 +544,8 @@ describe.skipIf(!redisReachable())('SQL Editor · Redis', () => {
         await clickWhen(driver, byTestId('data-peek-close'));
         await driver.locator(byTestId('data-peek')).waitFor({ state: 'detached' });
       }
-      await sql.ensureSidebarSectionOpen('schema');
-      const explorer = driver.locator(byTestId('sql-schema-explorer'));
-      await waitFor(driver, byTestId(`sql-explorer-store-type-${table}`), 30_000);
-      await explorer.getByText(table, { exact: true }).first().click({ modifiers: [process.platform === 'darwin' ? 'Meta' : 'Control'] });
-      await waitFor(driver, byTestId('data-peek'), 30_000);
-      await expect.poll(async () => (await peekRows()).length, { timeout: 30_000 }).toBeGreaterThan(0);
+      // A list or a JSON prefix is read-only here: wait for its rows, not for row editing.
+      await sql.openDataPeek(table, { waitFor: 'rows' });
     }
 
     beforeAll(async () => {

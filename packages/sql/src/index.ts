@@ -403,6 +403,8 @@ export {
   authMethodsForDialect,
   dialectOffersAuthMethods,
   connectionNeedsSecret,
+  needsSessionPassword,
+  type SecretGateConnection,
   parseWindowsAccount,
   assertWindowsAccount,
   passwordFieldLabel,

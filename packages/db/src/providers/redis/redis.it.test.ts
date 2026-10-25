@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { redisAdapter } from './redis.adapter.js';
-import { sampleKeyspace } from './redis.keyspace.js';
+import { sampleKeyspace, scanBatches } from './redis.keyspace.js';
 
 /**
  * Runs against a real Redis. Skipped unless FOX_REDIS_URL is set, so the normal
@@ -25,10 +25,9 @@ maybe('redis adapter against a live server', () => {
   });
 
   afterAll(async () => {
-    // Leave the keyspace as we found it. node-redis yields a batch of keys per
-    // step; `String(batch)` used to join them into one key that matched none.
-    for await (const batch of conn.scanIterator({ MATCH: `${table}*`, COUNT: 100 })) {
-      for (const key of Array.isArray(batch) ? batch : [batch]) await conn.del(String(key));
+    // Leave the keyspace as we found it.
+    for await (const keys of scanBatches(conn.scanIterator({ MATCH: `${table}*`, COUNT: 100 }))) {
+      if (keys.length) await conn.del(keys);
     }
     await redisAdapter.closeAll();
   });

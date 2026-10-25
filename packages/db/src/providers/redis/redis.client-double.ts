@@ -11,6 +11,7 @@
  * `redis.it.test.ts` is the proof against a real server; this is what lets the
  * shapes of every key type be tested without one.
  */
+import { escapeRegExp } from '@foxschema/sql';
 
 type Entry =
   | { type: 'string'; value: string }
@@ -33,7 +34,7 @@ function globToRegExp(pattern: string): RegExp {
   for (const ch of pattern) {
     if (ch === '*') out += '.*';
     else if (ch === '?') out += '.';
-    else out += ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    else out += escapeRegExp(ch);
   }
   return new RegExp(`^${out}$`);
 }

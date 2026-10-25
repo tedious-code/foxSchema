@@ -35,6 +35,9 @@
  * functions and no expressions here. Not "not yet" — admitting any of them
  * means the intent can no longer be checked by inspection.
  */
+import { isKnownEngine } from '../capabilities/feature-reasons.js';
+import { hasSqlDialect } from '../dialect/sql-dialect-keys.js';
+import { splitTopLevel } from './column-origin.js';
 
 export interface SubsetColumnEq {
   column: string;
@@ -83,26 +86,7 @@ function unquote(raw: string): string {
  * as the table `v1:users"`, which matched nothing.
  */
 function tableName(raw: string): string {
-  const parts: string[] = [];
-  let current = '';
-  let close: string | null = null;
-  for (const ch of raw.trim()) {
-    if (close) {
-      current += ch;
-      if (ch === close) close = null;
-      continue;
-    }
-    if (ch === '"' || ch === '`') close = ch;
-    else if (ch === '[') close = ']';
-    if (ch === '.' && !close) {
-      parts.push(current);
-      current = '';
-      continue;
-    }
-    current += ch;
-  }
-  parts.push(current);
-  const names = parts.map(unquote).filter(Boolean);
+  const names = splitTopLevel(raw.trim(), '.').map(unquote).filter(Boolean);
   return names[names.length - 1] ?? '';
 }
 
@@ -217,26 +201,13 @@ const SEGMENT = /^[A-Za-z_$][\w$]*$/;
  */
 function innerOfParens(text: string): string | null {
   if (!text.startsWith('(') || !text.endsWith(')')) return null;
-  let depth = 0;
-  let inQuote: string | null = null;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]!;
-    if (inQuote) {
-      if (ch === inQuote) {
-        if (text[i + 1] === inQuote) i++;
-        else inQuote = null;
-      }
-      continue;
-    }
-    if (ch === "'" || ch === '"' || ch === '`') inQuote = ch;
-    else if (ch === '(') depth++;
-    else if (ch === ')') {
-      depth--;
-      if (depth === 0) return i === text.length - 1 ? text.slice(1, -1) : null;
-    }
-  }
-  return null;
+  const inner = text.slice(1, -1);
+  // splitTop refuses unbalanced text: in `a = 1) AND (b = 2` a `)` closes early.
+  return splitTop(inner, NEVER) ? inner : null;
 }
+
+/** A separator that never matches, for splitTop as a balance check. */
+const NEVER = /(?!)/;
 
 /** `a = ? AND b = ?` → equality pairs, or null if anything else appears. */
 function parseEqualityList(
@@ -474,12 +445,14 @@ export function subsetValue(value: SubsetValue, params: readonly unknown[]): unk
   return value.kind === 'literal' ? value.value : (params[value.index] ?? null);
 }
 
-/** Stores Fox reaches through this subset rather than through SQL. */
-const SUBSET_DIALECTS: ReadonlySet<string> = new Set(['redis', 'mongodb']);
-
-/** Whether `dialect` is read through `parseSqlSubset` instead of an SQL engine. */
+/**
+ * Whether `dialect` is read through `parseSqlSubset` instead of an SQL engine:
+ * every engine Fox connects to that has no SQL dialect (Redis, MongoDB). Derived
+ * from the registry, the way schema compare decides, so a new store needs no
+ * list of its own here.
+ */
 export function isSubsetDialect(dialect: string): boolean {
-  return SUBSET_DIALECTS.has((dialect || '').toLowerCase());
+  return isKnownEngine(dialect) && !hasSqlDialect(dialect);
 }
 
 /**

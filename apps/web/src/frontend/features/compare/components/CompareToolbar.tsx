@@ -21,7 +21,7 @@ import { toast } from '@/platform/toastStore';
 import { loadConnectionModal } from '@/features/connections';
 import { captureSchema } from '@/features/lokee-weave';
 import { DiffBriefingChips, TYPE_META, TYPE_ORDER, diffBriefing } from '@/features/schema-diff';
-import { connectionNeedsSecret } from '@/shared/lib/provider-settings';
+import { needsSessionPassword } from '@/shared/lib/provider-settings';
 import { schemaCompareBlocker } from '@/shared/lib/dialect-features';
 import { MountWhenOpened } from '@/shared/components/MountWhenOpened';
 import { PasswordInput } from '@/shared/components/PasswordInput';
@@ -117,7 +117,7 @@ export const CompareToolbarStart: React.FC = () => {
 
   const selectSavedConnection = (side: 'source' | 'target', id: string) => {
     const conn = connections.find((c) => c.id === id);
-    if (conn && !conn.hasPassword && connectionNeedsSecret(conn.dialect, conn.authMethod, conn.username)) {
+    if (conn && needsSessionPassword(conn)) {
       const cfg = side === 'source' ? sourceConfig : targetConfig;
       const existing =
         getSessionPassword(id) ||

@@ -6,8 +6,7 @@ import { Wordmark } from '@/shared/components/Brand';
  * Full-screen boot splash shown for the async gap between process start and
  * the first real screen (setup wizard / login / app) — main.tsx renders this
  * synchronously before awaiting resolveApiBase(), so there's
- * never a blank frame while the desktop sidecar spins up or the API base
- * resolves.
+ * never a blank frame while the server starts or the API base resolves.
  */
 export const LoadingScreen: React.FC = () => (
   <div className="h-screen flex items-center justify-center bg-slate-950 relative overflow-hidden">

@@ -126,10 +126,6 @@ files, worker entrypoints are strings `tsc` cannot see, and the CLI inlines
 `@foxschema/*` TS sources through esbuild (`apps/cli/build.mjs`) — that keeps
 working, since it is exactly how `sql` and `db` are already consumed.
 
-**I found no `src-tauri` in this repo**, so this plan does not account for
-desktop sidecar packaging. If the desktop build lives elsewhere and consumes
-`@foxschema/web/serve`, that consumer needs checking before the rename.
-
 ---
 
 ## 3. Ask 3 — remove Express
@@ -227,13 +223,10 @@ is hoped-for.
 
 ## 5. Open questions
 
-1. **Does anything outside this repo import `@foxschema/web/serve`?** No
-   `src-tauri` here, but the desktop shell is documented as a Node sidecar. If
-   it consumes that entry, the rename is a breaking change for it.
-2. **Should `packages/server` be published, or stay workspace-private?** It
+1. **Should `packages/server` be published, or stay workspace-private?** It
    decides whether the export surface is an API contract or an internal detail —
    and therefore how carefully phase 1 has to freeze it.
-3. **Is the CLI meant to keep calling backend services in-process**, or should it
+2. **Is the CLI meant to keep calling backend services in-process**, or should it
    eventually talk to the HTTP API like any other client? The first keeps today's
    arrangement; the second would make `packages/server` a server and nothing
    else. This plan assumes the first, since that is what the code does now.

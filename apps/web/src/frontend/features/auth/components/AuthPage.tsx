@@ -45,6 +45,19 @@ function takeCodeFromLink(): string {
   return decodeURIComponent(match[1]!);
 }
 
+/**
+ * The link's code, held until a page that will show it has mounted. React may
+ * run a state initializer more than once (StrictMode, or a render it throws
+ * away because something in the tree suspended), and the first run has already
+ * taken the code off the address bar: reading it again found nothing.
+ */
+let pendingLinkCode: string | null = null;
+
+function linkCodeOnce(): string {
+  pendingLinkCode ??= takeCodeFromLink();
+  return pendingLinkCode;
+}
+
 type View = 'signin' | 'forgot' | 'code';
 
 const TITLES: Record<View | 'setup' | 'due', { title: string; subtitle: string }> = {
@@ -65,8 +78,12 @@ const TITLES: Record<View | 'setup' | 'due', { title: string; subtitle: string }
 export const AuthPage: React.FC = () => {
   const { status, setupState, launch } = useAuthStore();
   const settingUp = status === 'setup' && !!setupState;
-  const [linkCode, setLinkCode] = useState(takeCodeFromLink);
+  const [linkCode, setLinkCode] = useState(linkCodeOnce);
   const [view, setView] = useState<View>(linkCode ? 'code' : 'signin');
+  // Mounted with it: a later visit to this page starts without it.
+  useEffect(() => {
+    pendingLinkCode = null;
+  }, []);
 
   // A link pasted into a tab where Fox is already open changes only the
   // fragment, which does not reload the page: pick the code up from here too.

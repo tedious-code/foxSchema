@@ -17,7 +17,24 @@ so unqualified names resolve to the tables the explorer shows, not the
 database user's default. Picking a connection in the explorer checks that
 destination alone. **One transaction** wraps a multi-statement SQL run per
 destination; a failure rolls it back. Code cells and `-- @set` stay statement
-by statement.
+by statement. Redis, MongoDB and ClickHouse cannot roll back, so a Run with One
+transaction is refused there.
+
+## SQL Editor: the run rail, and installing a missing driver
+
+Each statement's ▶ and run checkbox sit on a rail left of the editor, with its
+**In [n]** number — the one the Run tooltip and `Out [n]` use. Click the number
+to select the statement. With Safe mode on it turns amber for a write Run will
+confirm, and red with `!` for an UPDATE or DELETE with no WHERE. Two statements
+on one line get a row each, and a long statement's row stays at the top while
+you read through it. Hover a row for its copy button, which copies the
+statement with its variables filled in (secrets masked).
+
+When a credential's driver package is missing, the schema browser and a failed
+run — in either results layout — offer **Install driver**. Installing runs npm
+on the server, so it needs the new **Install drivers** permission (admins by
+default, from the account role); without it the banner gives the command to run.
+Every Install button shares one status, and the server runs one install at a time.
 
 ## Workflow: steer a paused run; connections stay in their workspace
 

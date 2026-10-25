@@ -346,7 +346,7 @@ Rendering on the hot paths (what to keep when editing these components):
   (`cachedPlan`), so Execute, the Git commit check and the review notes share one build.
 - The Compare tree rows, the permission matrix rows and the results panel are
   `React.memo` and are passed stable props; an inline callback or a default `[]` prop
-  breaks that. The statement strip caches each statement's checks by its text.
+  breaks that. The run rail caches each statement's Safe-mode badge by its text.
 
 ## SQL text: one tokenizer, dialect readings
 

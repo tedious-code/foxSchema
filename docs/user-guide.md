@@ -306,8 +306,12 @@ compare / migrate). It lives in the same local web UI you open with `foxschema`.
    against every checked server (handy for comparing data across environments).
    Picking a connection in the **Schema explorer** checks that one alone, so Run
    hits the tables on screen; check more Destinations afterwards to fan out.
-4. Type SQL in the editor. Multiple statements are fine; use the **statement strip**
-   under the editor to enable/disable individual statements before Run. Or **select**
+4. Type SQL in the editor. Multiple statements are fine. The **run rail** on the
+   left of the editor gives each statement a row on its first line: its **In [n]**
+   number (the one the Run tooltip and `Out [n]` use — click it to select the
+   statement), a ▶ that runs that cell alone, and a checkbox that includes it in
+   **Run**. With Safe mode on, the number turns amber for a write Run will ask you
+   to confirm and red with `!` for an UPDATE or DELETE with no WHERE. Or **select**
    a statement (or any SQL) in the editor — Run becomes **Run selection** and only
    that text is executed (variables still expand).
 5. Click **Run**. Results appear below, grouped by connection (stack or side-by-side).
@@ -377,7 +381,8 @@ Tips:
   second statement is refused. Use the wrench to insert rebuild/reorg/optimize/REINDEX
   SQL when useful. On **Db2**, that SQL reorganises **every** index on the table
   (`REORG INDEXES ALL FOR TABLE` through `SYSPROC.ADMIN_CMD`) and quotes catalog
-  names (folded uppercase unless the table is a mixed-case delimited identifier).
+  names: the schema folded to uppercase, the table exactly as the catalog stores
+  it, so a table created as `"orders"` is not aimed at `ORDERS`.
   The index form opens under the selected index (no jump to a form at the bottom
   of the section). Index Management, Clone Table, and Query files live in
   **Utils** — see [Utilities](#utilities).
@@ -431,8 +436,8 @@ Tips:
   ```
 
   Typing `${{` / `${{name.` autocompletes names and table columns. Hover a ref for
-  its value (or `N×M table`). Hover a statement in the strip (when it uses vars) to
-  preview **query with values** and **Copy**. Statements in one Run are sequential
+  its value (or `N×M table`). Hover a statement's row on the run rail and click its
+  copy button to copy it with its values filled in (secrets stay masked). Statements in one Run are sequential
   so later SQL can use vars set by earlier `@set`. Multi-destination: `@set` uses
   the first successful server’s result. Substitution is local (values are pasted
   into the SQL text before send — not database bind parameters). Missing/empty
@@ -562,8 +567,10 @@ Tips:
   transaction **per destination**. A failure rolls the batch back and leaves
   later statements unrun (the result row says so). Code cells and `-- @set`
   stay statement by statement — the checkbox then warns instead of wrapping.
-  Engines that auto-commit DDL still report each statement; the rollback is
-  best-effort there. This is separate from Data migrate's Transaction assist.
+  Engines that auto-commit DDL (MySQL, MariaDB, TiDB, Oracle, CockroachDB) cannot
+  undo DDL that already ran. Redis, MongoDB and ClickHouse cannot roll back at all,
+  so a multi-statement Run with One transaction is refused there — run it without.
+  This is separate from Data migrate's Transaction assist.
 
 Writes and DDL are allowed when you confirm them. **SQLite** connections are
 read-write (the file is opened that way on purpose). **ClickHouse** grid row
@@ -692,8 +699,8 @@ On a multi-user install, **Profile → Access control** assigns Fox Schema
 that is **app** access, not GRANT on a connected database. What you may do to
 saved connections and schema in the current workspace also follows your
 **workspace** role there ([Workspaces](#workspaces)). Code cells, Git,
-workflow and creating workspaces stay on the account role: owning a workspace
-does not grant them. **Admins: One / Several**, **Members can create
+workflow, creating workspaces and **Install drivers** stay on the account role:
+owning a workspace does not grant them. **Admins: One / Several**, **Members can create
 workspaces** and **Workspace owners can invite new people** sit on the same
 panel. **Workspaces** (the tab) lists every workspace; an admin opens one only
 by joining.
@@ -873,8 +880,11 @@ line). Stop it with `foxschema stop`.
 **Port already in use (Docker).** Change `PORT` in `.env` and restart
 (`docker compose -f docker-compose.app.yml up -d`).
 
-**"driver not installed" for a database type.** Some drivers are optional/platform-
-specific (notably IBM Db2 / `ibm_db`). Prefer:
+**"driver not installed" for a database type.** The credential form, the SQL
+editor's schema browser and a failed run all offer **Install driver**. Installing
+runs npm on the server, so it needs the **Install drivers** permission (admins by
+default); without it the banner gives the command to run instead. Some drivers are
+optional/platform-specific (notably IBM Db2 / `ibm_db`). Prefer:
 
 ```bash
 foxschema drivers install db2

@@ -11,6 +11,7 @@ Living documents describe the tree as it is. Plans and release notes are history
 | What the product is and how to install it | [README](../README.md), [install.md](install.md) |
 | How to use the app | [user-guide.md](user-guide.md) |
 | Where code lives | [CODE_MAP.md](CODE_MAP.md) |
+| What each feature is, what it touches, and how to plan work on it | [FEATURE_MAP.md](FEATURE_MAP.md) |
 | How the system is put together | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | File and symbol names | [CONVENTIONS.md](CONVENTIONS.md) |
 | How to work in this repo | [CONTRIBUTING.md](../CONTRIBUTING.md), [AGENTS.md](../AGENTS.md) |

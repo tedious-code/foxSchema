@@ -52,7 +52,7 @@ FoxSchema = schema diff/migration + SQL Editor + workspaces. Destinations checkl
 - **Monarch flag**: module-local ready flag only — never write onto Monaco ESM exports.
 
 ## Notebook cells + Data peek + Node `sql` bridge
-- One Monaco buffer; cell banding + statement strip `In [n]:` / per-cell ▶; results `Out [n]:`.
+- One Monaco buffer; cell banding + the run rail left of the editor (`StatementRunGutter`: `In [n]` number, per-cell ▶, include checkbox); results `Out [n]:`.
 - Data peek: `DataPeekPanel` from SqlEditorView; FK rust `#9a3412`; `tablePreview.ts` + store APIs.
 - Node bridge: worker has **no DB handle**; `sql\`...\`` → `cell-query` / `cell-query-result`; bind params only; `sql.raw` sole unescaped path; no cross-call transactions.
 - SQLite: read-write open, `.run()` for non-SELECT; `resolveFkReferencedColumns` needs real identifier strings.

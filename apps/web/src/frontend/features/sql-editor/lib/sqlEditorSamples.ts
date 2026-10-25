@@ -425,7 +425,7 @@ return [{
     id: 'sample-schema-history-table',
     title: '★ Sample · Schema history (table v1…vN)',
     sql: `-- WRITES — Safe mode OFF. SQLite, Postgres, or MySQL.
--- Play ONE SQL cell at a time (▶ on the strip), then Compare Schema → Snapshot
+-- Play ONE SQL cell at a time (▶ beside its In [n] on the left), then Compare Schema → Snapshot
 -- target. After v3, open History and click fox_hist_customers.
 
 -- @js
@@ -684,7 +684,7 @@ return sample.map((r) => ({ id: r.id, name: r.name, inserted }));
   {
     id: 'sample-foxscript-notebook',
     title: '★ Sample · FoxScript notebook (SQL ↔ JS)',
-    sql: `-- FoxScript = one buffer, many cells. Use the strip ▶ to run one cell, or Run all.
+    sql: `-- FoxScript = one buffer, many cells. Use the ▶ beside a cell's In [n] to run that cell, or Run all.
 
 SELECT 'east' AS region, 10 AS n
 UNION ALL
@@ -987,7 +987,7 @@ return (decoded.people ?? []).map((p) => ({
   },
   {
     id: 'sample-js-play-one-cell',
-    title: '★ Sample · strip ▶ one cell at a time',
+    title: '★ Sample · ▶ one cell at a time',
     sql: `-- Tip: click ▶ on In [2] alone — last is null, so the cell must guard.
 
 SELECT 100 AS seed;

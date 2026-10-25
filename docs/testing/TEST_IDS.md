@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **999** buttons, text boxes, selects and textareas.
+Every control has a test ID: **996** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -937,6 +937,9 @@ Every control has a test ID: **999** buttons, text boxes, selects and textareas.
 - **controls** · `shared/components/controls.tsx`
   - `{testId}` · div · passed in by the parent
   - `{testId}-{value}` · button · passed in by the parent
+- **DriverInstallHints** · `shared/components/DriverInstallHints.tsx`
+  - `driver-install-error` · p
+  - `driver-install-needs-admin` · p
 - **ErrorBoundary** · `shared/components/ErrorBoundary.tsx`
   - `app-error-boundary-dismiss` · button · Dismiss
 - **FilterPicker** · `shared/components/FilterPicker.tsx`
@@ -1176,6 +1179,8 @@ Every control has a test ID: **999** buttons, text boxes, selects and textareas.
   - `sql-cred-refresh` · button · Refresh this server
   - `sql-install-driver-{connectionId}` · button in MissingDriverBanner · Install the driver package on the server
   - `sql-install-driver-{connectionId}-banner` · div in MissingDriverBanner
+  - `sql-pane-install-driver-{connectionId}` · button in MissingDriverBanner · Install the driver package on the server
+  - `sql-pane-install-driver-{connectionId}-banner` · div in MissingDriverBanner
   - `sql-pane-resize` · div · Drag to resize this table
   - `sql-pane-retry-{connectionId}` · button · Retry this server
   - `sql-result-{statementIndex}-{action}` · data
@@ -1348,19 +1353,11 @@ Every control has a test ID: **999** buttons, text boxes, selects and textareas.
   - `sql-variable-value-input` · input · value
   - `sql-variables` · div
 - **StatementRunGutter** · `features/sql-editor/components/StatementRunGutter.tsx`
+  - `sql-statement-copy-{i}` · button
   - `sql-statement-gutter` · div · Statement run checks
   - `sql-statement-include-{i}` · input
+  - `sql-statement-label-{i}` · button
   - `sql-statement-run-{i}` · button
-- **StatementStrip** · `features/sql-editor/components/StatementStrip.tsx`
-  - `sql-statement-cell-{i}` · div
-  - `sql-statement-copy` · button
-  - `sql-statement-copy-row-{i}` · button
-  - `sql-statement-include-{i}` · input
-  - `sql-statement-reveal-{i}` · button · In [ ]:
-  - `sql-statement-run-{i}` · button
-  - `sql-statement-strip` · div
-  - `sql-statement-strip-resize` · div · Resize statement list
-  - `sql-statement-values-popover` · div
 - **TableBlueprintModal** · `features/sql-editor/components/TableBlueprintModal.tsx`
   - `{testId}` · div · passed in by the parent
   - `{testId}-toggle` · button · passed in by the parent

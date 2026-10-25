@@ -441,7 +441,7 @@ interface SqlEditorState {
    * Re-run SQL.
    * - `connectionIds` — refresh only those credentials (keeps other panes).
    * - `statementIndices` — run only these split indices (per-cell Play; ignores
-   *   strip checks and editor selection).
+   *   rail run checks and editor selection).
    */
   execute: (opts?: {
     confirmedWrites?: boolean;
@@ -1024,7 +1024,7 @@ export const useSqlEditorStore = create<SqlEditorState>()(
             ? selected.filter((c) => connectionIds.includes(c.id))
             : selected;
 
-        // Per-cell Play: run exactly those indices (ignore strip checks + selection).
+        // Per-cell Play: run exactly those indices (ignore run checks + selection).
         const selectedSql = getSelectedSql();
         // Only consulted when nothing is checked and nothing is selected — then
         // Run means "this statement", not "the first one in the buffer".
@@ -1035,7 +1035,7 @@ export const useSqlEditorStore = create<SqlEditorState>()(
           statementIndices && statementIndices.length > 0
             ? statementsToRun(tab.sql, statementIndices)
             : resolveRunStatements(tab.sql, tab.checkedStatements, selectedSql, caretOffset);
-        // Align Out [n] with In [n] when running from strip / Play (not selection).
+        // Align Out [n] with In [n] when running from run checks / Play (not selection).
         const sourceIndices = fromSelection
           ? null
           : indicesToRun(
@@ -1121,7 +1121,7 @@ export const useSqlEditorStore = create<SqlEditorState>()(
               multiTableStatements,
               connectionIds: connectionIds?.length ? connectionIds : undefined,
               // Pin what was confirmed. Resuming re-derives from the editor, so
-              // without this the caret (or strip checks) could move between
+              // without this the caret (or run checks) could move between
               // "Run" and "Confirm" and a different statement than the one
               // listed in the dialog would execute.
               statementIndices: statementIndices?.length

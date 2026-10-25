@@ -171,6 +171,18 @@ describe('effectivePermissions — install keys from the account, workspace keys
     expect(INSTALL_PERMISSIONS.has('workspace.create')).toBe(true);
   });
 
+  it('keeps admin.drivers admin-only, and out of reach of a workspace role', () => {
+    // Installing a driver runs npm on the server for every workspace.
+    for (const role of ['viewer', 'editor', 'owner'] as const) {
+      expect(DEFAULT_ROLE_PERMISSIONS[role], role).not.toContain('admin.drivers');
+    }
+    expect(DEFAULT_ROLE_PERMISSIONS.admin).toContain('admin.drivers');
+    expect(INSTALL_PERMISSIONS.has('admin.drivers')).toBe(true);
+    expect(effectivePermissions(DEFAULT_ROLE_PERMISSIONS.viewer, [...DEFAULT_ROLE_PERMISSIONS.owner, 'admin.drivers'])).not.toContain(
+      'admin.drivers'
+    );
+  });
+
   it('describes every install permission in the catalog', () => {
     for (const p of INSTALL_PERMISSIONS) expect(PERMISSION_META.some((m) => m.id === p)).toBe(true);
   });

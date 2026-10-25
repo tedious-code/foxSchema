@@ -121,9 +121,13 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
   (`REORG INDEX name` → SQL0270N reason 89). Defrag emits
   `CALL SYSPROC.ADMIN_CMD('REORG INDEXES ALL FOR TABLE …')` then `RUNSTATS`
   (`providers/db2/db2.index-fragmentation.ts`). Quote names as `SYSCAT` stores
-  them: fold the schema (and a single-case table) to uppercase before quoting;
-  keep mixed case on a delimited table name. Quoting the typed case
-  (`"demo_a"."ORDERS"`) is SQL2211N for a table the probe just listed.
+  them: fold the **schema** to uppercase (it is what the user typed in the
+  connection, and schema browse looks it up with `toUpperCase()`), but quote the
+  **table exactly as given** — every caller passes the name schema browse read
+  from `SYSCAT.TABLES`. Do not fold the table, single-case or not: a table
+  created as `"orders"` would be aimed at `ORDERS` — SQL2211N if there is none,
+  someone else's table if there is (`db2ReorgTarget`). Quoting the typed schema
+  case (`"demo_a"."ORDERS"`) is SQL2211N for a table the probe just listed.
 - `modifyColumnStatements` — `SET DATA TYPE` can't carry nullability; emit a
   **separate** `SET NOT NULL` / `DROP NOT NULL`.
 - `dropIndexStatement` / `dropTriggerStatement` schema-prefixed, no `ON table`.

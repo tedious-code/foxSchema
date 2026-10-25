@@ -175,6 +175,8 @@ export const SqlEditorView: React.FC = () => {
   const [dragOver, setDragOver] = useState<number | null>(null);
   const secretsPanelRef = useRef<SqlSecretsPanelHandle>(null);
   const schemaExplorerRef = useRef<SqlSchemaExplorerHandle>(null);
+  /** Whether the browsed connection has tables to create (not Redis or MongoDB). */
+  const [explorerCanCreateTable, setExplorerCanCreateTable] = useState(true);
   const [secretsRefreshing, setSecretsRefreshing] = useState(false);
   const [runsOpen, setRunsOpen] = useState(false);
 
@@ -522,20 +524,22 @@ export const SqlEditorView: React.FC = () => {
               height={sectionHeights.schema}
               onResizeHeight={(h) => setSectionHeight('schema', h)}
               actions={
-                <button
-                  type="button"
-                  data-testid="sql-schema-new-table"
-                  title="Create table — opens blueprint to add columns"
-                  onClick={() => schemaExplorerRef.current?.openCreateTable()}
-                  className="flex items-center gap-0.5 text-[12px] font-bold text-[#059669] hover:text-[#047857] transition"
-                >
-                  <Plus className="w-3.5 h-3.5 text-[#059669]" strokeWidth={SQL_ICON_STROKE} />
-                  New table
-                </button>
+                !explorerCanCreateTable ? undefined : (
+                  <button
+                    type="button"
+                    data-testid="sql-schema-new-table"
+                    title="Create table — opens blueprint to add columns"
+                    onClick={() => schemaExplorerRef.current?.openCreateTable()}
+                    className="flex items-center gap-0.5 text-[12px] font-bold text-[#059669] hover:text-[#047857] transition"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-[#059669]" strokeWidth={SQL_ICON_STROKE} />
+                    New table
+                  </button>
+                )
               }
               {...drag}
             >
-              <SqlSchemaExplorer ref={schemaExplorerRef} />
+              <SqlSchemaExplorer ref={schemaExplorerRef} onCanCreateTableChange={setExplorerCanCreateTable} />
             </SqlSidebarSection>
           );
         default:
@@ -547,6 +551,7 @@ export const SqlEditorView: React.FC = () => {
       canEditorBookmarks,
       canEditorVariables,
       canVariablesRead,
+      explorerCanCreateTable,
       canEditorSecrets,
       canSecretsView,
       canEditorSchema,

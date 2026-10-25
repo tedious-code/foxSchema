@@ -84,7 +84,7 @@ import {
   type SqlVariableKind,
   type VariableOverride,
 } from '@/shared/lib/sql-variables';
-import { connectionNeedsSecret, dialectHasTransactions } from '@/shared/lib/provider-settings';
+import { dialectHasTransactions, needsSessionPassword } from '@/shared/lib/provider-settings';
 import { useSyncStore } from '@/features/compare';
 import { SQL_EDITOR_PERSIST_KEY, SQL_EDITOR_PERSIST_VERSION, useRecentQueries } from './recentQueries';
 import { workspaceEditorStorage } from '@/shared/lib/editorWorkspaceStorage';
@@ -131,7 +131,7 @@ const isReadOnlyDialect = (dialect: string) =>
 
 type ExecutionTarget = Pick<
   SavedConnectionSummary,
-  'id' | 'name' | 'dialect' | 'hasPassword' | 'authMethod'
+  'id' | 'name' | 'dialect' | 'hasPassword' | 'authMethod' | 'username'
 >;
 
 /** Synthetic run target when executing code cells with no Destination checked. */
@@ -678,12 +678,7 @@ export const useSqlEditorStore = create<SqlEditorState>()(
         // A file database has no password to be missing. Prompting for one
         // left the destination checkbox refusing to tick, so SQLite could not
         // be run against at all.
-        if (
-          conn &&
-          !conn.hasPassword &&
-          connectionNeedsSecret(conn.dialect, conn.authMethod) &&
-          !sessionPasswordFor(id, sessionPasswords)
-        ) {
+        if (conn && needsSessionPassword(conn, sessionPasswordFor(id, sessionPasswords))) {
           set({
             pendingPassword: {
               id,
@@ -703,12 +698,7 @@ export const useSqlEditorStore = create<SqlEditorState>()(
         const tab = tabs.find((t) => t.id === activeTabId);
         if (!tab || !id) return;
         const conn = useSyncStore.getState().connections.find((c) => c.id === id);
-        if (
-          conn &&
-          !conn.hasPassword &&
-          connectionNeedsSecret(conn.dialect, conn.authMethod) &&
-          !sessionPasswordFor(id, sessionPasswords)
-        ) {
+        if (conn && needsSessionPassword(conn, sessionPasswordFor(id, sessionPasswords))) {
           set({
             pendingPassword: {
               id,
@@ -908,11 +898,7 @@ export const useSqlEditorStore = create<SqlEditorState>()(
         }
 
         const { sessionPasswords } = get();
-        if (
-          !conn.hasPassword &&
-          connectionNeedsSecret(conn.dialect, conn.authMethod) &&
-          !sessionPasswordFor(connectionId, sessionPasswords)
-        ) {
+        if (needsSessionPassword(conn, sessionPasswordFor(connectionId, sessionPasswords))) {
           set({
             pendingPassword: {
               id: connectionId,
@@ -1072,12 +1058,7 @@ export const useSqlEditorStore = create<SqlEditorState>()(
           connections = [LOCAL_CODE_RUN_TARGET];
         }
 
-        const needingPassword = connections.find(
-          (c) =>
-            !c.hasPassword &&
-            connectionNeedsSecret(c.dialect, c.authMethod) &&
-            !sessionPasswordFor(c.id, sessionPasswords)
-        );
+        const needingPassword = connections.find((c) => needsSessionPassword(c, sessionPasswordFor(c.id, sessionPasswords)));
         if (needingPassword) {
           set({
             pendingPassword: {

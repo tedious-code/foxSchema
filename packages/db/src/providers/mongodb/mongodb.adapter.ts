@@ -101,7 +101,11 @@ class MongoDbAdapter implements DriverAdapter {
           intent.columns === '*'
             ? undefined
             : Object.fromEntries(intent.columns.map((c) => [c, 1]));
+        // `limit(0)` means "no limit" to Mongo. An empty page (past the end of
+        // the reader's own LIMIT) must return nothing, not the collection.
+        if (intent.limit === 0) return [] as T[];
         let cursor = collection.find(filter(intent.where, false), { projection });
+        if (intent.offset) cursor = cursor.skip(intent.offset);
         if (intent.limit !== undefined) cursor = cursor.limit(intent.limit);
         const docs = await cursor.toArray();
         // _id is a BSON ObjectId — the grid and the diff both want text.

@@ -25,7 +25,7 @@ import { useAuthStore } from '@/platform/authStore';
 import { useSqlEditorStore } from '@/features/sql-editor/state';
 import type { useSyncStore } from '@/features/compare';
 import { executeSql } from '@/shared/api/sqlApi';
-import { connectionNeedsSecret } from '@/shared/lib/provider-settings';
+import { needsSessionPassword } from '@/shared/lib/provider-settings';
 import { dialectLabel } from '@/shared/lib/dialectLabel';
 
 type Connection = ReturnType<typeof useSyncStore.getState>['connections'][number];
@@ -52,10 +52,7 @@ export const BackupServerActions: React.FC<{
   const [history, setHistory] = useState<'idle' | 'loading' | BackupHistoryEntry[] | { error: string }>('idle');
 
   const historySql = backupHistoryQuery({ dialect: connection.dialect, database: connection.database ?? '', schema: connection.schema });
-  const needsPassword =
-    !connection.hasPassword &&
-    connectionNeedsSecret(connection.dialect, connection.authMethod) &&
-    !sessionPasswords[connection.id];
+  const needsPassword = needsSessionPassword(connection, sessionPasswords[connection.id]);
   const ref = {
     connectionId: connection.id,
     password: sessionPasswords[connection.id] || undefined,

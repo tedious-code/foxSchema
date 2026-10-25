@@ -111,6 +111,10 @@ function findSelectListEnd(sql: string, start: number): number {
       depth--;
       // More closes than opens: we are inside something we did not start.
       if (depth < 0) return i;
+    } else if (depth === 0 && c === ';') {
+      // The statement's own terminator — the editor sends it. Read as part of
+      // the last item, `SELECT 100 AS seed;` gained `; AS col_1` after it.
+      return i;
     } else if (depth === 0 && /\s/.test(c)) {
       const rest = sql.slice(i + 1);
       if (/^from\b/i.test(rest)) return i;

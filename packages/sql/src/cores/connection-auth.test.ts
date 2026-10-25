@@ -8,6 +8,7 @@ import {
   assertWindowsAccount,
   authMethodsForDialect,
   connectionNeedsSecret,
+  needsSessionPassword,
   normalizeAuthMethod,
   parseWindowsAccount,
   passwordFieldLabel,
@@ -42,6 +43,27 @@ describe('connection auth methods', () => {
     expect(connectionNeedsSecret('sqlserver', 'windows')).toBe(true);
     expect(connectionNeedsSecret('db2', 'ldap')).toBe(true);
     expect(connectionNeedsSecret('postgres')).toBe(true);
+  });
+
+  it('Redis and MongoDB need a secret only when the connection names a user', () => {
+    // Both commonly run with no auth; the session prompt refuses an empty
+    // password, so asking every time made such a server unusable.
+    expect(connectionNeedsSecret('redis')).toBe(false);
+    expect(connectionNeedsSecret('redis', 'password', '  ')).toBe(false);
+    expect(connectionNeedsSecret('redis', 'password', 'app')).toBe(true);
+    expect(connectionNeedsSecret('mongodb', undefined, null)).toBe(false);
+    expect(connectionNeedsSecret('mongodb', undefined, 'admin')).toBe(true);
+    // Every SQL server still asks, user or not.
+    expect(connectionNeedsSecret('postgres', 'password', '')).toBe(true);
+  });
+
+  it('asks for a password only when none is saved or given this session, and the engine needs one', () => {
+    expect(needsSessionPassword({ dialect: 'postgres' })).toBe(true);
+    expect(needsSessionPassword({ dialect: 'postgres', hasPassword: true })).toBe(false);
+    expect(needsSessionPassword({ dialect: 'postgres' }, 'typed-this-session')).toBe(false);
+    expect(needsSessionPassword({ dialect: 'sqlite' })).toBe(false);
+    expect(needsSessionPassword({ dialect: 'redis' })).toBe(false);
+    expect(needsSessionPassword({ dialect: 'redis', username: 'app' })).toBe(true);
   });
 
   it('parses DOMAIN\\user and an explicit domain field', () => {

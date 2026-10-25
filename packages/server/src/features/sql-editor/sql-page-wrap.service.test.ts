@@ -7,6 +7,16 @@ import {
   wrapSqlForSeek,
 } from './sql-page-wrap.service';
 
+describe('paging Redis and MongoDB', () => {
+  // They read SQL through a parser with no subqueries: a nested page was
+  // refused ("Unsupported clause") for every Redis and MongoDB SELECT.
+  it.each(['redis', 'mongodb'])('%s gets the page on the statement itself', (dialect) => {
+    expect(wrapSqlForPage('SELECT * FROM "queue:jobs"', dialect, 200, 200)).toBe(
+      'SELECT * FROM "queue:jobs" LIMIT 201 OFFSET 200'
+    );
+  });
+});
+
 describe('sql-page-wrap', () => {
   it('wraps postgres-style with LIMIT/OFFSET and +1 probe', () => {
     expect(wrapSqlForPage('SELECT 1;', 'postgres', 40, 20)).toBe(

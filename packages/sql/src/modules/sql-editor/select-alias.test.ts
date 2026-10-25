@@ -88,6 +88,17 @@ describe('parses the list without being fooled', () => {
     expect(alias('SELECT 1 + 1')).toBe('SELECT 1 + 1 AS col_1');
   });
 
+  it('stops at the statement’s own semicolon, which the editor sends', () => {
+    // Read as part of the last item, the `;` hid its alias, so this became
+    // `SELECT 100 AS seed; AS col_1` — two statements, and broken on every engine.
+    expect(autoAliasSelectColumns('SELECT 100 AS seed;')).toEqual({ sql: 'SELECT 100 AS seed;', changed: false, added: [] });
+    expect(alias("SELECT 'bonus' AS label, 2 AS n;")).toBe("SELECT 'bonus' AS label, 2 AS n;");
+    expect(alias('SELECT 1, 2;')).toBe('SELECT 1 AS literal, 2 AS literal_2;');
+    expect(alias('SELECT 1 + 1 ;\n')).toBe('SELECT 1 + 1 AS col_1;\n');
+    // A `;` inside a string is not the end.
+    expect(alias("SELECT 'a;b';")).toBe("SELECT 'a;b' AS literal;");
+  });
+
   it('keeps DISTINCT and TOP where they are', () => {
     expect(alias('SELECT DISTINCT 1 + 1 FROM t')).toBe('SELECT DISTINCT 1 + 1 AS col_1 FROM t');
     expect(alias('SELECT TOP 10 1 + 1 FROM t')).toBe('SELECT TOP 10 1 + 1 AS col_1 FROM t');

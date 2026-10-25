@@ -13,6 +13,7 @@ import { CockroachDbProvider } from './cockroachDb/cockroachdb.provider.js';
 import { YugabyteDbProvider } from './yugabyteDb/yugabytedb.provider.js';
 import { TiDbProvider } from './tiDb/tidb.provider.js';
 import { DuckDbProvider } from './duckDb/duckdb.provider.js';
+import { RedisProvider } from './redis/redis.provider.js';
 
 // Register a dialect's schema provider (queries) here — one line per platform.
 export const PROVIDERS: Record<string, SchemaProvider> = {
@@ -30,6 +31,9 @@ export const PROVIDERS: Record<string, SchemaProvider> = {
   yugabytedb: new YugabyteDbProvider(),
   tidb: new TiDbProvider(),
   duckdb: new DuckDbProvider(),
+  // Browsing only: keyspace as tables. Compare and history refuse Redis
+  // (`schemaCompareSupport`), so nothing diffs or generates DDL for it.
+  redis: new RedisProvider(),
 };
 
 export function getRegisteredProvider(dialect: string): SchemaProvider {

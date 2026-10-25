@@ -122,7 +122,8 @@ export function hasTopLevelOrderBy(sql: string): boolean {
  * Best-effort page wrap. Dialects without OFFSET still get a subquery + LIMIT
  * when offset is 0; non-zero offset uses the closest dialect syntax.
  */
-const LIMIT_ONE_DIALECTS = new Set([
+/** Dialects whose plain `EXPLAIN` parses and plans a statement without running it. */
+const EXPLAIN_PROBE_DIALECTS = new Set([
   'mysql',
   'mariadb',
   'tidb',
@@ -139,18 +140,24 @@ const LIMIT_ONE_DIALECTS = new Set([
 ]);
 
 /**
- * The reader's statement with `LIMIT 1`, for dialects that accept it.
+ * A probe of the reader's statement that never runs it, used only after a
+ * page wrap fails: plain `EXPLAIN`, which parses and plans — and so reports a
+ * missing table or column in the statement's own words, rather than as a
+ * failure of `SELECT * FROM (…) AS fox_page` — without fetching a row.
  *
- * Used only after a page wrap fails. A missing table then comes back as the
- * statement they wrote, instead of as a failure of `SELECT * FROM (…) AS fox_page`.
- * Statements that already limit themselves are probed as written.
+ * It used to append `LIMIT 1` and run the statement. That ran it unbounded
+ * whenever the limit did not take: a trailing `-- comment` swallowed it, and
+ * a `limit` anywhere in the text (a subquery, a string) skipped it. On MySQL
+ * the wrapper also fails for valid joins — two `id` columns in a derived
+ * table — so that was a whole join materialised to report an error the
+ * wrapper had already given. Paging fails closed so nothing is ever read
+ * unbounded; a probe must not reopen that.
  */
 export function syntaxProbeSql(sql: string, dialect: string): string | null {
-  if (!LIMIT_ONE_DIALECTS.has(dialect.toLowerCase())) return null;
+  if (!EXPLAIN_PROBE_DIALECTS.has(dialect.toLowerCase())) return null;
   const trimmed = sql.trim().replace(/;+\s*$/, '');
   if (!trimmed) return null;
-  if (/\blimit\b/i.test(trimmed)) return trimmed;
-  return `${trimmed} LIMIT 1`;
+  return `EXPLAIN ${trimmed}`;
 }
 
 export function wrapSqlForPage(

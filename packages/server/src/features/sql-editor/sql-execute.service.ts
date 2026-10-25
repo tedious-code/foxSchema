@@ -258,9 +258,9 @@ export async function runStatements(
           continue;
         }
         // A missing table fails inside the page wrapper (`SELECT * FROM (…) AS
-        // fox_page`). Probe the statement itself with LIMIT 1 so the error is
-        // the one the reader can act on. The probe runs only after the wrap
-        // fails, and only at the first page — a successful SELECT is unchanged.
+        // fox_page`). EXPLAIN the statement itself so the error is the one the
+        // reader can act on — planned, never run, so it reads no rows. Only
+        // after the wrap fails, and only at the first page.
         const probe = !seek && offset === 0 ? syntaxProbeSql(sql, dialect) : null;
         if (probe) {
           try {

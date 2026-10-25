@@ -466,6 +466,13 @@ export const DatabaseAccessModal: React.FC<Props> = ({
         sql
       );
       if (!outcome.ok) {
+        // Statements before the failure stay applied; re-read so the list
+        // shows them rather than the grants as they were before — then set
+        // the error, which a reload starts by clearing.
+        if (outcome.applied > 0) {
+          invalidateDbAccessCache(connectionId);
+          await load();
+        }
         setError(outcome.error);
       } else {
         setStatus(kind === 'grant' ? 'Granted.' : 'Revoked.');

@@ -275,7 +275,7 @@ export const TestIds = {
       diffTablesList: (index: string | number) => `diff-tables-${index}-list`,
       /** div */
       diffUnsupported: 'diff-unsupported',
-      /** div · Permission Diff */
+      /** div · Insight */
       permissionDiff: 'permission-diff',
     },
     PermissionInspector: {
@@ -1748,6 +1748,12 @@ export const TestIds = {
     },
   },
   shared: {
+    DriverInstallHints: {
+      /** p */
+      driverInstallError: 'driver-install-error',
+      /** p */
+      driverInstallNeedsAdmin: 'driver-install-needs-admin',
+    },
     ErrorBoundary: {
       /** button · Dismiss */
       appErrorBoundaryDismiss: 'app-error-boundary-dismiss',
@@ -2009,8 +2015,20 @@ export const TestIds = {
       dataPeekGrid: (id: string | number) => `data-peek-grid-${id}`,
       /** input */
       dataPeekLimit: (id: string | number) => `data-peek-limit-${id}`,
-      /** input · ID DESC */
+      /** input · created_at */
       dataPeekOrder: (id: string | number) => `data-peek-order-${id}`,
+      /** input · created_at */
+      dataPeekOrderForIdAndIndex: (id: string | number, index: string | number) => `data-peek-order-${id}-${index}`,
+      /** button · Add sort */
+      dataPeekOrderAdd: (id: string | number) => `data-peek-order-add-${id}`,
+      /** button · Remove this sort */
+      dataPeekOrderClear: (id: string | number) => `data-peek-order-clear-${id}`,
+      /** button · Remove this sort */
+      dataPeekOrderClearForIdAndIndex: (id: string | number, index: string | number) => `data-peek-order-clear-${id}-${index}`,
+      /** select · — ASC DESC */
+      dataPeekOrderDir: (id: string | number) => `data-peek-order-dir-${id}`,
+      /** select · — ASC DESC */
+      dataPeekOrderDirForIdAndIndex: (id: string | number, index: string | number) => `data-peek-order-dir-${id}-${index}`,
       /** button */
       dataPeekRefby: (table: string | number, fkKey: string | number) => `data-peek-refby-${table}-${fkKey}`,
       /** div */
@@ -2025,10 +2043,16 @@ export const TestIds = {
       dataPeekTabRows: (id: string | number) => `data-peek-tab-rows-${id}`,
       /** div */
       dataPeekTabs: (id: string | number) => `data-peek-tabs-${id}`,
-      /** input · e.g. ARCHIVED = false — or clear to fetch all */
+      /** input */
       dataPeekWhere: (id: string | number) => `data-peek-where-${id}`,
-      /** button · Clear WHERE and fetch all rows */
+      /** input */
+      dataPeekWhereForIdAndIndex: (id: string | number, index: string | number) => `data-peek-where-${id}-${index}`,
+      /** button · Add condition */
+      dataPeekWhereAdd: (id: string | number) => `data-peek-where-add-${id}`,
+      /** button */
       dataPeekWhereClear: (id: string | number) => `data-peek-where-clear-${id}`,
+      /** button */
+      dataPeekWhereClearForIdAndIndex: (id: string | number, index: string | number) => `data-peek-where-clear-${id}-${index}`,
     },
     EditorTabBar: {
       /** div */
@@ -2165,6 +2189,14 @@ export const TestIds = {
     ResultsPanel: {
       /** button · Refresh this server */
       sqlCredRefresh: 'sql-cred-refresh',
+      /** button · Install the driver package on the server */
+      sqlInstallDriver: (connectionId: string | number) => `sql-install-driver-${connectionId}`,
+      /** div */
+      sqlInstallDriverBanner: (connectionId: string | number) => `sql-install-driver-${connectionId}-banner`,
+      /** button · Install the driver package on the server */
+      sqlPaneInstallDriver: (connectionId: string | number) => `sql-pane-install-driver-${connectionId}`,
+      /** div */
+      sqlPaneInstallDriverBanner: (connectionId: string | number) => `sql-pane-install-driver-${connectionId}-banner`,
       /** div · Drag to resize this table */
       sqlPaneResize: 'sql-pane-resize',
       /** button · Retry this server */
@@ -2297,6 +2329,16 @@ export const TestIds = {
       sqlRecentOpen: (id: string | number) => `sql-recent-open-${id}`,
       /** button · Recent */
       sqlRecentTab: 'sql-recent-tab',
+      /** button · Delete workspace script */
+      sqlWorkspaceScriptDelete: (id: string | number) => `sql-workspace-script-delete-${id}`,
+      /** p */
+      sqlWorkspaceScriptError: 'sql-workspace-script-error',
+      /** button */
+      sqlWorkspaceScriptOpen: (id: string | number) => `sql-workspace-script-open-${id}`,
+      /** button · Save the current query for everyone in this workspace */
+      sqlWorkspaceScriptSave: 'sql-workspace-script-save',
+      /** button · Workspace */
+      sqlWorkspaceScriptsTab: 'sql-workspace-scripts-tab',
     },
     SqlEditorView: {
       /** button · Save current query as a bookmark (uses the tab title) */
@@ -2504,25 +2546,17 @@ export const TestIds = {
       /** div */
       sqlVariables: 'sql-variables',
     },
-    StatementStrip: {
-      /** div */
-      sqlStatementCell: (i: string | number) => `sql-statement-cell-${i}`,
+    StatementRunGutter: {
       /** button */
-      sqlStatementCopy: 'sql-statement-copy',
-      /** button */
-      sqlStatementCopyRow: (i: string | number) => `sql-statement-copy-row-${i}`,
+      sqlStatementCopy: (i: string | number) => `sql-statement-copy-${i}`,
+      /** div · Statement run checks */
+      sqlStatementGutter: 'sql-statement-gutter',
       /** input */
       sqlStatementInclude: (i: string | number) => `sql-statement-include-${i}`,
-      /** button · In [ ]: */
-      sqlStatementReveal: (i: string | number) => `sql-statement-reveal-${i}`,
+      /** button */
+      sqlStatementLabel: (i: string | number) => `sql-statement-label-${i}`,
       /** button */
       sqlStatementRun: (i: string | number) => `sql-statement-run-${i}`,
-      /** div */
-      sqlStatementStrip: 'sql-statement-strip',
-      /** div · Resize statement list */
-      sqlStatementStripResize: 'sql-statement-strip-resize',
-      /** div */
-      sqlStatementValuesPopover: 'sql-statement-values-popover',
     },
     TableBlueprintModal: {
       /** button · Add column */
@@ -3487,7 +3521,7 @@ export const TestIds = {
       workspaceMenuInviteDecline: (id: string | number) => `workspace-menu-invite-decline-${id}`,
       /** div */
       workspaceMenuInvites: 'workspace-menu-invites',
-      /** button */
+      /** option */
       workspaceMenuItem: (id: string | number) => `workspace-menu-item-${id}`,
       /** div */
       workspaceMenuPublic: 'workspace-menu-public',
@@ -3497,6 +3531,8 @@ export const TestIds = {
       workspaceMenuPublicEmpty: 'workspace-menu-public-empty',
       /** button · Join */
       workspaceMenuPublicJoin: (id: string | number) => `workspace-menu-public-join-${id}`,
+      /** select · Workspace */
+      workspaceMenuSelect: 'workspace-menu-select',
       /** button · Workspace settings */
       workspaceMenuSettings: 'workspace-menu-settings',
     },
@@ -4023,6 +4059,12 @@ export type TestId =
   | 'data-peek-insight-rows'
   | `data-peek-limit-${string}`
   | `data-peek-order-${string}`
+  | `data-peek-order-${string}-${string}`
+  | `data-peek-order-add-${string}`
+  | `data-peek-order-clear-${string}`
+  | `data-peek-order-clear-${string}-${string}`
+  | `data-peek-order-dir-${string}`
+  | `data-peek-order-dir-${string}-${string}`
   | `data-peek-refby-${string}-${string}`
   | `data-peek-referenced-by-${string}`
   | `data-peek-resize-${string}`
@@ -4031,7 +4073,10 @@ export type TestId =
   | `data-peek-tab-rows-${string}`
   | `data-peek-tabs-${string}`
   | `data-peek-where-${string}`
+  | `data-peek-where-${string}-${string}`
+  | `data-peek-where-add-${string}`
   | `data-peek-where-clear-${string}`
+  | `data-peek-where-clear-${string}-${string}`
   | 'db-access-all-form'
   | 'db-access-all-note'
   | 'db-access-all-target'
@@ -4156,6 +4201,8 @@ export type TestId =
   | `diff-tree-toggle-selection-${string}`
   | 'diff-unsupported'
   | 'dismiss-warnings-btn'
+  | 'driver-install-error'
+  | 'driver-install-needs-admin'
   | 'error-banner'
   | 'execute-btn'
   | 'feedback-cancel'
@@ -4706,6 +4753,8 @@ export type TestId =
   | 'sql-grid-save-result-as'
   | 'sql-grid-save-result-as-mode'
   | 'sql-grid-view-scope'
+  | `sql-install-driver-${string}`
+  | `sql-install-driver-${string}-banner`
   | 'sql-layout-by-credential'
   | 'sql-layout-side-by-side'
   | 'sql-max-rows'
@@ -4718,6 +4767,8 @@ export type TestId =
   | 'sql-open-object-source-btn'
   | 'sql-page-next'
   | 'sql-page-prev'
+  | `sql-pane-install-driver-${string}`
+  | `sql-pane-install-driver-${string}-banner`
   | 'sql-pane-refresh'
   | 'sql-pane-resize'
   | `sql-pane-retry-${string}`
@@ -4850,15 +4901,11 @@ export type TestId =
   | `sql-sidebar-resize-${string}`
   | `sql-sidebar-toggle-${string}`
   | 'sql-sidebar-utilities'
-  | `sql-statement-cell-${string}`
-  | 'sql-statement-copy'
-  | `sql-statement-copy-row-${string}`
+  | `sql-statement-copy-${string}`
+  | 'sql-statement-gutter'
   | `sql-statement-include-${string}`
-  | `sql-statement-reveal-${string}`
+  | `sql-statement-label-${string}`
   | `sql-statement-run-${string}`
-  | 'sql-statement-strip'
-  | 'sql-statement-strip-resize'
-  | 'sql-statement-values-popover'
   | 'sql-tab-add'
   | `sql-tab-close-${string}`
   | 'sql-tab-rename'
@@ -4884,6 +4931,11 @@ export type TestId =
   | `sql-variable-value-edit-${string}`
   | 'sql-variable-value-input'
   | 'sql-variables'
+  | `sql-workspace-script-delete-${string}`
+  | 'sql-workspace-script-error'
+  | `sql-workspace-script-open-${string}`
+  | 'sql-workspace-script-save'
+  | 'sql-workspace-scripts-tab'
   | 'sql-write-confirm'
   | 'sql-write-confirm-btn'
   | 'sql-write-confirm-cancel'
@@ -5190,6 +5242,7 @@ export type TestId =
   | `workspace-menu-public-${string}`
   | 'workspace-menu-public-empty'
   | `workspace-menu-public-join-${string}`
+  | 'workspace-menu-select'
   | 'workspace-menu-settings'
   | 'workspace-rail-btn'
   | 'workspace-rail-invites'

@@ -12,10 +12,11 @@ import { compileZodSchema } from '../lib/zodSchema';
 import type {
   ColumnCheck as EngineColumnCheck,
   ColumnCheckKind,
+  ColumnRule,
   ColumnType,
   FixedWidthColumn,
 } from '@foxschema/workflow-engine/definitions';
-import type { KnowsEveryField, SameMembers } from '../lib/engineShapes';
+import type { SameMembers } from '../lib/engineShapes';
 
 /**
  * Config editor for the delimited file sources (`source.file.csv`,
@@ -59,33 +60,14 @@ const COLUMN_TYPES = ['string', 'integer', 'number', 'boolean', 'date'] as const
 const CHECK_KINDS = ['null', 'length', 'format'] as const;
 const _columnTypesMatch: SameMembers<(typeof COLUMN_TYPES)[number], ColumnType> = true;
 const _checkKindsMatch: SameMembers<(typeof CHECK_KINDS)[number], ColumnCheckKind> = true;
-const _checksKnown: KnowsEveryField<ColumnCheck, EngineColumnCheck> = true;
-const _fixedKnown: KnowsEveryField<FixedColumn, FixedWidthColumn> = true;
-void [_columnTypesMatch, _checkKindsMatch, _checksKnown, _fixedKnown];
+void [_columnTypesMatch, _checkKindsMatch];
 
-interface ColumnCheck {
-  pattern: string;
-  kind?: string;
-  message?: string;
-}
-
-interface ColumnRuleFields {
-  type?: string;
-  /** Legacy single regex — migrated into `checks` in the editor when present. */
-  pattern?: string;
-  checks?: ColumnCheck[];
-  required?: boolean;
-}
-
-interface FixedColumn extends ColumnRuleFields {
-  name: string;
-  start: number;
-  length: number;
-}
-
-interface FieldRule extends ColumnRuleFields {
-  name: string;
-}
+// The engine's own column shapes, type-only. Hand-kept copies here typed a
+// column's `type` as any string, so a value the engine rejects compiled.
+type ColumnCheck = EngineColumnCheck;
+type ColumnRuleFields = Omit<ColumnRule, 'name'>;
+type FixedColumn = FixedWidthColumn;
+type FieldRule = ColumnRule;
 
 const parseChecks = (value: unknown): ColumnCheck[] => {
   if (!Array.isArray(value)) return [];
@@ -103,6 +85,10 @@ const parseChecks = (value: unknown): ColumnCheck[] => {
   });
 };
 
+/** A column type the engine knows, or undefined — the engine refuses any other. */
+const asColumnType = (value: unknown): ColumnType | undefined =>
+  (COLUMN_TYPES as readonly unknown[]).includes(value) ? (value as ColumnType) : undefined;
+
 /** Normalize rule fields: fold legacy `pattern` into `checks` for editing. */
 const ruleFields = (raw: ColumnRuleFields): ColumnRuleFields => {
   const checks = parseChecks(raw.checks);
@@ -111,7 +97,7 @@ const ruleFields = (raw: ColumnRuleFields): ColumnRuleFields => {
     checks.unshift({ pattern: legacy });
   }
   return {
-    ...(raw.type ? { type: String(raw.type) } : {}),
+    ...(asColumnType(raw.type) ? { type: asColumnType(raw.type) } : {}),
     ...(checks.length > 0 ? { checks } : {}),
     ...(raw.required ? { required: true } : {}),
   };
@@ -209,7 +195,7 @@ function ColumnRuleEditor({
         <select data-testid={`workflow-source-rule-type-${name}`}
           title="Value type — validated and converted"
           value={fields.type ?? 'string'}
-          onChange={(ev) => onFieldsChange({ ...fields, type: ev.target.value })}
+          onChange={(ev) => onFieldsChange({ ...fields, type: asColumnType(ev.target.value) })}
         >
           {COLUMN_TYPES.map((type) => (
             <option key={type} value={type}>

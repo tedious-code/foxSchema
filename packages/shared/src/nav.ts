@@ -45,7 +45,7 @@ export const COMMUNITY_NAV: NavItem[] = [
         permission: 'access.builder',
         children: [
           { id: 'access.builder', label: 'Builder', permission: 'access.builder' },
-          { id: 'access.diff', label: 'Diff', permission: 'access.diff' },
+          { id: 'access.diff', label: 'Insight', permission: 'access.diff' },
           { id: 'access.inspector', label: 'Inspector', permission: 'access.inspector' },
         ],
       },

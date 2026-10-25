@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { rmSync } from 'node:fs';
 import { clampMaxRows, shapePositional, shapeRows, runStatements } from './sql-execute.service';
+import { syntaxProbeSql } from './sql-page-wrap.service';
 import { ConnectionFactory } from '@foxschema/db';
 
 describe('clampMaxRows', () => {
@@ -303,7 +304,7 @@ describe('runStatements against a real SQLite file', () => {
     }
   });
 
-  it('reports the statement error when a LIMIT 1 probe fails', async () => {
+  it('reports the statement error when the EXPLAIN probe fails', async () => {
     const spy = vi
       .spyOn(ConnectionFactory, 'executeOnConnection')
       .mockRejectedValueOnce(new Error('wrap boom'))
@@ -324,7 +325,7 @@ describe('runStatements against a real SQLite file', () => {
       }
       expect(spy).toHaveBeenCalledTimes(2);
       expect(String(spy.mock.calls[0]![2])).toContain('fox_page');
-      expect(String(spy.mock.calls[1]![2])).toBe('SELECT * FROM COUPONS cou LIMIT 1');
+      expect(String(spy.mock.calls[1]![2])).toBe('EXPLAIN SELECT * FROM COUPONS cou');
     } finally {
       spy.mockRestore();
     }
@@ -350,10 +351,48 @@ describe('runStatements against a real SQLite file', () => {
         expect(results[0].error).toMatch(/wrap boom/);
       }
       expect(spy).toHaveBeenCalledTimes(2);
-      expect(String(spy.mock.calls[1]![2])).toContain('LIMIT 1');
+      expect(String(spy.mock.calls[1]![2])).toMatch(/^EXPLAIN /);
       expect(String(spy.mock.calls[1]![2])).not.toContain('fox_page');
     } finally {
       spy.mockRestore();
+    }
+  });
+});
+
+describe('the probe after a failed page wrap', () => {
+  // Paging fails closed so nothing is read unbounded. The probe that explains
+  // a failed wrap must not reopen that: these all ran in full under LIMIT 1.
+  it.each([
+    ['a trailing comment swallowed the limit', 'SELECT o.id, c.id FROM orders o JOIN customers c ON c.id = o.customer_id -- this week', 'mysql'],
+    ['a LIMIT inside a subquery skipped it', 'SELECT * FROM (SELECT * FROM recent LIMIT 5) r JOIN events e ON e.rid = r.id', 'mysql'],
+    ['the word in a string skipped it', "SELECT * FROM notes WHERE body = 'no limit'", 'postgres'],
+  ])('plans rather than runs the statement when %s', (_label, sql, dialect) => {
+    expect(syntaxProbeSql(sql, dialect)).toBe(`EXPLAIN ${sql}`);
+  });
+
+  it('has no probe where EXPLAIN is not the plain parse-and-plan', () => {
+    expect(syntaxProbeSql('SELECT 1 FROM dual', 'oracle')).toBeNull();
+    expect(syntaxProbeSql('SELECT 1', 'sqlserver')).toBeNull();
+  });
+
+  it('gets the database’s own words for a missing table, from a real EXPLAIN', async () => {
+    const dbPath = join(tmpdir(), `fox-probe-test-${process.pid}.db`);
+    // @ts-expect-error no type declarations for better-sqlite3
+    const mod = (await import('better-sqlite3')) as { default: new (path: string) => { exec(sql: string): void; close(): void } };
+    const db = new mod.default(dbPath);
+    db.exec('CREATE TABLE present (id INTEGER);');
+    db.close();
+    // Only the wrap is made to fail; the probe reaches SQLite for real.
+    const spy = vi.spyOn(ConnectionFactory, 'executeOnConnection').mockRejectedValueOnce(new Error('wrap boom'));
+    try {
+      const results = await runStatements('sqlite', { connectionString: dbPath }, ['SELECT * FROM coupons'], 10, undefined, 0);
+      expect(results[0]).toMatchObject({ ok: false });
+      if (!results[0]!.ok) expect(results[0].error).toMatch(/no such table: coupons/);
+      expect(String(spy.mock.calls[1]![2])).toBe('EXPLAIN SELECT * FROM coupons');
+    } finally {
+      spy.mockRestore();
+      await ConnectionFactory.closeAll().catch(() => {});
+      rmSync(dbPath, { force: true });
     }
   });
 });

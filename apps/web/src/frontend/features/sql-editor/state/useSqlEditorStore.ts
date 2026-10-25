@@ -25,7 +25,7 @@ import {
   type DataPeekState,
 } from './sqlEditorDataPeek';
 import { seekFromLastRow, tableForOrderBy } from '@/features/sql-editor/lib/resultSeek';
-import { supportsDialectFeature } from '@/shared/lib/dialect-features';
+import { dialectFeatureReason, supportsDialectFeature } from '@/shared/lib/dialect-features';
 import type { SavedConnectionSummary } from '@/shared/api/authApi';
 import { resolveAppSecrets } from '@/shared/api/appSecretsApi';
 import { loadSchema } from '@/shared/api/schemaApi';
@@ -34,6 +34,7 @@ import {
   isInsertWriteStatement,
   isMutatingDmlStatement,
   isPageableStatement,
+  isTransactionControl,
   isWriteStatement,
   splitSqlStatements,
 } from '@/shared/lib/sql-splitter';
@@ -82,7 +83,7 @@ import {
   type SqlVariableKind,
   type VariableOverride,
 } from '@/shared/lib/sql-variables';
-import { connectionNeedsSecret } from '@/shared/lib/provider-settings';
+import { connectionNeedsSecret, dialectHasTransactions } from '@/shared/lib/provider-settings';
 import { useSyncStore } from '@/features/compare';
 import { SQL_EDITOR_PERSIST_KEY, SQL_EDITOR_PERSIST_VERSION, useRecentQueries } from './recentQueries';
 import { workspaceEditorStorage } from '@/shared/lib/editorWorkspaceStorage';
@@ -440,7 +441,7 @@ interface SqlEditorState {
    * Re-run SQL.
    * - `connectionIds` — refresh only those credentials (keeps other panes).
    * - `statementIndices` — run only these split indices (per-cell Play; ignores
-   *   strip checks and editor selection).
+   *   rail run checks and editor selection).
    */
   execute: (opts?: {
     confirmedWrites?: boolean;
@@ -1023,7 +1024,7 @@ export const useSqlEditorStore = create<SqlEditorState>()(
             ? selected.filter((c) => connectionIds.includes(c.id))
             : selected;
 
-        // Per-cell Play: run exactly those indices (ignore strip checks + selection).
+        // Per-cell Play: run exactly those indices (ignore run checks + selection).
         const selectedSql = getSelectedSql();
         // Only consulted when nothing is checked and nothing is selected — then
         // Run means "this statement", not "the first one in the buffer".
@@ -1034,7 +1035,7 @@ export const useSqlEditorStore = create<SqlEditorState>()(
           statementIndices && statementIndices.length > 0
             ? statementsToRun(tab.sql, statementIndices)
             : resolveRunStatements(tab.sql, tab.checkedStatements, selectedSql, caretOffset);
-        // Align Out [n] with In [n] when running from strip / Play (not selection).
+        // Align Out [n] with In [n] when running from run checks / Play (not selection).
         const sourceIndices = fromSelection
           ? null
           : indicesToRun(
@@ -1120,7 +1121,7 @@ export const useSqlEditorStore = create<SqlEditorState>()(
               multiTableStatements,
               connectionIds: connectionIds?.length ? connectionIds : undefined,
               // Pin what was confirmed. Resuming re-derives from the editor, so
-              // without this the caret (or strip checks) could move between
+              // without this the caret (or run checks) could move between
               // "Run" and "Confirm" and a different statement than the one
               // listed in the dialog would execute.
               statementIndices: statementIndices?.length
@@ -1285,15 +1286,31 @@ export const useSqlEditorStore = create<SqlEditorState>()(
         };
 
         const wantsTransaction = get().oneTransaction && rawStatements.length > 1;
-        const transactionBlocked = rawStatements.some(
+        const hasCellOrSet = rawStatements.some(
           (statement) => detectCodeCell(statement) || parseSetDirectives(statement).directives.length > 0
         );
-        if (wantsTransaction && transactionBlocked) {
+        // A BEGIN or COMMIT of the batch's own would end the wrapping
+        // transaction halfway: what ran before it stays, and a later failure
+        // rolls back nothing. The server refuses such a batch; run it as typed.
+        const steersOwnTransaction = rawStatements.some((statement) => isTransactionControl(statement));
+        // ClickHouse, Redis and MongoDB open no transaction: each statement
+        // commits as it runs, so a failure cannot take the earlier ones back.
+        // The server refuses the batch; run it as typed and say so.
+        const noTransaction = connections.find((c) => !dialectHasTransactions(c.dialect));
+        if (wantsTransaction && hasCellOrSet) {
           appendWarning(
             'One transaction applies to plain SQL. This run has a code cell or an @set, so each statement runs on its own.'
           );
+        } else if (wantsTransaction && steersOwnTransaction) {
+          appendWarning(
+            'This run has its own BEGIN, COMMIT or ROLLBACK, so it runs statement by statement as written rather than as one transaction.'
+          );
+        } else if (wantsTransaction && noTransaction) {
+          appendWarning(
+            `${dialectFeatureReason(noTransaction.dialect, 'transactions')} This run goes statement by statement instead of as one transaction.`
+          );
         }
-        const asOneTransaction = wantsTransaction && !transactionBlocked;
+        const asOneTransaction = wantsTransaction && !hasCellOrSet && !steersOwnTransaction && !noTransaction;
         if (asOneTransaction) {
           type Prep = { ok: true; sql: string } | { ok: false; error: string };
           const prepared: Array<Map<string, Prep>> = [];

@@ -266,6 +266,26 @@ describe('access report', () => {
     expect(r.findings.some((f) => /pass on/i.test(f.message) && f.severity === 'critical')).toBe(true);
   });
 
+  it('counts roles only among principals that appear, so empty system roles cannot make the user total negative', () => {
+    const catalog: DbPrincipal[] = [
+      principal('reader'),
+      ...Array.from({ length: 6 }, (_, i) => ({
+        name: `SYSROLE${i}`,
+        kind: 'role' as const,
+        canLogin: false,
+        memberOf: [] as string[],
+        members: [] as string[],
+      })),
+    ];
+    const r = buildAccessReport({
+      principals: catalog,
+      privileges: [priv({ grantee: 'reader', privilege: 'SELECT' })],
+    });
+    expect(r.principals.map((p) => p.principal)).toEqual(['reader']);
+    expect(r.roleCount).toBe(0);
+    expect(r.principals.filter((p) => p.kind === 'user')).toHaveLength(1);
+  });
+
   it('does not count a DENY as a granted privilege', () => {
     const r = buildAccessReport({
       principals: people,

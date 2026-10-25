@@ -83,6 +83,12 @@ export interface ProviderConnectionSettings {
   defaultPort: number;
   defaultSchema?: string;
   schemaRequired: boolean;
+  /**
+   * `false` when the engine has no transaction to roll back: its adapter's
+   * begin, commit and rollback do nothing. Absent means it has one. Read it
+   * through `dialectHasTransactions`.
+   */
+  transactions?: boolean;
   buildConnectionString(option: ConnectionOptions): string;
 }
 

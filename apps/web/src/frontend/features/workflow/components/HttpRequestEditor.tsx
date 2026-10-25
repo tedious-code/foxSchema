@@ -16,16 +16,17 @@ import type {
   HttpRequestDef as EngineRequest,
   HttpSession as EngineSession,
   HttpTokenRefresh as EngineTokenRefresh,
+  HttpAuth as EngineAuth,
+  HttpBody as EngineBody,
 } from '@foxschema/workflow-engine/definitions';
-import type { KnowsEveryField, SameMembers } from '../lib/engineShapes';
+import type { SameMembers } from '../lib/engineShapes';
 import type { CredentialMeta } from '../api/engineClient';
 import { compileZodSchema } from '../lib/zodSchema';
 
 /**
- * The editor's own shapes for the engine's HttpRequestDef. Values stay local
- * (importing them pulls zod into the bundle); each list and shape is checked
- * against the engine's types below, so a field the engine adds fails the build
- * instead of being dropped on the next edit.
+ * The request model is the engine's own (`HttpRequestDef` and its parts),
+ * imported type-only. A hand-kept copy here had already drifted: it lacked a
+ * token refresh's headers and body, so every edit dropped them.
  */
 export const HTTP_KV_OPS = [
   'eq',
@@ -37,7 +38,7 @@ export const HTTP_KV_OPS = [
   'or',
   'range',
 ] as const;
-export type HttpKvOp = (typeof HTTP_KV_OPS)[number];
+export type HttpKvOp = EngineKvOp;
 
 /** UI labels + value hints per operator; serialized as `key[op]=value` (eq = plain). */
 const OP_META: Record<HttpKvOp, { label: string; placeholder: string }> = {
@@ -51,22 +52,9 @@ const OP_META: Record<HttpKvOp, { label: string; placeholder: string }> = {
   range: { label: 'range', placeholder: 'min,max' },
 };
 
-export type HttpKv = {
-  key: string;
-  value: string;
-  enabled: boolean;
-  op?: HttpKvOp;
-  /** Legacy path mapping — no longer editable in the UI, preserved on load. */
-  valueFrom?: string;
-  keyFrom?: string;
-};
+export type HttpKv = EngineKv;
 
-export type HttpAuth =
-  | { type: 'none' }
-  | { type: 'bearer'; token: string }
-  | { type: 'basic'; username: string; password: string }
-  | { type: 'apiKey'; key: string; value: string; in: 'header' | 'query' }
-  | { type: 'credential'; credentialId: string };
+export type HttpAuth = EngineAuth;
 
 export const HTTP_BODY_FIELD_TYPES = [
   'string',
@@ -74,14 +62,9 @@ export const HTTP_BODY_FIELD_TYPES = [
   'boolean',
   'json',
 ] as const;
-export type HttpBodyFieldType = (typeof HTTP_BODY_FIELD_TYPES)[number];
+export type HttpBodyFieldType = EngineBodyFieldType;
 
-export type HttpBodyField = {
-  key: string;
-  type: HttpBodyFieldType;
-  value: string;
-  enabled: boolean;
-};
+export type HttpBodyField = EngineBodyField;
 
 /** Optional JSON Schema — the runtime validates the body against it before sending. */
 type BodySchema = Record<string, unknown> | undefined;
@@ -93,47 +76,13 @@ type BodySchema = Record<string, unknown> | undefined;
  */
 type BodyValidation = { schema?: BodySchema; schemaSource?: string };
 
-export type HttpBody =
-  | { mode: 'none' }
-  | ({ mode: 'json'; json: unknown } & BodyValidation)
-  | ({ mode: 'raw'; raw: string; contentType: string } & BodyValidation)
-  | ({ mode: 'form'; form: HttpKv[] } & BodyValidation)
-  | ({ mode: 'fields'; fields: HttpBodyField[] } & BodyValidation);
+export type HttpBody = EngineBody;
 
-export type HttpSession = {
-  enabled: boolean;
-  persistToCredential: boolean;
-};
+export type HttpSession = EngineSession;
 
-export type HttpTokenRefresh = {
-  enabled: boolean;
-  url: string;
-  method: 'POST' | 'PUT';
-  /**
-   * Not edited here, but carried through: dropping them on every edit sent
-   * the engine's default refresh body instead of the one written by hand.
-   */
-  headers?: EngineTokenRefresh['headers'];
-  body?: EngineTokenRefresh['body'];
-  accessTokenPath: string;
-  refreshTokenPath?: string;
-  expiresInPath: string;
-  onStatus: number[];
-  skewSeconds: number;
-};
+export type HttpTokenRefresh = EngineTokenRefresh;
 
-export type HttpRequestValue = {
-  url: string;
-  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD';
-  query: HttpKv[];
-  headers: HttpKv[];
-  auth: HttpAuth;
-  body: HttpBody;
-  timeoutMs: number;
-  variables: Record<string, unknown>;
-  session: HttpSession;
-  tokenRefresh?: HttpTokenRefresh;
-};
+export type HttpRequestValue = EngineRequest;
 
 export const EMPTY_HTTP_REQUEST: HttpRequestValue = {
   url: 'https://',
@@ -152,6 +101,9 @@ const DEFAULT_TOKEN_REFRESH: HttpTokenRefresh = {
   enabled: false,
   url: 'https://',
   method: 'POST',
+  // The engine's own defaults: no extra headers, the standard refresh_token body.
+  headers: [],
+  body: { mode: 'json', json: { refresh_token: '{{secrets.refreshToken}}', grant_type: 'refresh_token' }, form: [] },
   accessTokenPath: 'access_token',
   expiresInPath: 'expires_in',
   onStatus: [401],
@@ -1232,14 +1184,11 @@ function BodySchemaEditor({
 }
 
 /** Normalize pipe/trigger JSON into the editor value (legacy Record headers ok). */
-const _kvOpsMatch: SameMembers<HttpKvOp, EngineKvOp> = true;
-const _bodyFieldTypesMatch: SameMembers<HttpBodyFieldType, EngineBodyFieldType> = true;
-const _kvKnown: KnowsEveryField<HttpKv, EngineKv> = true;
-const _bodyFieldKnown: KnowsEveryField<HttpBodyField, EngineBodyField> = true;
-const _sessionKnown: KnowsEveryField<HttpSession, EngineSession> = true;
-const _tokenRefreshKnown: KnowsEveryField<HttpTokenRefresh, EngineTokenRefresh> = true;
-const _requestKnown: KnowsEveryField<HttpRequestValue, EngineRequest> = true;
-void [_kvOpsMatch, _bodyFieldTypesMatch, _kvKnown, _bodyFieldKnown, _sessionKnown, _tokenRefreshKnown, _requestKnown];
+// The two value lists stay local (importing them pulls zod into the bundle);
+// a value the engine adds or drops fails the build here.
+const _kvOpsMatch: SameMembers<(typeof HTTP_KV_OPS)[number], EngineKvOp> = true;
+const _bodyFieldTypesMatch: SameMembers<(typeof HTTP_BODY_FIELD_TYPES)[number], EngineBodyFieldType> = true;
+void [_kvOpsMatch, _bodyFieldTypesMatch];
 
 export function toHttpRequestValue(input: unknown): HttpRequestValue {
   if (!input || typeof input !== 'object') return { ...EMPTY_HTTP_REQUEST };
@@ -1390,8 +1339,10 @@ function coerceTokenRefresh(value: unknown): HttpTokenRefresh | undefined {
     enabled: raw.enabled === true,
     url: typeof raw.url === 'string' ? raw.url : DEFAULT_TOKEN_REFRESH.url,
     method: raw.method === 'PUT' ? 'PUT' : 'POST',
-    ...(Array.isArray(raw.headers) ? { headers: raw.headers as EngineTokenRefresh['headers'] } : {}),
-    ...(raw.body && typeof raw.body === 'object' ? { body: raw.body as EngineTokenRefresh['body'] } : {}),
+    // Not edited here, but carried through: dropping them on every edit sent
+    // the engine's default refresh body instead of the one written by hand.
+    headers: Array.isArray(raw.headers) ? (raw.headers as HttpTokenRefresh['headers']) : DEFAULT_TOKEN_REFRESH.headers,
+    body: raw.body && typeof raw.body === 'object' ? (raw.body as HttpTokenRefresh['body']) : DEFAULT_TOKEN_REFRESH.body,
     accessTokenPath:
       typeof raw.accessTokenPath === 'string'
         ? raw.accessTokenPath

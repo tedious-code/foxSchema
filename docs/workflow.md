@@ -142,6 +142,31 @@ The engine resolves that connection **as the owner** through
 `POST /api/workflow-internal/connections/resolve`. Revoke stops the next run.
 The pipe never stores a password.
 
+The engine itself is install-wide (one SQLite file, every designer sees every
+workflow). A saved connection is not: it belongs to one workspace. Save, run,
+duplicate, read a run, and steering (cancel / resume / answer) all call
+`WorkflowConnectionGrants.notUsableBy` on the connections named in the body,
+the stored workflow, or the run snapshot (`ENGINE_ROUTES[].connections`). A
+connection the caller is not a member of is **403** before the proxy forwards.
+A grant is also ignored once the granter leaves that workspace
+(`resolveForEngine`).
+
+## Steering a run
+
+`workflow.run` starts a job and also steers one that is already going. The
+Runs panel (`RunsPanel.tsx`):
+
+| State | Control | Engine route |
+|-------|---------|--------------|
+| `queued` / `running` | **Cancel run** | `POST /runs/:id/cancel` |
+| `paused` (Ask a person) | load the question, **Send answer** | `GET` then `POST /runs/:id/inputs` |
+| `paused` | **Resume** without new values | `POST /runs/:id/resume` |
+
+Each of those first reads the run snapshot so the workspace check applies to
+what the run actually used, not the live workflow (which may have been edited
+since). A start is still refused unless engine state is `enabled`; cancel and
+answer are not starts.
+
 ## Engine settings
 
 Saved in FoxSchema (`workflow.engine_config`). The engine re-reads them every
@@ -162,6 +187,10 @@ Saved in FoxSchema (`workflow.engine_config`). The engine re-reads them every
   connections. `FOXFLOW_ENCRYPTION_KEY` (32 bytes, hex or base64) protects the
   engine credential store and is **required at engine boot** — there is no
   plaintext fallback (`keyFromEnv()`).
+- **A connection stays in its workspace.** Linking one in workspace A used to
+  let every designer on the install save and run with A's password. The proxy
+  now refuses that. Move the workflow (or re-pick a connection that belongs
+  here) instead of copying a `foxschema-…` credential id across workspaces.
 - **Docker image does not start the engine.** `Dockerfile` / `docker-compose.app.yml`
   run FoxSchema only. Deploy `apps/workflow-server` beside it and set the token
   on both. See [DEPLOYMENT.md](DEPLOYMENT.md#workflow-engine).

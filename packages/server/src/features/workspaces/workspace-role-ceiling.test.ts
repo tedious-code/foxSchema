@@ -95,6 +95,18 @@ describe('a personal workspace lends no more than its account holds', () => {
     expect(perms.has('editor.run')).toBe(true);
     expect(await roleOf(colleague, ws)).toBe('viewer');
     expect((await dir.members(actor(viewerAcct), ws)).find((m) => m.userId === colleague.id)?.role).toBe('viewer');
+    // The list sorts by the role as it takes effect: all viewers here, so by email.
+    const late = await auth.createUser('ceil-zz@example.com', 'correct-horse-9', 'viewer');
+    await store.run(
+      'INSERT INTO workspace_members (workspace_id, user_id, role, added_by, created_at) VALUES (?, ?, ?, ?, ?)',
+      [ws, late.id, 'owner', viewerAcct.id, new Date().toISOString()]
+    );
+    expect((await dir.members(actor(viewerAcct), ws)).map((m) => m.email)).toEqual([
+      colleague.email,
+      viewerAcct.email,
+      late.email,
+    ]);
+    await store.run('DELETE FROM workspace_members WHERE workspace_id = ? AND user_id = ?', [ws, late.id]);
     // Every read applies the cap: workspace scripts too, and the admin's list of owners.
     const scripts = new WorkspaceScripts();
     expect((await scripts.list(colleague.id, ws)).canWrite).toBe(false);

@@ -16,7 +16,7 @@
  * personal workspace always keeps the account it belongs to.
  */
 import { randomUUID } from 'node:crypto';
-import { isWorkspaceRole, type AppRole, type Permission, type WorkspaceRole } from '@foxschema/shared';
+import { isWorkspaceRole, WORKSPACE_ROLES, type AppRole, type Permission, type WorkspaceRole } from '@foxschema/shared';
 import { getStore } from '../../database/store';
 import type { MetadataStore } from '../../database/stores/types';
 import { RbacModule } from '../../platform/authorization/rbac.service';
@@ -302,21 +302,24 @@ export class WorkspaceDirectory {
          JOIN users u ON u.id = m.user_id
          LEFT JOIN users a ON a.id = m.added_by
         WHERE m.workspace_id = ?
-        ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'editor' THEN 1 ELSE 2 END, u.email`,
+        ORDER BY u.email`,
       [workspaceId]
     );
-    return rows.flatMap((r) => {
-      const role = cappedRole(r);
-      if (!role) return [];
-      return [{
-        userId: r.user_id,
-        email: r.email,
-        role,
-        personalOwner: ws.personal_owner_id === r.user_id,
-        addedBy: r.added_by,
-        createdAt: r.created_at,
-      }];
-    });
+    // Owners first by the role as it takes effect, not as stored (the sort is stable, so by email within a role).
+    return rows
+      .flatMap((r) => {
+        const role = cappedRole(r);
+        if (!role) return [];
+        return [{
+          userId: r.user_id,
+          email: r.email,
+          role,
+          personalOwner: ws.personal_owner_id === r.user_id,
+          addedBy: r.added_by,
+          createdAt: r.created_at,
+        }];
+      })
+      .sort((a, b) => WORKSPACE_ROLES.indexOf(b.role) - WORKSPACE_ROLES.indexOf(a.role));
   }
 
   private async assertOwnerRemains(store: MetadataStore, workspaceId: string, leavingUserId: string) {

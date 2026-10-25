@@ -7,9 +7,10 @@
  * A viewer can read them. An editor or owner can save and delete them.
  */
 import { randomUUID } from 'node:crypto';
-import { isWorkspaceRole, type WorkspaceRole } from '@foxschema/shared';
+import type { WorkspaceRole } from '@foxschema/shared';
 import { getStore } from '../../database/store';
 import { ServiceError } from '../../platform/contracts/actor';
+import { effectiveMemberRole } from '../../platform/workspaces/workspace.service';
 
 const TITLE_MAX = 120;
 const SQL_MAX = 200_000;
@@ -39,14 +40,15 @@ function cleanSql(raw: unknown): string {
 }
 
 export class WorkspaceScripts {
+  /**
+   * The member's role as it takes effect. Capped like every other read: a
+   * colleague stored as editor in a viewer's personal workspace is a viewer
+   * there, so cannot save or delete its scripts.
+   */
   private async roleIn(workspaceId: string, userId: string): Promise<WorkspaceRole> {
-    const store = await getStore();
-    const row = await store.get<{ role: string }>(
-      'SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?',
-      [workspaceId, userId]
-    );
-    if (!row || !isWorkspaceRole(row.role)) throw new ServiceError('not_found', 'Workspace not found');
-    return row.role;
+    const role = await effectiveMemberRole(await getStore(), workspaceId, userId);
+    if (!role) throw new ServiceError('not_found', 'Workspace not found');
+    return role;
   }
 
   async list(userId: string, workspaceId: string): Promise<{ scripts: WorkspaceScript[]; canWrite: boolean }> {

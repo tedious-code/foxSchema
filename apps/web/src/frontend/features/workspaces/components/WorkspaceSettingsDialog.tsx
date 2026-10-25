@@ -7,9 +7,10 @@
  * it and archiving it. What is editable follows the caller's role in this
  * workspace; the server enforces the same.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Layers, X } from 'lucide-react';
+import { WORKSPACE_ROLES, workspaceGrantCeiling, workspaceRoleAtMost } from '@foxschema/shared';
 import { useAuthStore } from '@/platform/authStore';
 import {
   apiArchiveWorkspace,
@@ -28,8 +29,6 @@ import {
   type WorkspaceMember,
   type WorkspaceRole,
 } from '../api/workspacesApi';
-
-const ROLES: WorkspaceRole[] = ['viewer', 'editor', 'owner'];
 
 export const WorkspaceSettingsDialog: React.FC<{
   workspaceId: string;
@@ -66,6 +65,17 @@ export const WorkspaceSettingsDialog: React.FC<{
     load().catch((e: unknown) => setError(e instanceof Error ? e.message : 'Could not load the workspace'));
   }, [load]);
 
+  // Registered once: both callers pass a fresh onClose on every render.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !e.defaultPrevented) onCloseRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const run = async (action: () => Promise<void>, done?: string) => {
     setBusy(true);
     setError(null);
@@ -81,9 +91,24 @@ export const WorkspaceSettingsDialog: React.FC<{
     }
   };
 
-  const isOwner = workspace?.role === 'owner' || me?.role === 'admin';
+  /**
+   * The highest role the caller can give here: any for an admin, otherwise its
+   * own. In a personal workspace that is the account's role, so a viewer shares
+   * it as viewer. The same rule the server enforces (workspaceGrantCeiling).
+   */
+  const grantCeiling = workspaceGrantCeiling(me?.role ?? '', workspace?.role ?? null);
+  const isOwner = grantCeiling === 'owner';
   /** Who may invite and change roles: owners, admins, and everyone in their own workspace. */
   const managesMembers = isOwner || workspace?.personal === true;
+  const ceilingHint = `You can give up to ${grantCeiling} here: nobody gives more than they can do themselves.`;
+  const roleOptions = WORKSPACE_ROLES.map((r) => {
+    const allowed = workspaceRoleAtMost(r, grantCeiling);
+    return (
+      <option key={r} value={r} disabled={!allowed} title={allowed ? undefined : ceilingHint}>
+        {r}
+      </option>
+    );
+  });
 
   return createPortal(
     <div
@@ -232,11 +257,7 @@ export const WorkspaceSettingsDialog: React.FC<{
                   onChange={(e) => setInviteRole(e.target.value as WorkspaceRole)}
                   className="bg-slate-950 border border-slate-700 rounded px-2 py-1.5 text-xs text-slate-100"
                 >
-                  {ROLES.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
+                  {roleOptions}
                 </select>
                 <button
                   type="submit"
@@ -247,6 +268,11 @@ export const WorkspaceSettingsDialog: React.FC<{
                   Invite
                 </button>
               </form>
+              {!isOwner && (
+                <p data-testid="workspace-invite-ceiling" className="text-[11px] text-slate-500">
+                  {ceilingHint}
+                </p>
+              )}
               {newAccount && (
                 <div data-testid="workspace-invite-new-account" className="rounded-md border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-[11px] text-amber-100">
                   {newAccount.delivery === 'email'
@@ -311,11 +337,7 @@ export const WorkspaceSettingsDialog: React.FC<{
                         }
                         className="bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-slate-100"
                       >
-                        {ROLES.map((r) => (
-                          <option key={r} value={r}>
-                            {r}
-                          </option>
-                        ))}
+                        {roleOptions}
                       </select>
                     ) : (
                       <span className="text-[10px] uppercase tracking-wide text-slate-400" title={m.personalOwner ? 'Follows the account role' : undefined}>

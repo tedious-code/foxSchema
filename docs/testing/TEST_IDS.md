@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **996** buttons, text boxes, selects and textareas.
+Every control has a test ID: **997** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -338,6 +338,7 @@ Every control has a test ID: **996** buttons, text boxes, selects and textareas.
   - `admin-workspace-join-{id}` · button · Join
   - `admin-workspace-members-{id}` · button · Members
   - `admin-workspace-open-{id}` · button · Open
+  - `admin-workspace-restore-{id}` · button · Restore
   - `admin-workspaces` · div
   - `admin-workspaces-error` · p
   - `admin-workspaces-list` · ul
@@ -1873,6 +1874,7 @@ Every control has a test ID: **996** buttons, text boxes, selects and textareas.
   - `workspace-rail-menu` · div
 - **WorkspaceSettingsDialog** · `features/workspaces/components/WorkspaceSettingsDialog.tsx`
   - `workspace-invite-{id}` · li
+  - `workspace-invite-ceiling` · p
   - `workspace-invite-email` · input · teammate@company.com
   - `workspace-invite-form` · form
   - `workspace-invite-new-account` · div

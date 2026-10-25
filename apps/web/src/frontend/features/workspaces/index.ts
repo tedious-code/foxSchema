@@ -12,6 +12,7 @@ export {
   apiArchiveWorkspace,
   apiDeleteWorkspaceScript,
   apiListWorkspaceScripts,
+  apiRestoreWorkspace,
   apiSaveWorkspaceScript,
   apiSelectWorkspace,
   apiSetWorkspaceMember,

@@ -274,6 +274,25 @@ export function isWorkspaceRole(value: unknown): value is WorkspaceRole {
   return typeof value === 'string' && (WORKSPACE_ROLES as readonly string[]).includes(value);
 }
 
+/** True when `role` grants no more than `ceiling`: viewer < editor < owner. */
+export function workspaceRoleAtMost(role: WorkspaceRole, ceiling: WorkspaceRole): boolean {
+  return WORKSPACE_ROLES.indexOf(role) <= WORKSPACE_ROLES.indexOf(ceiling);
+}
+
+/** The lower of two workspace roles. */
+export function lowerWorkspaceRole(a: WorkspaceRole, b: WorkspaceRole): WorkspaceRole {
+  return workspaceRoleAtMost(a, b) ? a : b;
+}
+
+/**
+ * The highest workspace role an account can give: any for an admin, otherwise
+ * its own effective role there. The server enforces it; the settings dialog
+ * offers only what it allows.
+ */
+export function workspaceGrantCeiling(accountRole: string, ownRole: WorkspaceRole | null): WorkspaceRole {
+  return accountRole === 'admin' ? 'owner' : (ownRole ?? 'viewer');
+}
+
 /**
  * Permissions that belong to the install rather than to a workspace, so they
  * come from the account role. `editor.advanced` runs code on the server:

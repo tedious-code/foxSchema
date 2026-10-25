@@ -104,7 +104,8 @@ describe('inviting an existing account', () => {
     const { invite } = await invites.invite(actor(viewer), ownId, guest.email, 'viewer');
     expect(invite.workspaceId).toBe(ownId);
     await invites.accept(guest.id, invite.id);
-    await dir.setMemberRole(actor(viewer), ownId, guest.id, 'editor');
+    // It runs who is in it, but lends no more than it holds (workspace-role-ceiling.test.ts).
+    await expect(dir.setMemberRole(actor(viewer), ownId, guest.id, 'editor')).rejects.toMatchObject({ code: 'forbidden' });
     await dir.removeMember(actor(viewer), ownId, guest.id);
     // …but not into someone else's.
     const ownerOwn = (await dir.listMine(owner.id)).find((w) => w.personal)!.id;

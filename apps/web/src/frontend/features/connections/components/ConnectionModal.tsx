@@ -11,6 +11,7 @@ import {
   PROVIDER_SETTINGS,
   authMethodsForDialect,
   resolveAuthMethod,
+  storedAuthMethod,
   parseWindowsAccount,
   passwordFieldLabel,
   type ConnectionAuthMethod,
@@ -133,7 +134,7 @@ export const ConnectionModal: React.FC<Props> = ({
       schema: initialOptions?.schema || getProviderSettings(dialect).defaultSchema || '',
       username: initialOptions?.username || '',
       password: initialOptions?.password || '',
-      authMethod: resolveAuthMethod(dialect, initialOptions?.authMethod),
+      authMethod: resolveAuthMethod(dialect, initialOptions?.authMethod, initialOptions?.username),
       domain: initialOptions?.domain || '',
       ssl: {
         enabled: initialOptions?.ssl?.enabled || false,
@@ -166,8 +167,8 @@ export const ConnectionModal: React.FC<Props> = ({
       ...prev,
       port: defaultPorts[d],
       schema: getProviderSettings(d).defaultSchema || '',
-      authMethod: resolveAuthMethod(d, prev.authMethod),
-      domain: resolveAuthMethod(d, prev.authMethod) === 'windows' ? prev.domain : '',
+      authMethod: resolveAuthMethod(d, prev.authMethod, prev.username),
+      domain: resolveAuthMethod(d, prev.authMethod, prev.username) === 'windows' ? prev.domain : '',
       // Redshift and Azure SQL expect TLS. Azure SQL must verify the server
       // certificate by default; local stand-ins configure their exception in
       // e2e helpers rather than weakening saved production credentials.
@@ -204,9 +205,10 @@ export const ConnectionModal: React.FC<Props> = ({
     try {
       const option: ConnectionOptions = {
         ...form,
-        authMethod: authMethod === 'password' ? undefined : authMethod,
+        authMethod: storedAuthMethod(selDialect, authMethod),
         domain: authMethod === 'windows' ? (form.domain?.trim() || undefined) : undefined,
-        connectionString: buildConnectionString(selDialect, form),
+        ...(authMethod === 'none' ? { password: undefined } : {}),
+        connectionString: buildConnectionString(selDialect, authMethod === 'none' ? { ...form, password: undefined } : form),
       };
       const list = await fetchSchemaList({ dialect: selDialect, option });
       setSchemaList(list);
@@ -229,7 +231,8 @@ export const ConnectionModal: React.FC<Props> = ({
       return;
     }
 
-    if (isCredential && !isFileDialect && savePassword && !form.password?.trim() && !initialHasPassword) {
+    const noPassword = resolveAuthMethod(selDialect, form.authMethod) === 'none';
+    if (isCredential && !isFileDialect && !noPassword && savePassword && !form.password?.trim() && !initialHasPassword) {
       setTestingState({
         status: 'failed',
         error: 'Enter a password, or untick “Save password” to store the credential without one.',
@@ -251,10 +254,11 @@ export const ConnectionModal: React.FC<Props> = ({
 
     const option: ConnectionOptions = {
       ...form,
-      authMethod: authMethod === 'password' ? undefined : authMethod,
+      authMethod: storedAuthMethod(selDialect, authMethod),
       domain: authMethod === 'windows' ? (form.domain?.trim() || undefined) : undefined,
       // Empty password on edit means “keep stored”; never send "" which looks unset.
-      password: form.password?.trim() ? form.password : undefined,
+      // No password sends none (the server drops a stored one too).
+      password: authMethod !== 'none' && form.password?.trim() ? form.password : undefined,
       schemaRequired,
       connectionString: buildConnectionString(selDialect, {
         ...form,
@@ -498,6 +502,7 @@ export const ConnectionModal: React.FC<Props> = ({
                     className={inputCls}
                   />
                 </div>
+                {loginMethod !== 'none' && (
                 <div>
                   <label className={labelCls}>{passwordFieldLabel(loginMethod)}</label>
                   <PasswordInput
@@ -512,11 +517,12 @@ export const ConnectionModal: React.FC<Props> = ({
                     className={inputCls}
                   />
                 </div>
+                )}
               </div>
             </>
           )}
 
-          {isCredential && !isFileDialect && (
+          {isCredential && !isFileDialect && loginMethod !== 'none' && (
             <label className="flex items-center gap-2.5 text-xs text-slate-350 cursor-pointer select-none pt-1">
               <input
                 data-testid="conn-save-password"

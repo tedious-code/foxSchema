@@ -53,6 +53,22 @@ describe('ConnectionModal', () => {
     expect(options.connectionString).not.toContain('TrustServerCertificate=True');
   });
 
+  it('Redis offers No password: no password field, and none is saved', () => {
+    const onSave = vi.fn();
+    render(<ConnectionModal open dialect="redis" onClose={() => undefined} onSave={onSave} />);
+    // A new Redis with no username starts on No password.
+    expect((screen.getByTestId('conn-auth-method') as HTMLSelectElement).value).toBe('none');
+    expect(screen.queryByTestId('conn-password-input')).toBeNull();
+    fireEvent.click(screen.getByTestId('conn-save-btn'));
+    expect(onSave.mock.calls[0][0]).toMatchObject({ authMethod: 'none', password: undefined });
+
+    // Password is a choice of its own, saved as such (Redis requirepass has no username).
+    fireEvent.change(screen.getByTestId('conn-auth-method'), { target: { value: 'password' } });
+    fireEvent.change(screen.getByTestId('conn-password-input'), { target: { value: 'pw' } });
+    fireEvent.click(screen.getByTestId('conn-save-btn'));
+    expect(onSave.mock.calls[1][0]).toMatchObject({ authMethod: 'password', password: 'pw' });
+  });
+
   describe('a missing driver', () => {
     const missing = { provider: 'redis', packageName: 'redis', installed: false, installCommand: 'npm install redis' };
     const modal = () => <ConnectionModal open dialect="redis" onClose={() => undefined} onSave={() => undefined} />;

@@ -80,6 +80,21 @@ describe('ConnectionStore', () => {
     expect(resolved?.option.host).toBe('db.example.com');
   });
 
+  it('Redis: No password sends none, and an explicit Password is kept so a run asks for it', async () => {
+    const redis = { name: 'cache', dialect: 'redis', schema: '0', option: { host: 'cache.local', port: 6379 } };
+    // No password: a stale password in the edit is not kept, so none is sent.
+    const open = await store.create(alice, { ...redis, option: { ...redis.option, authMethod: 'none', password: 'left-over' } });
+    expect(open).toMatchObject({ authMethod: 'none', hasPassword: false });
+    expect((await store.resolve(alice, open.id))?.option.password).toBeUndefined();
+    // Password with no username (requirepass), saved without it: stored as Password,
+    // so the summary tells the editor to ask for it.
+    const guarded = await store.create(alice, { ...redis, savePassword: false, option: { ...redis.option, authMethod: 'password', password: 'pw' } });
+    expect(guarded).toMatchObject({ authMethod: 'password', hasPassword: false });
+    // Saved before the choice existed (nothing stored, no username): No password.
+    const legacy = await store.create(alice, redis);
+    expect(legacy.authMethod).toBe('none');
+  });
+
   it('reports hasPassword true when the password is stored', async () => {
     const created = await store.create(alice, { ...sample, savePassword: true });
     expect(created.hasPassword).toBe(true);

@@ -177,10 +177,15 @@ admin**) or several. `FOX_ADMIN_POLICY` on the server overrides the switch.
 2. Pick the **type**. Saved credentials are **grouped by dialect**; search by name.
    PostgreSQL, MySQL, MariaDB, SQL Server, Azure SQL, Oracle, Db2, SQLite, DuckDB,
    ClickHouse, Redshift, CockroachDB, YugabyteDB, and TiDB are first-class SQL.
-   MongoDB and Redis appear in the list (settings only — no schema compare).
+   MongoDB and Redis appear in the list too: browse their keys or collections
+   and run the SQL subset in the editor (no schema compare).
 3. Fill in host, port, database, username, and password. Schema is optional on
    PostgreSQL (the form matches the engine). SQLite and DuckDB are **file paths**
    — use **Browse…**; they have no password.
+   Redis and MongoDB offer a **Login method**: **No password** for a server
+   with no auth (nothing is sent or asked for), or **Password** — which a
+   Redis with only `requirepass` needs even without a username. Saved without
+   its password, a Password connection asks for it when you run.
 4. **Test** the connection, then save it. Passwords are encrypted — they're stored
    safely and never shown back to your browser.
 

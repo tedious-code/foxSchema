@@ -41,6 +41,7 @@ export {
   dialectOffersAuthMethods,
   normalizeAuthMethod,
   resolveAuthMethod,
+  storedAuthMethod,
   parseWindowsAccount,
   assertWindowsAccount,
   passwordFieldLabel,

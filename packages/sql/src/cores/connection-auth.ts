@@ -9,11 +9,12 @@
  * - password: SQL / native UID + password (default).
  * - windows: SQL Server / Azure NTLM with a domain user and Windows password.
  * - ldap: Db2 directory user — still UID + password; LDAP is server-side.
+ * - none: Redis or MongoDB with no auth at all; nothing is sent or asked for.
  *
  * Windows integrated SSO (no password) is not implemented here.
  */
 
-export type ConnectionAuthMethod = 'password' | 'windows' | 'ldap';
+export type ConnectionAuthMethod = 'password' | 'windows' | 'ldap' | 'none';
 
 export interface AuthMethodChoice {
   value: ConnectionAuthMethod;
@@ -22,12 +23,14 @@ export interface AuthMethodChoice {
 
 const WINDOWS_DIALECTS = new Set(['sqlserver', 'azuresql']);
 const LDAP_DIALECTS = new Set(['db2']);
+/** Engines that commonly run with no auth, where "no password" is a choice of its own. */
+const OPTIONAL_SECRET_DIALECTS = new Set(['redis', 'mongodb']);
 
 export function normalizeAuthMethod(raw: unknown): ConnectionAuthMethod {
   const value = String(raw ?? '')
     .trim()
     .toLowerCase();
-  if (value === 'windows' || value === 'ldap') return value;
+  if (value === 'windows' || value === 'ldap' || value === 'none') return value;
   return 'password';
 }
 
@@ -45,6 +48,12 @@ export function authMethodsForDialect(dialect: string): AuthMethodChoice[] {
       { value: 'ldap', label: 'Directory / LDAP user' },
     ];
   }
+  if (OPTIONAL_SECRET_DIALECTS.has(d)) {
+    return [
+      { value: 'password', label: 'Password' },
+      { value: 'none', label: 'No password' },
+    ];
+  }
   return [{ value: 'password', label: 'Password' }];
 }
 
@@ -52,22 +61,39 @@ export function dialectOffersAuthMethods(dialect: string): boolean {
   return authMethodsForDialect(dialect).length > 1;
 }
 
-export function resolveAuthMethod(dialect: string, raw: unknown): ConnectionAuthMethod {
+/**
+ * The sign-in method in force. A Redis or MongoDB connection saved before
+ * "No password" existed stored nothing: it reads as Password when it names a
+ * user and as No password when it does not, which is how it was treated then.
+ */
+export function resolveAuthMethod(dialect: string, raw: unknown, username?: string | null): ConnectionAuthMethod {
+  const d = dialect.trim().toLowerCase();
+  if (OPTIONAL_SECRET_DIALECTS.has(d) && !String(raw ?? '').trim()) return username?.trim() ? 'password' : 'none';
   const method = normalizeAuthMethod(raw);
   if (authMethodsForDialect(dialect).some((m) => m.value === method)) return method;
   return 'password';
 }
 
 /**
+ * What to store for `method`. Password is the default and stored as nothing,
+ * except where No password is its alternative: there an explicit Password is
+ * what says a password is needed even with no username (Redis `requirepass`).
+ */
+export function storedAuthMethod(dialect: string, method: ConnectionAuthMethod): ConnectionAuthMethod | undefined {
+  if (method === 'password' && !OPTIONAL_SECRET_DIALECTS.has(dialect.trim().toLowerCase())) return undefined;
+  return method;
+}
+
+/**
  * True when this connection still needs a secret (SQL, Windows, or directory
  * password). File databases never do. Future SSO would return false here.
  *
- * Redis and MongoDB often run with no auth at all, so they need one only when
- * the connection names a user: MongoDB signs in as a user, and Redis ACLs do.
- * Asking for every one of them made a passwordless Redis unusable — the
- * session-password prompt does not accept an empty password, so the
- * destination never ticked. A Redis with only `requirepass` keeps its password
- * on the connection.
+ * Redis and MongoDB often run with no auth at all. Their sign-in method says
+ * which: No password never asks, Password always does (a Redis with only
+ * `requirepass` has no username). A connection saved before that choice
+ * existed stores nothing, and needs a secret only when it names a user —
+ * asking every one of them made a passwordless Redis unusable, since the
+ * session-password prompt does not accept an empty password.
  */
 export function connectionNeedsSecret(
   dialect: string,
@@ -76,9 +102,10 @@ export function connectionNeedsSecret(
 ): boolean {
   const d = dialect.trim().toLowerCase();
   if (d === 'sqlite' || d === 'duckdb') return false;
-  if (d === 'redis' || d === 'mongodb') return Boolean(username?.trim());
-  void authMethod;
-  return true;
+  if (!OPTIONAL_SECRET_DIALECTS.has(d)) return true;
+  const method = String(authMethod ?? '').trim().toLowerCase();
+  if (method === 'none') return false;
+  return method === 'password' || Boolean(username?.trim());
 }
 
 /** The fields of a saved connection the password rule reads. */

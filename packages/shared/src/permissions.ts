@@ -28,6 +28,9 @@ export function isDemoRole(role: unknown): boolean {
   return role === 'demo';
 }
 
+/** Longest sign-in hint demo mode keeps; the admin panel's box stops at the same length. */
+export const DEMO_HINT_MAX = 300;
+
 /** Fine-grained capabilities enforced on API + UI. */
 export const PERMISSIONS = [
   // Schema Sync
@@ -158,24 +161,6 @@ export const PERMISSION_META: PermissionMeta[] = [
 
 const ALL = [...PERMISSIONS];
 
-const VIEWER: Permission[] = [
-  'schema.browse',
-  'schema.compare',
-  'compare.history',
-  'editor.access',
-  'editor.run',
-  'editor.variables.read',
-  'editor.sidebar.destinations',
-  'editor.sidebar.bookmarks',
-  'editor.sidebar.variables',
-  'editor.sidebar.schema',
-  'access.access',
-  'access.inspector',
-  'access.report',
-  'workflow.access',
-  'git.view',
-];
-
 /**
  * A viewer's reading, without workflows or Git: browse and compare schemas,
  * read history, inspect access, run SELECTs. Every permission that writes is
@@ -199,6 +184,9 @@ const DEMO: Permission[] = [
   'access.inspector',
   'access.report',
 ];
+
+/** The demo's reading, plus workflows and Git to look at. Each role above builds on the one below. */
+const VIEWER: Permission[] = [...DEMO, 'workflow.access', 'git.view'];
 
 const EDITOR: Permission[] = [
   ...VIEWER,

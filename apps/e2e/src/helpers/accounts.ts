@@ -19,10 +19,16 @@ export interface ApiResult {
 }
 
 /** One request to `/api<path>` as the session in `cookie`. A body that is not JSON reads as null. */
-export async function apiCall(method: string, path: string, body: unknown, cookie: string): Promise<ApiResult> {
+export async function apiCall(
+  method: string,
+  path: string,
+  body: unknown,
+  cookie: string,
+  headers: Record<string, string> = {}
+): Promise<ApiResult> {
   const res = await fetch(`${API_URL}/api${path}`, {
     method,
-    headers: { ...(body !== undefined ? { 'content-type': 'application/json' } : {}), cookie },
+    headers: { ...(body !== undefined ? { 'content-type': 'application/json' } : {}), cookie, ...headers },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   return { status: res.status, json: await res.json().catch(() => null) };

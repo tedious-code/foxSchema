@@ -18,11 +18,11 @@ import { randomBytes } from 'node:crypto';
 import type { Page } from 'playwright';
 import { buildDriver, quitDriver, clickWhen, waitFor, BASE_URL } from '../helpers/driver.js';
 import { sessionCookie } from '../helpers/app-session.js';
+import { apiCall, signInAs } from '../helpers/accounts.js';
 import { saveScreenshot } from '../helpers/screenshot.js';
 import { byTestId } from '../helpers/test-ids.js';
 import { SqlEditorPage } from '../pages/SqlEditorPage.js';
 
-const API_URL = process.env.E2E_API_URL ?? 'http://127.0.0.1:3210';
 const RUN = Date.now().toString(36);
 // Per-run directory: the backend pools SQLite handles by file path.
 const DIR = `/tmp/foxschema-e2e-demo-${RUN}`;
@@ -48,14 +48,8 @@ function hasSqlite3(): boolean {
   }
 }
 
-async function api(method: string, path: string, body?: unknown, cookie = admin, headers: Record<string, string> = {}) {
-  const res = await fetch(`${API_URL}/api${path}`, {
-    method,
-    headers: { ...(body !== undefined ? { 'content-type': 'application/json' } : {}), cookie, ...headers },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
-  return { status: res.status, json: (await res.json().catch(() => null)) as any };
-}
+const api = (method: string, path: string, body?: unknown, cookie = admin, headers: Record<string, string> = {}) =>
+  apiCall(method, path, body, cookie, headers);
 
 describe.skipIf(!hasSqlite3())('a published demo', () => {
   beforeAll(async () => {
@@ -74,13 +68,7 @@ describe.skipIf(!hasSqlite3())('a published demo', () => {
 
     // The demo cannot add connections: an admin joins its workspace, adds the
     // sample database, and leaves — the path docs/DEPLOYMENT.md describes.
-    const login = await fetch(`${API_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: DEMO_EMAIL, password: DEMO_PASSWORD }),
-    });
-    expect(login.status).toBe(200);
-    demoCookie = (login.headers.get('set-cookie') ?? '').split(';')[0]!;
+    demoCookie = await signInAs(DEMO_EMAIL, DEMO_PASSWORD);
     demoWorkspace = (await api('GET', '/workspaces', undefined, demoCookie)).json.currentId;
     expect((await api('PUT', `/workspaces/${demoWorkspace}/members/${adminId}`, { role: 'owner' })).status).toBe(200);
     const saved = await api(

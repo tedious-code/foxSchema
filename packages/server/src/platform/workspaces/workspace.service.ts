@@ -17,6 +17,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   isAppRole,
+  isDemoRole,
   isWorkspaceRole,
   lowerWorkspaceRole,
   permissionSatisfied,
@@ -59,25 +60,40 @@ export function workspaceRoleCeiling(
 }
 
 /**
- * Joined into every query that reads a membership role (with `w` the
- * workspace), so the role can be capped. Every read of a member's role goes
- * through this and {@link cappedRole}: a read that skips the cap grants more
- * than the ceiling allows, and nothing fails to show it.
+ * The most a member can do in any workspace, from its own account. A demo
+ * login is shared by every visitor, so it is a viewer wherever it is, whatever
+ * role a workspace gave it. Anyone else is not capped by account role: a viewer
+ * account may own a shared workspace.
  */
-export const PERSONAL_OWNER_JOIN = 'LEFT JOIN users o ON o.id = w.personal_owner_id';
+export function memberRoleCeiling(memberAccountRole: string | null | undefined): WorkspaceRole {
+  return isDemoRole(memberAccountRole) ? 'viewer' : 'owner';
+}
+
+/**
+ * Joined into every query that reads a membership role (with `w` the
+ * workspace and `m` the membership), so the role can be capped. Every read of
+ * a member's role goes through this and {@link cappedRole}: a read that skips
+ * the cap grants more than the ceiling allows, and nothing fails to show it.
+ */
+export const CAPPED_ROLE_JOINS = 'LEFT JOIN users o ON o.id = w.personal_owner_id LEFT JOIN users mu ON mu.id = m.user_id';
 /** The columns {@link cappedRole} reads, selected beside `m` (the membership). */
-export const CAPPED_ROLE_COLUMNS = 'm.role, w.personal_owner_id, o.app_role AS owner_role';
+export const CAPPED_ROLE_COLUMNS = 'm.role, w.personal_owner_id, o.app_role AS owner_role, mu.app_role AS member_role';
 
 export interface StoredRoleRow {
   role: string;
   personal_owner_id: string | null;
   owner_role: string | null;
+  member_role: string | null;
 }
 
-/** A stored membership role as it takes effect: capped at its workspace's ceiling. Null for a role the store should not hold. */
+/**
+ * A stored membership role as it takes effect: capped at its workspace's
+ * ceiling and at its member's. Null for a role the store should not hold.
+ */
 export function cappedRole(row: StoredRoleRow): WorkspaceRole | null {
   if (!isWorkspaceRole(row.role)) return null;
-  return lowerWorkspaceRole(row.role, workspaceRoleCeiling(row.personal_owner_id, row.owner_role));
+  const inWorkspace = lowerWorkspaceRole(row.role, workspaceRoleCeiling(row.personal_owner_id, row.owner_role));
+  return lowerWorkspaceRole(inWorkspace, memberRoleCeiling(row.member_role));
 }
 
 /**
@@ -94,7 +110,7 @@ export async function effectiveMemberRole(
     `SELECT ${CAPPED_ROLE_COLUMNS}
        FROM workspace_members m
        JOIN workspaces w ON w.id = m.workspace_id
-       ${PERSONAL_OWNER_JOIN}
+       ${CAPPED_ROLE_JOINS}
       WHERE m.workspace_id = ? AND m.user_id = ?`,
     [workspaceId, userId]
   );
@@ -118,7 +134,8 @@ export async function requireWorkspacePermission(
   forbidden = `Permission denied: this needs "${permission}" in this workspace.`
 ): Promise<WorkspaceRole> {
   if (actor.appRole === 'admin') return workspaceGrantCeiling(actor.appRole, null);
-  if (permission === 'workspace.members' && ws.personal_owner_id === actor.userId) {
+  // A demo login does not run even its own workspace's members: every visitor would.
+  if (permission === 'workspace.members' && ws.personal_owner_id === actor.userId && !isDemoRole(actor.appRole)) {
     return personalRoleFor(actor.appRole);
   }
   const role = await effectiveMemberRole(store, ws.id, actor.userId);
@@ -234,7 +251,7 @@ async function memberWorkspace(
   const row = await store.get<StoredRoleRow & { id: string; name: string }>(
     `SELECT w.id, w.name, ${CAPPED_ROLE_COLUMNS}
      FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id
-     ${PERSONAL_OWNER_JOIN}
+     ${CAPPED_ROLE_JOINS}
      WHERE w.id = ? AND m.user_id = ? AND w.archived_at IS NULL`,
     [workspaceId, userId]
   );

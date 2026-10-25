@@ -1,4 +1,5 @@
 import React, { lazy, useEffect, useRef, useState } from 'react';
+import { isDemoRole } from '@foxschema/shared';
 import { createPortal } from 'react-dom';
 import { LogOut, Palette, ArrowUpCircle, Globe, Shield, MonitorX, MessageSquarePlus, UserPlus } from 'lucide-react';
 import { apiSignOutOthers } from '@/shared/api/authApi';
@@ -159,7 +160,7 @@ export function ProfileMenu(): React.ReactElement | null {
           </a>
 
           {/* A demo login is every visitor at once; the server refuses this for it. */}
-          {user?.role !== 'demo' && (
+          {!isDemoRole(user?.role) && (
             <button
               type="button"
               data-testid="profile-sign-out-others"

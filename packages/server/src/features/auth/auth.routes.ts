@@ -54,14 +54,15 @@ export function createAuthRoutes(
   });
 
   /**
-   * First-run setup state. Says whether setup is still open and whether this
-   * caller will need the setup code, so the sign-in screen can ask for it.
+   * What the app needs before anyone signs in, read once at startup: whether
+   * first-run setup is open and this caller needs the setup code, and whether
+   * the install is a demo (with, only then, the admin's sign-in hint).
    */
   router.get('/setup', async (req: AppRequest, res: FastifyReply) => {
-    const state = await auth.setupState();
+    const [state, demoView] = await Promise.all([auth.setupState(), demo.publicView()]);
     const codeRequired = state.setupRequired && !isDirectLocalRequest(req);
     if (codeRequired) announceSetupCode();
-    res.send({ ...state, setupCodeRequired: codeRequired });
+    res.send({ ...state, setupCodeRequired: codeRequired, demo: demoView });
   });
 
   router.post('/setup', signInLimiter, async (req: AppRequest, res: FastifyReply) => {
@@ -143,6 +144,11 @@ export function createAuthRoutes(
     const session = await auth.resolveSession(readCookie(req, SESSION_COOKIE));
     if (!session || session.launch) {
       sendError(res, 'unauthenticated', 'Sign in to verify your email.');
+      return;
+    }
+    // Any visitor could mail the demo address over and over: its profile is locked.
+    if (isDemoRole(session.user.role)) {
+      sendError(res, 'forbidden', DEMO_READ_ONLY);
       return;
     }
     if ((await auth.emailVerification(session.user.id)).verified) {
@@ -253,14 +259,6 @@ export function createAuthRoutes(
       return;
     }
     res.send({ signedOut: await auth.signOutOtherSessions(user.id, token) });
-  });
-
-  /**
-   * Whether this install is a demo, and — only then — the admin's hint for
-   * the sign-in page. Public: the sign-in page asks before anyone is in.
-   */
-  router.get('/demo', async (_req: AppRequest, res: FastifyReply) => {
-    res.send(await demo.publicView());
   });
 
   /**

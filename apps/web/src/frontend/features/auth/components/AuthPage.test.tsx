@@ -18,7 +18,6 @@ const apiLogin = vi.fn();
 const apiForgotPassword = vi.fn();
 const apiInspectCode = vi.fn();
 const apiRedeemCode = vi.fn();
-const apiDemoMode = vi.fn();
 
 vi.mock('@/shared/api/authApi', () => ({
   apiSetupState: (...a: unknown[]) => apiSetupState(...a),
@@ -36,12 +35,10 @@ vi.mock('@/shared/api/authApi', () => ({
   apiRedeemCode: (...a: unknown[]) => apiRedeemCode(...a),
   apiLogout: vi.fn(async () => undefined),
   apiPutPreferences: vi.fn(async () => ({})),
-  apiDemoMode: (...a: unknown[]) => apiDemoMode(...a),
 }));
 vi.mock('./SsoButtons', () => ({ SsoButtons: () => null }));
 
 import { useAuthStore } from '@/platform/authStore';
-import { resetDemoMode } from '@/shared/lib/useDemoMode';
 import { AuthPage } from './AuthPage';
 
 const ADMIN = { id: 'u1', email: 'owner@example.com', onboardingCompleted: true, role: 'admin', permissions: [] };
@@ -53,8 +50,6 @@ beforeEach(() => {
   }
   useAuthStore.setState({ status: 'loading', user: null, error: null, busy: false, setupState: null });
   window.history.replaceState(null, '', '/');
-  resetDemoMode();
-  apiDemoMode.mockReset().mockResolvedValue({ on: false });
 });
 
 const type = (label: RegExp, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
@@ -228,23 +223,21 @@ describe('codes', () => {
 });
 
 describe('a demo install', () => {
-  const signInScreen = async () => {
-    useAuthStore.setState({ status: 'anon', user: null, error: null, busy: false, setupState: null });
+  const signInScreen = async (demo: { on: boolean; hint?: string } | null = null) => {
+    useAuthStore.setState({ status: 'anon', user: null, error: null, busy: false, setupState: null, demo });
     render(<AuthPage />);
     await screen.findByTestId('auth-login-form');
   };
 
   it('says so on the sign-in page, with the admin’s hint', async () => {
-    apiDemoMode.mockResolvedValue({ on: true, hint: 'Demo login: demo@example.com / try-fox-9' });
-    await signInScreen();
+    await signInScreen({ on: true, hint: 'Demo login: demo@example.com / try-fox-9' });
     const hint = await screen.findByTestId('auth-demo-hint');
     expect(hint.textContent).toMatch(/This is a demo of Fox/);
     expect(hint.textContent).toMatch(/demo@example\.com \/ try-fox-9/);
   });
 
-  it('shows nothing extra on an ordinary install, or when the server cannot say', async () => {
-    await signInScreen();
-    await waitFor(() => expect(apiDemoMode).toHaveBeenCalled());
+  it('shows nothing extra on an ordinary install, or when the server did not say', async () => {
+    await signInScreen({ on: false });
     expect(screen.queryByTestId('auth-demo-hint')).toBeNull();
   });
 });

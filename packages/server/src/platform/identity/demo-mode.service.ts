@@ -10,11 +10,11 @@
  * demo account may *do* is the Demo role's business (`demo-access.ts`); this
  * only tells visitors where they are and how to get in.
  */
+import { DEMO_HINT_MAX } from '@foxschema/shared';
 import { AppSettingsStore } from '../settings/app-settings.service';
 
 export const DEMO_MODE_KEY = 'demo.mode';
 export const DEMO_HINT_KEY = 'demo.sign_in_hint';
-export const DEMO_HINT_MAX = 300;
 
 export interface DemoModeState {
   on: boolean;
@@ -36,15 +36,17 @@ export class DemoMode {
     return state.on ? { on: true, ...(state.hint ? { hint: state.hint } : {}) } : { on: false };
   }
 
-  async save(input: { on?: unknown; hint?: unknown }): Promise<DemoModeState> {
-    if (input.on !== undefined && typeof input.on !== 'boolean') throw new Error('on must be true or false.');
-    if (input.hint !== undefined && typeof input.hint !== 'string') throw new Error('hint must be text.');
-    const hint = typeof input.hint === 'string' ? input.hint.trim() : undefined;
-    if (hint !== undefined && hint.length > DEMO_HINT_MAX) {
+  async save({ on, hint }: { on?: unknown; hint?: unknown }): Promise<DemoModeState> {
+    if (on !== undefined && typeof on !== 'boolean') throw new Error('on must be true or false.');
+    if (hint !== undefined && typeof hint !== 'string') throw new Error('hint must be text.');
+    const trimmed = hint?.trim();
+    if (trimmed !== undefined && trimmed.length > DEMO_HINT_MAX) {
       throw new Error(`Keep the hint under ${DEMO_HINT_MAX} characters.`);
     }
-    if (typeof input.on === 'boolean') await this.settings.set(DEMO_MODE_KEY, input.on ? 'on' : 'off');
-    if (hint !== undefined) await this.settings.set(DEMO_HINT_KEY, hint);
+    await Promise.all([
+      on !== undefined && this.settings.set(DEMO_MODE_KEY, on ? 'on' : 'off'),
+      trimmed !== undefined && this.settings.set(DEMO_HINT_KEY, trimmed),
+    ]);
     return this.get();
   }
 }

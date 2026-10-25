@@ -35,6 +35,8 @@ export interface SetupState {
   setupEmail: string | null;
   /** This browser is not on the server's machine: setup needs the code from the server log. */
   setupCodeRequired: boolean;
+  /** Whether the install is a demo; absent from a server that predates demo mode. */
+  demo?: DemoModeInfo;
 }
 
 const NO_SETUP: SetupState = { setupRequired: false, setupEmail: null, setupCodeRequired: false };
@@ -296,13 +298,9 @@ export interface DemoModeInfo {
   hint?: string;
 }
 
-export async function apiDemoMode(): Promise<DemoModeInfo> {
-  const info = await api.get<DemoModeInfo>('/auth/demo');
-  return info?.on ? { on: true, ...(info.hint ? { hint: info.hint } : {}) } : { on: false };
-}
-
-export async function apiSaveDemoMode(input: { on?: boolean; hint?: string }): Promise<void> {
-  await api.put('/admin/sign-in/demo', input, EMPTY_OK);
+/** Save demo mode; answers the settings as saved (the hint is kept while off). */
+export async function apiSaveDemoMode(input: { on?: boolean; hint?: string }): Promise<{ on: boolean; hint: string }> {
+  return (await api.put<{ demo: { on: boolean; hint: string } }>('/admin/sign-in/demo', input)).demo;
 }
 
 export async function apiSaveSsoProvider(

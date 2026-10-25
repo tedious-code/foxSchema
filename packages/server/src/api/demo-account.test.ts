@@ -28,6 +28,18 @@ let demo = '';
 let demoId = '';
 let viewer = '';
 
+/** Every route the features mount, with its mount's access, built once. */
+let routeTable: Array<{ method: string; path: string; access: string }> | null = null;
+function mountedRoutes() {
+  if (!routeTable) {
+    const ctx = createFeatureContext();
+    routeTable = FEATURES.flatMap((f) => f.mounts).flatMap((m) =>
+      m.routes(ctx).flatten(m.prefix).map((r) => ({ method: r.method, path: r.path, access: m.access }))
+    );
+  }
+  return routeTable;
+}
+
 const DEMO_EMAIL = 'demo-visitor@example.com';
 const DEMO_PASSWORD = 'shared-demo-login-9';
 
@@ -97,18 +109,22 @@ describe('a demo account', () => {
     const ws = (await call('POST', '/workspaces', admin, { name: 'Demo data' })).json.workspace;
     expect((await call('PUT', `/workspaces/${ws.id}/members/${demoId}`, admin, { role: 'owner' })).status).toBe(200);
     const there = (await call('GET', '/auth/me', demo, undefined, { 'x-fox-workspace': ws.id })).json;
-    expect(there.workspace).toMatchObject({ id: ws.id, role: 'owner' });
+    // It acts as a viewer there, so every service that reads its role sees one.
+    expect(there.workspace).toMatchObject({ id: ws.id, role: 'viewer' });
     for (const p of ['editor.dml', 'editor.ddl', 'editor.grant', 'schema.migrate', 'workspace.members', 'secrets.view']) {
       expect(there.user.permissions, p).not.toContain(p);
     }
     expect(there.user.permissions).toContain('editor.run');
+    // The pending invites (other people's emails) and script writing stay closed.
+    expect((await call('GET', `/workspaces/${ws.id}/invites`, demo)).status).toBe(403);
+    expect((await call('GET', '/workspaces/scripts', demo, undefined, { 'x-fox-workspace': ws.id })).json.canWrite).toBe(false);
+    // Nor does it run its own workspace's members.
+    const own = (await call('GET', '/workspaces', demo)).json.workspaces.find((w: { personal: boolean }) => w.personal);
+    expect((await call('GET', `/workspaces/${own.id}/invites`, demo)).status).toBe(403);
   });
 
   it('is refused every write behind sign-in except the few that read — before the route runs', async () => {
-    const guarded = FEATURES.flatMap((f) => f.mounts)
-      .filter((m) => m.access === 'user' || m.access === 'registered')
-      .flatMap((m) => m.routes(createFeatureContext()).flatten(m.prefix))
-      .filter((r) => r.method !== 'GET');
+    const guarded = mountedRoutes().filter((r) => (r.access === 'user' || r.access === 'registered') && r.method !== 'GET');
     expect(guarded.length).toBeGreaterThan(50);
     const allowed = new Set(DEMO_ALLOWED_WRITES.map((r) => `${r.method} ${r.path}`));
 
@@ -124,11 +140,7 @@ describe('a demo account', () => {
   }, 120_000);
 
   it('lists only routes that exist — a renamed route fails here instead of closing quietly', () => {
-    const served = new Set(
-      FEATURES.flatMap((f) => f.mounts)
-        .flatMap((m) => m.routes(createFeatureContext()).flatten(m.prefix))
-        .map((r) => `${r.method} ${r.path}`)
-    );
+    const served = new Set(mountedRoutes().map((r) => `${r.method} ${r.path}`));
     expect(DEMO_ALLOWED_WRITES.map((r) => `${r.method} ${r.path}`).filter((k) => !served.has(k))).toEqual([]);
   });
 
@@ -139,6 +151,9 @@ describe('a demo account', () => {
     expect(run.json.error).not.toBe(DEMO_READ_ONLY);
     expect((await call('PUT', '/user/preferences', demo, { onboardingCompleted: true })).status).toBe(200);
     expect((await call('GET', '/connections', demo)).status).toBe(200);
+    // And it switches between the workspaces it is in.
+    const own = (await call('GET', '/workspaces', demo)).json.workspaces.find((w: { personal: boolean }) => w.personal);
+    expect((await call('POST', `/workspaces/${own.id}/select`, demo, {})).status).toBe(200);
   });
 
   it('cannot sign the other visitors out', async () => {
@@ -149,6 +164,12 @@ describe('a demo account', () => {
     expect((await call('GET', '/auth/me', otherVisitor)).json.user?.email).toBe(DEMO_EMAIL);
     // Everyone else still can.
     expect((await call('POST', '/auth/sign-out-others', viewer, {})).status).toBe(200);
+  });
+
+  it('cannot have verification mail sent to its address by a visitor', async () => {
+    const res = await call('POST', '/auth/verify/send', demo, {});
+    expect(res.status).toBe(403);
+    expect(res.json.error).toBe(DEMO_READ_ONLY);
   });
 
   it('cannot have its password reset by a visitor: forgot sends nothing for it', async () => {
@@ -172,12 +193,12 @@ describe('a demo account', () => {
 
 describe('demo mode', () => {
   it('shows the sign-in page its hint only while on, and only an admin sets it', async () => {
-    expect((await call('GET', '/auth/demo', '')).json).toEqual({ on: false });
+    expect((await call('GET', '/auth/setup', '')).json.demo).toEqual({ on: false });
 
     const hint = `Demo login: ${DEMO_EMAIL} / ${DEMO_PASSWORD}`;
     const saved = await call('PUT', '/admin/sign-in/demo', admin, { on: true, hint });
     expect(saved.status, saved.text).toBe(200);
-    expect((await call('GET', '/auth/demo', '')).json).toEqual({ on: true, hint });
+    expect((await call('GET', '/auth/setup', '')).json.demo).toEqual({ on: true, hint });
 
     expect((await call('PUT', '/admin/sign-in/demo', demo, { on: false })).status).toBe(403);
     expect((await call('PUT', '/admin/sign-in/demo', viewer, { on: false })).status).toBe(403);
@@ -186,7 +207,7 @@ describe('demo mode', () => {
 
     // Off again: the hint is kept for next time, and not shown.
     expect((await call('PUT', '/admin/sign-in/demo', admin, { on: false })).status).toBe(200);
-    expect((await call('GET', '/auth/demo', '')).json).toEqual({ on: false });
+    expect((await call('GET', '/auth/setup', '')).json.demo).toEqual({ on: false });
     expect((await call('GET', '/admin/sign-in', admin)).json.demo).toEqual({ on: false, hint });
   });
 });

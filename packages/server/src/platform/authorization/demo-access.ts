@@ -14,7 +14,7 @@
  *
  * This is an allow-list on purpose. A route added later is closed to the demo
  * until someone decides it reads, rather than open until someone notices it
- * writes. `demo-access.test.ts` checks every entry against the real route
+ * writes. `api/demo-account.test.ts` checks every entry against the real route
  * table, so a renamed route fails the build instead of quietly closing.
  */
 import { isDemoRole } from '@foxschema/shared';
@@ -43,6 +43,11 @@ export const DEMO_ALLOWED_WRITES: readonly DemoRoute[] = [
     method: 'PUT',
     path: '/api/user/preferences',
     why: 'Theme and onboarding state. Shared by every visitor, and harmless to share.',
+  },
+  {
+    method: 'POST',
+    path: '/api/workspaces/:id/select',
+    why: 'Switches the workspace the account acts in (one of its own): a preference, like the theme.',
   },
 ];
 

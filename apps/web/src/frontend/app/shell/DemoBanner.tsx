@@ -8,11 +8,11 @@
  */
 import React from 'react';
 import { Eye } from 'lucide-react';
+import { isDemoRole } from '@foxschema/shared';
 import { useAuthStore } from '@/platform/authStore';
-import { useDemoMode } from '@/shared/lib/useDemoMode';
 
 export const DemoBanner: React.FC = () => {
-  const demo = useDemoMode();
+  const demo = useAuthStore((s) => s.demo);
   const role = useAuthStore((s) => s.user?.role);
   if (!demo?.on) return null;
   return (
@@ -24,7 +24,7 @@ export const DemoBanner: React.FC = () => {
       <Eye className="w-3.5 h-3.5 text-sky-300 shrink-0" />
       <span className="font-bold">Demo</span>
       <span className="text-sky-200/90">
-        {role === 'demo'
+        {isDemoRole(role)
           ? 'Explore the sample databases: browse, compare, and run queries. Nothing here can be saved or changed.'
           : 'Demo mode is on: visitors see this banner, and the sign-in page shows the demo login.'}
       </span>

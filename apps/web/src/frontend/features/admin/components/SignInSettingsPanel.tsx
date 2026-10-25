@@ -12,6 +12,7 @@
  * by environment variables on the server is shown read-only.
  */
 import React, { useCallback, useEffect, useState } from 'react';
+import { DEMO_HINT_MAX } from '@foxschema/shared';
 import { Check, Copy, Loader2 } from 'lucide-react';
 import {
   apiRemoveMailSettings,
@@ -29,7 +30,6 @@ import {
   type SsoProviderSettings,
 } from '@/shared/api/authApi';
 import { PasswordInput } from '@/shared/components/PasswordInput';
-import { resetDemoMode } from '@/shared/lib/useDemoMode';
 import { useAuthStore } from '@/platform/authStore';
 
 const inputCls =
@@ -167,8 +167,9 @@ const DemoSection: React.FC<{ demo: SignInSettingsState['demo']; run: Run }> = (
   const [hint, setHint] = useState(demo.hint);
   const save = (input: { on?: boolean; hint?: string }, done: string) =>
     void run(async () => {
-      await apiSaveDemoMode(input);
-      resetDemoMode();
+      const saved = await apiSaveDemoMode(input);
+      // This tab's banner follows at once; other tabs on their next load.
+      useAuthStore.setState({ demo: { on: saved.on, hint: saved.hint || undefined } });
     }, done);
   return (
     <section data-testid="sign-in-demo" className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5 space-y-2">
@@ -198,7 +199,7 @@ const DemoSection: React.FC<{ demo: SignInSettingsState['demo']; run: Run }> = (
         id="sign-in-demo-hint"
         data-testid="sign-in-demo-hint"
         rows={2}
-        maxLength={300}
+        maxLength={DEMO_HINT_MAX}
         value={hint}
         onChange={(e) => setHint(e.target.value)}
         placeholder="Demo login: demo@example.com / its password"

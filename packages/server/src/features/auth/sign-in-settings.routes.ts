@@ -31,10 +31,10 @@ export function createSignInSettingsRoutes(
     sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Could not save');
 
   router.get('/', guard, async (req: AuthedRequest, res: FastifyReply) => {
-    const summary = await settings.summary();
+    const [summary, demoState] = await Promise.all([settings.summary(), demo.get()]);
     // The callback URL to register with each provider.
     const providers = summary.providers.map((p) => ({ ...p, redirectUri: redirectUri(req, p.id, summary.publicUrl) }));
-    res.send({ ...summary, providers, demo: await demo.get() });
+    res.send({ ...summary, providers, demo: demoState });
   });
 
   router.put('/providers/:id', guard, async (req: AuthedRequest, res: FastifyReply) => {

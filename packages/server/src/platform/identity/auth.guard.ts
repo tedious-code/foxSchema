@@ -85,6 +85,13 @@ export function authGuard(auth: AuthModule) {
         sendError(res, 'unauthenticated', 'Authentication required');
         return;
       }
+      // A demo account reads; it writes only through routes that read (demo-access.ts).
+      // Matched on the registered route, `:params` and all, never the raw URL.
+      // Before the workspace reads below: a refused write needs none of them.
+      if (!demoMayCall(session.user.role, req.method, req.routeOptions?.url ?? '')) {
+        sendError(res, 'forbidden', DEMO_READ_ONLY);
+        return;
+      }
       if (session.launch && (await auth.registrationState()).required) {
         sendError(res, 'forbidden', REGISTER_TO_CONTINUE);
         return;
@@ -101,12 +108,6 @@ export function authGuard(auth: AuthModule) {
       }
       const { workspace, permissions } = inWorkspace;
       attachAuthUser(session.user, req, session.launch, { id: workspace.id, role: workspace.role, permissions });
-      // A demo account reads; it writes only through routes that read (demo-access.ts).
-      // Matched on the registered route, `:params` and all, never the raw URL.
-      if (!demoMayCall(session.user.role, req.method, req.routeOptions?.url ?? '')) {
-        sendError(res, 'forbidden', DEMO_READ_ONLY);
-        return;
-      }
       next();
     } catch (err) {
       next(err);

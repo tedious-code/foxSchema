@@ -4,54 +4,43 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-
-const apiDemoMode = vi.fn();
-vi.mock('@/shared/api/authApi', () => ({ apiDemoMode: (...a: unknown[]) => apiDemoMode(...a) }));
-
+import { beforeEach, describe, expect, it } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import { useAuthStore } from '@/platform/authStore';
-import { resetDemoMode } from '@/shared/lib/useDemoMode';
 import { DemoBanner } from './DemoBanner';
 
-const signIn = (role: string) =>
+const signIn = (role: string, demo: { on: boolean } | null) =>
   useAuthStore.setState({
     user: { id: 'u', email: 'u@example.com', onboardingCompleted: true, role, permissions: [] },
     status: 'ready',
+    demo,
   } as never);
 
 beforeEach(() => {
-  resetDemoMode();
-  apiDemoMode.mockReset();
+  useAuthStore.setState({ demo: null });
 });
 
 describe('DemoBanner', () => {
-  it('tells a demo visitor what works and that nothing is saved', async () => {
-    apiDemoMode.mockResolvedValue({ on: true });
-    signIn('demo');
+  it('tells a demo visitor what works and that nothing is saved', () => {
+    signIn('demo', { on: true });
     render(<DemoBanner />);
-    expect((await screen.findByTestId('demo-banner')).textContent).toMatch(/browse, compare, and run queries.*Nothing here can be saved/);
+    expect(screen.getByTestId('demo-banner').textContent).toMatch(/browse, compare, and run queries.*Nothing here can be saved/);
   });
 
-  it('reminds an admin that demo mode is on', async () => {
-    apiDemoMode.mockResolvedValue({ on: true });
-    signIn('admin');
+  it('reminds an admin that demo mode is on', () => {
+    signIn('admin', { on: true });
     render(<DemoBanner />);
-    expect((await screen.findByTestId('demo-banner')).textContent).toMatch(/Demo mode is on/);
+    expect(screen.getByTestId('demo-banner').textContent).toMatch(/Demo mode is on/);
   });
 
-  it('is absent when demo mode is off, or the server cannot say', async () => {
-    apiDemoMode.mockResolvedValue({ on: false });
-    signIn('demo');
+  it('is absent when demo mode is off, or the server did not say', () => {
+    signIn('demo', { on: false });
     const { unmount } = render(<DemoBanner />);
-    await waitFor(() => expect(apiDemoMode).toHaveBeenCalled());
     expect(screen.queryByTestId('demo-banner')).toBeNull();
     unmount();
 
-    resetDemoMode();
-    apiDemoMode.mockRejectedValue(new Error('offline'));
+    signIn('demo', null);
     render(<DemoBanner />);
-    await waitFor(() => expect(apiDemoMode).toHaveBeenCalledTimes(2));
     expect(screen.queryByTestId('demo-banner')).toBeNull();
   });
 });

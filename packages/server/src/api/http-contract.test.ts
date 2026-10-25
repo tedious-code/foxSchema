@@ -84,7 +84,6 @@ const ROUTES: RouteExpectation[] = [
   { method: 'DELETE', path: '/api/app-secrets/providers/:id', status: 404 },
   { method: 'PUT', path: '/api/app-secrets/providers/:id', status: 404 },
   { method: 'POST', path: '/api/app-secrets/resolve', status: 200 },
-  { method: 'GET', path: '/api/auth/demo', status: 200 },
   { method: 'POST', path: '/api/auth/login', status: 401 },
   { method: 'POST', path: '/api/auth/logout', status: 200 },
   { method: 'POST', path: '/api/auth/sign-out-others', status: 401 },
@@ -224,8 +223,6 @@ const PUBLIC = new Set([
   '/api/health',
   '/api/config',
   // Signing in, out and up, and recovering an account: before there is a session.
-  // Whether the install is a demo, for the sign-in page.
-  '/api/auth/demo',
   '/api/auth/login',
   '/api/auth/logout',
   '/api/auth/me',

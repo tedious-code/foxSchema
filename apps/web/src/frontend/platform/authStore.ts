@@ -16,6 +16,7 @@ import {
   apiSetupState,
   apiVerifyEmail,
   type AuthUser,
+  type DemoModeInfo,
   type RegistrationDue,
   type SessionInfo,
   type SetupState,
@@ -34,6 +35,8 @@ interface AuthState {
   busy: boolean;
   /** First-run setup details, while status is `setup` or a launch session has no account yet. */
   setupState: SetupState | null;
+  /** Whether the install is a demo (banner, sign-in hint); read with the setup state at startup. */
+  demo: DemoModeInfo | null;
   /** The owner, in by `foxschema open` launch link, with no account yet. */
   launch: boolean;
   /** For a launch session: when the account is due. */
@@ -111,6 +114,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   error: null,
   busy: false,
   setupState: null,
+  demo: null,
   ...SIGNED_OUT,
   registerDialogOpen: false,
   setRegisterDialogOpen: (open) => set({ registerDialogOpen: open }),
@@ -131,7 +135,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // A dead link (used, expired, another machine) just means the usual page.
       if (launchToken) await apiLaunch(launchToken).catch(() => undefined);
       const [setupState, session] = await Promise.all([apiSetupState(), apiSession()]);
-      set(startState(setupState, session));
+      set({ ...startState(setupState, session), demo: setupState.demo ?? null });
     })().finally(() => {
       initRun = null;
     })),
@@ -201,6 +205,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user: null, status: 'anon', error: null, ...SIGNED_OUT });
     // A launch session leaves the install with no account: setup, not sign-in.
     const setupState = await apiSetupState();
+    set({ demo: setupState.demo ?? null });
     if (setupState.setupRequired) set({ setupState, status: 'setup' });
   },
 

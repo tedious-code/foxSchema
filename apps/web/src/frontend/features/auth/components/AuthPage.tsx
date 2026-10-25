@@ -17,7 +17,6 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/platform/authStore';
-import { useDemoMode } from '@/shared/lib/useDemoMode';
 import { Brand } from '@/shared/components/Brand';
 import { PasswordInput } from '@/shared/components/PasswordInput';
 import { SsoButtons } from './SsoButtons';
@@ -132,7 +131,7 @@ const SignInForm: React.FC<{
   const [password, setPassword] = useState('');
   const [ssoError] = useState<string | null>(readSsoError);
   const caps = useCapsLock();
-  const demo = useDemoMode();
+  const demo = useAuthStore((s) => s.demo);
 
   // Drop `?sso_error` from the address bar once shown, so a reload is clean.
   useEffect(() => {

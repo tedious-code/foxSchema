@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { redisAdapter } from './redis.adapter.js';
+import { sampleKeyspace, scanBatches } from './redis.keyspace.js';
 
 /**
  * Runs against a real Redis. Skipped unless FOX_REDIS_URL is set, so the normal
@@ -25,8 +26,8 @@ maybe('redis adapter against a live server', () => {
 
   afterAll(async () => {
     // Leave the keyspace as we found it.
-    for await (const key of conn.scanIterator({ MATCH: `${table}:*`, COUNT: 100 })) {
-      await conn.del(typeof key === 'string' ? key : String(key));
+    for await (const keys of scanBatches(conn.scanIterator({ MATCH: `${table}*`, COUNT: 100 }))) {
+      if (keys.length) await conn.del(keys);
     }
     await redisAdapter.closeAll();
   });
@@ -149,5 +150,62 @@ maybe('redis adapter against a live server', () => {
     await q(`INSERT INTO ${table} (id, name) VALUES (?, ?)`, ['q', nasty]);
     const rows = await q(`SELECT * FROM ${table} WHERE id = ?`, ['q']);
     expect(rows[0]).toMatchObject({ name: nasty });
+  });
+
+  describe('every key type', () => {
+    const list = `${table}-jobs`;
+    const zset = `${table}-board`;
+    const set = `${table}-tags`;
+    const stream = `${table}-log`;
+
+    beforeAll(async () => {
+      await conn.set(`${table}:doc`, JSON.stringify({ title: 'Hello', meta: { v: 1 } }));
+      await conn.rPush(list, [JSON.stringify({ job: 'send' }), JSON.stringify({ job: 'bill' }), 'plain']);
+      await conn.zAdd(zset, [
+        { score: 20, value: 'bo' },
+        { score: 10, value: 'al' },
+      ]);
+      await conn.sAdd(set, ['x', 'y']);
+      await conn.xAdd(stream, '*', { level: 'info', msg: 'up' });
+    });
+
+    it('reads a JSON document in a string as its fields', async () => {
+      expect(await q(`SELECT * FROM ${table} WHERE id = 'doc'`)).toEqual([
+        { id: 'doc', title: 'Hello', meta: '{"v":1}' },
+      ]);
+    });
+
+    it('reads a list key as its elements, JSON fields expanded, paged', async () => {
+      expect(await q(`SELECT * FROM "${list}"`)).toEqual([
+        { index: 0, job: 'send' },
+        { index: 1, job: 'bill' },
+        { index: 2, value: 'plain' },
+      ]);
+      expect(await q(`SELECT * FROM "${list}" LIMIT 1 OFFSET 1`)).toEqual([{ index: 1, job: 'bill' }]);
+    });
+
+    it('reads a sorted set by score, a set’s members and a stream’s entries', async () => {
+      expect(await q(`SELECT * FROM "${zset}"`)).toEqual([
+        { member: 'al', score: 10 },
+        { member: 'bo', score: 20 },
+      ]);
+      expect((await q(`SELECT member FROM "${set}"`)).map((r: any) => r.member).sort()).toEqual(['x', 'y']);
+      expect(await q(`SELECT level, msg FROM "${stream}"`)).toEqual([{ level: 'info', msg: 'up' }]);
+    });
+
+    it('refuses writes to a collection key and leaves it unchanged', async () => {
+      await expect(q(`INSERT INTO "${list}" (id, job) VALUES ('9', 'x')`)).rejects.toThrow(/read-only/);
+      expect(await conn.lLen(list)).toBe(3);
+    });
+
+    it('lists each of them in the sampled keyspace with its store type', async () => {
+      const { tables } = await sampleKeyspace(conn);
+      const byName = Object.fromEntries(tables.map((t) => [t.name, t]));
+      expect(byName[list]).toMatchObject({ storeType: 'list', columns: ['index', 'value', 'job'] });
+      expect(byName[zset]).toMatchObject({ storeType: 'zset' });
+      expect(byName[set]).toMatchObject({ storeType: 'set' });
+      expect(byName[stream]).toMatchObject({ storeType: 'stream', columns: ['entry_id', 'level', 'msg'] });
+      expect(byName[table]?.columns).toEqual(expect.arrayContaining(['id', 'title', 'meta']));
+    });
   });
 });

@@ -14,6 +14,8 @@ import type { ConnectionResolver } from '../../platform/connections/resolve';
 import type { CaptureSource } from '@foxschema/shared';
 import type { LokeeWeaveStore } from './lokee-weave.service';
 import { LOKEE_FULL_SCOPE } from './lokee-scope';
+import { schemaCompareSupport } from '@foxschema/sql';
+import { ServiceError } from '../../platform/contracts/actor';
 
 export type CaptureLiveSchema = (
   scope: WorkspaceScope,
@@ -36,6 +38,11 @@ export function makeCaptureLiveSchema(
   loadScopedTables: ConnectionResolver['loadScopedTables']
 ): CaptureLiveSchema {
   return async (scope, resolved, source, extra) => {
+    // History is versions of a schema to diff. Redis and MongoDB can be browsed
+    // but have no schema; a sampled keyspace stored as a "version" would diff
+    // against the next sample and read as changes nobody made.
+    const support = schemaCompareSupport(resolved.dialect);
+    if (!support.supported) throw new ServiceError('invalid_input', support.reason);
     const { tables } = await loadScopedTables(resolved.dialect, resolved.option, resolved.schema ?? '', LOKEE_FULL_SCOPE);
     return lokee.capture(scope, {
       dialect: resolved.dialect,

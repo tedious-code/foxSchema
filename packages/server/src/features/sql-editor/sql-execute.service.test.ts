@@ -262,6 +262,22 @@ describe('runStatements against a real SQLite file', () => {
     }
   });
 
+  it('reports a Redis statement error as itself, not as a failed page', async () => {
+    // Redis pages with LIMIT/OFFSET on the statement, so there is no wrapper to blame.
+    const create = vi.spyOn(ConnectionFactory, 'create').mockResolvedValue({} as never);
+    const close = vi.spyOn(ConnectionFactory, 'close').mockResolvedValue(undefined);
+    const positional = vi.spyOn(ConnectionFactory, 'executePositional').mockReturnValue(null as never);
+    const message = 'Redis: Only `column = value` predicates joined by AND are supported on this store.';
+    const exec = vi.spyOn(ConnectionFactory, 'executeOnConnection').mockRejectedValue(new Error(message));
+    try {
+      const results = await runStatements('redis', {}, ['SELECT * FROM users WHERE id > 1'], 200);
+      expect(results[0]).toMatchObject({ ok: false, error: message });
+      expect(String(exec.mock.calls[0]![2])).toBe('SELECT * FROM users WHERE id > 1 LIMIT 201 OFFSET 0');
+    } finally {
+      for (const s of [create, close, positional, exec]) s.mockRestore();
+    }
+  });
+
   it('does not fall back to unwrapped SQL when offset > 0 and wrap fails', async () => {
     const spy = vi
       .spyOn(ConnectionFactory, 'executeOnConnection')

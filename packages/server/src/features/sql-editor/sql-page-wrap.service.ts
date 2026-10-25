@@ -13,7 +13,9 @@
 import { isPageableStatement } from '@foxschema/db';
 import {
   isSafeSeekColumn,
+  isSubsetDialect,
   isTsqlDialect,
+  pageSubsetSelect,
   parseTopLevelOrderBy,
   placeholderStyleFor,
   quoteSqlIdentifier,
@@ -168,6 +170,10 @@ export function wrapSqlForPage(
   const d = dialect.toLowerCase();
   const inner = trimmed;
   const fetchLimit = limit + 1; // +1 probe row
+
+  // Redis and MongoDB read SQL through a small parser with no subqueries: the
+  // page goes onto the statement itself (sql-subset.ts).
+  if (isSubsetDialect(d)) return pageSubsetSelect(inner, offset, fetchLimit);
 
   if (isTsqlDialect(d)) {
     // SQL Server / Azure SQL require ORDER BY for OFFSET/FETCH.

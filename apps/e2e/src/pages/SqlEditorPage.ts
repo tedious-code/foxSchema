@@ -505,7 +505,12 @@ export class SqlEditorPage {
   }
 
   /** Open Data Peek for a table from the Schema tree (modifier-click the row). */
-  async openDataPeek(tableName: string): Promise<void> {
+  /**
+   * Cmd/Ctrl-click a table in the explorer and wait for its Data Peek. By
+   * default waits for the row-editing controls, which render once rows load;
+   * a read-only object (a Redis list) has none, so wait for `rows` instead.
+   */
+  async openDataPeek(tableName: string, opts: { waitFor?: 'crud' | 'rows' } = {}): Promise<void> {
     await this.dismissOverlays();
     // The v3 sidebar collapses every section, and a collapsed section renders
     // no explorer at all — open Schema before reaching into its tree.
@@ -525,8 +530,12 @@ export class SqlEditorPage {
     const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
     await label.click({ modifiers: [modifier] });
     await waitFor(this.page, byTestId('data-peek'), 30_000);
-    // Wait for the grid, since the CRUD controls only render once rows load.
-    await this.page.waitForSelector('[data-testid^="data-peek-crud-"]', { timeout: 30_000 });
+    await this.page.waitForSelector(
+      opts.waitFor === 'rows'
+        ? '[data-testid^="data-peek-grid-"] [data-testid="sql-row-num"]'
+        : '[data-testid^="data-peek-crud-"]',
+      { timeout: 30_000 }
+    );
   }
 
   /** Click Add row on the first open Data Peek panel. */

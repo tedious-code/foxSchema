@@ -49,7 +49,7 @@ import { useSyncStore } from '@/features/compare';
 import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { useAuthStore } from '@/platform/authStore';
 import type { IndexInfo, TableSchema } from '@/shared/lib/types';
-import { PROVIDER_SETTINGS, connectionNeedsSecret } from '@/shared/lib/provider-settings';
+import { PROVIDER_SETTINGS, needsSessionPassword } from '@/shared/lib/provider-settings';
 import {
   DEFAULT_INDEX_MGMT_SORT,
   averageFragmentation,
@@ -208,7 +208,7 @@ export const IndexManagementModal: React.FC<Props> = ({
   const conn = connections.find((c) => c.id === connectionId) || null;
   // File dialects carry no password; asking for one blocked the utility outright.
   const needsPassword = Boolean(
-    conn && !conn.hasPassword && connectionNeedsSecret(conn.dialect, conn.authMethod) && !sessionPasswords[connectionId]
+    conn && needsSessionPassword(conn, sessionPasswords[connectionId])
   );
   const cache = connectionId ? schemaCache[connectionId] : undefined;
   /**

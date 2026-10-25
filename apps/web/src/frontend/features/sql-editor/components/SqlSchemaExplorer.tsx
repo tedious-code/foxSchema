@@ -1,4 +1,4 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -11,7 +11,7 @@ import {
 import { useSyncStore } from '@/features/compare';
 import { SCHEMA_ROUTINE_SCOPE, useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { connectionPickerOption, FilterPicker } from '@/shared/components/FilterPicker';
-import { quoteIdentifierIfNeeded } from '@foxschema/ui-shared';
+import { hasSqlDialect, isSubsetDialect, quoteIdentifierIfNeeded } from '@foxschema/ui-shared';
 import { getProviderSettings } from '@/shared/lib/provider-settings';
 import { TYPE_META } from '@/features/schema-diff';
 import {
@@ -31,7 +31,7 @@ import { TableBlueprintModal, type BlueprintMode } from './TableBlueprintModal';
 import { MissingDriverBanner } from './MissingDriverBanner';
 import { isScriptableObject, objectSourceScript } from '../lib/objectSourceScript';
 import { fetchDbaUtility } from '@/shared/api/schemaApi';
-import { connectionNeedsSecret } from '@/shared/lib/provider-settings';
+import { needsSessionPassword } from '@/shared/lib/provider-settings';
 import {
   dialectSupportsDbaUtility,
   formatBytes,
@@ -43,6 +43,7 @@ import {
 
 /** Imperative API for the Schema section header (New table). */
 export interface SqlSchemaExplorerHandle {
+  /** Opens the create blueprint; does nothing for an engine without tables to create. */
   openCreateTable: () => void;
 }
 
@@ -100,10 +101,13 @@ function writeStoredExplorerId(id: string): void {
  * destinations moves the explorer onto a checked credential when the current
  * one is no longer checked.
  */
-export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function SqlSchemaExplorer(
-  _props,
-  ref
-) {
+export const SqlSchemaExplorer = forwardRef<
+  SqlSchemaExplorerHandle,
+  {
+    /** Whether the browsed connection has tables to create, so the header offers New table only then. */
+    onCanCreateTableChange?: (canCreate: boolean) => void;
+  }
+>(function SqlSchemaExplorer({ onCanCreateTableChange }, ref) {
   const connections = useSyncStore((s) => s.connections);
   const connectionsLoaded = useSyncStore((s) => s.connectionsLoaded);
   const tabs = useSqlEditorStore((s) => s.tabs);
@@ -148,12 +152,6 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
     if (id) selectOnlyConnection(id);
   };
 
-  const openCreateTable = () => {
-    setBlueprintMode('create');
-    setBlueprintTable(null);
-  };
-
-  useImperativeHandle(ref, () => ({ openCreateTable }), []);
 
   useEffect(() => {
     if (!connectionsLoaded) return;
@@ -226,6 +224,24 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
 
   const conn = connections.find((c) => c.id === explorerId);
   const sessionPassword = explorerId ? sessionPasswords[explorerId] : undefined;
+  /**
+   * Only an engine with SQL DDL has tables to create and a blueprint to edit.
+   * Redis and MongoDB do not: the blueprint would write DDL for an engine with
+   * none (`resolveDialect` answers Db2 for a name it does not know).
+   */
+  const canCreateTable = !conn || hasSqlDialect(conn.dialect);
+
+  const openCreateTable = useCallback(() => {
+    if (!canCreateTable) return;
+    setBlueprintMode('create');
+    setBlueprintTable(null);
+  }, [canCreateTable]);
+
+  useImperativeHandle(ref, () => ({ openCreateTable }), [openCreateTable]);
+
+  useEffect(() => {
+    onCanCreateTableChange?.(canCreateTable);
+  }, [canCreateTable, onCanCreateTableChange]);
 
   useEffect(() => {
     if (!explorerId || entry?.status !== 'ready' || !conn) {
@@ -237,7 +253,7 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
       return;
     }
     // File dialects carry no password; waiting for one never resolved.
-    if (!conn.hasPassword && connectionNeedsSecret(conn.dialect, conn.authMethod) && !sessionPassword) return;
+    if (needsSessionPassword(conn, sessionPassword)) return;
     let cancelled = false;
     void fetchDbaUtility(
       { connectionId: explorerId, password: sessionPassword },
@@ -292,17 +308,19 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
               placeholder="Filter connections…"
               title="Sets Destinations to this connection. Check more destinations to run the same SQL on several."
             />
-            <button
-              type="button"
-              title="Create new table (opens table blueprint)"
-              disabled={!explorerId}
-              data-testid="sql-new-table"
-              onClick={openCreateTable}
-              className="inline-flex items-center gap-1 shrink-0 px-2 py-1 rounded-md text-[11px] font-bold text-emerald-300 bg-emerald-950/40 border border-emerald-700/50 hover:bg-emerald-900/50 disabled:opacity-40 transition"
-            >
-              <Plus className="w-3.5 h-3.5" strokeWidth={SQL_ICON_STROKE} />
-              New
-            </button>
+            {canCreateTable && (
+              <button
+                type="button"
+                title="Create new table (opens table blueprint)"
+                disabled={!explorerId}
+                data-testid="sql-new-table"
+                onClick={openCreateTable}
+                className="inline-flex items-center gap-1 shrink-0 px-2 py-1 rounded-md text-[11px] font-bold text-emerald-300 bg-emerald-950/40 border border-emerald-700/50 hover:bg-emerald-900/50 disabled:opacity-40 transition"
+              >
+                <Plus className="w-3.5 h-3.5" strokeWidth={SQL_ICON_STROKE} />
+                New
+              </button>
+            )}
             <button data-testid="sql-reload-schema"
               type="button"
               title="Reload schema"
@@ -346,18 +364,22 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
           {entry?.status === 'ready' && totalCount === 0 && !schemaMissingHint && (
             <div className="flex flex-col gap-2 py-1" data-testid="sql-schema-empty">
               <p className="text-[12px] font-medium text-slate-500">
-                No tables in this schema yet. Use New to open the table blueprint and add columns.
+                {canCreateTable
+                  ? 'No tables in this schema yet. Use New to open the table blueprint and add columns.'
+                  : 'Nothing in this database yet.'}
               </p>
-              <button
-                type="button"
-                data-testid="sql-new-table-empty"
-                disabled={!explorerId}
-                onClick={openCreateTable}
-                className="self-start inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-bold text-emerald-200 bg-emerald-950/50 border border-emerald-600/40 hover:bg-emerald-900/60 disabled:opacity-40"
-              >
-                <Plus className="w-3.5 h-3.5" strokeWidth={SQL_ICON_STROKE} />
-                Create table
-              </button>
+              {canCreateTable && (
+                <button
+                  type="button"
+                  data-testid="sql-new-table-empty"
+                  disabled={!explorerId}
+                  onClick={openCreateTable}
+                  className="self-start inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-bold text-emerald-200 bg-emerald-950/50 border border-emerald-600/40 hover:bg-emerald-900/60 disabled:opacity-40"
+                >
+                  <Plus className="w-3.5 h-3.5" strokeWidth={SQL_ICON_STROKE} />
+                  Create table
+                </button>
+              )}
             </div>
           )}
 
@@ -413,7 +435,7 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
                           schema={conn?.schema}
                           sizeGroup={sizeOf(t.name, conn?.schema)}
                           onOpenBlueprint={
-                            t.objectType === 'TABLE' || t.objectType === 'MQT'
+                            (t.objectType === 'TABLE' || t.objectType === 'MQT') && canCreateTable
                               ? () => {
                                   setBlueprintMode('edit');
                                   setBlueprintTable(t);
@@ -459,6 +481,18 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
   );
 });
 
+/** What each Redis store type means, on the badge's tooltip. */
+const STORE_TYPE_HINT: Record<string, string> = {
+  hash: 'Hashes: one key per row, its fields as columns',
+  json: 'JSON documents: one key per row, top-level fields as columns',
+  string: 'Strings: one key per row, the value in one column',
+  mixed: 'Keys of several types under this prefix',
+  list: 'A list: one element per row, in list order',
+  set: 'A set: one member per row',
+  zset: 'A sorted set: one member per row, with its score',
+  stream: 'A stream: one entry per row, by id',
+};
+
 const ObjectNode: React.FC<{
   table: TableSchema;
   open: boolean;
@@ -485,6 +519,11 @@ const ObjectNode: React.FC<{
   onPeek,
 }) => {
   const meta = TYPE_META[table.objectType] ?? TYPE_META.TABLE;
+  /** Offer "From": the object reads as rows (a table, an MQT, a Redis key). */
+  const canInsertFrom = table.objectType === 'TABLE' || table.objectType === 'MQT';
+  // Redis and MongoDB read SQL through a small parser: one bare table name, no
+  // alias and no `alias.column` (sql-subset.ts refuses both).
+  const subset = isSubsetDialect(dialect);
   const insertName = quoteIdentifierIfNeeded(table.name, dialect);
   const schemaName = schema?.trim();
   const qualifiedName =
@@ -502,6 +541,10 @@ const ObjectNode: React.FC<{
   const insertObject = () => {
     if (isRoutine) {
       insertAtCursor(routineInsertText(qualifiedName, table.objectType, params));
+      return;
+    }
+    if (subset) {
+      insertAtCursor(`${insertName} `);
       return;
     }
     // Tables/views: add into FROM with an auto alias (e.g. users u).
@@ -541,7 +584,7 @@ const ObjectNode: React.FC<{
   /** Add `alias.column` into the active SELECT list (or insert at cursor). */
   const insertColumnIntoSelect = (colName: string) => {
     const col = quoteIdentifierIfNeeded(colName, dialect);
-    const expr = `${resolveTableAlias()}.${col}`;
+    const expr = subset ? col : `${resolveTableAlias()}.${col}`;
     const ok = mutateSql((sql) => insertIntoSelectList(sql, expr));
     if (!ok) insertAtCursor(`${expr}, `);
   };
@@ -594,6 +637,15 @@ const ObjectNode: React.FC<{
           <span className="flex flex-col min-w-0 flex-1">
             <span className="flex items-center gap-1.5 min-w-0">
               <span className="truncate font-mono font-bold">{table.name}</span>
+              {table.storeType && (
+                <span
+                  data-testid={`sql-explorer-store-type-${table.name}`}
+                  title={STORE_TYPE_HINT[table.storeType] ?? table.storeType}
+                  className="shrink-0 rounded border border-slate-700 px-1 text-[9px] font-bold uppercase tracking-wide text-slate-400"
+                >
+                  {table.storeType}
+                </span>
+              )}
               {isRoutine && params.length > 0 && (
                 <span className="shrink-0 text-[11px] font-mono font-medium text-slate-500 truncate max-w-[40%]">
                   ({params.length})
@@ -612,10 +664,10 @@ const ObjectNode: React.FC<{
         </button>
         {/* One group, so the actions wrap as a unit instead of splitting apart. */}
         <span className="shrink-0 flex items-center gap-0.5">
-          {onOpenBlueprint && (
+          {canInsertFrom && (
             <button
               type="button"
-              title={`Add ${table.name} to FROM with auto alias`}
+              title={subset ? `Insert ${table.name}` : `Add ${table.name} to FROM with auto alias`}
               data-testid={`sql-explorer-from-${table.name}`}
               onClick={(e) => {
                 e.stopPropagation();

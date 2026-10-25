@@ -19,8 +19,11 @@ import {
   isAppRole,
   isWorkspaceRole,
   lowerWorkspaceRole,
+  permissionSatisfied,
+  workspaceGrantCeiling,
   workspaceRoleAtMost,
   type AppRole,
+  type Permission,
   type WorkspaceRole,
 } from '@foxschema/shared';
 import type { MetadataStore } from '../../database/stores/types';
@@ -56,47 +59,80 @@ export function workspaceRoleCeiling(
 }
 
 /**
- * `userId`'s role in `workspaceId` as it takes effect: the stored role, capped
- * at the workspace's ceiling. Null when not a member. The cap is applied on
- * read, so a membership granted before the ceiling existed, or an account
- * demoted since, cannot keep more than the ceiling allows.
+ * Joined into every query that reads a membership role (with `w` the
+ * workspace), so the role can be capped. Every read of a member's role goes
+ * through this and {@link cappedRole}: a read that skips the cap grants more
+ * than the ceiling allows, and nothing fails to show it.
+ */
+export const PERSONAL_OWNER_JOIN = 'LEFT JOIN users o ON o.id = w.personal_owner_id';
+/** The columns {@link cappedRole} reads, selected beside `m` (the membership). */
+export const CAPPED_ROLE_COLUMNS = 'm.role, w.personal_owner_id, o.app_role AS owner_role';
+
+export interface StoredRoleRow {
+  role: string;
+  personal_owner_id: string | null;
+  owner_role: string | null;
+}
+
+/** A stored membership role as it takes effect: capped at its workspace's ceiling. Null for a role the store should not hold. */
+export function cappedRole(row: StoredRoleRow): WorkspaceRole | null {
+  if (!isWorkspaceRole(row.role)) return null;
+  return lowerWorkspaceRole(row.role, workspaceRoleCeiling(row.personal_owner_id, row.owner_role));
+}
+
+/**
+ * `userId`'s role in `workspaceId` as it takes effect. Null when not a member.
+ * The cap is applied on read, so a membership granted before the ceiling
+ * existed, or an account demoted since, cannot keep more than it allows.
  */
 export async function effectiveMemberRole(
   store: MetadataStore,
   workspaceId: string,
   userId: string
 ): Promise<WorkspaceRole | null> {
-  const row = await store.get<{ role: string; personal_owner_id: string | null; owner_role: string | null }>(
-    `SELECT m.role, w.personal_owner_id, o.app_role AS owner_role
+  const row = await store.get<StoredRoleRow>(
+    `SELECT ${CAPPED_ROLE_COLUMNS}
        FROM workspace_members m
        JOIN workspaces w ON w.id = m.workspace_id
-       LEFT JOIN users o ON o.id = w.personal_owner_id
+       ${PERSONAL_OWNER_JOIN}
       WHERE m.workspace_id = ? AND m.user_id = ?`,
     [workspaceId, userId]
   );
-  if (!row || !isWorkspaceRole(row.role)) return null;
-  return lowerWorkspaceRole(row.role, workspaceRoleCeiling(row.personal_owner_id, row.owner_role));
+  return row ? cappedRole(row) : null;
 }
 
 /**
- * Refuse to give `role` in `workspaceId` when it is more than the granter may
- * do there. An admin may give any role. Everyone else gives at most their own
- * effective role — which in a personal workspace is its ceiling, and in a
- * shared one is owner for anyone allowed to manage members at all, unless an
- * admin widened `workspace.members` to a lesser role.
+ * Refuse unless `actor` may do `permission` in the workspace, and answer the
+ * highest role they can give there. Admins may do anything and give any role.
+ * Everyone runs the membership of their own workspace, up to what their account
+ * may do there. Anyone else needs a role carrying `permission`, and gives at
+ * most that role. A non-member gets not found, so a private workspace's id is
+ * not confirmed.
  */
-export async function assertRoleGrantable(
+export async function requireWorkspacePermission(
   store: MetadataStore,
   actor: { userId: string; appRole: AppRole | string },
-  workspaceId: string,
-  role: WorkspaceRole
-): Promise<void> {
-  if (actor.appRole === 'admin') return;
-  const own = (await effectiveMemberRole(store, workspaceId, actor.userId)) ?? 'viewer';
-  if (!workspaceRoleAtMost(role, own)) {
+  ws: { id: string; personal_owner_id: string | null },
+  permission: Permission,
+  permissionsForRole: (role: WorkspaceRole) => Promise<Iterable<Permission>>,
+  forbidden = `Permission denied: this needs "${permission}" in this workspace.`
+): Promise<WorkspaceRole> {
+  if (actor.appRole === 'admin') return workspaceGrantCeiling(actor.appRole, null);
+  if (permission === 'workspace.members' && ws.personal_owner_id === actor.userId) {
+    return personalRoleFor(actor.appRole);
+  }
+  const role = await effectiveMemberRole(store, ws.id, actor.userId);
+  if (!role) throw new ServiceError('not_found', 'Workspace not found');
+  if (!permissionSatisfied(await permissionsForRole(role), permission)) throw new ServiceError('forbidden', forbidden);
+  return role;
+}
+
+/** Refuse to give `role` when it is more than the granter may do: nobody gives more than they hold. */
+export function assertRoleGrantable(granterRole: WorkspaceRole, role: WorkspaceRole): void {
+  if (!workspaceRoleAtMost(role, granterRole)) {
     throw new ServiceError(
       'forbidden',
-      `You can give at most the ${own} role here: nobody gives more than they can do themselves.`
+      `You can give at most the ${granterRole} role here: nobody gives more than they can do themselves.`
     );
   }
 }
@@ -195,22 +231,15 @@ async function memberWorkspace(
   userId: string,
   workspaceId: string
 ): Promise<ResolvedWorkspace | null> {
-  const row = await store.get<{
-    id: string;
-    name: string;
-    personal_owner_id: string | null;
-    owner_role: string | null;
-    role: string;
-  }>(
-    `SELECT w.id, w.name, w.personal_owner_id, o.app_role AS owner_role, m.role
+  const row = await store.get<StoredRoleRow & { id: string; name: string }>(
+    `SELECT w.id, w.name, ${CAPPED_ROLE_COLUMNS}
      FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id
-     LEFT JOIN users o ON o.id = w.personal_owner_id
+     ${PERSONAL_OWNER_JOIN}
      WHERE w.id = ? AND m.user_id = ? AND w.archived_at IS NULL`,
     [workspaceId, userId]
   );
-  if (!row || !isWorkspaceRole(row.role)) return null;
-  // The role this request acts with: capped like everywhere else (effectiveMemberRole).
-  const role = lowerWorkspaceRole(row.role, workspaceRoleCeiling(row.personal_owner_id, row.owner_role));
+  const role = row ? cappedRole(row) : null;
+  if (!row || !role) return null;
   return { id: row.id, name: row.name, personal: row.personal_owner_id === userId, role };
 }
 

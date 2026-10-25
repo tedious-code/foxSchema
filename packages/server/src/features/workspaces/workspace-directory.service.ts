@@ -16,22 +16,19 @@
  * personal workspace always keeps the account it belongs to.
  */
 import { randomUUID } from 'node:crypto';
-import {
-  isWorkspaceRole,
-  lowerWorkspaceRole,
-  permissionSatisfied,
-  type AppRole,
-  type Permission,
-  type WorkspaceRole,
-} from '@foxschema/shared';
+import { isWorkspaceRole, type AppRole, type Permission, type WorkspaceRole } from '@foxschema/shared';
 import { getStore } from '../../database/store';
 import type { MetadataStore } from '../../database/stores/types';
 import { RbacModule } from '../../platform/authorization/rbac.service';
 import { ServiceError } from '../../platform/contracts/actor';
 import {
   assertRoleGrantable,
+  CAPPED_ROLE_COLUMNS,
+  cappedRole,
   effectiveMemberRole,
-  workspaceRoleCeiling,
+  PERSONAL_OWNER_JOIN,
+  requireWorkspacePermission,
+  type StoredRoleRow,
 } from '../../platform/workspaces/workspace.service';
 
 export const MEMBERS_CREATE_KEY = 'workspaces.members_create';
@@ -107,29 +104,14 @@ export class WorkspaceDirectory {
     return ws;
   }
 
-  private async roleIn(store: MetadataStore, workspaceId: string, userId: string): Promise<WorkspaceRole | null> {
-    const row = await store.get<{ role: string }>(
-      'SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?',
-      [workspaceId, userId]
-    );
-    return row && isWorkspaceRole(row.role) ? row.role : null;
-  }
-
   /**
-   * Refuse unless the actor may do `permission` in `workspaceId`. A
-   * non-member gets not found, so a private workspace's id is not confirmed.
+   * The workspace, once the actor may do `permission` in it, with the highest
+   * role they can give there (`requireWorkspacePermission`).
    */
   private async require(store: MetadataStore, actor: WorkspaceActor, workspaceId: string, permission: Permission) {
     const ws = await this.workspace(store, workspaceId);
-    if (actor.appRole === 'admin') return ws;
-    // Everyone runs the membership of their own workspace, whatever its role there.
-    if (permission === 'workspace.members' && ws.personal_owner_id === actor.userId) return ws;
-    const role = await effectiveMemberRole(store, workspaceId, actor.userId);
-    if (!role) throw new ServiceError('not_found', 'Workspace not found');
-    if (!permissionSatisfied(await this.rbac.permissionsForRole(role), permission)) {
-      throw new ServiceError('forbidden', `Permission denied: this needs "${permission}" in this workspace.`);
-    }
-    return ws;
+    const actorRole = await requireWorkspacePermission(store, actor, ws, permission, (role) => this.rbac.permissionsForRole(role));
+    return { ...ws, actorRole };
   }
 
   async canCreate(actor: WorkspaceActor): Promise<boolean> {
@@ -140,36 +122,31 @@ export class WorkspaceDirectory {
   /** The workspaces the account is in, personal first. */
   async listMine(userId: string): Promise<WorkspaceListItem[]> {
     const store = await getStore();
-    const rows = await store.all<{
-      id: string;
-      name: string;
-      visibility: string;
-      join_role: string;
-      personal_owner_id: string | null;
-      owner_role: string | null;
-      role: string;
-      member_count: number;
-    }>(
-      `SELECT w.id, w.name, w.visibility, w.join_role, w.personal_owner_id, o.app_role AS owner_role, m.role,
+    const rows = await store.all<
+      StoredRoleRow & { id: string; name: string; visibility: string; join_role: string; member_count: number }
+    >(
+      `SELECT w.id, w.name, w.visibility, w.join_role, ${CAPPED_ROLE_COLUMNS},
               (SELECT COUNT(*) FROM workspace_members x WHERE x.workspace_id = w.id) AS member_count
          FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id
-         LEFT JOIN users o ON o.id = w.personal_owner_id
+         ${PERSONAL_OWNER_JOIN}
         WHERE m.user_id = ? AND w.archived_at IS NULL
         ORDER BY CASE WHEN w.personal_owner_id = ? THEN 0 ELSE 1 END, w.name`,
       [userId, userId]
     );
-    return rows
-      .filter((r) => isWorkspaceRole(r.role))
-      .map((r) => ({
+    return rows.flatMap((r) => {
+      // What it acts with, not what was stored.
+      const role = cappedRole(r);
+      if (!role) return [];
+      return [{
         id: r.id,
         name: r.name,
         visibility: r.visibility === 'public' ? 'public' : 'private',
         joinRole: isWorkspaceRole(r.join_role) ? r.join_role : 'viewer',
         personal: r.personal_owner_id === userId,
-        // What it acts with, not what was stored (effectiveMemberRole).
-        role: lowerWorkspaceRole(r.role as WorkspaceRole, workspaceRoleCeiling(r.personal_owner_id, r.owner_role)),
+        role,
         memberCount: Number(r.member_count),
-      }));
+      }];
+    });
   }
 
   async create(actor: WorkspaceActor, rawName: unknown): Promise<WorkspaceListItem> {
@@ -195,7 +172,7 @@ export class WorkspaceDirectory {
   async select(userId: string, workspaceId: string): Promise<void> {
     const store = await getStore();
     await this.workspace(store, workspaceId);
-    if (!(await this.roleIn(store, workspaceId, userId))) throw new ServiceError('not_found', 'Workspace not found');
+    if (!(await effectiveMemberRole(store, workspaceId, userId))) throw new ServiceError('not_found', 'Workspace not found');
     await store.upsert(
       'user_preferences',
       ['user_id'],
@@ -279,7 +256,7 @@ export class WorkspaceDirectory {
     if (!ws || ws.archived_at || ws.visibility !== 'public' || ws.personal_owner_id) {
       throw new ServiceError('not_found', 'Workspace not found');
     }
-    const existing = await this.roleIn(store, workspaceId, userId);
+    const existing = await effectiveMemberRole(store, workspaceId, userId);
     if (existing) return existing;
     const role: WorkspaceRole = isWorkspaceRole(ws.join_role) ? ws.join_role : 'viewer';
     await store.run(
@@ -314,32 +291,32 @@ export class WorkspaceDirectory {
   async members(actor: WorkspaceActor, workspaceId: string): Promise<WorkspaceMember[]> {
     const store = await getStore();
     const ws = await this.workspace(store, workspaceId);
-    if (actor.appRole !== 'admin' && !(await this.roleIn(store, workspaceId, actor.userId))) {
+    if (actor.appRole !== 'admin' && !(await effectiveMemberRole(store, workspaceId, actor.userId))) {
       throw new ServiceError('not_found', 'Workspace not found');
     }
-    const owner = ws.personal_owner_id
-      ? await store.get<{ app_role: string | null }>('SELECT app_role FROM users WHERE id = ?', [ws.personal_owner_id])
-      : undefined;
-    const ceiling = workspaceRoleCeiling(ws.personal_owner_id, owner?.app_role);
-    const rows = await store.all<{ user_id: string; email: string; role: string; added_by: string | null; created_at: string }>(
-      `SELECT m.user_id, u.email, m.role, a.email AS added_by, m.created_at
+    const rows = await store.all<StoredRoleRow & { user_id: string; email: string; added_by: string | null; created_at: string }>(
+      `SELECT m.user_id, u.email, ${CAPPED_ROLE_COLUMNS}, a.email AS added_by, m.created_at
          FROM workspace_members m
+         JOIN workspaces w ON w.id = m.workspace_id
+         ${PERSONAL_OWNER_JOIN}
          JOIN users u ON u.id = m.user_id
          LEFT JOIN users a ON a.id = m.added_by
         WHERE m.workspace_id = ?
         ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'editor' THEN 1 ELSE 2 END, u.email`,
       [workspaceId]
     );
-    return rows
-      .filter((r) => isWorkspaceRole(r.role))
-      .map((r) => ({
+    return rows.flatMap((r) => {
+      const role = cappedRole(r);
+      if (!role) return [];
+      return [{
         userId: r.user_id,
         email: r.email,
-        role: lowerWorkspaceRole(r.role as WorkspaceRole, ceiling),
+        role,
         personalOwner: ws.personal_owner_id === r.user_id,
         addedBy: r.added_by,
         createdAt: r.created_at,
-      }));
+      }];
+    });
   }
 
   private async assertOwnerRemains(store: MetadataStore, workspaceId: string, leavingUserId: string) {
@@ -377,12 +354,20 @@ export class WorkspaceDirectory {
         ORDER BY CASE WHEN w.personal_owner_id IS NULL THEN 0 ELSE 1 END, w.name`,
       [actor.userId, includeArchived ? 1 : 0]
     );
-    const owners = await store.all<{ workspace_id: string; email: string }>(
-      `SELECT m.workspace_id, u.email FROM workspace_members m JOIN users u ON u.id = m.user_id
+    // Owners as they take effect: a colleague stored as owner of a viewer's
+    // personal workspace is not one.
+    const owners = await store.all<StoredRoleRow & { workspace_id: string; email: string }>(
+      `SELECT m.workspace_id, u.email, ${CAPPED_ROLE_COLUMNS}
+         FROM workspace_members m
+         JOIN workspaces w ON w.id = m.workspace_id
+         ${PERSONAL_OWNER_JOIN}
+         JOIN users u ON u.id = m.user_id
         WHERE m.role = 'owner' ORDER BY u.email`
     );
     const ownersOf = new Map<string, string[]>();
-    for (const o of owners) ownersOf.set(o.workspace_id, [...(ownersOf.get(o.workspace_id) ?? []), o.email]);
+    for (const o of owners) {
+      if (cappedRole(o) === 'owner') ownersOf.set(o.workspace_id, [...(ownersOf.get(o.workspace_id) ?? []), o.email]);
+    }
     return rows.map((r) => ({
       id: r.id,
       name: r.name,
@@ -416,12 +401,12 @@ export class WorkspaceDirectory {
     if (!isWorkspaceRole(role)) throw new ServiceError('invalid_input', 'role must be viewer, editor or owner.');
     const store = await getStore();
     const ws = await this.require(store, actor, workspaceId, 'workspace.members');
-    const current = await this.roleIn(store, workspaceId, userId);
+    const current = await effectiveMemberRole(store, workspaceId, userId);
     if (!current) throw new ServiceError('not_found', 'That account is not in this workspace.');
     if (ws.personal_owner_id === userId) {
       throw new ServiceError('conflict', 'Your role in your own workspace follows your account role.');
     }
-    await assertRoleGrantable(store, actor, workspaceId, role);
+    assertRoleGrantable(ws.actorRole, role);
     // A personal workspace always keeps its account, so it never runs out of an owner.
     if (current === 'owner' && role !== 'owner' && !ws.personal_owner_id) await this.assertOwnerRemains(store, workspaceId, userId);
     await store.run('UPDATE workspace_members SET role = ? WHERE workspace_id = ? AND user_id = ?', [role, workspaceId, userId]);
@@ -434,7 +419,7 @@ export class WorkspaceDirectory {
       userId === actor.userId
         ? await this.workspace(store, workspaceId)
         : await this.require(store, actor, workspaceId, 'workspace.members');
-    const current = await this.roleIn(store, workspaceId, userId);
+    const current = await effectiveMemberRole(store, workspaceId, userId);
     if (!current) throw new ServiceError('not_found', 'That account is not in this workspace.');
     if (ws.personal_owner_id === userId) throw new ServiceError('conflict', 'Nobody leaves their own workspace.');
     if (current === 'owner' && !ws.personal_owner_id) await this.assertOwnerRemains(store, workspaceId, userId);

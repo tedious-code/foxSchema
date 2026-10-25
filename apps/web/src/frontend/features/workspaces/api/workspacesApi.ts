@@ -7,9 +7,10 @@
  * switching is `select` and a reload — every request after it, from any
  * tab, acts there.
  */
+import type { WorkspaceRole } from '@foxschema/shared';
 import { api } from '@/shared/api/client';
 
-export type WorkspaceRole = 'viewer' | 'editor' | 'owner';
+export type { WorkspaceRole };
 
 export interface WorkspaceItem {
   id: string;

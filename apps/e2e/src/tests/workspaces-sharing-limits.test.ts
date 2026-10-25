@@ -13,11 +13,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomBytes } from 'node:crypto';
 import type { Page } from 'playwright';
 import { buildDriver, quitDriver, clickWhen, waitFor, BASE_URL } from '../helpers/driver.js';
+import { apiCall, browserAs, signInAs } from '../helpers/accounts.js';
 import { sessionCookie } from '../helpers/app-session.js';
 import { saveScreenshot } from '../helpers/screenshot.js';
 import { byTestId } from '../helpers/test-ids.js';
 
-const API_URL = process.env.E2E_API_URL ?? 'http://127.0.0.1:3210';
 const RUN = Date.now().toString(36);
 const SHARER_EMAIL = `e2e-wssharer-${RUN}@foxschema.test`;
 const PEER_EMAIL = `e2e-wspeer-${RUN}@foxschema.test`;
@@ -29,39 +29,20 @@ let peer = { id: '', cookie: '' };
 const created: string[] = [];
 const pages: Page[] = [];
 
-async function api(method: string, path: string, body?: unknown, cookie = admin) {
-  const res = await fetch(`${API_URL}/api${path}`, {
-    method,
-    headers: { ...(body !== undefined ? { 'content-type': 'application/json' } : {}), cookie },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
-  return { status: res.status, json: (await res.json().catch(() => null)) as any };
-}
+const api = (method: string, path: string, body?: unknown, cookie = admin) => apiCall(method, path, body, cookie);
 
 /** A viewer account, signed in: its id and session cookie. */
 async function viewerAccount(email: string): Promise<{ id: string; cookie: string }> {
   const password = `ws-${randomBytes(8).toString('hex')}`;
   const added = await api('POST', '/admin/users', { email, password, role: 'viewer' });
   expect(added.status, JSON.stringify(added.json)).toBe(200);
-  const login = await fetch(`${API_URL}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-  expect(login.status).toBe(200);
-  return { id: added.json.user.id, cookie: (login.headers.get('set-cookie') ?? '').split(';')[0]! };
+  return { id: added.json.user.id, cookie: await signInAs(email, password) };
 }
 
-/** A browser signed in with `cookie`, past onboarding. */
+/** A browser as `cookie`, closed after the suite. */
 async function browserFor(cookie: string): Promise<Page> {
-  const page = await buildDriver({ signedIn: false });
+  const page = await browserAs(cookie);
   pages.push(page);
-  const [name, ...rest] = cookie.split('=');
-  await page.context().addCookies([{ name: name!, value: rest.join('='), url: BASE_URL }]);
-  await page.goto(BASE_URL);
-  await page.waitForSelector(`${byTestId('onboarding-skip')}, ${byTestId('profile-menu-trigger')}`, { timeout: 30_000 });
-  const skip = page.locator(byTestId('onboarding-skip'));
-  if (await skip.count()) await skip.click();
   return page;
 }
 
@@ -71,8 +52,7 @@ beforeAll(async () => {
   expect(list.status, JSON.stringify(list.json)).toBe(200);
   adminPersonalId = list.json.workspaces.find((w: { personal: boolean }) => w.personal).id;
   await api('POST', `/workspaces/${adminPersonalId}/select`, {});
-  sharer = await viewerAccount(SHARER_EMAIL);
-  peer = await viewerAccount(PEER_EMAIL);
+  [sharer, peer] = await Promise.all([viewerAccount(SHARER_EMAIL), viewerAccount(PEER_EMAIL)]);
 }, 120_000);
 
 afterAll(async () => {

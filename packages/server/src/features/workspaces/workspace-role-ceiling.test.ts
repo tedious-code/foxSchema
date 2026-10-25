@@ -23,8 +23,10 @@ import { RbacModule } from '../../platform/authorization/rbac.service';
 import { writeAdminPolicy } from '../../platform/authorization/admin-policy.service';
 import { WorkspaceDirectory, type WorkspaceActor } from './workspace-directory.service';
 import { WorkspaceInvites } from './workspace-invites.service';
+import { WorkspaceScripts } from './workspace-scripts.service';
 
 const auth = new AuthModule();
+const rbac = new RbacModule();
 const dir = new WorkspaceDirectory();
 const invites = new WorkspaceInvites();
 
@@ -38,11 +40,12 @@ const actor = (u: AuthUser): WorkspaceActor => ({ userId: u.id, appRole: u.role,
 const personalOf = async (u: AuthUser) => (await dir.listMine(u.id)).find((w) => w.personal)!.id;
 const roleOf = async (u: AuthUser, wsId: string) => (await dir.listMine(u.id)).find((w) => w.id === wsId)?.role;
 const permsIn = async (u: AuthUser, wsId: string) => new Set((await auth.inWorkspace(u, wsId)).permissions);
+const refused = (p: Promise<unknown>) => expect(p).rejects.toMatchObject({ code: 'forbidden' });
 
 beforeAll(async () => {
   await writeAdminPolicy(await getStore(), 'several');
   admin = await auth.createUser('ceil-admin@example.com', 'correct-horse-9', 'editor');
-  await new RbacModule().setUserRole(admin.id, 'admin');
+  await rbac.setUserRole(admin.id, 'admin');
   admin = { ...admin, role: 'admin' };
   viewerAcct = await auth.createUser('ceil-viewer@example.com', 'correct-horse-9', 'viewer');
   editorAcct = await auth.createUser('ceil-editor@example.com', 'correct-horse-9', 'editor');
@@ -54,31 +57,26 @@ describe('a personal workspace lends no more than its account holds', () => {
   it("a viewer account can share its workspace, but only as viewer", async () => {
     const ws = await personalOf(viewerAcct);
     for (const role of ['owner', 'editor'] as const) {
-      await expect(invites.invite(actor(viewerAcct), ws, colleague.email, role)).rejects.toMatchObject({
-        code: 'forbidden',
-      });
+      await refused(invites.invite(actor(viewerAcct), ws, colleague.email, role));
     }
     const { invite } = await invites.invite(actor(viewerAcct), ws, colleague.email, 'viewer');
     await invites.accept(colleague.id, invite.id);
     expect(await roleOf(colleague, ws)).toBe('viewer');
 
     // Nor can it raise the colleague afterwards.
-    await expect(dir.setMemberRole(actor(viewerAcct), ws, colleague.id, 'owner')).rejects.toMatchObject({
-      code: 'forbidden',
-    });
+    await refused(dir.setMemberRole(actor(viewerAcct), ws, colleague.id, 'owner'));
     expect(await roleOf(colleague, ws)).toBe('viewer');
   });
 
   it('an editor account shares up to editor, never owner', async () => {
     const ws = await personalOf(editorAcct);
-    await expect(invites.invite(actor(editorAcct), ws, colleague.email, 'owner')).rejects.toMatchObject({
-      code: 'forbidden',
-    });
+    await refused(invites.invite(actor(editorAcct), ws, colleague.email, 'owner'));
     const { invite } = await invites.invite(actor(editorAcct), ws, colleague.email, 'editor');
     await invites.accept(colleague.id, invite.id);
     expect(await roleOf(colleague, ws)).toBe('editor');
-    expect((await permsIn(colleague, ws)).has('editor.ddl')).toBe(true);
-    expect((await permsIn(colleague, ws)).has('editor.grant')).toBe(false);
+    const perms = await permsIn(colleague, ws);
+    expect(perms.has('editor.ddl')).toBe(true);
+    expect(perms.has('editor.grant')).toBe(false);
   });
 
   it('a role stored above the ceiling acts at the ceiling — written before this rule, or by an older build', async () => {
@@ -97,22 +95,24 @@ describe('a personal workspace lends no more than its account holds', () => {
     expect(perms.has('editor.run')).toBe(true);
     expect(await roleOf(colleague, ws)).toBe('viewer');
     expect((await dir.members(actor(viewerAcct), ws)).find((m) => m.userId === colleague.id)?.role).toBe('viewer');
+    // Every read applies the cap: workspace scripts too, and the admin's list of owners.
+    const scripts = new WorkspaceScripts();
+    expect((await scripts.list(colleague.id, ws)).canWrite).toBe(false);
+    await refused(scripts.save(colleague.id, ws, 'Shared report', 'SELECT 1'));
+    const row = (await dir.listAll(actor(admin))).find((w) => w.id === ws);
+    expect(row?.owners).not.toContain(colleague.email);
     // And it cannot run the membership with the role it does not really have.
-    await expect(invites.invite(actor(colleague), ws, teamOwner.email, 'viewer')).rejects.toMatchObject({
-      code: 'forbidden',
-    });
-    await expect(dir.setMemberRole(actor(colleague), ws, colleague.id, 'owner')).rejects.toMatchObject({
-      code: 'forbidden',
-    });
+    await refused(invites.invite(actor(colleague), ws, teamOwner.email, 'viewer'));
+    await refused(dir.setMemberRole(actor(colleague), ws, colleague.id, 'owner'));
   });
 
   it('follows the account: an account raised to editor lends editor', async () => {
     const ws = await personalOf(viewerAcct);
-    await new RbacModule().setUserRole(viewerAcct.id, 'editor');
+    await rbac.setUserRole(viewerAcct.id, 'editor');
     try {
       expect(await roleOf(colleague, ws)).toBe('editor');
     } finally {
-      await new RbacModule().setUserRole(viewerAcct.id, 'viewer');
+      await rbac.setUserRole(viewerAcct.id, 'viewer');
     }
     expect(await roleOf(colleague, ws)).toBe('viewer');
   });

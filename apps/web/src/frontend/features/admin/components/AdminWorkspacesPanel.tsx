@@ -103,10 +103,22 @@ export const AdminWorkspacesPanel: React.FC<{ reload?: () => void }> = ({ reload
                   {w.memberCount} {w.memberCount === 1 ? 'member' : 'members'}
                 </p>
               </div>
-              {w.adminIsMember ? (
+              {w.adminIsMember && (
+                <span className="text-[10px] uppercase tracking-wide text-emerald-300">you’re in it</span>
+              )}
+              {w.archived ? (
+                <button
+                  type="button"
+                  data-testid={`admin-workspace-restore-${w.id}`}
+                  disabled={busy}
+                  onClick={() => void run(() => apiRestoreWorkspace(w.id))}
+                  className="rounded-md border border-emerald-500/40 px-2 py-1 text-[11px] text-emerald-200 disabled:opacity-50"
+                >
+                  Restore
+                </button>
+              ) : (
                 <>
-                  <span className="text-[10px] uppercase tracking-wide text-emerald-300">you’re in it</span>
-                  {!w.archived && (
+                  {w.adminIsMember ? (
                     <button
                       type="button"
                       data-testid={`admin-workspace-open-${w.id}`}
@@ -119,57 +131,42 @@ export const AdminWorkspacesPanel: React.FC<{ reload?: () => void }> = ({ reload
                     >
                       Open
                     </button>
+                  ) : (
+                    <button
+                      type="button"
+                      data-testid={`admin-workspace-join-${w.id}`}
+                      disabled={busy}
+                      onClick={() => join(w)}
+                      className="rounded-md border border-amber-500/40 px-2 py-1 text-[11px] text-amber-200 disabled:opacity-50"
+                    >
+                      Join
+                    </button>
                   )}
-                </>
-              ) : (
-                !w.archived && (
                   <button
                     type="button"
-                    data-testid={`admin-workspace-join-${w.id}`}
+                    data-testid={`admin-workspace-members-${w.id}`}
                     disabled={busy}
-                    onClick={() => join(w)}
-                    className="rounded-md border border-amber-500/40 px-2 py-1 text-[11px] text-amber-200 disabled:opacity-50"
+                    onClick={() => setMembersOf(w.id)}
+                    className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-200 disabled:opacity-50"
                   >
-                    Join
+                    Members
                   </button>
-                )
-              )}
-              {!w.archived && (
-                <button
-                  type="button"
-                  data-testid={`admin-workspace-members-${w.id}`}
-                  disabled={busy}
-                  onClick={() => setMembersOf(w.id)}
-                  className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-200 disabled:opacity-50"
-                >
-                  Members
-                </button>
-              )}
-              {w.archived && (
-                <button
-                  type="button"
-                  data-testid={`admin-workspace-restore-${w.id}`}
-                  disabled={busy}
-                  onClick={() => void run(() => apiRestoreWorkspace(w.id))}
-                  className="rounded-md border border-emerald-500/40 px-2 py-1 text-[11px] text-emerald-200 disabled:opacity-50"
-                >
-                  Restore
-                </button>
-              )}
-              {!w.archived && !w.personalOwner && (
-                <button
-                  type="button"
-                  data-testid={`admin-workspace-archive-${w.id}`}
-                  disabled={busy}
-                  onClick={() => {
-                    if (window.confirm(`Archive ${w.name}? Nobody will see it; its data is kept.`)) {
-                      void run(() => apiArchiveWorkspace(w.id));
-                    }
-                  }}
-                  className="rounded-md border border-rose-500/40 px-2 py-1 text-[11px] text-rose-300 disabled:opacity-50"
-                >
-                  Archive
-                </button>
+                  {!w.personalOwner && (
+                    <button
+                      type="button"
+                      data-testid={`admin-workspace-archive-${w.id}`}
+                      disabled={busy}
+                      onClick={() => {
+                        if (window.confirm(`Archive ${w.name}? Nobody will see it; its data is kept.`)) {
+                          void run(() => apiArchiveWorkspace(w.id));
+                        }
+                      }}
+                      className="rounded-md border border-rose-500/40 px-2 py-1 text-[11px] text-rose-300 disabled:opacity-50"
+                    >
+                      Archive
+                    </button>
+                  )}
+                </>
               )}
             </li>
           ))}

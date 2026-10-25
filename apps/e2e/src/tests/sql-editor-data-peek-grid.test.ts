@@ -223,7 +223,7 @@ describe.skipIf(!hasSqlite3())('SQL Editor · Data Peek grid', () => {
   it('refuses a WHERE that carries a second statement, and recovers when fixed', async () => {
     const root = await peek('orders');
     await filter(root, 'where', 'id = 1; DELETE FROM orders');
-    await expect.poll(() => textOf(root)).toMatch(/single predicate/i);
+    await expect.poll(() => textOf(root)).toMatch(/cannot contain ; or comments/i);
     // Nothing ran: the table still has all thirty orders.
     expect(
       execFileSync('sqlite3', [DB, 'SELECT COUNT(*) FROM orders'], { encoding: 'utf8' }).trim()
@@ -231,7 +231,7 @@ describe.skipIf(!hasSqlite3())('SQL Editor · Data Peek grid', () => {
 
     await filter(root, 'where', 'id = 7');
     await expect.poll(() => idsOf(root)).toEqual(['7']);
-    expect(await textOf(root)).not.toMatch(/single predicate/i);
+    expect(await textOf(root)).not.toMatch(/cannot contain ; or comments/i);
   }, 60_000);
 
   it('shows the database error for a WHERE it cannot run, and recovers when fixed', async () => {
@@ -418,9 +418,9 @@ describe.skipIf(!hasSqlite3())('SQL Editor · Data Peek grid', () => {
     await driver.locator(byTestId('data-peek-insight')).waitFor({ state: 'visible', timeout: 15_000 });
     await driver.locator(byTestId(`data-peek-tab-rows-${root}`)).click();
 
-    expect(await driver.locator(byTestId(`data-peek-where-${root}`)).inputValue()).toBe(
-      "status = 'paid' AND total > 200"
-    );
+    // The filter comes back as typed, one condition per row.
+    expect(await driver.locator(byTestId(`data-peek-where-${root}`)).inputValue()).toBe("status = 'paid'");
+    expect(await driver.locator(byTestId(`data-peek-where-${root}-1`)).inputValue()).toBe('total > 200');
     await expect.poll(() => idsOf(root)).toEqual(['21', '24', '27', '30']);
   }, 60_000);
 });

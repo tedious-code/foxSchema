@@ -60,7 +60,7 @@ export interface DataPeekEntry {
    * Re-clicking the same FK replaces this panel; other FK columns stack.
    */
   drillKey?: string;
-  /** Optional manual panel height (px); drag handle updates this. */
+  /** Optional manual height (px) of the panel's body, the grid or Insight; the drag handle sets it. */
   panelHeightPx?: number;
   /**
    * Monotonic run id so a slow older execute can't overwrite a newer

@@ -260,7 +260,7 @@ export const DatabaseAccessModal: React.FC<Props> = ({
   const conn = connections.find((c) => c.id === connectionId);
   // File dialects carry no password; asking for one blocked the utility outright.
   const needsPassword = Boolean(
-    conn && !conn.hasPassword && connectionNeedsSecret(conn.dialect, conn.authMethod) && !sessionPasswords[connectionId]
+    conn && !conn.hasPassword && connectionNeedsSecret(conn.dialect, conn.authMethod, conn.username) && !sessionPasswords[connectionId]
   );
   const dialect = conn?.dialect ?? '';
   const support = dialect ? dialectSupportsDbAccess(dialect) : null;

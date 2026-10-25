@@ -1,4 +1,5 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { isSubsetDialect } from '@foxschema/ui-shared';
 import {
   Loader2,
   Play,
@@ -174,6 +175,8 @@ export const SqlEditorView: React.FC = () => {
   const [dragOver, setDragOver] = useState<number | null>(null);
   const secretsPanelRef = useRef<SqlSecretsPanelHandle>(null);
   const schemaExplorerRef = useRef<SqlSchemaExplorerHandle>(null);
+  /** The browsed connection's dialect: Redis and MongoDB have no tables to create. */
+  const [explorerDialect, setExplorerDialect] = useState<string | null>(null);
   const [secretsRefreshing, setSecretsRefreshing] = useState(false);
   const [runsOpen, setRunsOpen] = useState(false);
 
@@ -516,20 +519,22 @@ export const SqlEditorView: React.FC = () => {
               height={sectionHeights.schema}
               onResizeHeight={(h) => setSectionHeight('schema', h)}
               actions={
-                <button
-                  type="button"
-                  data-testid="sql-schema-new-table"
-                  title="Create table — opens blueprint to add columns"
-                  onClick={() => schemaExplorerRef.current?.openCreateTable()}
-                  className="flex items-center gap-0.5 text-[12px] font-bold text-[#059669] hover:text-[#047857] transition"
-                >
-                  <Plus className="w-3.5 h-3.5 text-[#059669]" strokeWidth={SQL_ICON_STROKE} />
-                  New table
-                </button>
+                explorerDialect && isSubsetDialect(explorerDialect) ? undefined : (
+                  <button
+                    type="button"
+                    data-testid="sql-schema-new-table"
+                    title="Create table — opens blueprint to add columns"
+                    onClick={() => schemaExplorerRef.current?.openCreateTable()}
+                    className="flex items-center gap-0.5 text-[12px] font-bold text-[#059669] hover:text-[#047857] transition"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-[#059669]" strokeWidth={SQL_ICON_STROKE} />
+                    New table
+                  </button>
+                )
               }
               {...drag}
             >
-              <SqlSchemaExplorer ref={schemaExplorerRef} />
+              <SqlSchemaExplorer ref={schemaExplorerRef} onDialectChange={setExplorerDialect} />
             </SqlSidebarSection>
           );
         default:
@@ -541,6 +546,7 @@ export const SqlEditorView: React.FC = () => {
       canEditorBookmarks,
       canEditorVariables,
       canVariablesRead,
+      explorerDialect,
       canEditorSecrets,
       canSecretsView,
       canEditorSchema,

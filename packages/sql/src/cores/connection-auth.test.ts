@@ -44,6 +44,18 @@ describe('connection auth methods', () => {
     expect(connectionNeedsSecret('postgres')).toBe(true);
   });
 
+  it('Redis and MongoDB need a secret only when the connection names a user', () => {
+    // Both commonly run with no auth; the session prompt refuses an empty
+    // password, so asking every time made such a server unusable.
+    expect(connectionNeedsSecret('redis')).toBe(false);
+    expect(connectionNeedsSecret('redis', 'password', '  ')).toBe(false);
+    expect(connectionNeedsSecret('redis', 'password', 'app')).toBe(true);
+    expect(connectionNeedsSecret('mongodb', undefined, null)).toBe(false);
+    expect(connectionNeedsSecret('mongodb', undefined, 'admin')).toBe(true);
+    // Every SQL server still asks, user or not.
+    expect(connectionNeedsSecret('postgres', 'password', '')).toBe(true);
+  });
+
   it('parses DOMAIN\\user and an explicit domain field', () => {
     expect(parseWindowsAccount('CONTOSO\\alice')).toEqual({ domain: 'CONTOSO', userName: 'alice' });
     expect(parseWindowsAccount('alice', 'CONTOSO')).toEqual({ domain: 'CONTOSO', userName: 'alice' });

@@ -109,7 +109,7 @@ export type {
 export {
   CODE_CELL_ALLOWED_PACKAGES, CODE_CELL_KIND_LABEL, attributeResultColumns, cloneCodeCellLast,
   collapsedColumnsFor, compileFoxScriptPlan, foxScriptExecutableTexts, isCodeCellLast,
-  isCodeCellVars, normalizeCodeCellReturn, parseCodeCellImports, parseFoxScript, parseSqlSubset,
+  isCodeCellVars, isSubsetDialect, normalizeCodeCellReturn, parseCodeCellImports, parseFoxScript, parseSqlSubset,
   parseTopLevelOrderBy, prepareCodeCellImports, resolveCodeCellImportBindings, rowKeyFor,
   runCodeCellBody, splitSelectItems, subsetValue, tablesInOrigins, uniqueKeyCoversOrder,
   uniqueKeysFromTable,

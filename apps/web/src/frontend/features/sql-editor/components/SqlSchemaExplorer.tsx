@@ -11,7 +11,7 @@ import {
 import { useSyncStore } from '@/features/compare';
 import { SCHEMA_ROUTINE_SCOPE, useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { connectionPickerOption, FilterPicker } from '@/shared/components/FilterPicker';
-import { quoteIdentifierIfNeeded } from '@foxschema/ui-shared';
+import { isSubsetDialect, quoteIdentifierIfNeeded } from '@foxschema/ui-shared';
 import { getProviderSettings } from '@/shared/lib/provider-settings';
 import { TYPE_META } from '@/features/schema-diff';
 import {
@@ -94,10 +94,13 @@ function writeStoredExplorerId(id: string): void {
  * destinations moves the explorer onto a checked credential when the current
  * one is no longer checked.
  */
-export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function SqlSchemaExplorer(
-  _props,
-  ref
-) {
+export const SqlSchemaExplorer = forwardRef<
+  SqlSchemaExplorerHandle,
+  {
+    /** The dialect of the connection being browsed, so the header can offer only what fits it. */
+    onDialectChange?: (dialect: string | null) => void;
+  }
+>(function SqlSchemaExplorer({ onDialectChange }, ref) {
   const connections = useSyncStore((s) => s.connections);
   const connectionsLoaded = useSyncStore((s) => s.connectionsLoaded);
   const tabs = useSqlEditorStore((s) => s.tabs);
@@ -220,6 +223,11 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
 
   const conn = connections.find((c) => c.id === explorerId);
   const sessionPassword = explorerId ? sessionPasswords[explorerId] : undefined;
+  const browsedDialect = conn?.dialect ?? null;
+
+  useEffect(() => {
+    onDialectChange?.(browsedDialect);
+  }, [browsedDialect, onDialectChange]);
 
   useEffect(() => {
     if (!explorerId || entry?.status !== 'ready' || !conn) {
@@ -231,7 +239,7 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
       return;
     }
     // File dialects carry no password; waiting for one never resolved.
-    if (!conn.hasPassword && connectionNeedsSecret(conn.dialect, conn.authMethod) && !sessionPassword) return;
+    if (!conn.hasPassword && connectionNeedsSecret(conn.dialect, conn.authMethod, conn.username) && !sessionPassword) return;
     let cancelled = false;
     void fetchDbaUtility(
       { connectionId: explorerId, password: sessionPassword },
@@ -398,13 +406,15 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
                           schema={conn?.schema}
                           sizeGroup={sizeOf(t.name, conn?.schema)}
                           onOpenBlueprint={
-                            t.objectType === 'TABLE' || t.objectType === 'MQT'
+                            // A Redis key has no DDL to edit: no blueprint for a store type.
+                            (t.objectType === 'TABLE' || t.objectType === 'MQT') && !t.storeType
                               ? () => {
                                   setBlueprintMode('edit');
                                   setBlueprintTable(t);
                                 }
                               : undefined
                           }
+                          canInsertFrom={t.objectType === 'TABLE' || t.objectType === 'MQT'}
                           canPeek={
                             t.objectType === 'TABLE' ||
                             t.objectType === 'MQT' ||
@@ -444,6 +454,18 @@ export const SqlSchemaExplorer = forwardRef<SqlSchemaExplorerHandle>(function Sq
   );
 });
 
+/** What each Redis store type means, on the badge's tooltip. */
+const STORE_TYPE_HINT: Record<string, string> = {
+  hash: 'Hashes: one key per row, its fields as columns',
+  json: 'JSON documents: one key per row, top-level fields as columns',
+  string: 'Strings: one key per row, the value in one column',
+  mixed: 'Keys of several types under this prefix',
+  list: 'A list: one element per row, in list order',
+  set: 'A set: one member per row',
+  zset: 'A sorted set: one member per row, with its score',
+  stream: 'A stream: one entry per row, by id',
+};
+
 const ObjectNode: React.FC<{
   table: TableSchema;
   open: boolean;
@@ -455,6 +477,8 @@ const ObjectNode: React.FC<{
   onOpenBlueprint?: () => void;
   /** Data peek is only meaningful for row-bearing objects (not routines). */
   canPeek?: boolean;
+  /** Offer "From": the object reads as rows (a table, an MQT, a Redis key). */
+  canInsertFrom?: boolean;
   onPeek?: (tableName: string) => void;
   onOpenSource?: () => void;
 }> = ({
@@ -467,9 +491,13 @@ const ObjectNode: React.FC<{
   onOpenBlueprint,
   onOpenSource,
   canPeek,
+  canInsertFrom,
   onPeek,
 }) => {
   const meta = TYPE_META[table.objectType] ?? TYPE_META.TABLE;
+  // Redis and MongoDB read SQL through a small parser: one bare table name, no
+  // alias and no `alias.column` (sql-subset.ts refuses both).
+  const subset = isSubsetDialect(dialect);
   const insertName = quoteIdentifierIfNeeded(table.name, dialect);
   const schemaName = schema?.trim();
   const qualifiedName =
@@ -487,6 +515,10 @@ const ObjectNode: React.FC<{
   const insertObject = () => {
     if (isRoutine) {
       insertAtCursor(routineInsertText(qualifiedName, table.objectType, params));
+      return;
+    }
+    if (subset) {
+      insertAtCursor(`${insertName} `);
       return;
     }
     // Tables/views: add into FROM with an auto alias (e.g. users u).
@@ -526,7 +558,7 @@ const ObjectNode: React.FC<{
   /** Add `alias.column` into the active SELECT list (or insert at cursor). */
   const insertColumnIntoSelect = (colName: string) => {
     const col = quoteIdentifierIfNeeded(colName, dialect);
-    const expr = `${resolveTableAlias()}.${col}`;
+    const expr = subset ? col : `${resolveTableAlias()}.${col}`;
     const ok = mutateSql((sql) => insertIntoSelectList(sql, expr));
     if (!ok) insertAtCursor(`${expr}, `);
   };
@@ -579,6 +611,15 @@ const ObjectNode: React.FC<{
           <span className="flex flex-col min-w-0 flex-1">
             <span className="flex items-center gap-1.5 min-w-0">
               <span className="truncate font-mono font-bold">{table.name}</span>
+              {table.storeType && (
+                <span
+                  data-testid={`sql-explorer-store-type-${table.name}`}
+                  title={STORE_TYPE_HINT[table.storeType] ?? table.storeType}
+                  className="shrink-0 rounded border border-slate-700 px-1 text-[9px] font-bold uppercase tracking-wide text-slate-400"
+                >
+                  {table.storeType}
+                </span>
+              )}
               {isRoutine && params.length > 0 && (
                 <span className="shrink-0 text-[11px] font-mono font-medium text-slate-500 truncate max-w-[40%]">
                   ({params.length})
@@ -597,10 +638,10 @@ const ObjectNode: React.FC<{
         </button>
         {/* One group, so the actions wrap as a unit instead of splitting apart. */}
         <span className="shrink-0 flex items-center gap-0.5">
-          {onOpenBlueprint && (
+          {canInsertFrom && (
             <button
               type="button"
-              title={`Add ${table.name} to FROM with auto alias`}
+              title={subset ? `Insert ${table.name}` : `Add ${table.name} to FROM with auto alias`}
               data-testid={`sql-explorer-from-${table.name}`}
               onClick={(e) => {
                 e.stopPropagation();

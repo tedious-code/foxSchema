@@ -61,10 +61,22 @@ export function resolveAuthMethod(dialect: string, raw: unknown): ConnectionAuth
 /**
  * True when this connection still needs a secret (SQL, Windows, or directory
  * password). File databases never do. Future SSO would return false here.
+ *
+ * Redis and MongoDB often run with no auth at all, so they need one only when
+ * the connection names a user: MongoDB signs in as a user, and Redis ACLs do.
+ * Asking for every one of them made a passwordless Redis unusable — the
+ * session-password prompt does not accept an empty password, so the
+ * destination never ticked. A Redis with only `requirepass` keeps its password
+ * on the connection.
  */
-export function connectionNeedsSecret(dialect: string, authMethod?: string | null): boolean {
+export function connectionNeedsSecret(
+  dialect: string,
+  authMethod?: string | null,
+  username?: string | null
+): boolean {
   const d = dialect.trim().toLowerCase();
   if (d === 'sqlite' || d === 'duckdb') return false;
+  if (d === 'redis' || d === 'mongodb') return Boolean(username?.trim());
   void authMethod;
   return true;
 }

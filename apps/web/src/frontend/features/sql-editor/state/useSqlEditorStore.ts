@@ -129,7 +129,7 @@ const isReadOnlyDialect = (dialect: string) =>
 
 type ExecutionTarget = Pick<
   SavedConnectionSummary,
-  'id' | 'name' | 'dialect' | 'hasPassword' | 'authMethod'
+  'id' | 'name' | 'dialect' | 'hasPassword' | 'authMethod' | 'username'
 >;
 
 /** Synthetic run target when executing code cells with no Destination checked. */
@@ -679,7 +679,7 @@ export const useSqlEditorStore = create<SqlEditorState>()(
         if (
           conn &&
           !conn.hasPassword &&
-          connectionNeedsSecret(conn.dialect, conn.authMethod) &&
+          connectionNeedsSecret(conn.dialect, conn.authMethod, conn.username) &&
           !sessionPasswordFor(id, sessionPasswords)
         ) {
           set({
@@ -704,7 +704,7 @@ export const useSqlEditorStore = create<SqlEditorState>()(
         if (
           conn &&
           !conn.hasPassword &&
-          connectionNeedsSecret(conn.dialect, conn.authMethod) &&
+          connectionNeedsSecret(conn.dialect, conn.authMethod, conn.username) &&
           !sessionPasswordFor(id, sessionPasswords)
         ) {
           set({
@@ -908,7 +908,7 @@ export const useSqlEditorStore = create<SqlEditorState>()(
         const { sessionPasswords } = get();
         if (
           !conn.hasPassword &&
-          connectionNeedsSecret(conn.dialect, conn.authMethod) &&
+          connectionNeedsSecret(conn.dialect, conn.authMethod, conn.username) &&
           !sessionPasswordFor(connectionId, sessionPasswords)
         ) {
           set({
@@ -1073,7 +1073,7 @@ export const useSqlEditorStore = create<SqlEditorState>()(
         const needingPassword = connections.find(
           (c) =>
             !c.hasPassword &&
-            connectionNeedsSecret(c.dialect, c.authMethod) &&
+            connectionNeedsSecret(c.dialect, c.authMethod, c.username) &&
             !sessionPasswordFor(c.id, sessionPasswords)
         );
         if (needingPassword) {

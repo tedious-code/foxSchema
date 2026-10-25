@@ -620,7 +620,10 @@ const PaneBody: React.FC<{
           </button>
         )}
       </div>
-      <div className="flex items-start gap-2 text-xs text-rose-400 bg-rose-950/40 border border-rose-500/20 rounded-md px-3 py-2 flex-1 overflow-auto">
+      <div
+        data-testid="sql-result-error"
+        className="flex items-start gap-2 text-xs text-rose-400 bg-rose-950/40 border border-rose-500/20 rounded-md px-3 py-2 flex-1 overflow-auto"
+      >
         <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" strokeWidth={SQL_ICON_STROKE} />
         <span className="break-all">{item.error}</span>
       </div>
@@ -1870,7 +1873,10 @@ const CredentialResultsSection: React.FC<{
       </header>
 
       {run.status === 'error' && (
-        <div className="flex items-start gap-2 text-xs text-rose-400 bg-rose-950/40 border border-rose-500/20 rounded-md px-3 py-2 max-w-2xl">
+        <div
+          data-testid="sql-run-error"
+          className="flex items-start gap-2 text-xs text-rose-400 bg-rose-950/40 border border-rose-500/20 rounded-md px-3 py-2 max-w-2xl"
+        >
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" strokeWidth={SQL_ICON_STROKE} />
           <span className="break-all">{run.error}</span>
         </div>

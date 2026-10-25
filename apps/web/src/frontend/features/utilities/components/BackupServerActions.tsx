@@ -54,7 +54,7 @@ export const BackupServerActions: React.FC<{
   const historySql = backupHistoryQuery({ dialect: connection.dialect, database: connection.database ?? '', schema: connection.schema });
   const needsPassword =
     !connection.hasPassword &&
-    connectionNeedsSecret(connection.dialect, connection.authMethod) &&
+    connectionNeedsSecret(connection.dialect, connection.authMethod, connection.username) &&
     !sessionPasswords[connection.id];
   const ref = {
     connectionId: connection.id,

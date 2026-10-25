@@ -1,6 +1,7 @@
 import { type ConnectionOptions, type DriverAdapter, parseSqlSubset, subsetValue } from '@foxschema/sql';
 import { credentialedCacheKey } from '../../cores/pool-cache.js';
 import { requireDriver } from '../../cores/driver-loader.js';
+import { COLLECTION_TYPES, JSON_TYPE, readCollection, readKeyRow } from './redis.keyspace.js';
 
 /**
  * Redis behind the SQL editor, for the cache-maintenance case.
@@ -12,9 +13,11 @@ import { requireDriver } from '../../cores/driver-loader.js';
  *   "column" → a field of that hash, plus the synthetic `id`
  *
  * Hashes rather than plain strings because a row has named fields, and HSET /
- * HGETALL map onto them exactly. A key holding a plain string is reported as a
- * single `value` field so browsing still works, but it cannot be updated
- * field-wise — that is stated, not silently approximated.
+ * HGETALL map onto them exactly. A JSON document (the JSON type, or JSON text in
+ * a string) reads as its top-level fields, and a plain string as a single
+ * `value`. A list, set, sorted set or stream key is a table of its own, named
+ * by the whole key, with its elements as rows (redis.keyspace.ts). Only hashes
+ * are written field-wise; everything else is read-only here, and says so.
  *
  * Every statement goes through `parseSqlSubset`; anything outside it is
  * refused. That matters more here than anywhere else, because there is no
@@ -24,6 +27,15 @@ import { requireDriver } from '../../cores/driver-loader.js';
  * SCAN, never KEYS: KEYS blocks the server for the length of the keyspace, and
  * a cache is exactly where that hurts.
  */
+
+/** `SELECT a, b` keeps those columns, in that order; `SELECT *` keeps every field. */
+export function projectColumns(
+  rows: Record<string, unknown>[],
+  columns: string[] | '*'
+): Record<string, unknown>[] {
+  if (columns === '*') return rows;
+  return rows.map((row) => Object.fromEntries(columns.map((c) => [c, row[c] ?? null])));
+}
 
 /** Exported for unit tests — equality check used for non-id WHERE predicates. */
 export function redisRowMatchesPredicates(
@@ -88,25 +100,22 @@ class RedisAdapter implements DriverAdapter {
   }
 
   /** Read one key as a row, whatever type it holds. */
-  private async readRow(
-    client: any,
-    table: string,
-    key: string
-  ): Promise<Record<string, unknown> | null> {
-    const type = await client.type(key);
-    const id = key.startsWith(`${table}:`) ? key.slice(table.length + 1) : key;
-    if (type === 'hash') {
-      const hash = await client.hGetAll(key);
-      if (!hash || Object.keys(hash).length === 0) return null;
-      return { id, ...hash };
+  private readRow(client: any, table: string, key: string): Promise<Record<string, unknown> | null> {
+    return readKeyRow(client, table, key);
+  }
+
+  /** The collection type when `table` names a list, set, sorted set or stream key itself. */
+  private async collectionType(client: any, table: string): Promise<string | null> {
+    const type = String(await client.type(table));
+    return COLLECTION_TYPES.has(type) ? type : null;
+  }
+
+  /** Refuse a write addressed to a collection table: its elements are read-only here. */
+  private async refuseCollectionWrite(client: any, table: string): Promise<void> {
+    const type = await this.collectionType(client, table);
+    if (type) {
+      throw new Error(`Redis: "${table}" is a ${type}; its elements are read-only here.`);
     }
-    if (type === 'string') {
-      const value = await client.get(key);
-      return value === null ? null : { id, value };
-    }
-    // list/set/zset/stream have no row shape; report the type rather than
-    // inventing columns for them.
-    return type === 'none' ? null : { id, type };
   }
 
   async query<T = Record<string, unknown>>(
@@ -131,21 +140,38 @@ class RedisAdapter implements DriverAdapter {
 
     switch (intent.kind) {
       case 'select': {
+        // An empty page (past the end of the reader's own LIMIT) reads nothing.
+        if (intent.limit === 0) return [] as T[];
+        const project = (rows: Record<string, unknown>[]) => projectColumns(rows, intent.columns);
+
+        const collection = await this.collectionType(client, intent.table);
+        if (collection) {
+          return project(
+            await readCollection(client, intent.table, collection, {
+              offset: intent.offset ?? 0,
+              limit: intent.limit ?? 100,
+              matches: (row) => redisRowMatchesPredicates(row, intent.where, params),
+              filtered: intent.where.length > 0,
+            })
+          ) as T[];
+        }
+
         const id = idFrom(intent.where);
         const extra = extraWhere(intent.where);
         if (id !== undefined) {
           const row = await this.readRow(client, intent.table, this.keyFor(intent.table, id));
-          if (!row) return [] as T[];
+          if (!row || (intent.offset ?? 0) > 0) return [] as T[];
           // Non-id predicates must still hold — otherwise `WHERE id = 1 AND
           // status = 'active'` would return the inactive row.
           if (!redisRowMatchesPredicates(row, extra, params)) return [] as T[];
-          return [row] as T[];
+          return project([row]) as T[];
         }
         // No id: scan the prefix. Bounded by LIMIT so browsing a large cache
         // cannot walk the whole keyspace. Filter *before* counting toward the
         // limit, or `WHERE name = ? LIMIT 2` would sample the first two keys
         // and then discard non-matches.
         const limit = intent.limit ?? 100;
+        let skip = intent.offset ?? 0;
         const rows: Record<string, unknown>[] = [];
         // node-redis v6 yields a *batch* of keys per iteration; older clients
         // yielded one key. Normalising both is not defensive noise — assuming
@@ -162,13 +188,18 @@ class RedisAdapter implements DriverAdapter {
             const row = await this.readRow(client, intent.table, k);
             if (!row) continue;
             if (!redisRowMatchesPredicates(row, extra, params)) continue;
+            if (skip > 0) {
+              skip--;
+              continue;
+            }
             rows.push(row);
             if (rows.length >= limit) break outer;
           }
         }
-        return rows as T[];
+        return project(rows) as T[];
       }
       case 'insert': {
+        await this.refuseCollectionWrite(client, intent.table);
         const doc: Record<string, string> = {};
         let id: unknown;
         for (const a of intent.assignments) {
@@ -187,9 +218,17 @@ class RedisAdapter implements DriverAdapter {
         if (id === undefined) {
           throw new Error('Redis: UPDATE needs `id` in the WHERE clause to address a key.');
         }
+        await this.refuseCollectionWrite(client, intent.table);
         const key = this.keyFor(intent.table, id);
         const row = await this.readRow(client, intent.table, key);
         if (!row) return [{ rowCount: 0 }] as T[];
+        // A JSON document or a string reads as fields too, but HSET on it is
+        // WRONGTYPE. Say what it is instead of failing with that.
+        const type = String(await client.type(key));
+        if (type !== 'hash') {
+          const what = type === JSON_TYPE ? 'JSON document' : type;
+          throw new Error(`Redis: "${key}" is a ${what}; only hash keys are updated field by field.`);
+        }
         // Must honour every AND predicate. Ignoring `status = 'active'` here
         // would overwrite a key the WHERE clause excluded — silent data loss.
         if (!redisRowMatchesPredicates(row, extraWhere(intent.where), params)) {
@@ -209,6 +248,7 @@ class RedisAdapter implements DriverAdapter {
         if (id === undefined) {
           throw new Error('Redis: DELETE needs `id` in the WHERE clause to address a key.');
         }
+        await this.refuseCollectionWrite(client, intent.table);
         const key = this.keyFor(intent.table, id);
         const row = await this.readRow(client, intent.table, key);
         if (!row) return [{ rowCount: 0 }] as T[];

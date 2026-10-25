@@ -285,7 +285,7 @@ export const useSyncStore = create<SyncState>()(
         const canRetest = !!(
           conn.hasPassword ||
           sessionPassword ||
-          !connectionNeedsSecret(conn.dialect, conn.authMethod)
+          !connectionNeedsSecret(conn.dialect, conn.authMethod, conn.username)
         );
         if (side === 'source') {
           patch.selectedSourceConnectionId = id;

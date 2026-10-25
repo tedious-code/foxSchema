@@ -117,7 +117,7 @@ export const CompareToolbarStart: React.FC = () => {
 
   const selectSavedConnection = (side: 'source' | 'target', id: string) => {
     const conn = connections.find((c) => c.id === id);
-    if (conn && !conn.hasPassword && connectionNeedsSecret(conn.dialect, conn.authMethod)) {
+    if (conn && !conn.hasPassword && connectionNeedsSecret(conn.dialect, conn.authMethod, conn.username)) {
       const cfg = side === 'source' ? sourceConfig : targetConfig;
       const existing =
         getSessionPassword(id) ||

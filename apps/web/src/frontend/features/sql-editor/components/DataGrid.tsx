@@ -924,7 +924,10 @@ export const DataGrid: React.FC<{
           onRefresh={onRefresh}
           toolbarExtra={toolbarExtra}
         />
-        <div className="flex items-start gap-2 text-xs text-rose-400 bg-rose-950/40 border border-rose-500/20 rounded-md px-3 py-2">
+        <div
+          data-testid="sql-grid-error"
+          className="flex items-start gap-2 text-xs text-rose-400 bg-rose-950/40 border border-rose-500/20 rounded-md px-3 py-2"
+        >
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" strokeWidth={SQL_ICON_STROKE} />
           <span className="break-all">{result.error}</span>
         </div>

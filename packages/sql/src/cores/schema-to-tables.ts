@@ -204,6 +204,7 @@ export function dbSchemaToTableSchemas(dbSchema: DbSchema): TableSchema[] {
       objectType: table.isMqt ? 'MQT' : 'TABLE',
       definition: table.definition,
       tablespace: table.tablespace,
+      ...(table.storeType ? { storeType: table.storeType } : {}),
       triggers: triggersByTable.get(table.name) ?? [],
       primaryKey: pkColumns.length > 0
         ? { name: dbSchema.primaryKeys[table.name]?.[0]?.constName, columns: pkColumns }

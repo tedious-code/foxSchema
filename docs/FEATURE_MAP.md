@@ -138,8 +138,8 @@ in its folders and its e2e specs (`apps/e2e/src/tests`).
 | ID | Feature and sub-features | UI | API | Code | Perms | Tables | Tests |
 |---|---|---|---|---|---|---|---|
 | `platform.auth` | Sign-in & accounts — password sign-in, register, first-run setup code, launch session (use Fox before creating an account), email verification, forgot / reset password, SSO (Google, Microsoft, GitHub, broker), sign out other sessions, onboarding wizard | Sign-in page, account banners | `/api/auth` (17), `/api/signup` (3) | server `auth`, `users`, `platform/identity`; web `auth` | — (public routes) | `users`, `sessions`, `auth_codes`, `user_preferences` | server 9, web 3; e2e `auth-recovery`, `smoke` |
-| `platform.admin` | Administration — users (create, invite, role, activate, set password, issue code, hand over admin), role → permission matrix, one admin or several, sign-in settings (providers, mail, broker, public URL), every workspace | Profile → Access control | `/api/admin` (19) | server `admin`; web `admin` | `admin.users`, `admin.roles` | `users`, `role_permissions`, `app_settings` | server 3, web 4; e2e `admin-policy` |
-| `platform.workspaces` | Workspaces — rail button and menu, create, switch, archive, settings, members and workspace roles, invites (accept / decline, 14 days), public discover / join, shared workspace scripts | Rail button under the Fox mark | `/api/workspaces` (20) | server `workspaces`, `platform/workspaces`; web `workspaces` | `workspace.members`, `workspace.settings`, `workspace.create` | `workspaces`, `workspace_members`, `workspace_invites`, `workspace_scripts` | server 4, web 2; e2e `workspaces` |
+| `platform.admin` | Administration — users (create, invite, role, activate, set password, issue code, hand over admin), role → permission matrix, one admin or several, sign-in settings (providers, mail, broker, public URL), every workspace (restore archived), Demo role and demo mode (banner, sign-in hint) | Profile → Access control | `/api/admin` (19) | server `admin`; web `admin` | `admin.users`, `admin.roles` | `users`, `role_permissions`, `app_settings` | server 4, web 5; e2e `admin-policy`, `demo-role` |
+| `platform.workspaces` | Workspaces — rail button and menu, create, switch, archive, restore, settings, members and workspace roles (a personal workspace lends no more than its account holds), invites (accept / decline, 14 days), public discover / join, shared workspace scripts | Rail button under the Fox mark | `/api/workspaces` (20) | server `workspaces`, `platform/workspaces`; web `workspaces` | `workspace.members`, `workspace.settings`, `workspace.create` | `workspaces`, `workspace_members`, `workspace_invites`, `workspace_scripts` | server 5, web 3; e2e `workspaces`, `workspaces-sharing-limits` |
 | `platform.connections` | Connections & drivers — credential manager, connection form (password / Windows / LDAP, SSL, pool, SQLite / DuckDB file picker), schema list, connection test, driver check and Install driver, cloud provider credentials | Creds (rail), connection modal | `/api/connections` (4), `/api/connection/test`, `/api/db/test`, `/api/driver` (2) | server `connections`, `platform/connections`, `internal/driver-install`; web `connections` | per workspace role; `admin.drivers` to install | `connections`, `cloud_provider_credentials` | server 1, web 1 |
 | `platform.secrets` | App secrets — vault entries, cloud secret providers, resolving a secret | Creds → secrets, editor Secrets panel | `/api/app-secrets` (9) | server `admin` (app-secrets mount) | `secrets.view/create/edit/delete` | `app_secrets`, `cloud_provider_credentials` | — |
 | `platform.system` | Shell, health, updates — activity rail, top toolbar, command palette, home, backend-offline banner, activity, app info, config, update check / apply, email and update settings, send feedback | App shell, Prefs | `/api/health`, `/api/config`, `/api/app-info`, `/api/activity`, `/api/updates` (2) | server `system`; web `app/shell`, `app/settings`, `feedback` | — | `app_settings` | server 1, web 2; e2e `smoke`, `lazy-loading`, `send-feedback`, `auto-error-catch` |
@@ -161,8 +161,8 @@ in its folders and its e2e specs (`apps/e2e/src/tests`).
 | `editor.code` | FoxScript code cells — JS / TS / Node / Node-TS cells, transpile, `sql` bridge (bound params, `sql.list`, `sql.raw`), `-- @set`, Server Beam (`sql.on('source' / 'target')`), faker / lodash / date-fns, built-in samples | Editor | `/api/sql/code-cell`, `/api/sql/code-cell/transpile` | server `sql-editor` (`code-cell-*`); web `sql-editor/lib` | `editor.advanced` (install-wide) | — | e2e `sql-editor-code-cell-faker` |
 | `editor.results` | Results — by credential / side by side, grid paging (rows / page, Next / Prev, seek), cell and row edit, copy and CSV export, chart, maximize, runs drawer, warnings | Editor | (with `/api/sql/execute`) | web `ResultsPanel`, `DataGrid` | `editor.datagrid.insert/update/delete` | — | e2e `sql-editor-result-edit`, `-copy-export` |
 | `editor.datacompare` | Data compare & migrate — compare toggle, Source, diff cells, key columns, add / edit / delete, Sync column, apply (Transaction where the engine can roll back, stop / continue, backup snapshot), history, preview SQL, multi-target | Editor, side by side | `/api/data-migrate/execute`, `/api/data-migrations` (5) | server `data-migrate`; web `DataMigrateBar` | `editor.dml` | `data_migrate_runs` | server 4; e2e `sql-editor-compare-multi-target` |
-| `editor.peek` | Data peek — Cmd/Ctrl-click to open, stacked panels, WHERE / ORDER BY / limit, paging, row editor (add / edit / clone / delete, value generators), insight tab, FK drill and referenced-by, date picker | Editor | (with `/api/sql/execute`) | web `DataPeekPanel`, `PeekRowEditor`, `usePeekGridCrud` | `editor.datagrid.*` | — | e2e `sql-editor-peek-row-form`, `-peek-stacking` |
-| `editor.explorer` | Schema explorer & blueprint — connection picker, object tree, insert names, object source script, table blueprint (create / edit), New table, Install driver banner | Editor sidebar | `/api/schema/load` | web `SqlSchemaExplorer`, `TableBlueprintModal`, `MissingDriverBanner` | `editor.sidebar.schema`, `schema.browse` | — | e2e `sql-editor-blueprint`, `-column-picker` |
+| `editor.peek` | Data peek — Cmd/Ctrl-click to open, stacked panels, WHERE (one row per AND) / ORDER BY / limit, paging, row editor (add / edit / clone / delete, value generators), insight tab, FK drill and referenced-by, date picker | Editor | (with `/api/sql/execute`) | web `DataPeekPanel`, `PeekRowEditor`, `usePeekGridCrud` | `editor.datagrid.*` | — | e2e `sql-editor-data-peek-grid`, `-peek-row-form`, `-peek-stacking` |
+| `editor.explorer` | Schema explorer & blueprint — connection picker, object tree, insert names, object source script, table blueprint (create / edit), New table (engines with DDL), Redis and MongoDB keys as tables with type badges, Install driver banner | Editor sidebar | `/api/schema/load` | web `SqlSchemaExplorer`, `TableBlueprintModal`, `MissingDriverBanner` | `editor.sidebar.schema`, `schema.browse` | — | e2e `sql-editor-blueprint`, `-column-picker` |
 | `editor.library` | Bookmarks, samples, recent, variables & secrets, shared workspace scripts | Editor sidebar | `/api/workspaces/scripts` (3) | web `SqlBookmarksPanel`, `SqlVariablesPanel`, `SqlSecretsPanel` | `editor.variables.*`, `editor.sidebar.*` | `workspace_scripts` | (in `editor.run` counts) |
 | `editor.files` | File import & query — chunked upload sessions, column detection, import into a table, query an uploaded CSV / JSON / NDJSON file, capacity, database-file picker | Editor → Files, Utils → Query files | `/api/files` (11) | server `files` (parse worker pool) | `editor.run` | — | server 9 |
 
@@ -537,7 +537,7 @@ the one table every screen asks. "—" has a reason string the UI shows.
 | SQLite | ✓ | — | — | ✓ | ✓ | ✓ | `dialects/sqlite` |
 | DuckDB | ✓ | — | — | ✓ | ✓ | ✓ | `dialects/duckdb` |
 | ClickHouse | ✓ | — | ✓ | ✓ | — | — | `dialects/clickhouse` |
-| Redis | — | — | — | — | ✓ (hash keys) | — | — |
+| Redis | — | — | — | — | ✓ (hash keys; lists, sets, sorted sets, streams and JSON read as tables) | — | — |
 | MongoDB | — | — | — | — | ✓ | — | — |
 
 Redis and MongoDB run a fail-closed SQL subset in the editor (single-table
@@ -553,9 +553,9 @@ SELECT / INSERT / UPDATE / DELETE with `column = value` predicates).
 | Unit — web | `apps/web` | 175 (sql-editor 59, lokee-weave 14, access 12, workflow 12, …) |
 | Unit — workflow | `packages/workflow-engine`, `apps/workflow-server` | 87 + 19 |
 | Unit — CLI | `apps/cli` | 25 |
-| E2E (Playwright) | `apps/e2e/src/tests` | 49 specs in 33 groups (`npm run test:e2e:all`) |
+| E2E (Playwright) | `apps/e2e/src/tests` | 54 spec files (`npm run test:e2e:all`) |
 
-Known gaps and open work (2026-10-25) — each belongs on the planning board:
+Known gaps and open work (2026-10-25, after #550 – #555) — each belongs on the planning board:
 
 | Feature | Gap | Kind |
 |---|---|---|
@@ -565,10 +565,10 @@ Known gaps and open work (2026-10-25) — each belongs on the planning board:
 | `engines.dialects` | YugabyteDB container stuck on a stale master list (needs a fresh volume) | env |
 | `access.inspector` | Oracle `FOX_READER` role not listed: seed account lacks dictionary access | test |
 | `editor.run` | Opening a sample bookmark replaces the checked Destinations with none | bug |
-| `platform.connections` | Redis: lists, sets, sorted sets, streams and JSON as tables (branch `feat/redis-tables`) | feature |
-| `platform.workspaces` | Workspace review fixes: personal-workspace role ceiling, restore archived, Escape (branch `feat/workspace-review`) | bug |
-| `platform.admin` | Demo role and demo mode (branch `feat/demo-role`) | feature |
-| `editor.peek` | Data peek grid fixes, 2 e2e failing (branch `fix/data-peek-grid`) | bug |
+| `platform.auth` | Manual walk: SSO with real providers, launch session, email verification with real mail (automated part green 2026-10-25) | manual |
+| `platform.workspaces` | Workspace ceiling caps by rank; a custom role mapping is not intersected with the account's permissions | improvement |
+| `platform.connections` | Redis / MongoDB: an explicit "No password" sign-in choice (a requirepass-only Redis saved without its password is not prompted) | improvement |
+| `platform.admin` | Read-only as a permission: routes declare `reads`, roles lack `app.write` (the Demo role uses a URL allow-list today) | improvement |
 | `editor.datacompare` | Compare 2,000 rows with paging; SQL tracer for owners and admins (plan written) | feature |
 
 ## Planning work

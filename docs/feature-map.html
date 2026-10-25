@@ -238,7 +238,7 @@ td.no { color: var(--muted); }
   <div class="wrap">
     <div class="titlerow">
       <h1>Fox <span>Feature Map</span></h1>
-      <div class="stamp">Measured on <code>main</code> · <code>91d4165c09</code> · 2026-10-25 · mirrors <code>docs/FEATURE_MAP.md</code></div>
+      <div class="stamp">Measured on <code>main</code> · <code>f9d1e138de</code> · 2026-10-25 · mirrors <code>docs/FEATURE_MAP.md</code></div>
     </div>
     <ul class="stats" aria-label="Inventory">
       <li><b>33</b> features</li>
@@ -682,15 +682,15 @@ const FEATURES = [
     code: 'server auth, users, platform/identity · web auth', perms: 'public routes',
     tables: 'users, sessions, auth_codes, user_preferences', tests: 'server 9 · web 3 · e2e auth-recovery, smoke' },
   { id: 'platform.admin', area: 'platform', name: 'Administration',
-    subs: ['Users: create, invite, role, activate, set password, issue code', 'Hand over admin', 'Role → permission matrix', 'One admin or several', 'Sign-in settings: providers, mail, broker, public URL', 'Every workspace'],
+    subs: ['Users: create, invite, role, activate, set password, issue code', 'Hand over admin', 'Role → permission matrix', 'One admin or several', 'Sign-in settings: providers, mail, broker, public URL', 'Every workspace, restore archived', 'Demo role and demo mode: banner, sign-in hint'],
     ui: 'Profile → Access control', api: '/api/admin (19)',
     code: 'server admin · web admin', perms: 'admin.users, admin.roles',
-    tables: 'users, role_permissions, app_settings', tests: 'server 3 · web 4 · e2e admin-policy' },
+    tables: 'users, role_permissions, app_settings', tests: 'server 4 · web 5 · e2e admin-policy, demo-role' },
   { id: 'platform.workspaces', area: 'platform', name: 'Workspaces',
-    subs: ['Rail button and menu', 'Create, switch, archive', 'Settings', 'Members and workspace roles', 'Invites: accept, decline, 14 days', 'Public discover and join', 'Shared workspace scripts'],
+    subs: ['Rail button and menu', 'Create, switch, archive, restore', 'Settings', 'Members and workspace roles', 'Personal workspace lends no more than its account holds', 'Invites: accept, decline, 14 days', 'Public discover and join', 'Shared workspace scripts'],
     ui: 'Rail button under the Fox mark', api: '/api/workspaces (20)',
     code: 'server workspaces, platform/workspaces · web workspaces', perms: 'workspace.members, workspace.settings, workspace.create',
-    tables: 'workspaces, workspace_members, workspace_invites, workspace_scripts', tests: 'server 4 · web 2 · e2e workspaces' },
+    tables: 'workspaces, workspace_members, workspace_invites, workspace_scripts', tests: 'server 5 · web 3 · e2e workspaces, workspaces-sharing-limits' },
   { id: 'platform.connections', area: 'platform', name: 'Connections & drivers',
     subs: ['Credential manager', 'Connection form: password, Windows, LDAP', 'SSL and pool', 'SQLite / DuckDB file picker', 'Schema list', 'Connection test', 'Driver check and Install driver', 'Cloud provider credentials'],
     ui: 'Creds (rail), connection modal', api: '/api/connections (4), /api/connection/test, /api/db/test, /api/driver (2)',
@@ -749,12 +749,12 @@ const FEATURES = [
     code: 'server data-migrate · web DataMigrateBar', perms: 'editor.dml',
     tables: 'data_migrate_runs', tests: 'server 4 · e2e sql-editor-compare-multi-target' },
   { id: 'editor.peek', area: 'editor', name: 'Data peek',
-    subs: ['Cmd/Ctrl-click to open', 'Stacked panels', 'WHERE, ORDER BY, limit', 'Paging', 'Row editor: add, edit, clone, delete, generators', 'Insight tab', 'FK drill and referenced-by', 'Date picker'],
+    subs: ['Cmd/Ctrl-click to open', 'Stacked panels', 'WHERE (one row per AND), ORDER BY, limit', 'Paging', 'Row editor: add, edit, clone, delete, generators', 'Insight tab', 'FK drill and referenced-by', 'Date picker'],
     ui: 'Editor', api: 'with /api/sql/execute',
     code: 'web DataPeekPanel, PeekRowEditor, usePeekGridCrud', perms: 'editor.datagrid.*',
-    tables: '—', tests: 'e2e sql-editor-peek-row-form, -peek-stacking' },
+    tables: '—', tests: 'e2e sql-editor-data-peek-grid, -peek-row-form, -peek-stacking' },
   { id: 'editor.explorer', area: 'editor', name: 'Schema explorer & blueprint',
-    subs: ['Connection picker', 'Object tree', 'Insert names', 'Object source script', 'Table blueprint: create, edit', 'New table', 'Install driver banner'],
+    subs: ['Connection picker', 'Object tree', 'Insert names', 'Object source script', 'Table blueprint: create, edit', 'New table (engines with DDL)', 'Redis and MongoDB keys as tables, with type badges', 'Install driver banner'],
     ui: 'Editor sidebar', api: '/api/schema/load',
     code: 'web SqlSchemaExplorer, TableBlueprintModal, MissingDriverBanner', perms: 'editor.sidebar.schema, schema.browse',
     tables: '—', tests: 'e2e sql-editor-blueprint, -column-picker' },
@@ -902,7 +902,7 @@ const DIALECTS = [
   ['sqlite', 'SQLite', 'sqlLite', 'dialects/sqlite', 'A file, not a server. No grants. ALTER TABLE is limited, so some migrations rebuild the table.'],
   ['duckdb', 'DuckDB', 'duckDb', 'dialects/duckdb', 'A file, not a server. No grants.'],
   ['clickhouse', 'ClickHouse', 'clickHouse', 'dialects/clickhouse', 'No row editing and no transactions. GRANT exists, but Fox has no permission builder for it yet.'],
-  ['redis', 'Redis', 'redis', 'redis-browse, redis-editor (feat/redis-tables)', 'Runs the SQL subset. Keys read as tables: prefixes, lists, sets, sorted sets, streams and JSON (feat/redis-tables). The dev container falls back to no AUTH.'],
+  ['redis', 'Redis', 'redis', 'redis-editor', 'Runs the SQL subset. Keys read as tables: prefixes, lists, sets, sorted sets, streams and JSON (#552). Needs a password only when the connection names a user; a requirepass-only Redis keeps its password on the connection. The dev container falls back to no AUTH.'],
   ['mongodb', 'MongoDB', 'mongodb', '—', 'Runs the SQL subset. Auth is off in the dev container.'],
 ];
 for (const [id, name, dir, e2e, watch] of DIALECTS) {

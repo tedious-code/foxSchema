@@ -15,9 +15,10 @@ import {
   passwordFieldLabel,
   type ConnectionAuthMethod,
 } from '@/shared/lib/provider-settings';
-import type { DriverInfo } from '@/shared/lib/types';
-import { IBM_DB_VERSION } from '@foxschema/ui-shared';
-import { fetchSchemaList, checkDriver as apiCheckDriver, installDriver as apiInstallDriver } from "@/shared/api/schemaApi";
+import { fetchSchemaList } from "@/shared/api/schemaApi";
+import { driverStatusOf, installDriverFor, useDriverStatus } from '@/shared/lib/driverStatus';
+import { DriverInstallHints } from '@/shared/components/DriverInstallHints';
+import { useAuthStore } from '@/platform/authStore';
 import { PasswordInput } from '@/shared/components/PasswordInput';
 import { Autocomplete } from '@/shared/components/Autocomplete';
 import { DatabaseFilePicker } from './DatabaseFilePicker';
@@ -92,8 +93,12 @@ export const ConnectionModal: React.FC<Props> = ({
   const isFileDialect = isFileDialectOf(selDialect);
 
   const [browsing, setBrowsing] = useState(false);
-  const [driverInfo, setDriverInfo] = useState<DriverInfo | null>(null);
-  const [installing, setInstalling] = useState(false);
+  // Shared with the SQL editor's banners: an install from either shows on both.
+  // Checked only while the form is open, as before.
+  const driver = useDriverStatus(open ? selDialect : '');
+  const driverInfo = driver.info;
+  const installing = driver.installing;
+  const canInstallDriver = useAuthStore((s) => s.can('admin.drivers'));
 
   const [testingState, setTestingState] = useState<{
     status: 'idle' | 'testing' | 'success' | 'failed';
@@ -144,18 +149,6 @@ export const ConnectionModal: React.FC<Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- initialOptionsKey is the stable snapshot
   }, [open, dialect, initialName, initialHasPassword, initialOptionsKey]);
 
-  // Check whether the selected provider's driver is installed, whenever the
-  // modal opens or the provider changes. (Must stay above the early return —
-  // hooks run unconditionally every render.)
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    setDriverInfo(null);
-    apiCheckDriver(selDialect)
-      .then((info) => { if (!cancelled) setDriverInfo(info); })
-      .catch(() => { if (!cancelled) setDriverInfo(null); });
-    return () => { cancelled = true; };
-  }, [open, selDialect]);
 
   if (!open) return null;
 
@@ -187,25 +180,9 @@ export const ConnectionModal: React.FC<Props> = ({
   };
 
   const handleInstall = async () => {
-    setInstalling(true);
     setTestingState({ status: 'idle' });
-    try {
-      await apiInstallDriver(selDialect);
-      const info = await apiCheckDriver(selDialect);
-      setDriverInfo(info);
-      if (!info.installed) {
-        setTestingState({
-          status: 'failed',
-          error: info.error
-            ? `Driver still not loading: ${info.error}`
-            : `Install finished but "${info.packageName}" still failed to load. Try: ${info.installCommand ?? `npm install ${info.packageName}`}`,
-        });
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Driver install failed';
-      setTestingState({ status: 'failed', error: message });
-    } finally {
-      setInstalling(false);
+    if (!(await installDriverFor(selDialect))) {
+      setTestingState({ status: 'failed', error: driverStatusOf(selDialect).installError });
     }
   };
 
@@ -387,7 +364,7 @@ export const ConnectionModal: React.FC<Props> = ({
                     <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
                     Driver "{driverInfo.packageName}" is not installed
                   </span>
-                  <button data-testid="conn-install-driver-package"
+                  {canInstallDriver && <button data-testid="conn-install-driver-package"
                     onClick={handleInstall}
                     disabled={installing}
                     title="Install the driver package on the server"
@@ -395,37 +372,20 @@ export const ConnectionModal: React.FC<Props> = ({
                   >
                     {installing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                     {installing ? 'Installing…' : 'Install'}
-                  </button>
+                  </button>}
                 </div>
                 {installing && (
                   <div className="w-full h-1 rounded-full bg-amber-950/40 overflow-hidden">
                     <div className="w-1/3 h-full rounded-full bg-amber-400 animate-indeterminate-progress" />
                   </div>
                 )}
-                {!installing && driverInfo.error && (
-                  <p className="text-[11px] text-amber-200/80 break-words font-mono leading-snug">
-                    {driverInfo.error.slice(0, 280)}
-                    {driverInfo.installCommand ? (
-                      <>
-                        {' '}
-                        — run <span className="text-amber-100">{driverInfo.installCommand}</span>
-                      </>
-                    ) : null}
-                  </p>
-                )}
-                {!installing && !driverInfo.installed && driverInfo.packageName === 'ibm_db' && (
-                  <p className="text-[11px] text-amber-200/70 leading-snug">
-                    Db2 needs a native build + IBM clidriver download. Prefer{' '}
-                    <span className="text-amber-100 font-mono">foxschema drivers install db2</span>
-                    , then <span className="text-amber-100 font-mono">foxschema stop && foxschema</span>.
-                    In a monorepo:{' '}
-                    <span className="text-amber-100 font-mono">
-                      npm install ibm_db@{IBM_DB_VERSION} --foreground-scripts -w @foxschema/db
-                    </span>
-                    . On linux/arm64 use Docker (
-                    <span className="text-amber-100 font-mono">5nickels/foxschema:latest</span>).
-                  </p>
-                )}
+                <DriverInstallHints
+                  info={driverInfo}
+                  packageName={driverInfo.packageName}
+                  installing={installing}
+                  installError=""
+                  canInstall={canInstallDriver}
+                />
               </div>
             )
           )}

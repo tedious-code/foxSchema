@@ -383,10 +383,44 @@ export function verifyInstalledDriver(packageName: string): VerifyDriverResult {
 }
 
 /**
+ * One npm at a time, and one run per package.
+ *
+ * Every install writes the same node_modules, and two `npm install` processes
+ * in one tree fail with ENOTEMPTY / EEXIST or leave a package half-written.
+ * The SQL editor shows an Install button on the schema browser and on every
+ * failed run, so two clicks — or two people — asking at once is ordinary. A
+ * second request for a package already installing shares that run; a request
+ * for another package waits its turn.
+ */
+export function createInstallQueue<T>(): (key: string, run: () => Promise<T>) => Promise<T> {
+  const running = new Map<string, Promise<T>>();
+  let tail: Promise<unknown> = Promise.resolve();
+  return (key, run) => {
+    const existing = running.get(key);
+    if (existing) return existing;
+    const job = tail.then(() => run()).finally(() => running.delete(key));
+    // The queue moves on whether this run succeeded or not.
+    tail = job.catch(() => undefined);
+    running.set(key, job);
+    return job;
+  };
+}
+
+const installQueue = createInstallQueue<NpmInstallResult & VerifyDriverResult>();
+
+/**
  * Install + verify. For ibm_db, retries once with a forced reinstall when the
  * package landed without clidriver (common when npm_config_ignore_scripts is set).
+ * Queued: see {@link createInstallQueue}.
  */
-export async function installAndVerifyDriver(
+export function installAndVerifyDriver(
+  packageName: string,
+  versionPin?: string
+): Promise<NpmInstallResult & VerifyDriverResult> {
+  return installQueue(packageName, () => runInstallAndVerify(packageName, versionPin));
+}
+
+async function runInstallAndVerify(
   packageName: string,
   versionPin?: string
 ): Promise<NpmInstallResult & VerifyDriverResult> {

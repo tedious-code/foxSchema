@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  createInstallQueue,
   DRIVER_NPM_INSTALL_ENV,
   driverInstallHints,
   ibmDbPackageDir,
@@ -75,5 +76,59 @@ describe('isCacheKeyForPackage — match a path segment, not a substring', () =>
 
   it('does not throw for a package that is not installed', () => {
     expect(() => purgePackageRequireCache('definitely-not-installed-xyz')).not.toThrow();
+  });
+});
+
+describe('createInstallQueue — one npm at a time, one run per package', () => {
+  /** A run that finishes when the test says so, recording when it started. */
+  function gated(log: string[], name: string) {
+    let finish!: (value: string) => void;
+    const done = new Promise<string>((resolve) => (finish = resolve));
+    const run = async () => {
+      log.push(`start ${name}`);
+      const value = await done;
+      log.push(`end ${name}`);
+      return value;
+    };
+    return { run, finish };
+  }
+
+  it('shares one run between two requests for the same package', async () => {
+    const queue = createInstallQueue<string>();
+    const log: string[] = [];
+    const redis = gated(log, 'redis');
+    const first = queue('redis', redis.run);
+    const second = queue('redis', async () => {
+      log.push('second run');
+      return 'second';
+    });
+    expect(second).toBe(first);
+    redis.finish('installed');
+    expect(await second).toBe('installed');
+    expect(log).toEqual(['start redis', 'end redis']);
+  });
+
+  it('starts another package only after the running one ends', async () => {
+    const queue = createInstallQueue<string>();
+    const log: string[] = [];
+    const pg = gated(log, 'pg');
+    const redis = gated(log, 'redis');
+    const a = queue('pg', pg.run);
+    const b = queue('redis', redis.run);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(log).toEqual(['start pg']);
+    pg.finish('pg ok');
+    await a;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(log).toEqual(['start pg', 'end pg', 'start redis']);
+    redis.finish('redis ok');
+    expect(await b).toBe('redis ok');
+  });
+
+  it('moves on after a failed run, and runs the package again when asked later', async () => {
+    const queue = createInstallQueue<string>();
+    await expect(queue('pg', async () => Promise.reject(new Error('npm exited 1')))).rejects.toThrow('npm exited 1');
+    expect(await queue('redis', async () => 'redis ok')).toBe('redis ok');
+    expect(await queue('pg', async () => 'pg ok')).toBe('pg ok');
   });
 });

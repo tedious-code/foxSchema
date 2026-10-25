@@ -33,6 +33,7 @@ describe('provider-settings is a facade over @foxschema/sql', () => {
     expect(facade.DEFAULT_PORTS).toBe(core.DEFAULT_PORTS);
     expect(facade.connectionNeedsSecret).toBe(core.connectionNeedsSecret);
     expect(facade.needsSessionPassword).toBe(core.needsSessionPassword);
+    expect(facade.storedAuthMethod).toBe(core.storedAuthMethod);
   });
 
   it('exposes every dialect the canonical registry has', () => {

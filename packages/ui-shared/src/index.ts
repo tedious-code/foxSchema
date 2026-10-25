@@ -43,7 +43,7 @@ export type { Dialect } from '@foxschema/sql';
 export {
   DEFAULT_PORTS, assertWindowsAccount, authMethodsForDialect, buildConnectionString,
   connectionNeedsSecret, needsSessionPassword, dialectOffersAuthMethods, errorMessage, escapeRegExp, nonSecretFingerprint,
-  normalizeAuthMethod, parseWindowsAccount, passwordFieldLabel, resolveAuthMethod,
+  normalizeAuthMethod, parseWindowsAccount, passwordFieldLabel, resolveAuthMethod, storedAuthMethod,
   withConnectionString,
 } from '@foxschema/sql';
 export type { ConnectionAuthMethod } from '@foxschema/sql';

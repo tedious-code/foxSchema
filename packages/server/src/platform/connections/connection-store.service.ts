@@ -2,7 +2,7 @@ import type { WorkspaceScope } from '../http/scope';
 import { randomUUID } from 'node:crypto';
 import { getStore } from '../../database/store';
 import { encryptSecret, decryptSecret } from '../crypto/crypto';
-import { ConnectionOptions, buildConnectionString, resolveAuthMethod, assertWindowsAccount } from '@foxschema/db';
+import { ConnectionOptions, buildConnectionString, resolveAuthMethod, storedAuthMethod, assertWindowsAccount } from '@foxschema/db';
 
 export interface SavedConnectionInput {
   name?: string;
@@ -89,8 +89,10 @@ export class ConnectionStore {
     } else {
       resolved.password = undefined; // treat "" like missing so hasPassword stays accurate
     }
-    const authMethod = resolveAuthMethod(dialect, resolved.authMethod);
-    resolved.authMethod = authMethod === 'password' ? undefined : authMethod;
+    const authMethod = resolveAuthMethod(dialect, resolved.authMethod, resolved.username);
+    resolved.authMethod = storedAuthMethod(dialect, authMethod);
+    // No password means none is sent: a stored one would sign in anyway.
+    if (authMethod === 'none') resolved.password = undefined;
     if (authMethod !== 'windows') resolved.domain = undefined;
     else if (typeof resolved.domain === 'string') resolved.domain = resolved.domain.trim() || undefined;
     if (authMethod === 'windows') assertWindowsAccount(resolved.username, resolved.domain);
@@ -108,7 +110,8 @@ export class ConnectionStore {
       port: opt.port,
       database: opt.database,
       username: opt.username,
-      authMethod: stored === 'windows' || stored === 'ldap' ? stored : undefined,
+      // Password is stored only where No password is the alternative (Redis, MongoDB).
+      authMethod: stored === 'windows' || stored === 'ldap' || stored === 'none' || stored === 'password' ? stored : undefined,
       domain: typeof opt.domain === 'string' && opt.domain.trim() ? opt.domain.trim() : undefined,
       hasPassword: typeof opt.password === 'string' && opt.password.length > 0,
     };

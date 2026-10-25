@@ -9,6 +9,7 @@ import {
   authMethodsForDialect,
   connectionNeedsSecret,
   needsSessionPassword,
+  storedAuthMethod,
   normalizeAuthMethod,
   parseWindowsAccount,
   passwordFieldLabel,
@@ -49,7 +50,7 @@ describe('connection auth methods', () => {
     // Both commonly run with no auth; the session prompt refuses an empty
     // password, so asking every time made such a server unusable.
     expect(connectionNeedsSecret('redis')).toBe(false);
-    expect(connectionNeedsSecret('redis', 'password', '  ')).toBe(false);
+    expect(connectionNeedsSecret('redis', undefined, '  ')).toBe(false);
     expect(connectionNeedsSecret('redis', 'password', 'app')).toBe(true);
     expect(connectionNeedsSecret('mongodb', undefined, null)).toBe(false);
     expect(connectionNeedsSecret('mongodb', undefined, 'admin')).toBe(true);
@@ -64,6 +65,29 @@ describe('connection auth methods', () => {
     expect(needsSessionPassword({ dialect: 'sqlite' })).toBe(false);
     expect(needsSessionPassword({ dialect: 'redis' })).toBe(false);
     expect(needsSessionPassword({ dialect: 'redis', username: 'app' })).toBe(true);
+  });
+
+  it('Redis and MongoDB: No password never asks; Password always does, with or without a user', () => {
+    expect(connectionNeedsSecret('redis', 'none', 'app')).toBe(false);
+    // A Redis with only requirepass: no username, but a password it needs.
+    expect(connectionNeedsSecret('redis', 'password')).toBe(true);
+    expect(connectionNeedsSecret('mongodb', 'password', '')).toBe(true);
+    // Saved before the choice existed: stored nothing, so the username decides.
+    expect(connectionNeedsSecret('redis', undefined, '')).toBe(false);
+    expect(connectionNeedsSecret('redis', undefined, 'app')).toBe(true);
+    // Not offered elsewhere: a SQL server still asks.
+    expect(connectionNeedsSecret('postgres', 'none')).toBe(true);
+  });
+
+  it('offers No password only where it means something, and stores an explicit Password there', () => {
+    expect(authMethodsForDialect('redis').map((m) => m.value)).toEqual(['password', 'none']);
+    expect(authMethodsForDialect('postgres').map((m) => m.value)).toEqual(['password']);
+    expect(resolveAuthMethod('redis', undefined)).toBe('none');
+    expect(resolveAuthMethod('redis', undefined, 'app')).toBe('password');
+    expect(resolveAuthMethod('postgres', 'none')).toBe('password');
+    expect(storedAuthMethod('redis', 'password')).toBe('password');
+    expect(storedAuthMethod('postgres', 'password')).toBeUndefined();
+    expect(storedAuthMethod('redis', 'none')).toBe('none');
   });
 
   it('parses DOMAIN\\user and an explicit domain field', () => {

@@ -400,6 +400,7 @@ export { buildConnectionString, withConnectionString, DEFAULT_PORTS } from './co
 export {
   normalizeAuthMethod,
   resolveAuthMethod,
+  storedAuthMethod,
   authMethodsForDialect,
   dialectOffersAuthMethods,
   connectionNeedsSecret,

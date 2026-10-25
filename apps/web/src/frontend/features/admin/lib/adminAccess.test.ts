@@ -80,11 +80,11 @@ describe('last-admin and own-account locks', () => {
 });
 
 describe('groupUsersByRole', () => {
-  it('lists Admin → Viewer and keeps empty groups by default', () => {
-    expect(ROLE_GROUP_ORDER).toEqual(['admin', 'owner', 'editor', 'viewer']);
+  it('lists Admin → Demo and keeps empty groups by default', () => {
+    expect(ROLE_GROUP_ORDER).toEqual(['admin', 'owner', 'editor', 'viewer', 'demo']);
     const groups = groupUsersByRole([editor, admin]);
-    expect(groups.map((g) => g.role)).toEqual(['admin', 'owner', 'editor', 'viewer']);
-    expect(groups.map((g) => g.label)).toEqual(['Admin', 'Owner', 'Editor', 'Viewer']);
+    expect(groups.map((g) => g.role)).toEqual(['admin', 'owner', 'editor', 'viewer', 'demo']);
+    expect(groups.map((g) => g.label)).toEqual(['Admin', 'Owner', 'Editor', 'Viewer', 'Demo']);
     expect(groups.find((g) => g.role === 'admin')?.users).toEqual([admin]);
     expect(groups.find((g) => g.role === 'editor')?.users).toEqual([editor]);
     expect(groups.find((g) => g.role === 'owner')?.users).toEqual([]);

@@ -663,6 +663,14 @@ export const TestIds = {
       adminSignInSettings: 'admin-sign-in-settings',
       /** button · Copy */
       signInCopy: 'sign-in-copy',
+      /** section · Demo mode */
+      signInDemo: 'sign-in-demo',
+      /** textarea · Demo login: demo@example.com / its password */
+      signInDemoHint: 'sign-in-demo-hint',
+      /** button · Save hint */
+      signInDemoSave: 'sign-in-demo-save',
+      /** input */
+      signInDemoToggle: 'sign-in-demo-toggle',
       /** section · Email for invites and password resets */
       signInMail: 'sign-in-mail',
       /** input · Fox <fox@example.com> */
@@ -741,6 +749,10 @@ export const TestIds = {
       commandPaletteInput: 'command-palette-input',
       /** button */
       commandPaletteItem: (id: string | number) => `command-palette-item-${id}`,
+    },
+    DemoBanner: {
+      /** div */
+      demoBanner: 'demo-banner',
     },
     featureRegistry: {
       /** data · Snapshots */
@@ -893,6 +905,8 @@ export const TestIds = {
       accountVerifySubmit: 'account-verify-submit',
     },
     AuthPage: {
+      /** div */
+      authDemoHint: 'auth-demo-hint',
       /** button · Forgot password? */
       authForgotLink: 'auth-forgot-link',
       /** button · Have an invite or reset code? */
@@ -3718,6 +3732,7 @@ export type TestId =
   | 'auth-code-back'
   | 'auth-code-continue'
   | 'auth-code-form'
+  | 'auth-demo-hint'
   | 'auth-forgot-back'
   | 'auth-forgot-email'
   | 'auth-forgot-form'
@@ -4099,6 +4114,7 @@ export type TestId =
   | 'db-access-status'
   | `db-access-toggle-group-${string}`
   | 'db-access-unsupported'
+  | 'demo-banner'
   | 'deploy-cancel-btn'
   | 'deploy-confirm-btn'
   | 'deploy-confirm-dialog'
@@ -4543,6 +4559,10 @@ export type TestId =
   | 'settings-view'
   | 'settings-workspace'
   | 'sign-in-copy'
+  | 'sign-in-demo'
+  | 'sign-in-demo-hint'
+  | 'sign-in-demo-save'
+  | 'sign-in-demo-toggle'
   | 'sign-in-mail'
   | 'sign-in-mail-from'
   | 'sign-in-mail-host'

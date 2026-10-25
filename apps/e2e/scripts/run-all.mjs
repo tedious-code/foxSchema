@@ -111,6 +111,11 @@ const ALWAYS = [
     label: 'Workspaces: create, switch, settings',
   },
   {
+    key: 'demo-role',
+    file: 'src/tests/demo-role.test.ts',
+    label: 'Published demo: Demo role and demo mode',
+  },
+  {
     key: 'sql-editor',
     file: [
       'src/tests/sql-editor-smoke.test.ts',

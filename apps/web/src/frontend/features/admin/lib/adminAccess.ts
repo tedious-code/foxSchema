@@ -115,6 +115,8 @@ export function roleGroupLabel(role: AppRole): string {
       return 'Editor';
     case 'viewer':
       return 'Viewer';
+    case 'demo':
+      return 'Demo';
   }
 }
 

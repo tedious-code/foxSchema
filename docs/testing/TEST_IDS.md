@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **988** buttons, text boxes, selects and textareas.
+Every control has a test ID: **991** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -350,6 +350,10 @@ Every control has a test ID: **988** buttons, text boxes, selects and textareas.
 - **SignInSettingsPanel** · `features/admin/components/SignInSettingsPanel.tsx`
   - `admin-sign-in-settings` · div · Sign in with…
   - `sign-in-copy` · button · Copy
+  - `sign-in-demo` · section · Demo mode
+  - `sign-in-demo-hint` · textarea · Demo login: demo@example.com / its password
+  - `sign-in-demo-save` · button · Save hint
+  - `sign-in-demo-toggle` · input
   - `sign-in-mail` · section · Email for invites and password resets
   - `sign-in-mail-from` · input · Fox &lt;fox@example.com>
   - `sign-in-mail-host` · input · smtp.example.com
@@ -392,6 +396,8 @@ Every control has a test ID: **988** buttons, text boxes, selects and textareas.
   - `command-palette` · div
   - `command-palette-input` · input · Go to a workspace, connection, or recent query…
   - `command-palette-item-{id}` · button
+- **DemoBanner** · `app/shell/DemoBanner.tsx`
+  - `demo-banner` · div
 - **featureRegistry** · `app/features/featureRegistry.ts`
   - `sync-pane-history-btn` · data · Snapshots
   - `view-access-btn` · data
@@ -472,6 +478,7 @@ Every control has a test ID: **988** buttons, text boxes, selects and textareas.
   - `account-verify-status` · span
   - `account-verify-submit` · button · Verify
 - **AuthPage** · `features/auth/components/AuthPage.tsx`
+  - `auth-demo-hint` · div
   - `auth-forgot-link` · button · Forgot password?
   - `auth-have-code` · button · Have an invite or reset code?
   - `auth-login-email` · input · your@email.com

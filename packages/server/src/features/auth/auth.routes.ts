@@ -9,9 +9,12 @@ import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
 import { AuthModule, SESSION_COOKIE, SignInLockedError, type AuthUser } from '../../platform/identity/auth.service';
 import { AuthMailer } from '../../platform/identity/auth-mail';
+import { DemoMode } from '../../platform/identity/demo-mode.service';
 import { SignupModule } from '../users';
 import { AppSettingsStore } from '../../platform/settings/app-settings.service';
 import { sendError } from '../../platform/http/respond';
+import { DEMO_READ_ONLY } from '../../platform/authorization/demo-access';
+import { isDemoRole } from '@foxschema/shared';
 import { ServiceError } from '../../platform/contracts/actor';
 import { rateLimit } from '../../platform/guards/rate-limit';
 import { getLogger } from '../../platform/logger/logger';
@@ -21,7 +24,8 @@ import { readCookie, requestedWorkspace, setSessionCookie } from '../../platform
 export function createAuthRoutes(
   auth: AuthModule,
   mailer = new AuthMailer(),
-  signup = new SignupModule(new AppSettingsStore())
+  signup = new SignupModule(new AppSettingsStore()),
+  demo = new DemoMode()
 ): Router {
   const router = Router();
 
@@ -243,7 +247,20 @@ export function createAuthRoutes(
       sendError(res, 'unauthenticated', 'Authentication required');
       return;
     }
+    // A demo login is every visitor at once: this would sign all the others out.
+    if (isDemoRole(user.role)) {
+      sendError(res, 'forbidden', DEMO_READ_ONLY);
+      return;
+    }
     res.send({ signedOut: await auth.signOutOtherSessions(user.id, token) });
+  });
+
+  /**
+   * Whether this install is a demo, and — only then — the admin's hint for
+   * the sign-in page. Public: the sign-in page asks before anyone is in.
+   */
+  router.get('/demo', async (_req: AppRequest, res: FastifyReply) => {
+    res.send(await demo.publicView());
   });
 
   /**

@@ -281,10 +281,28 @@ export interface SignInSettingsState {
   mail: MailSettings;
   /** Google / GitHub through the Fox sign-in service on foxschema.com. */
   broker: { enabled: boolean; source: SettingSource | null; url: string; admins: boolean; adminsSource: SettingSource | null };
+  /** Demo mode: a banner on every page and `hint` on the sign-in page. */
+  demo: { on: boolean; hint: string };
 }
 
 export async function apiSignInSettings(): Promise<SignInSettingsState> {
   return api.get('/admin/sign-in', EMPTY_OK);
+}
+
+/** What the sign-in page and the demo banner read: public, before anyone signs in. */
+export interface DemoModeInfo {
+  on: boolean;
+  /** The admin's sign-in hint, typically the published demo login. */
+  hint?: string;
+}
+
+export async function apiDemoMode(): Promise<DemoModeInfo> {
+  const info = await api.get<DemoModeInfo>('/auth/demo');
+  return info?.on ? { on: true, ...(info.hint ? { hint: info.hint } : {}) } : { on: false };
+}
+
+export async function apiSaveDemoMode(input: { on?: boolean; hint?: string }): Promise<void> {
+  await api.put('/admin/sign-in/demo', input, EMPTY_OK);
 }
 
 export async function apiSaveSsoProvider(

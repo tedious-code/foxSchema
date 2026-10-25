@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Admin → Sign-in: Google / Microsoft / GitHub sign-in, the email relay that
- * sends invite and reset codes, and the public URL their links point to.
+ * sends invite and reset codes, the public URL their links point to, and demo
+ * mode for a published demo.
  *
  * Secrets are write-only: the server says whether one is stored, never what
  * it is, so an empty secret field on save keeps the stored one. Anything set
@@ -15,6 +16,7 @@ import { Check, Copy, Loader2 } from 'lucide-react';
 import {
   apiRemoveMailSettings,
   apiRemoveSsoProvider,
+  apiSaveDemoMode,
   apiSaveMailSettings,
   apiSavePublicUrl,
   apiSaveSsoProvider,
@@ -27,6 +29,7 @@ import {
   type SsoProviderSettings,
 } from '@/shared/api/authApi';
 import { PasswordInput } from '@/shared/components/PasswordInput';
+import { resetDemoMode } from '@/shared/lib/useDemoMode';
 import { useAuthStore } from '@/platform/authStore';
 
 const inputCls =
@@ -149,7 +152,71 @@ export const SignInSettingsPanel: React.FC = () => {
       </section>
 
       <MailSection mail={state.mail} run={run} />
+
+      <DemoSection demo={state.demo} run={run} />
     </div>
+  );
+};
+
+/**
+ * Demo mode says this install is a demo: a banner on every page, and a hint —
+ * the published demo login — on the sign-in page. What a demo account may do
+ * is the Demo role's business, not this switch's.
+ */
+const DemoSection: React.FC<{ demo: SignInSettingsState['demo']; run: Run }> = ({ demo, run }) => {
+  const [hint, setHint] = useState(demo.hint);
+  const save = (input: { on?: boolean; hint?: string }, done: string) =>
+    void run(async () => {
+      await apiSaveDemoMode(input);
+      resetDemoMode();
+    }, done);
+  return (
+    <section data-testid="sign-in-demo" className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5 space-y-2">
+      <div className="flex items-center gap-2">
+        <h3 className="text-xs font-bold text-slate-200 flex-1">Demo mode</h3>
+        <Status configured={demo.on} source={null} />
+      </div>
+      <p className="text-[11px] text-slate-400 leading-snug">
+        For a published demo with one shared login. Give that account the <b className="text-slate-200">Demo</b> role
+        under Users: it browses, compares and runs queries, and cannot save or change anything, reset its password,
+        or sign the other visitors out. Turning this on shows a demo banner on every page and the hint below on the
+        sign-in page.
+      </p>
+      <label className="inline-flex items-center gap-2 text-xs text-slate-200 cursor-pointer">
+        <input
+          type="checkbox"
+          data-testid="sign-in-demo-toggle"
+          checked={demo.on}
+          onChange={(e) => save({ on: e.target.checked }, e.target.checked ? 'Demo mode is on.' : 'Demo mode is off.')}
+        />
+        This install is a demo
+      </label>
+      <label htmlFor="sign-in-demo-hint" className={`block ${labelCls}`}>
+        Sign-in hint
+      </label>
+      <textarea
+        id="sign-in-demo-hint"
+        data-testid="sign-in-demo-hint"
+        rows={2}
+        maxLength={300}
+        value={hint}
+        onChange={(e) => setHint(e.target.value)}
+        placeholder="Demo login: demo@example.com / its password"
+        className={`w-full ${inputCls}`}
+      />
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          data-testid="sign-in-demo-save"
+          className={buttonCls}
+          disabled={hint.trim() === demo.hint}
+          onClick={() => save({ hint }, 'Sign-in hint saved.')}
+        >
+          Save hint
+        </button>
+        <p className="text-[11px] text-slate-500">Anyone can read it: put only the demo account's login here.</p>
+      </div>
+    </section>
   );
 };
 

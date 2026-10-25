@@ -17,6 +17,7 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/platform/authStore';
+import { useDemoMode } from '@/shared/lib/useDemoMode';
 import { Brand } from '@/shared/components/Brand';
 import { PasswordInput } from '@/shared/components/PasswordInput';
 import { SsoButtons } from './SsoButtons';
@@ -131,6 +132,7 @@ const SignInForm: React.FC<{
   const [password, setPassword] = useState('');
   const [ssoError] = useState<string | null>(readSsoError);
   const caps = useCapsLock();
+  const demo = useDemoMode();
 
   // Drop `?sso_error` from the address bar once shown, so a reload is clean.
   useEffect(() => {
@@ -144,6 +146,15 @@ const SignInForm: React.FC<{
 
   return (
     <form onSubmit={submit} data-testid="auth-login-form" className="flex flex-col gap-4">
+      {demo?.on && (
+        <div
+          data-testid="auth-demo-hint"
+          className="rounded-md border border-sky-500/30 bg-sky-950/30 px-3 py-2 text-xs text-sky-100"
+        >
+          <p className="font-bold">This is a demo of Fox</p>
+          {demo.hint && <p className="mt-0.5 whitespace-pre-line text-sky-200/90">{demo.hint}</p>}
+        </div>
+      )}
       <div className="flex flex-col gap-1">
         <label htmlFor="auth-email" className={authLabelCls}>
           Email

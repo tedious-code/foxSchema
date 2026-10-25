@@ -14,7 +14,7 @@ import {
   resolveWorkspace,
   type ResolvedWorkspace,
 } from '../workspaces/workspace.service';
-import { assertPasswordAcceptable, effectivePermissions, type AppRole, type Permission } from '@foxschema/shared';
+import { assertPasswordAcceptable, effectivePermissions, isDemoRole, type AppRole, type Permission } from '@foxschema/shared';
 import {
   CODE_TTL_MS,
   PASSWORD_CODE_PURPOSES,
@@ -185,7 +185,10 @@ export class AuthModule {
   /**
    * The workspace `requestedId` names (or the default one) and what `user`
    * may do in it: install permissions from the account role, workspace
-   * permissions from the role there. An admin keeps every permission.
+   * permissions from the role there. An admin keeps every permission. A demo
+   * account never has more than the Demo role, whatever role a workspace
+   * gave it: inviting the shared demo login as an owner must not hand every
+   * visitor an owner's keys.
    */
   async inWorkspace(
     user: AuthUser,
@@ -197,6 +200,10 @@ export class AuthModule {
       user.role === 'admin'
         ? user.permissions
         : effectivePermissions(user.permissions, await this.rbac.permissionsForRole(workspace.role));
+    if (isDemoRole(user.role)) {
+      const demo = new Set(user.permissions);
+      return { workspace, permissions: permissions.filter((p) => demo.has(p)) };
+    }
     return { workspace, permissions };
   }
 
@@ -268,6 +275,10 @@ export class AuthModule {
       [normalized]
     );
     if (!row || (row.active !== null && row.active !== undefined && Number(row.active) === 0)) return null;
+    // A demo login is shared and its password is public: a visitor asking for
+    // a reset would change it for everyone. Only an admin resets it. Answered
+    // exactly like an unknown email, so the reply says nothing either way.
+    if (isDemoRole(row.app_role)) return null;
     return this.issueCode(row.id, 'reset');
   }
 

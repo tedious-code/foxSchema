@@ -14,6 +14,7 @@ import type { Permission, WorkspaceRole } from '@foxschema/shared';
 import { type AuthModule, SESSION_COOKIE, SESSION_MAX_AGE_MS, type AuthUser } from './auth.service';
 import { sendError } from '../http/respond';
 import { ServiceError } from '../contracts/actor';
+import { DEMO_READ_ONLY, demoMayCall } from '../authorization/demo-access';
 
 /** Put the resolved session user's identity + grants on the request. */
 export function attachAuthUser(
@@ -100,6 +101,12 @@ export function authGuard(auth: AuthModule) {
       }
       const { workspace, permissions } = inWorkspace;
       attachAuthUser(session.user, req, session.launch, { id: workspace.id, role: workspace.role, permissions });
+      // A demo account reads; it writes only through routes that read (demo-access.ts).
+      // Matched on the registered route, `:params` and all, never the raw URL.
+      if (!demoMayCall(session.user.role, req.method, req.routeOptions?.url ?? '')) {
+        sendError(res, 'forbidden', DEMO_READ_ONLY);
+        return;
+      }
       next();
     } catch (err) {
       next(err);

@@ -43,3 +43,37 @@ describe('mongodb adapter handle isolation', () => {
     expect(connect).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('mongodb adapter · paging', () => {
+  /** A collection whose cursor records skip/limit, over `docs`. */
+  function fakeConnection(docs: Record<string, unknown>[]) {
+    const calls: string[] = [];
+    const find = vi.fn(() => {
+      let skip = 0;
+      let limit = 0;
+      const cursor = {
+        skip: (n: number) => (calls.push(`skip ${n}`), (skip = n), cursor),
+        limit: (n: number) => (calls.push(`limit ${n}`), (limit = n), cursor),
+        toArray: async () => docs.slice(skip, limit === 0 ? undefined : skip + limit),
+      };
+      return cursor;
+    });
+    const connection = { database: 'app', client: { db: () => ({ collection: () => ({ find }) }) } };
+    return { connection, calls, find };
+  }
+
+  const docs = Array.from({ length: 5 }, (_, i) => ({ n: i }));
+
+  it('skips by OFFSET, as the editor pages it', async () => {
+    const { connection, calls } = fakeConnection(docs);
+    const rows = await mongoDbAdapter.query(connection, 'SELECT * FROM items LIMIT 2 OFFSET 3', []);
+    expect(rows).toEqual([{ n: 3 }, { n: 4 }]);
+    expect(calls).toEqual(['skip 3', 'limit 2']);
+  });
+
+  it('reads nothing for an empty page — limit(0) would read the whole collection', async () => {
+    const { connection, find } = fakeConnection(docs);
+    expect(await mongoDbAdapter.query(connection, 'SELECT * FROM items LIMIT 0 OFFSET 200', [])).toEqual([]);
+    expect(find).not.toHaveBeenCalled();
+  });
+});

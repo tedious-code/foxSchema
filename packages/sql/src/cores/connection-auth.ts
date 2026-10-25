@@ -61,12 +61,41 @@ export function resolveAuthMethod(dialect: string, raw: unknown): ConnectionAuth
 /**
  * True when this connection still needs a secret (SQL, Windows, or directory
  * password). File databases never do. Future SSO would return false here.
+ *
+ * Redis and MongoDB often run with no auth at all, so they need one only when
+ * the connection names a user: MongoDB signs in as a user, and Redis ACLs do.
+ * Asking for every one of them made a passwordless Redis unusable — the
+ * session-password prompt does not accept an empty password, so the
+ * destination never ticked. A Redis with only `requirepass` keeps its password
+ * on the connection.
  */
-export function connectionNeedsSecret(dialect: string, authMethod?: string | null): boolean {
+export function connectionNeedsSecret(
+  dialect: string,
+  authMethod?: string | null,
+  username?: string | null
+): boolean {
   const d = dialect.trim().toLowerCase();
   if (d === 'sqlite' || d === 'duckdb') return false;
+  if (d === 'redis' || d === 'mongodb') return Boolean(username?.trim());
   void authMethod;
   return true;
+}
+
+/** The fields of a saved connection the password rule reads. */
+export interface SecretGateConnection {
+  dialect: string;
+  authMethod?: string | null;
+  username?: string | null;
+  hasPassword?: boolean;
+}
+
+/**
+ * Whether using this connection must first ask for its password: the engine
+ * needs a secret (`connectionNeedsSecret`), none was saved with it, and none
+ * was given this session. The one copy of the rule every prompt and gate reads.
+ */
+export function needsSessionPassword(conn: SecretGateConnection, sessionPassword?: string | null): boolean {
+  return !conn.hasPassword && connectionNeedsSecret(conn.dialect, conn.authMethod, conn.username) && !sessionPassword;
 }
 
 export function parseWindowsAccount(

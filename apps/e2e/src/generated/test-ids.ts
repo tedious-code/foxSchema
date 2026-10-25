@@ -1875,6 +1875,8 @@ export const TestIds = {
       sqlGridCtxCopyValues: 'sql-grid-ctx-copy-values',
       /** button · Open row */
       sqlGridCtxOpenRow: 'sql-grid-ctx-open-row',
+      /** div */
+      sqlGridError: 'sql-grid-error',
       /** button · Export CSV */
       sqlGridExportBtn: 'sql-grid-export-btn',
       /** button · Export CSV */
@@ -2255,6 +2257,8 @@ export const TestIds = {
       sqlResultCredMaximizedHint: (connectionId: string | number) => `sql-result-cred-maximized-hint-${connectionId}`,
       /** div */
       sqlResultCredModal: (connectionId: string | number) => `sql-result-cred-modal-${connectionId}`,
+      /** div */
+      sqlResultError: 'sql-result-error',
       /** button · Maximize results */
       sqlResultMaximize: (statementIndex: string | number) => `sql-result-maximize-${statementIndex}`,
       /** p */
@@ -2287,6 +2291,8 @@ export const TestIds = {
       sqlResultsSideBySide: 'sql-results-side-by-side',
       /** div */
       sqlResultsWarnings: 'sql-results-warnings',
+      /** div */
+      sqlRunError: 'sql-run-error',
     },
     SelectColumnPicker: {
       /** button · SELECT * */
@@ -2417,6 +2423,8 @@ export const TestIds = {
       sqlExplorerObject: (name: string | number) => `sql-explorer-object-${name}`,
       /** button */
       sqlExplorerParamInsert: (name: string | number, name2: string | number) => `sql-explorer-param-insert-${name}-${name2}`,
+      /** span */
+      sqlExplorerStoreType: (name: string | number) => `sql-explorer-store-type-${name}`,
       /** span */
       sqlExplorerTableStats: (name: string | number) => `sql-explorer-table-stats-${name}`,
       /** button */
@@ -4700,6 +4708,7 @@ export type TestId =
   | `sql-explorer-from-${string}`
   | `sql-explorer-object-${string}`
   | `sql-explorer-param-insert-${string}-${string}`
+  | `sql-explorer-store-type-${string}`
   | `sql-explorer-table-stats-${string}`
   | `sql-explorer-toggle-${string}`
   | `sql-filter-op-${string}`
@@ -4734,6 +4743,7 @@ export type TestId =
   | 'sql-grid-ctx-copy-headers-only'
   | 'sql-grid-ctx-copy-values'
   | 'sql-grid-ctx-open-row'
+  | 'sql-grid-error'
   | 'sql-grid-export-btn'
   | 'sql-grid-export-csv'
   | 'sql-grid-export-json'
@@ -4807,6 +4817,7 @@ export type TestId =
   | `sql-result-cred-maximize-${string}`
   | `sql-result-cred-maximized-hint-${string}`
   | `sql-result-cred-modal-${string}`
+  | 'sql-result-error'
   | `sql-result-maximize-${string}`
   | `sql-result-maximized-hint-${string}`
   | `sql-result-modal-${string}`
@@ -4828,6 +4839,7 @@ export type TestId =
   | `sql-row-selected-${string}`
   | `sql-row-sync-check-${string}`
   | 'sql-run-btn'
+  | 'sql-run-error'
   | 'sql-runs-clear'
   | 'sql-runs-close'
   | 'sql-runs-drawer'

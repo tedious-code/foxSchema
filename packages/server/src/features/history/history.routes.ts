@@ -19,6 +19,7 @@ import { targetKey, targetLocks } from '../../platform/guards/target-lock';
 import { LOKEE_FULL_SCOPE } from './lokee-scope';
 import type { ConnectionRef } from '../../platform/connections/resolve';
 import type { ConnectionOptions, MigrationModule } from '@foxschema/db';
+import { schemaCompareSupport } from '@foxschema/sql';
 import { sendError, sendThrown } from '../../platform/http/respond';
 import type { ForceMigrateErrorCode, LokeeRevertErrorCode } from '@foxschema/shared';
 
@@ -77,6 +78,14 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
         scopeOf(req as AuthedRequest),
         body
       );
+      // A force migrate writes DDL in the target's dialect. Redis and MongoDB
+      // have none: their tables are a keyspace sample, and `resolveDialect`
+      // answers Db2 for a name it does not know.
+      const support = schemaCompareSupport(dialect);
+      if (!support.supported) {
+        sendError(res, 'invalid_input', support.reason);
+        return null;
+      }
       return { versionId, dialect, option, schema };
     } catch (error: unknown) {
       sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Invalid connection');

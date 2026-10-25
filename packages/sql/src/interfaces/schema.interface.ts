@@ -111,6 +111,12 @@ export interface TableSchema {
   functionKind?: 'scalar' | 'table'; 
   /** Storage tablespace (tables/MQTs). */
   tablespace?: string;
+  /**
+   * What a non-SQL store keeps behind this "table" — for Redis `hash`, `json`,
+   * `string`, `mixed`, `list`, `set`, `zset` or `stream`. Shown as a badge;
+   * absent for SQL engines.
+   */
+  storeType?: string;
 }
 
 export interface DbRoleMember { grantee: string; granteeType: string; }
@@ -144,6 +150,8 @@ export interface DbTable {
   isMqt?: boolean;
   /** Materialized view's backing query (Postgres matviews). Undefined for plain tables and for dialects that don't expose it (e.g. DB2 MQTs). */
   definition?: string;
+  /** See `TableSchema.storeType`. */
+  storeType?: string;
 }
 
 export interface DbColumn { name: string; type: string; length?: number; scale?: number; nullable: boolean; defaultValue?: string; identity?: boolean; identityGeneration?: string; collation?: string; }

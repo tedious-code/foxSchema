@@ -42,7 +42,7 @@ export type { Dialect } from '@foxschema/sql';
 // Connection strings, sign-in methods, error text, and small helpers.
 export {
   DEFAULT_PORTS, assertWindowsAccount, authMethodsForDialect, buildConnectionString,
-  connectionNeedsSecret, dialectOffersAuthMethods, errorMessage, escapeRegExp, nonSecretFingerprint,
+  connectionNeedsSecret, needsSessionPassword, dialectOffersAuthMethods, errorMessage, escapeRegExp, nonSecretFingerprint,
   normalizeAuthMethod, parseWindowsAccount, passwordFieldLabel, resolveAuthMethod,
   withConnectionString,
 } from '@foxschema/sql';
@@ -59,7 +59,7 @@ export type {
 
 // What each engine supports, and why not when it does not.
 export {
-  dialectFeatureReason, dialectFeatures, schemaCompareBlocker, supportsDialectFeature,
+  dialectFeatureReason, dialectFeatures, hasSqlDialect, schemaCompareBlocker, supportsDialectFeature,
 } from '@foxschema/sql';
 export type { DialectFeature, FeatureSupport } from '@foxschema/sql';
 
@@ -110,7 +110,7 @@ export type {
 export {
   CODE_CELL_ALLOWED_PACKAGES, CODE_CELL_KIND_LABEL, attributeResultColumns, cloneCodeCellLast,
   collapsedColumnsFor, compileFoxScriptPlan, foxScriptExecutableTexts, isCodeCellLast,
-  isCodeCellVars, normalizeCodeCellReturn, parseCodeCellImports, parseFoxScript, parseSqlSubset,
+  isCodeCellVars, isSubsetDialect, normalizeCodeCellReturn, parseCodeCellImports, parseFoxScript, parseSqlSubset,
   parseTopLevelOrderBy, prepareCodeCellImports, resolveCodeCellImportBindings, rowKeyFor,
   runCodeCellBody, splitSelectItems, splitTopLevel, subsetValue, tablesInOrigins,
   uniqueKeyCoversOrder, uniqueKeysFromTable,

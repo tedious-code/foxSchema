@@ -40,7 +40,7 @@ import { runAccessSql } from '@/shared/api/accessSql';
 import { useSyncStore } from '@/features/compare';
 import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { useAuthStore } from '@/platform/authStore';
-import { PROVIDER_SETTINGS, connectionNeedsSecret } from '@/shared/lib/provider-settings';
+import { PROVIDER_SETTINGS, needsSessionPassword } from '@/shared/lib/provider-settings';
 import { DbAccessPermissionSections } from '@/features/access';
 import { sectionLabelCls } from '@/shared/components/surfaces';
 import { connectionOptionLabel } from '@/shared/lib/dialectLabel';
@@ -260,7 +260,7 @@ export const DatabaseAccessModal: React.FC<Props> = ({
   const conn = connections.find((c) => c.id === connectionId);
   // File dialects carry no password; asking for one blocked the utility outright.
   const needsPassword = Boolean(
-    conn && !conn.hasPassword && connectionNeedsSecret(conn.dialect, conn.authMethod) && !sessionPasswords[connectionId]
+    conn && needsSessionPassword(conn, sessionPasswords[connectionId])
   );
   const dialect = conn?.dialect ?? '';
   const support = dialect ? dialectSupportsDbAccess(dialect) : null;

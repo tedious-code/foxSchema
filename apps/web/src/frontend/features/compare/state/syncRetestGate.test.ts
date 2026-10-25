@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { connectionNeedsSecret } from '@/shared/lib/provider-settings';
+import { needsSessionPassword } from '@/shared/lib/provider-settings';
 
 /**
  * Whether a saved connection can be silently re-tested after a credential
@@ -12,12 +12,12 @@ import { connectionNeedsSecret } from '@/shared/lib/provider-settings';
  * connection silently knocked the source offline and disabled Compare, with no
  * recovery but reconnecting by hand.
  *
- * Mirrors the expression at useSyncStore.ts:143.
+ * The gate in useSyncStore.ts: `!needsSessionPassword(conn, sessionPassword)`.
  */
 const canRetest = (
-  conn: { hasPassword: boolean; dialect: string; authMethod?: string },
+  conn: { hasPassword: boolean; dialect: string; authMethod?: string; username?: string },
   sessionPassword?: string
-) => !!(conn.hasPassword || sessionPassword || !connectionNeedsSecret(conn.dialect, conn.authMethod));
+) => !needsSessionPassword(conn, sessionPassword);
 
 describe('credential-reload retest gate', () => {
   it.each(['sqlite', 'duckdb'])(
@@ -47,6 +47,11 @@ describe('credential-reload retest gate', () => {
   it('a server dialect retests on a session password alone', () => {
     // Password entered this session but deliberately not persisted.
     expect(canRetest({ hasPassword: false, dialect: 'postgres' }, 'hunter2')).toBe(true);
+  });
+
+  it('a passwordless Redis retests; one that signs in as a user needs its password', () => {
+    expect(canRetest({ hasPassword: false, dialect: 'redis' })).toBe(true);
+    expect(canRetest({ hasPassword: false, dialect: 'redis', username: 'app' })).toBe(false);
   });
 
   it('does not quietly widen the gate to unknown dialects', () => {

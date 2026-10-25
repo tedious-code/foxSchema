@@ -1,5 +1,5 @@
 import { ConnectionFactory, getAdapter, type ConnectionOptions } from '@foxschema/db';
-import { autoAliasSelectColumns, errorMessage } from '@foxschema/sql';
+import { autoAliasSelectColumns, errorMessage, isSubsetDialect } from '@foxschema/sql';
 import { isPageableStatement, syntaxProbeSql, trimPageProbe, wrapSqlForPage, wrapSqlForSeek, type SqlSeek } from './sql-page-wrap.service';
 
 /**
@@ -250,6 +250,13 @@ export async function runStatements(
         });
       } catch (error: unknown) {
         const wrapMsg = errorMessage(error);
+        // Redis and MongoDB page with LIMIT/OFFSET on the statement itself, not
+        // a wrapper, so their error is the statement's: "Paging failed" plus a
+        // "Wrapped SQL" line would blame a page that never failed.
+        if (isSubsetDialect(dialect)) {
+          pushErr(wrapMsg);
+          continue;
+        }
         // A missing table fails inside the page wrapper (`SELECT * FROM (…) AS
         // fox_page`). EXPLAIN the statement itself so the error is the one the
         // reader can act on — planned, never run, so it reads no rows. Only

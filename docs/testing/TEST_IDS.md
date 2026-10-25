@@ -1015,6 +1015,7 @@ Every control has a test ID: **997** buttons, text boxes, selects and textareas.
   - `sql-grid-ctx-copy-headers-only` · button
   - `sql-grid-ctx-copy-values` · button
   - `sql-grid-ctx-open-row` · button · Open row
+  - `sql-grid-error` · div
   - `sql-grid-export-btn` · button · Export CSV
   - `sql-grid-export-csv` · button · Export CSV
   - `sql-grid-export-json` · button · Export JSON
@@ -1211,6 +1212,7 @@ Every control has a test ID: **997** buttons, text boxes, selects and textareas.
   - `sql-result-cred-maximize-{connectionId}` · button · Maximize results
   - `sql-result-cred-maximized-hint-{connectionId}` · p
   - `sql-result-cred-modal-{connectionId}` · div
+  - `sql-result-error` · div
   - `sql-result-maximize-{statementIndex}` · button · Maximize results
   - `sql-result-maximized-hint-{statementIndex}` · p
   - `sql-result-modal-{statementIndex}` · div
@@ -1227,6 +1229,7 @@ Every control has a test ID: **997** buttons, text boxes, selects and textareas.
   - `sql-results-running` · div
   - `sql-results-side-by-side` · div
   - `sql-results-warnings` · div
+  - `sql-run-error` · div
 - **SelectColumnPicker** · `features/sql-editor/components/SelectColumnPicker.tsx`
   - `sql-select-all-star` · button · SELECT *
   - `sql-select-close` · button · Close
@@ -1292,6 +1295,7 @@ Every control has a test ID: **997** buttons, text boxes, selects and textareas.
   - `sql-explorer-from-{name}` · button · From
   - `sql-explorer-object-{name}` · button
   - `sql-explorer-param-insert-{name}-{name2}` · button
+  - `sql-explorer-store-type-{name}` · span
   - `sql-explorer-table-stats-{name}` · span
   - `sql-explorer-toggle-{name}` · button
   - `sql-new-table` · button · Create new table (opens table blueprint)

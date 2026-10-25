@@ -18,8 +18,10 @@
  *   UPDATE t SET a = ? WHERE k = ? AND k2 = ?
  *   DELETE FROM t WHERE k = ? AND k2 = ?
  *
- * plus `SELECT … FROM t [WHERE …] [LIMIT n]` for browsing. That is the whole
- * surface, and it maps cleanly onto find/insert/update/delete in either store.
+ * plus `SELECT … FROM t [WHERE …] [LIMIT n [OFFSET m]]` for browsing. That is
+ * the whole surface, and it maps cleanly onto find/insert/update/delete in
+ * either store. OFFSET is there because the editor pages every SELECT; it only
+ * ever narrows what a read returns.
  *
  * ## Everything else is refused, on purpose
  *
@@ -33,6 +35,9 @@
  * functions and no expressions here. Not "not yet" — admitting any of them
  * means the intent can no longer be checked by inspection.
  */
+import { isKnownEngine } from '../capabilities/feature-reasons.js';
+import { hasSqlDialect } from '../dialect/sql-dialect-keys.js';
+import { splitTopLevel } from './column-origin.js';
 
 export interface SubsetColumnEq {
   column: string;
@@ -45,7 +50,15 @@ export type SubsetValue =
   | { kind: 'literal'; value: string | number | null | boolean };
 
 export type SubsetIntent =
-  | { kind: 'select'; table: string; columns: string[] | '*'; where: SubsetColumnEq[]; limit?: number }
+  | {
+      kind: 'select';
+      table: string;
+      columns: string[] | '*';
+      where: SubsetColumnEq[];
+      limit?: number;
+      /** Rows to skip before the first one returned. */
+      offset?: number;
+    }
   | { kind: 'insert'; table: string; assignments: SubsetColumnEq[] }
   | { kind: 'update'; table: string; set: SubsetColumnEq[]; where: SubsetColumnEq[] }
   | { kind: 'delete'; table: string; where: SubsetColumnEq[] };
@@ -65,10 +78,16 @@ function unquote(raw: string): string {
   return s;
 }
 
-/** `schema.table` → `table`; a non-SQL store has one namespace. */
+/**
+ * `schema.table` → `table`; a non-SQL store has one namespace.
+ *
+ * Splits only on dots outside quotes. A Redis key is often dotted
+ * (`cache.v1:users`), and splitting `"cache.v1:users"` before unquoting read it
+ * as the table `v1:users"`, which matched nothing.
+ */
 function tableName(raw: string): string {
-  const parts = raw.trim().split('.').map(unquote).filter(Boolean);
-  return parts[parts.length - 1] ?? '';
+  const names = splitTopLevel(raw.trim(), '.').map(unquote).filter(Boolean);
+  return names[names.length - 1] ?? '';
 }
 
 /**
@@ -96,11 +115,24 @@ function parseValue(raw: string, nextParamIndex: () => number): SubsetValue | nu
   // Plain decimal only — no exponent, no sign games, no expressions.
   if (/^-?\d+$/.test(s)) return { kind: 'literal', value: Number(s) };
   if (/^-?\d+\.\d+$/.test(s)) return { kind: 'literal', value: Number(s) };
-  // Single-quoted string with '' escaping.
-  if (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) {
+  // Single-quoted string with '' escaping — and nothing after its closing
+  // quote. `'1' OR id = '2'` starts and ends with a quote too; read as one
+  // string it made `WHERE id = '1' OR id = '2'` match nothing instead of being
+  // refused, and a DELETE address a key nobody has.
+  if (s.length >= 2 && s.startsWith("'") && s.endsWith("'") && isOneStringLiteral(s)) {
     return { kind: 'literal', value: s.slice(1, -1).replace(/''/g, "'") };
   }
   return null;
+}
+
+/** True when `'…'` is a single literal: every quote inside it is a doubled `''`. */
+function isOneStringLiteral(s: string): boolean {
+  for (let i = 1; i < s.length - 1; i++) {
+    if (s[i] !== "'") continue;
+    if (s[i + 1] !== "'" || i + 1 === s.length - 1) return false;
+    i++;
+  }
+  return true;
 }
 
 /**
@@ -163,6 +195,20 @@ function isPlainFieldRef(name: string): boolean {
 /** One identifier segment. No nesting, so no backtracking to worry about. */
 const SEGMENT = /^[A-Za-z_$][\w$]*$/;
 
+/**
+ * The text inside `( … )` when one pair of parentheses wraps all of `text`,
+ * else null. `(a = 1) AND (b = 2)` is not wrapped: its first `(` closes early.
+ */
+function innerOfParens(text: string): string | null {
+  if (!text.startsWith('(') || !text.endsWith(')')) return null;
+  const inner = text.slice(1, -1);
+  // splitTop refuses unbalanced text: in `a = 1) AND (b = 2` a `)` closes early.
+  return splitTop(inner, NEVER) ? inner : null;
+}
+
+/** A separator that never matches, for splitTop as a balance check. */
+const NEVER = /(?!)/;
+
 /** `a = ? AND b = ?` → equality pairs, or null if anything else appears. */
 function parseEqualityList(
   text: string,
@@ -175,6 +221,17 @@ function parseEqualityList(
   if (!parts) return null;
   const out: SubsetColumnEq[] = [];
   for (const part of parts) {
+    // A predicate group, `(a = 1 AND b = 2)`, means the same as its contents.
+    // Data peek wraps every WHERE it is given in one, so refusing it refused
+    // every peek filter on this store. Only for AND lists: OR inside a group
+    // still fails below, as it does outside one.
+    const group = separator === AND ? innerOfParens(part.trim()) : null;
+    if (group !== null) {
+      const inner = parseEqualityList(group, separator, nextParamIndex);
+      if (!inner || inner.length === 0) return null;
+      out.push(...inner);
+      continue;
+    }
     // Exactly `column = value`. Any other operator is outside the subset, and
     // treating `>=` as `=` would silently match the wrong rows.
     const eq = part.indexOf('=');
@@ -210,6 +267,35 @@ const WHERE_NULL_REFUSED =
   'Equality to NULL is not supported on this store (SQL uses IS NULL; document stores treat null as matching missing fields).';
 
 const AND = /^\s+AND\s+/i;
+
+/**
+ * `LIMIT n` or `LIMIT n OFFSET m` at the end of a SELECT, read as whole words
+ * from the end: `base` is the statement before it. Scanned rather than matched
+ * with one pattern, which the unsafe-regex check refuses, and so `nameLIMIT 5`
+ * is never read as a LIMIT.
+ */
+function trailingLimit(text: string): { base: string; limit: number; offset?: number } | null {
+  const words: Array<{ word: string; start: number }> = [];
+  let end = text.length;
+  while (words.length < 4) {
+    while (end > 0 && /\s/.test(text[end - 1]!)) end--;
+    if (end === 0) break;
+    let start = end;
+    while (start > 0 && !/\s/.test(text[start - 1]!)) start--;
+    words.unshift({ word: text.slice(start, end), start });
+    end = start;
+  }
+  const isCount = (w?: { word: string }) => w !== undefined && /^\d+$/.test(w.word);
+  const isWord = (w: { word: string } | undefined, kw: string) => w?.word.toUpperCase() === kw;
+  const n = words.length;
+  if (n >= 4 && isWord(words[n - 4], 'LIMIT') && isCount(words[n - 3]) && isWord(words[n - 2], 'OFFSET') && isCount(words[n - 1])) {
+    return { base: text.slice(0, words[n - 4]!.start).trimEnd(), limit: Number(words[n - 3]!.word), offset: Number(words[n - 1]!.word) };
+  }
+  if (n >= 2 && isWord(words[n - 2], 'LIMIT') && isCount(words[n - 1])) {
+    return { base: text.slice(0, words[n - 2]!.start).trimEnd(), limit: Number(words[n - 1]!.word) };
+  }
+  return null;
+}
 const COMMA = /^\s*,\s*/;
 
 /**
@@ -238,17 +324,29 @@ export function parseSqlSubset(sql: string): SubsetParse {
   const select = /^SELECT\s+([\s\S]+?)\s+FROM\s+([^\s]+)([\s\S]*)$/i.exec(text);
   if (select) {
     const [, cols, table, tail] = select;
-    const columns =
-      cols!.trim() === '*'
-        ? ('*' as const)
-        : (splitTop(cols!, COMMA)?.map(unquote) ?? null);
-    if (columns === null) return { ok: false, error: 'Could not read the column list.' };
+    const columnTexts = cols!.trim() === '*' ? null : splitTop(cols!, COMMA);
+    if (cols!.trim() !== '*' && !columnTexts) return { ok: false, error: 'Could not read the column list.' };
+    // An unquoted column is a plain field name. `COUNT(*)` or `a + 1` is an
+    // expression this store cannot evaluate; it used to come back as a column
+    // of NULLs. A quoted name is taken as written: a Redis field can be
+    // `first-name`.
+    const badColumn = columnTexts?.find((c) => {
+      const t = c.trim();
+      const quoted = /^["`[]/.test(t);
+      return !quoted && !isPlainFieldRef(t);
+    });
+    if (badColumn !== undefined) {
+      return { ok: false, error: `Only plain column names are supported on this store, not \`${badColumn.trim()}\`.` };
+    }
+    const columns = columnTexts ? columnTexts.map(unquote) : ('*' as const);
     let rest = (tail ?? '').trim();
     let limit: number | undefined;
-    const limitMatch = /\s*LIMIT\s+(\d+)\s*$/i.exec(rest);
-    if (limitMatch) {
-      limit = Number(limitMatch[1]);
-      rest = rest.slice(0, limitMatch.index).trim();
+    let offset: number | undefined;
+    const paged = trailingLimit(rest);
+    if (paged) {
+      limit = paged.limit;
+      offset = paged.offset;
+      rest = paged.base.trim();
     }
     let where: SubsetColumnEq[] = [];
     if (rest) {
@@ -264,7 +362,17 @@ export function parseSqlSubset(sql: string): SubsetParse {
       if (whereHasNullLiteral(parsed)) return { ok: false, error: WHERE_NULL_REFUSED };
       where = parsed;
     }
-    return { ok: true, intent: { kind: 'select', table: tableName(table!), columns, where, limit } };
+    return {
+      ok: true,
+      intent: {
+        kind: 'select',
+        table: tableName(table!),
+        columns,
+        where,
+        limit,
+        ...(offset === undefined ? {} : { offset }),
+      },
+    };
   }
 
   const insert = /^INSERT\s+INTO\s+(\S+)\s*\(([\s\S]+?)\)\s*VALUES\s*\(([\s\S]+?)\)$/i.exec(text);
@@ -335,4 +443,34 @@ export function parseSqlSubset(sql: string): SubsetParse {
 /** Resolve an intent's values against the statement's bind parameters. */
 export function subsetValue(value: SubsetValue, params: readonly unknown[]): unknown {
   return value.kind === 'literal' ? value.value : (params[value.index] ?? null);
+}
+
+/**
+ * Whether `dialect` is read through `parseSqlSubset` instead of an SQL engine:
+ * every engine Fox connects to that has no SQL dialect (Redis, MongoDB). Derived
+ * from the registry, the way schema compare decides, so a new store needs no
+ * list of its own here.
+ */
+export function isSubsetDialect(dialect: string): boolean {
+  return isKnownEngine(dialect) && !hasSqlDialect(dialect);
+}
+
+/**
+ * One page of a subset SELECT: `limit` rows after `offset`.
+ *
+ * The editor pages an SQL engine by nesting the statement in
+ * `SELECT * FROM (…) LIMIT … OFFSET …`. A subset store cannot read a nested
+ * SELECT, so every Redis and MongoDB query failed with "Unsupported clause".
+ * The page is written onto the statement itself instead. A LIMIT the reader
+ * wrote still bounds it, as it would inside the SQL engines' nesting: page two
+ * of `LIMIT 5` is empty.
+ */
+export function pageSubsetSelect(sql: string, offset: number, limit: number): string {
+  const text = sql.trim().replace(/;\s*$/, '');
+  const own = trailingLimit(text);
+  const base = own ? own.base : text;
+  const ownOffset = own?.offset ?? 0;
+  const ownLimit = own ? own.limit : Number.POSITIVE_INFINITY;
+  const pageLimit = Math.max(0, Math.min(limit, ownLimit - offset));
+  return `${base} LIMIT ${pageLimit} OFFSET ${ownOffset + offset}`;
 }

@@ -37,7 +37,7 @@ export {
 export type { BuiltMigrationFile, MigrationFile, MigrationFileHeader } from './modules/migrations/migration-file.js';
 export { findDropDependencies } from './modules/migrations/dependency-scan.js';
 export type { DropDependency, DropDependencyOptions } from './modules/migrations/dependency-scan.js';
-export { parseSqlSubset, subsetValue } from './modules/sql-editor/sql-subset.js';
+export { isSubsetDialect, pageSubsetSelect, parseSqlSubset, subsetValue } from './modules/sql-editor/sql-subset.js';
 export type {
   SubsetIntent,
   SubsetParse,
@@ -403,6 +403,8 @@ export {
   authMethodsForDialect,
   dialectOffersAuthMethods,
   connectionNeedsSecret,
+  needsSessionPassword,
+  type SecretGateConnection,
   parseWindowsAccount,
   assertWindowsAccount,
   passwordFieldLabel,

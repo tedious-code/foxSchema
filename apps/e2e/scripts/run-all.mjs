@@ -124,6 +124,7 @@ const ALWAYS = [
       'src/tests/sql-editor-copy-export.test.ts',
       'src/tests/sql-editor-running-state.test.ts',
       'src/tests/sql-editor-utilities.test.ts',
+      'src/tests/utilities-sql-tracer.test.ts',
       'src/tests/sql-editor-column-picker.test.ts',
       'src/tests/sql-editor-code-cell-faker.test.ts',
       'src/tests/lazy-loading.test.ts',

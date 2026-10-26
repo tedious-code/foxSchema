@@ -18,3 +18,6 @@ export const accessFeature: ServerFeatureModule = {
     },
   ],
 };
+
+/** The engine's own probes (sessions, pool, system, sizes); the SQL Tracer polls the sessions one. */
+export { probeDbaUtility } from './dba-utilities.service';

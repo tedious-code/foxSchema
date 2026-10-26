@@ -666,6 +666,22 @@ saved credential at the top, then a tool:
   DuckDB reports worker threads, buffer memory, and database-file blocks (no
   per-table bytes — row counts are estimates). SQLite / DuckDB have no server pool
   or multi-user sessions.
+- **SQL Tracer** — watch the statements on this connection. Needs **SQL Tracer**
+  (`utility.trace`; Owner and Admin by default), because a trace shows other
+  people's SQL. Two modes:
+  - **Fox activity** — each statement anyone runs on this saved connection from
+    Fox (the SQL Editor), as it finishes, with its time, rows and any error.
+    Works on every engine.
+  - **Live** — the engine's own session list, read about once a second: a
+    statement shows while it runs, from any client. Only where User Connections
+    works (not SQLite or DuckDB).
+
+  Passwords, keys and tokens in the text are masked (`'***'`) on the server
+  before anything reaches the screen, and long statements are cut at 8,000
+  characters. A trace stops itself after 15 minutes or 10,000 statements, when
+  you press **Stop**, or when you leave the screen; one person runs at most
+  three at once, one per connection. Nothing is written to disk or to the log.
+  Click a row for the full text and **Open in editor**.
 
 **Access**
 

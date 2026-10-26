@@ -1,5 +1,7 @@
 # Test and fix plan: every feature, every dialect (2026-10-25)
 
+Results of the first round: [2026-10-26-feature-and-dialect-test-results.md](2026-10-26-feature-and-dialect-test-results.md).
+
 Every feature in [FEATURE_MAP.md](../FEATURE_MAP.md) and every one of the 16
 engines gets one **test-and-fix pass**, tracked as a work item on the planning
 board (kind *test*, one item per feature ID and per `dialect.*` ID). Bugs a pass
@@ -72,6 +74,8 @@ skips what it can:
   group by key). Live driver tests: `FOX_IT_DB=1 npx vitest run <file>`.
 - Keep the machine awake for long runs: a sleeping laptop stretches timers and
   fails tests that are not broken.
+- The full list of environment traps and their fixes:
+  [testing/RUNNING_E2E.md](../testing/RUNNING_E2E.md).
 
 ## Cadence
 

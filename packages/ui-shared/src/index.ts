@@ -165,3 +165,7 @@ export type {
   BackupCommands, BackupHistoryEntry, BackupRunsOn, BackupScope, BackupSettings, DbaUtilityKind,
   TableSizeGroup,
 } from '@foxschema/sql';
+
+// SQL Tracer: shapes and bounds (the server redacts; the screen only shows).
+export { TRACE_MAX_EVENTS, TRACE_MAX_MS } from '@foxschema/sql';
+export type { TraceEvent, TraceMode } from '@foxschema/sql';

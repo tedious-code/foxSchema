@@ -19,13 +19,13 @@
   },
   "dependencies": {
     "@fastify/cors": "11.3.1",
-    "@fastify/static": "10.1.6",
+    "@fastify/static": "10.1.7",
     "@foxschema/db": "*",
     "@foxschema/shared": "*",
     "@foxschema/sql": "*",
     "@foxschema/workflow-contract": "*",
     "fastify": "5.12.7",
-    "isomorphic-git": "1.44.2",
+    "isomorphic-git": "1.44.3",
     "pino": "10.4.0",
     "tsx": "4.23.15"
   }

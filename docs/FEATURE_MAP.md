@@ -115,6 +115,7 @@ flowchart LR
   UTIL --> u3[utilities.insights]
   UTIL --> u4[utilities.backup]
   UTIL --> u5[utilities.dbaccess]
+  UTIL --> u6[utilities.trace]
 
   ACC --> a1[access.accounts]
   ACC --> a2[access.builder]
@@ -177,6 +178,7 @@ in its folders and its e2e specs (`apps/e2e/src/tests`).
 | `utilities.indexes` | Index management — fragmentation (custom probe is one read-only SELECT), batch, rebuild / reorg / optimize SQL (Db2: every index on the table), drop | Utils (rail) | `/api/schema/index-fragmentation`, `-batch` | server `access` (`index-fragmentation.service`); sql `utilities` | `utility.access`, `utility.index.drop` | — | sql 7; e2e `sql-editor-utilities`, `-utilities-dialects` |
 | `utilities.clone` | Clone table | Utils | (editor execute) | web `CloneTableModal` | `utility.access`, `editor.ddl` | — | (utilities e2e) |
 | `utilities.insights` | Server insights, table insight, query files | Utils | `/api/schema/dba-utility`, `/api/schema/table-insight` | server `access` (`dba-utilities.service`) | `utility.access` | — | (utilities e2e) |
+| `utilities.trace` | SQL Tracer — Live (engine sessions, ~1 s) and Fox activity (statements run from Fox on a saved connection); redacted, 15 min / 10,000 statements | Utils | `/api/sql-trace/start`, `/:id/events`, `/:id/stop` | server `sql-trace` (+ `platform/sql-activity`); sql `utilities/sql-trace` | `utility.trace` | — | server 27; web 7; e2e `utilities-sql-tracer` |
 | `utilities.backup` | Backup & Restore — per-engine command builders, server-side SQL backup after confirmation, recorded backups, saved defaults | Utils | `/api/backup-settings` (2) | server `backup`; sql `providers/*/*.backup.ts` | `utility.access` | `backup_settings` | server 2; e2e `backup-restore-ui`, `backup-commands-dialects` |
 | `utilities.dbaccess` | DB users & grants (Database Access modal) | Utils | `/api/schema/db-access` | server `access` (`db-access.service`) | `utility.access`, `editor.grant` | — | e2e `database-access-dialects` |
 | `access.accounts` | Database accounts — create, rename, drop, passwords (per-engine DDL) | Access (rail) | `/api/schema/db-access` | web `access` (`UserManagement`); sql `access`, `providers/*/*.user-sql.ts` | `access.access`, `access.users` | — | sql 13, web 12 |
@@ -572,7 +574,9 @@ Known gaps and open work (2026-10-26, after #557 – #561) — each belongs on t
 | `editor.run` | Opening a sample bookmark replaces the checked Destinations with none | bug |
 | `platform.auth` | Manual walk: SSO with real providers, launch session, email verification with real mail (automated part green 2026-10-25) | manual |
 | `platform.workspaces` | Workspace ceiling caps by rank; a custom role mapping is not intersected with the account's permissions | improvement |
-| `utilities.insights` | SQL tracer for owners and admins (plan written; compare window and Redis tables shipped) | feature |
+| `platform.connections` | Redis / MongoDB: an explicit "No password" sign-in choice (a requirepass-only Redis saved without its password is not prompted) | improvement |
+| `platform.admin` | Read-only as a permission: routes declare `reads`, roles lack `app.write` (the Demo role uses a URL allow-list today) | improvement |
+| `editor.datacompare` | Compare 2,000 rows with paging (done, #559/#560); SQL tracer Phase 1 (done, see `utilities.trace`) | feature |
 
 ## Planning work
 

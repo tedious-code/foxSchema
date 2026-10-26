@@ -1,6 +1,6 @@
 import { ConnectionFactory, getAdapter, type ConnectionOptions } from '@foxschema/db';
 import { autoAliasSelectColumns, errorMessage, isSubsetDialect } from '@foxschema/sql';
-import { isPageableStatement, syntaxProbeSql, trimPageProbe, wrapSqlForPage, wrapSqlForSeek, type SqlSeek } from './sql-page-wrap.service';
+import { isPageableStatement, syntaxProbeSql, trimPageProbe, wrapSqlForOrderedPage, wrapSqlForPage, wrapSqlForSeek, type SqlSeek } from './sql-page-wrap.service';
 
 /**
  * Helpers behind POST /api/sql/execute (SQL Editor). One request = one
@@ -138,7 +138,13 @@ export async function runStatements(
    * Engines that auto-commit DDL still report each statement; the rollback is
    * best-effort there.
    */
-  transaction = false
+  transaction = false,
+  /**
+   * Order each page by these columns (outer ORDER BY, `wrapSqlForOrderedPage`).
+   * A compare run reads both sides this way, so the same keys line up.
+   * Ignored with `seek`, and by the SQL-subset stores (Redis, MongoDB).
+   */
+  orderBy?: readonly string[]
 ): Promise<StatementResult[]> {
   const schemaName = (schema ?? option.schema)?.trim() || '';
   const optionWithSchema: ConnectionOptions = schemaName
@@ -212,7 +218,10 @@ export async function runStatements(
         continue;
       }
 
-      let paged = wrapSqlForPage(sql, dialect, offset, maxRows);
+      let paged =
+        orderBy?.length && !seek && !isSubsetDialect(dialect)
+          ? wrapSqlForOrderedPage(sql, dialect, orderBy, offset, maxRows)
+          : wrapSqlForPage(sql, dialect, offset, maxRows);
       if (seek && offset === 0) {
         const keyed = wrapSqlForSeek(sql, dialect, seek, maxRows, params.length);
         if ('error' in keyed) {

@@ -178,3 +178,41 @@ describe('alignResultGridsByKey on a partial grid', () => {
     expect(aligned.rowOps).toEqual(['unresolved', 'unresolved', 'insert']);
   });
 });
+
+describe('alignResultGridsByKey in a compare run (both sides read in key order, cut at a window)', () => {
+  const grid = (ids: (number | string)[]) => ({ columns: ['id', 'v'], rows: ids.map((id) => [id, 'x']) });
+
+  it('classifies a one-sided row at or before the cut-short side’s last key, and only past it leaves it unresolved', () => {
+    // Target has more rows than the window: it was cut at id 50.
+    const aligned = alignResultGridsByKey(grid([10, 20, 40, 60, 70]), grid([10, 30, 40, 50]), ['id'], {
+      rightComplete: false,
+      rightWindowEnd: [50],
+    })!;
+    const opOf = (id: number) => aligned.rowOps[aligned.rowKeyLabels.indexOf(`id=${id}`)];
+    expect(opOf(20)).toBe('delete'); // 20 < 50: the target would have shown it
+    expect(opOf(60)).toBe('unresolved'); // past 50: it may be further down
+    expect(opOf(70)).toBe('unresolved');
+    expect(opOf(30)).toBe('insert'); // the source is complete
+    expect(aligned).toMatchObject({ deleteCount: 1, insertCount: 2, unresolvedCount: 2, matchCount: 2 });
+  });
+
+  it('compares numbers by value (2 before 10), including bigints sent as text', () => {
+    const aligned = alignResultGridsByKey(
+      grid(['2', '9007199254740993']),
+      grid(['10']),
+      ['id'],
+      { rightComplete: false, rightWindowEnd: ['9007199254740992'] }
+    )!;
+    expect(aligned.rowOps[aligned.rowKeyLabels.indexOf('id=2')]).toBe('delete');
+    expect(aligned.rowOps[aligned.rowKeyLabels.indexOf('id=9007199254740993')]).toBe('unresolved');
+  });
+
+  it('leaves text keys unresolved: the engine’s collation decides their order, not JavaScript', () => {
+    const aligned = alignResultGridsByKey(grid(['a', 'b']), grid(['c']), ['id'], {
+      rightComplete: false,
+      rightWindowEnd: ['z'],
+    })!;
+    expect(aligned.unresolvedCount).toBe(2);
+    expect(aligned.deleteCount).toBe(0);
+  });
+});

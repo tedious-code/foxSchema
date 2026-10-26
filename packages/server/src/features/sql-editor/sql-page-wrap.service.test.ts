@@ -2,10 +2,47 @@ import { describe, expect, it } from 'vitest';
 import {
   hasTopLevelOrderBy,
   isPageableStatement,
+  parseSqlOrderBy,
   trimPageProbe,
   wrapSqlForPage,
+  wrapSqlForOrderedPage,
   wrapSqlForSeek,
 } from './sql-page-wrap.service';
+
+describe('ordered pages (a compare run)', () => {
+  it('orders the outer query by the keys, in each engine\'s paging syntax, fetching one extra row', () => {
+    expect(wrapSqlForOrderedPage('SELECT * FROM t;', 'postgres', ['id'], 0, 2000)).toBe(
+      'SELECT * FROM (SELECT * FROM t) AS fox_page ORDER BY "id" LIMIT 2001 OFFSET 0'
+    );
+    expect(wrapSqlForOrderedPage('SELECT * FROM t', 'mysql', ['a', 'b'], 0, 10)).toBe(
+      'SELECT * FROM (SELECT * FROM t) AS fox_page ORDER BY `a`, `b` LIMIT 11 OFFSET 0'
+    );
+    expect(wrapSqlForOrderedPage('SELECT * FROM t', 'oracle', ['ID'], 0, 10)).toMatch(
+      /ORDER BY "ID" OFFSET 0 ROWS FETCH NEXT 11 ROWS ONLY$/
+    );
+    expect(wrapSqlForOrderedPage('SELECT * FROM t', 'db2', ['ID'], 0, 10)).toMatch(
+      /ORDER BY "ID" OFFSET 0 ROWS FETCH FIRST 11 ROWS ONLY$/
+    );
+  });
+
+  it('on SQL Server drops a plain top-level ORDER BY, which a derived table refuses', () => {
+    expect(wrapSqlForOrderedPage('SELECT id FROM t ORDER BY name', 'sqlserver', ['id'], 0, 10)).toBe(
+      'SELECT * FROM (SELECT id FROM t) AS fox_page ORDER BY [id] OFFSET 0 ROWS FETCH NEXT 11 ROWS ONLY'
+    );
+    // One that pages itself stays: it is legal there, and it limits the rows.
+    expect(
+      wrapSqlForOrderedPage('SELECT id FROM t ORDER BY id OFFSET 5 ROWS', 'azuresql', ['id'], 0, 10)
+    ).toContain('ORDER BY id OFFSET 5 ROWS) AS fox_page');
+  });
+
+  it('takes only plain column names, never SQL', () => {
+    expect(parseSqlOrderBy(undefined)).toEqual({ ok: true, value: undefined });
+    expect(parseSqlOrderBy(['id', 'tenant_id'])).toEqual({ ok: true, value: ['id', 'tenant_id'] });
+    for (const bad of [[], 'id', ['id; DROP TABLE t'], ['1=1 --'], [3], Array.from({ length: 9 }, (_, i) => `c${i}`)]) {
+      expect(parseSqlOrderBy(bad).ok, JSON.stringify(bad)).toBe(false);
+    }
+  });
+});
 
 describe('paging Redis and MongoDB', () => {
   // They read SQL through a parser with no subqueries: a nested page was

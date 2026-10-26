@@ -165,6 +165,11 @@ const ALWAYS = [
     label: 'Revert edges',
   },
   {
+    key: 'schema-force-migrate',
+    file: 'src/tests/schema-force-migrate.test.ts',
+    label: 'Force-migrate',
+  },
+  {
     key: 'access',
     file: 'src/tests/access-assistant-sqlite.test.ts',
     label: 'Access SQLite',

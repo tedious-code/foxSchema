@@ -47,6 +47,7 @@ Homebrew install steps live only in [install.md](install.md#homebrew-macos). The
 | Topic | Document |
 | --- | --- |
 | How to write an end-to-end test | [testing/WRITING_E2E.md](testing/WRITING_E2E.md) |
+| How to run it against the engines, and failures that are not bugs | [testing/RUNNING_E2E.md](testing/RUNNING_E2E.md) |
 | Generated test-id catalog | [testing/TEST_IDS.md](testing/TEST_IDS.md) |
 
 ## Plans (history)

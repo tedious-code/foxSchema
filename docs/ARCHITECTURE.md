@@ -44,9 +44,10 @@ Backend changes (`packages/server`, `packages/sql`, `packages/db`) hot-reload vi
 
 ## E2E tests (apps/e2e)
 
-Playwright + Vitest against 6 Docker dialect containers. See the E2E workflow memory and
-`docs/plans/2026-07-01-seed-test-matrix.md` for the operational details (reseed before
-every run, restart backend before reseeding Oracle/DB2, DB2 `/var/custom` init).
+Playwright + Vitest against the Docker dialect containers. See
+[testing/RUNNING_E2E.md](testing/RUNNING_E2E.md) for running it (reseed before every run,
+restart the API before reseeding Oracle/Db2, failures that come from the machine) and
+`docs/plans/2026-07-01-seed-test-matrix.md` for the seed matrix.
 
 ```bash
 # One-command reset: compose up + wait healthy + restart dev + reseed

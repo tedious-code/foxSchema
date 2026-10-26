@@ -19,6 +19,7 @@ import { authGuard, requireRegisteredAccount } from '../platform/identity/auth.g
 import { AuthModule } from '../platform/identity/auth.service';
 import { ConnectionStore } from '../platform/connections/connection-store.service';
 import { makeConnectionResolver } from '../platform/connections/resolve';
+import { SqlActivityFeed } from '../platform/sql-activity/sql-activity';
 import { defaultApiRateLimit } from '../platform/guards/rate-limit';
 import { engineTokenGuard } from '../platform/guards/engine-token';
 import { getLogger } from '../platform/logger/logger';
@@ -40,6 +41,7 @@ import { dataMigrateFeature } from '../features/data-migrate';
 import { migrationFeature } from '../features/migration';
 import { sqlEditorFeature } from '../features/sql-editor';
 import { historyFeature } from '../features/history';
+import { sqlTraceFeature } from '../features/sql-trace';
 
 export const FEATURES: readonly ServerFeatureModule[] = [
   systemFeature,
@@ -59,6 +61,7 @@ export const FEATURES: readonly ServerFeatureModule[] = [
   migrationFeature,
   sqlEditorFeature,
   historyFeature,
+  sqlTraceFeature,
 ];
 
 /** The shared instances features receive: one of each per process. */
@@ -70,6 +73,7 @@ export function createFeatureContext(): FeatureContext {
     connectionModule,
     connectionStore,
     resolver: makeConnectionResolver(connectionModule, connectionStore),
+    sqlActivity: new SqlActivityFeed(),
   };
 }
 

@@ -3174,6 +3174,36 @@ export const TestIds = {
       /** button · Unlock */
       serverInsightsUnlock: 'server-insights-unlock',
     },
+    SqlTracerPanel: {
+      /** aside */
+      sqlTracerDetail: 'sql-tracer-detail',
+      /** pre */
+      sqlTracerDetailText: 'sql-tracer-detail-text',
+      /** p */
+      sqlTracerEmpty: 'sql-tracer-empty',
+      /** p */
+      sqlTracerError: 'sql-tracer-error',
+      /** input · Text, user, client… */
+      sqlTracerFilter: 'sql-tracer-filter',
+      /** select · Fox activity Live (engine sessions) */
+      sqlTracerMode: 'sql-tracer-mode',
+      /** button · Open in editor */
+      sqlTracerOpenEditor: 'sql-tracer-open-editor',
+      /** div */
+      sqlTracerPanel: 'sql-tracer-panel',
+      /** input · •••••••• */
+      sqlTracerPasswordDraft: 'sql-tracer-password-draft',
+      /** tr */
+      sqlTracerRow: (seq: string | number) => `sql-tracer-row-${seq}`,
+      /** button · Start */
+      sqlTracerStart: 'sql-tracer-start',
+      /** div */
+      sqlTracerStatus: 'sql-tracer-status',
+      /** button · Stop */
+      sqlTracerStop: 'sql-tracer-stop',
+      /** button · Unlock */
+      sqlTracerUnlock: 'sql-tracer-unlock',
+    },
     UtilitiesView: {
       /** div */
       dbAccessModal: 'db-access-modal',
@@ -3197,6 +3227,8 @@ export const TestIds = {
       utilitiesObjectSizes: 'utilities-object-sizes',
       /** data · Query files */
       utilitiesQueryFiles: 'utilities-query-files',
+      /** data · SQL Tracer */
+      utilitiesSqlTracer: 'utilities-sql-tracer',
       /** data · System Info */
       utilitiesSystemInfo: 'utilities-system-info',
       /** data · User Connections */
@@ -4974,6 +5006,20 @@ export type TestId =
   | `sql-tab-close-${string}`
   | 'sql-tab-rename'
   | `sql-tab-rename-btn-${string}`
+  | 'sql-tracer-detail'
+  | 'sql-tracer-detail-text'
+  | 'sql-tracer-empty'
+  | 'sql-tracer-error'
+  | 'sql-tracer-filter'
+  | 'sql-tracer-mode'
+  | 'sql-tracer-open-editor'
+  | 'sql-tracer-panel'
+  | 'sql-tracer-password-draft'
+  | `sql-tracer-row-${string}`
+  | 'sql-tracer-start'
+  | 'sql-tracer-status'
+  | 'sql-tracer-stop'
+  | 'sql-tracer-unlock'
   | `sql-variable-${string}`
   | 'sql-variable-add'
   | 'sql-variable-add-confirm'
@@ -5128,6 +5174,7 @@ export type TestId =
   | 'utilities-index-management'
   | 'utilities-object-sizes'
   | 'utilities-query-files'
+  | 'utilities-sql-tracer'
   | 'utilities-system-info'
   | 'utilities-user-connections'
   | 'utilities-view'

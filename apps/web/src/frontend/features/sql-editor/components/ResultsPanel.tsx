@@ -57,7 +57,7 @@ import {
   compareKeyAlignedGrids,
   type AlignRowOp,
 } from '@/features/sql-editor/lib/resultKeyAlign';
-import { migrateGridsAreComplete } from '@/features/sql-editor/lib/resultRowDiff';
+import { DATA_MIGRATE_ROW_CAP, migrateGridsAreComplete } from '@/features/sql-editor/lib/resultRowDiff';
 import {
   COMPARE_PAGE_SIZES,
   COMPARE_WINDOW_ROWS,
@@ -1754,7 +1754,7 @@ const SideBySideStatementSection: React.FC<{
       <span className="text-sky-400/90">Sync</span> column (on by default for differing rows).{' '}
       <span className="text-sky-400/90">Sync scroll</span> keeps all grids aligned;{' '}
       <span className="text-sky-400/90">CSV all</span> downloads every grid in one file. Migrate
-      needs Add / Edit / Delete checked (enabled when diffs exist) plus Sync rows. Cap: 500 ops —
+      needs Add / Edit / Delete checked (enabled when diffs exist) plus Sync rows. Cap: {DATA_MIGRATE_ROW_CAP.toLocaleString()} ops —
       larger sets use Server Beam.
     </p>
   ) : null;

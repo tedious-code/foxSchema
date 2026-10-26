@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeReply, routeHandler } from '../../platform/http/route-doubles';
 import { createDataMigrateRoutes } from './data-migrate.routes';
 import { executeDataMigrateOps } from './data-migrate-execute';
+import { DATA_MIGRATE_MAX_OPS } from '@foxschema/shared';
 
 vi.mock('./data-migrate-execute', () => ({ executeDataMigrateOps: vi.fn(async () => ({ results: [] })) }));
 
@@ -35,6 +36,31 @@ describe('POST /data-migrate/execute', () => {
     expect(sent.status).toBe(400);
     expect(sent.body.error).toMatch(/single statement/);
     expect(executeDataMigrateOps).not.toHaveBeenCalled();
+  });
+
+  it('takes up to DATA_MIGRATE_MAX_OPS (2,000) ops, and refuses one more', async () => {
+    const handler = routeHandler(
+      createDataMigrateRoutes({
+        resolveRef: vi.fn().mockResolvedValue({ dialect: 'sqlite', option: {}, schema: '' }),
+        dataMigrateHistory: {} as never,
+      }),
+      'POST',
+      '/data-migrate/execute'
+    );
+    const ops = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({ op: 'insert', key: `id=${i}`, sql: `INSERT INTO t (id) VALUES (${i})` }));
+    const call = async (n: number) => {
+      const { reply, sent } = fakeReply();
+      await handler({ body: { connectionId: 'c1', ops: ops(n) }, userId: 'u1', appRole: 'admin' } as never, reply as never);
+      return sent;
+    };
+    expect(DATA_MIGRATE_MAX_OPS).toBe(2000);
+    const over = await call(2001);
+    expect(over.status).toBe(400);
+    expect(over.body.error).toMatch(/At most 2000 ops/);
+    expect(executeDataMigrateOps).not.toHaveBeenCalled();
+    await call(2000);
+    expect(executeDataMigrateOps).toHaveBeenCalledOnce();
   });
 
   it('counts the statements inside a code fence', async () => {

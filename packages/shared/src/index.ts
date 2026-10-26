@@ -18,3 +18,4 @@ export * from './lokee-wire';
 export * from './nav';
 export * from './password-policy';
 export * from './migration-status';
+export * from './data-migrate';

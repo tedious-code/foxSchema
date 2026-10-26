@@ -126,7 +126,14 @@ because every open view holds data from the old one.
 Every account has a **personal workspace** (named like `ana's workspace`). Its
 role follows the account: an admin is its owner, an editor is its editor. It
 stays **private**, cannot be made public, and cannot be archived. You always
-manage its members, whatever your role there.
+manage its members, whatever your role there — but you can only **grant** a
+role your account holds. A viewer account invites viewers only; an editor
+account invites viewers or editors, never an owner. Sharing the workspace
+lends its connections; it does not lend DDL, GRANT or migrate that the
+account itself was never given. A membership stored above that ceiling still
+**acts** at the ceiling (raising the account later raises what it lends). A
+shared workspace's owners can still give any role, owner included. The
+**Demo** role is a viewer in every workspace, whatever role a workspace stored.
 
 ### Switch, create, invite
 
@@ -178,7 +185,12 @@ admin**) or several. `FOX_ADMIN_POLICY` on the server overrides the switch.
    PostgreSQL, MySQL, MariaDB, SQL Server, Azure SQL, Oracle, Db2, SQLite, DuckDB,
    ClickHouse, Redshift, CockroachDB, YugabyteDB, and TiDB are first-class SQL.
    MongoDB and Redis appear in the list too: browse their keys or collections
-   and run the SQL subset in the editor (no schema compare).
+   as tables and run the SQL subset in the editor (no schema compare).
+   Redis shows two kinds of table: a **prefix** (`users` covers `users:*`, one
+   key per row — hash fields and JSON object fields become columns) and a
+   **collection** (a list, set, sorted set or stream key is a table of its
+   own; its elements are the rows). Reads are bounded; the explorer never
+   walks the whole keyspace in one command.
 3. Fill in host, port, database, username, and password. Schema is optional on
    PostgreSQL (the form matches the engine). SQLite and DuckDB are **file paths**
    — use **Browse…**; they have no password.
@@ -331,11 +343,22 @@ compare / migrate). It lives in the same local web UI you open with `foxschema`.
    **Skip trigger cols** (on by default) ignores audit fields such as `createdAt` /
    `updatedBy`. The destination grid shows a **Sync** column (on by default for all
    differing rows) so you can include or exclude individual rows before migrate.
-   On a **partial** page (not page 1, a next page exists, or the result was
-   truncated), rows that appear only on the other side stay **unresolved** — they
-   are not colored as missing/extra, because they may simply be on another page.
+   The pages each grid has **already loaded** do not line up (each side pages with
+   OFFSET on its own). On a **partial** page (not page 1, a next page exists, or
+   the result was truncated), rows that appear only on the other side stay
+   **unresolved** — they are not colored as missing/extra, because they may simply
+   be on another page.
 
-7. **Data migrate (≤500 row ops)** — with Compare on, **Data migrate** appears.
+   **Compare 2,000 rows** re-reads both sides in **key order**, a fixed window of
+   2,000 rows each (the server fetches one extra row so the summary can say
+   “more follow”). Every row inside that window is classified; paging and
+   filters (**All / Changed / Only in source / Only in target / Unresolved /
+   Matching**, 50–500 per page) walk the window in memory — they do not ask
+   the databases again. **Back to loaded rows** returns to the grids you ran.
+   The button needs a statement and key columns on both sides, and an SQL
+   engine (Redis and MongoDB have no ordered window).
+
+7. **Data migrate (≤2,000 row ops)** — with Compare on, **Data migrate** appears.
    Rows match by the **Keys** you check (PK/unique columns are marked; you can pick
    any shared column, e.g. compare by name only — name Keys are fine for alignment
    and **Add-only** migrate). **Edit** and **Delete** require the table’s unique
@@ -345,15 +368,19 @@ compare / migrate). It lives in the same local web UI you open with `foxschema`.
    differing row without changing your Add / Edit / Delete choices. Migrate only runs
    when **both** grids show the **full** result on **page 1** (no next page) —
    otherwise “missing on this page” is not “missing from the table” and Delete could
-   remove real destination rows. You choose **Add / Edit / Delete** (none selected
+   remove real destination rows. The same rule applies to a compare window that
+   says “more follow”. You choose **Add / Edit / Delete** (none selected
    until you check them); only rows still checked in **Sync** are applied. Safety
    assists: **Transaction** (all-or-nothing when Stop is on) and **Stop on error** /
    **Continue on error**. Optional **Include identity / IDs**. With **Skip trigger
    cols**, migrate does not treat audit columns as edits and omits them from
    INSERT/UPDATE so destination triggers can fill them. Progress lists each row;
    failures show the key and error. Fox snapshots affected destination rows and
-   records the run under **Data migrate history**. More than 500 ops shows a toast
-   with Server Beam instructions instead of applying.
+   records the run under **Data migrate history**. The screen and
+   `POST /api/data-migrate/execute` share one cap (`DATA_MIGRATE_MAX_OPS`,
+   2,000) so a compare window's differences can be applied from the screen
+   that found them. More than 2,000 ops shows a toast with Server Beam
+   instructions instead of applying.
 
 Tips:
 
@@ -700,15 +727,22 @@ chrome.
 ## Access control
 
 On a multi-user install, **Profile → Access control** assigns Fox Schema
-**account** roles (`viewer` / `editor` / `owner` / `admin`) and permission keys —
+**account** roles (`demo` / `viewer` / `editor` / `owner` / `admin`) and permission keys —
 that is **app** access, not GRANT on a connected database. What you may do to
 saved connections and schema in the current workspace also follows your
 **workspace** role there ([Workspaces](#workspaces)). Code cells, Git,
-workflow, creating workspaces and **Install drivers** stay on the account role:
-owning a workspace does not grant them. **Admins: One / Several**, **Members can create
+workflow, creating workspaces, **Install drivers**, **Save and change**
+(`app.write`) and **Manage own account** stay on the account role: owning a
+workspace does not grant them. **Admins: One / Several**, **Members can create
 workspaces** and **Workspace owners can invite new people** sit on the same
 panel. **Workspaces** (the tab) lists every workspace; an admin opens one only
 by joining.
+
+The **Demo** role is the published-demo login: it browses, compares and runs
+SELECTs, and cannot save connections, secrets, scripts or its own profile.
+Read-only is the missing **Save and change** permission, not the role's name —
+strip `app.write` from any role and those accounts read only too. How to
+publish a shared demo is in [DEPLOYMENT.md](DEPLOYMENT.md#publishing-a-demo).
 
 ### What a Fox role stops, and what it cannot
 

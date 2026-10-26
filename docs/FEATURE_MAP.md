@@ -12,10 +12,10 @@ an interactive page (open it in a browser), and
 [the test and fix plan](plans/2026-10-25-feature-and-dialect-test-plan.md) sets
 the order every feature and dialect is tested in.
 
-Measured on `main` at `91d4165c09` (2026-10-25): 17 server feature modules,
-153 HTTP routes (pinned by `packages/server/src/api/http-contract.test.ts`),
+Measured on `main` at `100fb679` (2026-10-26): 17 server feature modules,
+155 HTTP routes (pinned by `packages/server/src/api/http-contract.test.ts`),
 14 frontend features, 16 database engines, 28 metadata tables (31 migrations),
-49 e2e specs, ~530 unit-test files. Re-measure with the commands in
+56 e2e specs, ~600 unit-test files. Re-measure with the commands in
 [Keeping this page true](#keeping-this-page-true).
 
 - [System](#system)
@@ -60,14 +60,18 @@ Every request takes the same path before a feature sees it:
 
 ```mermaid
 flowchart LR
-  R[Request] --> O["Origin policy<br/>+ rate limit"] --> S["Session guard<br/>(auth.guard)"] --> W["Workspace scope<br/>(resolveWorkspace)"]
+  R[Request] --> O["Origin policy<br/>+ rate limit"] --> S["Session guard<br/>(auth.guard)"] --> RO["app.write or GET / reads"]
+  RO --> W["Workspace scope<br/>(resolveWorkspace)"]
   W --> P["Permission guard<br/>requirePermissions()"] --> H["Feature route<br/>→ service"]
   H --> C["Connection resolver<br/>(decrypts the saved connection)"] --> D["Driver<br/>packages/db"]
   H --> M[("Metadata store")]
 ```
 
-Permissions are install-wide (from the account role: code cells, Git, workflow,
-admin, Install drivers, creating workspaces) or per workspace (from the member's
+An account without `app.write` (the Demo role, or any role an admin stripped)
+may call only GET, or a write whose route declares `reads` (`platform/http/router.ts`).
+That check runs before workspace scope. Permissions are install-wide (from the
+account role: code cells, Git, workflow, admin, Install drivers, creating
+workspaces, `app.write`, `account.self`) or per workspace (from the member's
 role there: everything about saved connections and schema). See
 `packages/shared/src/permissions.ts` — `INSTALL_PERMISSIONS` and
 `effectivePermissions()`.
@@ -140,7 +144,7 @@ in its folders and its e2e specs (`apps/e2e/src/tests`).
 | `platform.auth` | Sign-in & accounts — password sign-in, register, first-run setup code, launch session (use Fox before creating an account), email verification, forgot / reset password, SSO (Google, Microsoft, GitHub, broker), sign out other sessions, onboarding wizard | Sign-in page, account banners | `/api/auth` (17), `/api/signup` (3) | server `auth`, `users`, `platform/identity`; web `auth` | — (public routes) | `users`, `sessions`, `auth_codes`, `user_preferences` | server 9, web 3; e2e `auth-recovery`, `smoke` |
 | `platform.admin` | Administration — users (create, invite, role, activate, set password, issue code, hand over admin), role → permission matrix, one admin or several, sign-in settings (providers, mail, broker, public URL), every workspace (restore archived), Demo role and demo mode (banner, sign-in hint) | Profile → Access control | `/api/admin` (19) | server `admin`; web `admin` | `admin.users`, `admin.roles` | `users`, `role_permissions`, `app_settings` | server 4, web 5; e2e `admin-policy`, `demo-role` |
 | `platform.workspaces` | Workspaces — rail button and menu, create, switch, archive, restore, settings, members and workspace roles (a personal workspace lends no more than its account holds), invites (accept / decline, 14 days), public discover / join, shared workspace scripts | Rail button under the Fox mark | `/api/workspaces` (20) | server `workspaces`, `platform/workspaces`; web `workspaces` | `workspace.members`, `workspace.settings`, `workspace.create` | `workspaces`, `workspace_members`, `workspace_invites`, `workspace_scripts` | server 5, web 3; e2e `workspaces`, `workspaces-sharing-limits` |
-| `platform.connections` | Connections & drivers — credential manager, connection form (password / Windows / LDAP, SSL, pool, SQLite / DuckDB file picker), schema list, connection test, driver check and Install driver, cloud provider credentials | Creds (rail), connection modal | `/api/connections` (4), `/api/connection/test`, `/api/db/test`, `/api/driver` (2) | server `connections`, `platform/connections`, `internal/driver-install`; web `connections` | per workspace role; `admin.drivers` to install | `connections`, `cloud_provider_credentials` | server 1, web 1 |
+| `platform.connections` | Connections & drivers — credential manager, connection form (password / Windows / LDAP / No password on Redis and MongoDB, SSL, pool, SQLite / DuckDB file picker), schema list, connection test, driver check and Install driver, cloud provider credentials | Creds (rail), connection modal | `/api/connections` (4), `/api/connection/test`, `/api/db/test`, `/api/driver` (2) | server `connections`, `platform/connections`, `internal/driver-install`; web `connections` | per workspace role; `admin.drivers` to install | `connections`, `cloud_provider_credentials` | server 1, web 1 |
 | `platform.secrets` | App secrets — vault entries, cloud secret providers, resolving a secret | Creds → secrets, editor Secrets panel | `/api/app-secrets` (9) | server `admin` (app-secrets mount) | `secrets.view/create/edit/delete` | `app_secrets`, `cloud_provider_credentials` | — |
 | `platform.system` | Shell, health, updates — activity rail, top toolbar, command palette, home, backend-offline banner, activity, app info, config, update check / apply, email and update settings, send feedback | App shell, Prefs | `/api/health`, `/api/config`, `/api/app-info`, `/api/activity`, `/api/updates` (2) | server `system`; web `app/shell`, `app/settings`, `feedback` | — | `app_settings` | server 1, web 2; e2e `smoke`, `lazy-loading`, `send-feedback`, `auto-error-catch` |
 
@@ -151,7 +155,7 @@ in its folders and its e2e specs (`apps/e2e/src/tests`).
 | `schema.compare` | Compare & deploy — connection pair, browse bar, schema tree, object detail (DDL diff, blueprint, detail tabs), diff briefing, cross-dialect readiness, dependency and validation warnings, execute gate (missing-FK / narrowing review), deploy confirm, streamed migration progress | Compare (rail) | `/api/compare`, `/api/schema/load`, `/api/schema/list`, `/api/migration/execute` | server `compare`, `schema`, `migration`; web `compare`, `schema-diff`; sql `schema-diff`, `migrations`, `dialect` | `schema.browse`, `schema.compare`, `schema.migrate` | `migration_runs` | sql 12, web 14; e2e `compare-flow`, `execute-gate`, `schema-browse`, 14 dialect suites |
 | `schema.applies` | Migration history — runs, script, results, delete | Applies (rail) | `/api/migrations` (5) | server `migration`; web `migrations` | `schema.migrate` | `migration_runs` | server 3, web 1 |
 | `schema.git` | Migrations in Git — repositories (bare local copies), branches, fetch / pull / push, commit a migration, preview, applied tracking, activity | Compare → Git, Admin | `/api/git` (15) | server `git`; web `git` | `git.view`, `git.manage` | `git_repos`, `git_applied`, `git_activity`, `migration_runs.git_*` | server 4, web 1; e2e `git-migrations` |
-| `schema.snapshots` | Snapshots (Lokee Weave) — capture, databases, version timeline, graph, version compare, change chart, object inspector, revert (plan → run), force-migrate (plan → run), rename a version | Snapshots (rail) | `/api/lokee` (11) | server `history`; web `lokee-weave`; sql `lokee-weave` | `compare.history`, `schema.migrate.force` | `lokee_databases`, `lokee_versions`, `lokee_version_objects`, `lokee_objects`, `lokee_latest_objects`, `lokee_shapes` | sql 15, server 3, web 14; e2e `schema-history`, `schema-revert`, `schema-version-revert-edges` |
+| `schema.snapshots` | Snapshots (Lokee Weave) — capture, databases, version timeline, graph, version compare, change chart, object inspector, revert (plan → run), force-migrate (plan → run), rename a version | Snapshots (rail) | `/api/lokee` (11) | server `history`; web `lokee-weave`; sql `lokee-weave` | `compare.history`, `schema.migrate.force` | `lokee_databases`, `lokee_versions`, `lokee_version_objects`, `lokee_objects`, `lokee_latest_objects`, `lokee_shapes` | sql 15, server 3, web 14; e2e `schema-history`, `schema-revert`, `schema-version-revert-edges`, `schema-force-migrate` |
 
 ### SQL editor and data
 
@@ -160,7 +164,7 @@ in its folders and its e2e specs (`apps/e2e/src/tests`).
 | `editor.run` | Editor & run — tabs (stored per workspace), Destinations, run rail (In [n], ▶, include checkbox, Safe-mode marks, copy with values), selection / caret run, Safe mode confirm (writes, DDL, no-WHERE acknowledgement, multi-table threshold), One transaction, per-dialect write classification, Format SQL+JS, clause-aware completions, column picker, shortcuts | Editor (rail) | `/api/sql/execute` | server `sql-editor` (`sql-execute.service`, `sql-page-wrap.service`); web `sql-editor`; sql `sql-text`, `sql-editor` | `editor.access`, `editor.run`, `editor.dml`, `editor.ddl`, `editor.grant` | — | server 7, web 59 (feature), sql 16; e2e `sql-editor-smoke`, `-sqlite`, `-join-typing`, `-running-state` |
 | `editor.code` | FoxScript code cells — JS / TS / Node / Node-TS cells, transpile, `sql` bridge (bound params, `sql.list`, `sql.raw`), `-- @set`, Server Beam (`sql.on('source' / 'target')`), faker / lodash / date-fns, built-in samples | Editor | `/api/sql/code-cell`, `/api/sql/code-cell/transpile` | server `sql-editor` (`code-cell-*`); web `sql-editor/lib` | `editor.advanced` (install-wide) | — | e2e `sql-editor-code-cell-faker` |
 | `editor.results` | Results — by credential / side by side, grid paging (rows / page, Next / Prev, seek), cell and row edit, copy and CSV export, chart, maximize, runs drawer, warnings | Editor | (with `/api/sql/execute`) | web `ResultsPanel`, `DataGrid` | `editor.datagrid.insert/update/delete` | — | e2e `sql-editor-result-edit`, `-copy-export` |
-| `editor.datacompare` | Data compare & migrate — compare toggle, Source, diff cells, key columns, add / edit / delete, Sync column, apply (Transaction where the engine can roll back, stop / continue, backup snapshot), history, preview SQL, multi-target | Editor, side by side | `/api/data-migrate/execute`, `/api/data-migrations` (5) | server `data-migrate`; web `DataMigrateBar` | `editor.dml` | `data_migrate_runs` | server 4; e2e `sql-editor-compare-multi-target` |
+| `editor.datacompare` | Data compare & migrate — compare toggle, Source, **Compare 2,000 rows** (key-ordered window, in-memory filters and pages), diff cells, key columns, add / edit / delete, Sync column, apply up to 2,000 ops (one cap shared by the screen and the route), Transaction where the engine can roll back, stop / continue, backup snapshot, history, preview SQL, multi-target | Editor, side by side | `/api/data-migrate/execute`, `/api/data-migrations` (5) | server `data-migrate`; web `DataMigrateBar`, `useCompareWindow`, `compareView.ts` | `editor.dml` | `data_migrate_runs` | server 4; e2e `sql-editor-compare-multi-target`, `sql-editor-compare-window` |
 | `editor.peek` | Data peek — Cmd/Ctrl-click to open, stacked panels, WHERE (one row per AND) / ORDER BY / limit, paging, row editor (add / edit / clone / delete, value generators), insight tab, FK drill and referenced-by, date picker | Editor | (with `/api/sql/execute`) | web `DataPeekPanel`, `PeekRowEditor`, `usePeekGridCrud` | `editor.datagrid.*` | — | e2e `sql-editor-data-peek-grid`, `-peek-row-form`, `-peek-stacking` |
 | `editor.explorer` | Schema explorer & blueprint — connection picker, object tree, insert names, object source script, table blueprint (create / edit), New table (engines with DDL), Redis and MongoDB keys as tables with type badges, Install driver banner | Editor sidebar | `/api/schema/load` | web `SqlSchemaExplorer`, `TableBlueprintModal`, `MissingDriverBanner` | `editor.sidebar.schema`, `schema.browse` | — | e2e `sql-editor-blueprint`, `-column-picker` |
 | `editor.library` | Bookmarks, samples, recent, variables & secrets, shared workspace scripts | Editor sidebar | `/api/workspaces/scripts` (3) | web `SqlBookmarksPanel`, `SqlVariablesPanel`, `SqlSecretsPanel` | `editor.variables.*`, `editor.sidebar.*` | `workspace_scripts` | (in `editor.run` counts) |
@@ -247,13 +251,15 @@ flowchart TD
 ```mermaid
 flowchart LR
   A[Same SELECT on ≥2 destinations] --> B[Side by side + Compare data]
-  B --> C[align rows by key columns]
-  C --> D[add / edit / delete per target<br/>Sync column picks rows]
+  B --> W["Compare 2,000 rows<br/>both sides in key order"]
+  B --> C[or align the pages already loaded]
+  W --> D[add / edit / delete per target<br/>Sync column picks rows]
+  C --> D
   D --> E[Preview SQL]
   E --> F{Safe mode}
   F -- confirm --> G[POST /api/data-migrations/start]
   G --> H[backup snapshot of affected rows]
-  H --> I[POST /api/data-migrate/execute<br/>Transaction only where it can roll back<br/>stop or continue on error]
+  H --> I["POST /api/data-migrate/execute<br/>≤ 2,000 ops, one shared cap<br/>Transaction only where it can roll back"]
   I --> J[POST /api/data-migrations/:id/finish<br/>data_migrate_runs]
   J --> K[History: restore from snapshot]
 ```
@@ -548,18 +554,17 @@ SELECT / INSERT / UPDATE / DELETE with `column = value` predicates).
 | Layer | Where | Count |
 |---|---|---|
 | Unit — dialect knowledge | `packages/sql` | 86 files (access 13, lokee-weave 15, sql-text 9, migrations 7, utilities 7, sql-editor 7, schema-diff 5, …) |
-| Unit — drivers | `packages/db` | 24 (live `*.it.test.ts` behind `FOX_IT_DB=1`) |
-| Unit — server | `packages/server` | 100 |
-| Unit — web | `apps/web` | 175 (sql-editor 59, lokee-weave 14, access 12, workflow 12, …) |
+| Unit — drivers | `packages/db` | 26 (live `*.it.test.ts` behind `FOX_IT_DB=1`) |
+| Unit — server | `packages/server` | 104 |
+| Unit — web | `apps/web` | 179 (sql-editor 59, lokee-weave 14, access 12, workflow 12, …) |
 | Unit — workflow | `packages/workflow-engine`, `apps/workflow-server` | 87 + 19 |
-| Unit — CLI | `apps/cli` | 25 |
-| E2E (Playwright) | `apps/e2e/src/tests` | 54 spec files (`npm run test:e2e:all`) |
+| Unit — CLI | `apps/cli` | 14 |
+| E2E (Playwright) | `apps/e2e/src/tests` | 56 spec files (`npm run test:e2e:all`) |
 
-Known gaps and open work (2026-10-25, after #550 – #555) — each belongs on the planning board:
+Known gaps and open work (2026-10-26, after #557 – #561) — each belongs on the planning board:
 
 | Feature | Gap | Kind |
 |---|---|---|
-| `schema.snapshots` | Force-migrate has no e2e: resolving a second credential, the target lock and reading provenance back are unit-tested only | test |
 | `schema.snapshots` | Revert scope e2e ("reverts only the ticked object") recorded as failing — re-check | bug? |
 | `editor.code` | `code-cell-execute.service.test.ts` timeout test flakes under load (4 s budget includes worker cold start) | test |
 | `engines.dialects` | YugabyteDB container stuck on a stale master list (needs a fresh volume) | env |
@@ -567,9 +572,7 @@ Known gaps and open work (2026-10-25, after #550 – #555) — each belongs on t
 | `editor.run` | Opening a sample bookmark replaces the checked Destinations with none | bug |
 | `platform.auth` | Manual walk: SSO with real providers, launch session, email verification with real mail (automated part green 2026-10-25) | manual |
 | `platform.workspaces` | Workspace ceiling caps by rank; a custom role mapping is not intersected with the account's permissions | improvement |
-| `platform.connections` | Redis / MongoDB: an explicit "No password" sign-in choice (a requirepass-only Redis saved without its password is not prompted) | improvement |
-| `platform.admin` | Read-only as a permission: routes declare `reads`, roles lack `app.write` (the Demo role uses a URL allow-list today) | improvement |
-| `editor.datacompare` | Compare 2,000 rows with paging; SQL tracer for owners and admins (plan written) | feature |
+| `utilities.insights` | SQL tracer for owners and admins (plan written; compare window and Redis tables shipped) | feature |
 
 ## Planning work
 

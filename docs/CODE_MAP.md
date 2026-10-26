@@ -15,10 +15,14 @@ packages/ui-shared          The part of sql the web app may use: each name the
 
 packages/db                 Database drivers and the connection runtime: connection
                             factory, pooling, circuit breaker. Depends on sql.
+                            Redis keys-as-tables live in `providers/redis/redis.keyspace.ts`
+                            (prefix tables vs collection tables; bounded scans).
 
 packages/shared             Contracts the frontend, server and CLI must agree on:
                             permission names, error codes, wire message shapes,
-                            and the COMMUNITY_NAV registry (`nav.ts`). Browser-safe.
+                            the COMMUNITY_NAV registry (`nav.ts`), and the
+                            shared data-migrate cap (`DATA_MIGRATE_MAX_OPS`).
+                            Browser-safe.
 
 packages/workflow-contract  Browser-safe control-plane types for the workflow engine
                             (config, health, sinks, overlap policy), the service
@@ -87,7 +91,7 @@ modules/     One folder per domain, named to match the frontend feature
 | `schema-diff` | Comparing two schemas, and browsing one. `normalizeDefinitionText` is shared with Lokee |
 | `migrations` | Generating DDL, ordering drops, validating a plan |
 | `lokee-weave` | Content-addressed schema versioning and revert |
-| `sql-editor` | FoxScript parsing, code cells, SELECT aliasing, the SQL subset |
+| `sql-editor` | FoxScript parsing, code cells, SELECT aliasing, the fail-closed SQL subset Redis and MongoDB run (`sql-subset.ts`) |
 | `access` | Permission intent, effective access, GRANT/REVOKE and account DDL (facades; emitters live in `providers/<dialect>`) |
 | `utilities` | DBA queries: server insights, index fragmentation (`isSafeIndexFragmentationCustomSql`: one read-only SELECT; Db2 defrag is `providers/db2/db2.index-fragmentation.ts`), backup/restore command builders |
 
@@ -111,19 +115,25 @@ app/         The feature registry (`feature-registry.ts`): every feature's
 
 platform/    Capabilities every feature needs. Never imports a feature.
   identity/      accounts, sessions, the session guard (`auth.guard.ts`),
-                 SSO, sign-in mail, first-run setup code, sign-in settings
-  authorization/ RBAC role permissions, the permission guard, one admin or several
+                 SSO, sign-in mail, first-run setup code, sign-in settings.
+                 `auth.guard` refuses an account without `app.write` unless
+                 the route is GET or declares `reads`.
+  authorization/ RBAC role permissions, the permission guard, one admin or several,
+                 read-only (`read-only.ts`: `requestAllowed`, `READ_ONLY_ACCOUNT`)
   settings/      install-wide key/value settings (`app_settings`)
   connections/   saved connections (encrypted) and resolving a connection ref
   workspaces/    which workspace a request acts in (`resolveWorkspace`,
                  `ensurePersonalWorkspace`, `backfillWorkspaces`);
+                 `cappedRole` / `workspaceRoleCeiling` so a personal workspace
+                 lends no more than its account holds;
                  `WorkspaceScope` is the argument services take instead of a
                  bare user id
   runtime/       deployment posture: listen host, local install
   contracts/     ActorContext and ServiceError
   guards/        origin policy (`FOX_ALLOWED_ORIGINS`, literal LAN IPs in dev),
                  rate limit, idempotency, target locks
-  http/          request/response types, router, Fastify binding, responses
+  http/          request/response types, router (`reads` marker for a POST that
+                 only reads), Fastify binding, responses
   db/            database error shaping
   crypto/        secret encryption
   logger/        logging configuration
@@ -146,16 +156,16 @@ database/    The metadata store and its migrations.
 | `backup` | Per-user backup defaults (`GET`/`PUT /api/backup-settings`). Commands themselves are built in `@foxschema/sql` (`modules/utilities/backup.ts` + `providers/<d>/*.backup.ts`); the panel runs only a server-side SQL backup, after confirmation, and lists the backups the server recorded (`backupHistoryQuery`); restores are never run. |
 | `auth` | Sign-in, setup, password and SSO routes (the services are `platform/identity`) |
 | `compare` | Schema comparison |
-| `connections` | Routes for saved database connections, driver check/install and connection tests; the store is `platform/connections` (`authMethod` / `domain` on encrypted `ConnectionOptions`; NTLM is adapter-side) |
-| `data-migrate` | Moving data between databases |
+| `connections` | Routes for saved database connections, driver check/install and connection tests; the store is `platform/connections` (`authMethod` / `domain` on encrypted `ConnectionOptions`; `none` for Redis/MongoDB with no auth; NTLM is adapter-side) |
+| `data-migrate` | Moving data between databases. The route and the editor share `DATA_MIGRATE_MAX_OPS` (2,000) from `@foxschema/shared`. |
 | `files` | File uploads, querying an uploaded file, the import machinery (parsers, column detection, the parse worker pool) and the database-file picker |
 | `git` | Git repositories migrations are committed to: bare local copies through isomorphic-git, branches, fetch / pull / push, and the guarded HTTP client that refuses private addresses. Plan: [plans/2026-10-02-migrations-in-git.md](plans/2026-10-02-migrations-in-git.md) |
 | `history` | Schema history and revert (Lokee Weave) |
 | `migration` | Applying DDL migrations, and their run history |
 | `schema` | Reading a schema |
-| `sql-editor` | SQL editor, code cells, sandboxed execution. `sql-execute.service.ts` (`runStatements`) applies the saved schema (`adapter.setCurrentSchema`) then optionally `BEGIN`s one transaction for the batch; paging wrap is `sql-page-wrap.service.ts`. |
+| `sql-editor` | SQL editor, code cells, sandboxed execution. `sql-execute.service.ts` (`runStatements`) applies the saved schema (`adapter.setCurrentSchema`) then optionally `BEGIN`s one transaction for the batch; paging wrap is `sql-page-wrap.service.ts` (`wrapSqlForOrderedPage` for a compare window: outer ORDER BY, `limit + 1`). |
 | `users` | Profile, preferences, first-run wizard |
-| `workspaces` | Shared workspaces: create, switch, members, invites, public or private (`/api/workspaces`). Which workspace a request acts in is `platform/workspaces`. Admins list every workspace (`GET /all`) and open one only by joining. |
+| `workspaces` | Shared workspaces: create, switch, members, invites, public or private (`/api/workspaces`). Which workspace a request acts in is `platform/workspaces`. A personal workspace's invites and memberships are capped at the account's role (`workspace-role-ceiling.test.ts`). Admins list every workspace (`GET /all`) and open one only by joining. |
 | `workflow` | Workflow engine settings and health; the engine proxy (an allowlist of engine routes, each behind a `workflow.*` permission); saved-connection grants; and the token-guarded internal routes the engine calls to resolve a granted connection and read its settings. Save, run, and steering (cancel / resume / answer a paused run) refuse a connection the caller cannot use in this workspace (`WorkflowConnectionGrants.notUsableBy`). Runbook: [workflow.md](workflow.md). |
 
 Every feature folder has an `index.ts` exporting its `ServerFeatureModule`

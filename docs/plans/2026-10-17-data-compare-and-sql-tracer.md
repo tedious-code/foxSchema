@@ -1,8 +1,11 @@
 # Data Compare at 2,000 rows, and a SQL Tracer — 2026-10-17
 
-**Status: plan, decisions taken 2026-10-18** (see the end). Part 3 (Redis
-keys as tables) is built on branch `feat/redis-tables`. Parts 1 and 2 are not
-built yet; their test-and-fix passes are tracked in
+**Status (2026-10-26).** Part 1 is built: **Compare 2,000 rows** (#559,
+`useCompareWindow` / `COMPARE_WINDOW_ROWS`) and **migrate up to 2,000 ops**
+(#560, one shared `DATA_MIGRATE_MAX_OPS`). Part 3 is built: Redis keys as
+tables (`packages/db/src/providers/redis/redis.keyspace.ts`). **Part 2 (SQL
+Tracer) is not built.** Living usage is in [user-guide.md](../user-guide.md);
+this page is the design record. Remaining test-and-fix passes are tracked in
 [the feature and dialect test plan](2026-10-25-feature-and-dialect-test-plan.md).
 
 Three requests, planned for every dialect Fox ships:

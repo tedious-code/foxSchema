@@ -146,9 +146,18 @@ connection grant follows the connection’s workspace.
   `WorkspaceScope` in services — never a bare `user_id` filter.
 - **Permissions.** `effectivePermissions(account, workspace)`: install keys
   (`INSTALL_PERMISSIONS`: `editor.advanced`, Git, workflow, `admin.*`,
-  `workspace.create`) come from the account role; everything else from the
-  member’s role in this workspace. Neither side lends the other its keys. An
-  admin who is a member keeps every permission.
+  `workspace.create`, `app.write`, `account.self`) come from the account role;
+  everything else from the member’s role in this workspace. Neither side lends
+  the other its keys. An admin who is a member keeps every permission. An
+  account without `app.write` may call only GET, or a route that declares
+  `reads` (`platform/http/router.ts`); `authGuard` refuses the rest before
+  workspace scope. The Demo role is the built-in role without it.
+- **Role ceiling.** A personal workspace lends no more than its account holds
+  (`workspaceRoleCeiling` / `cappedRole`): a viewer account invites viewers
+  only. A stored membership above the ceiling still **acts** at the ceiling.
+  A demo login is a viewer in every workspace (`memberRoleCeiling`). Shared
+  workspace owners can still grant owner. The grant UI offers only
+  `workspaceGrantCeiling`.
 - **Admin list.** `GET /api/workspaces/all` is names, owners and sizes — never
   the workspace’s data. Opening it is joining (`AdminWorkspacesPanel`).
 - **Public join.** Anyone signed in may join a public non-personal workspace
@@ -177,6 +186,9 @@ and `domain`) inside `encrypted_config`. Methods:
   **not** emit `Authentication=Active Directory Integrated` (that is AAD).
 - `ldap` — Db2 directory user. Still UID/PWD; LDAP is server-side
   (`Authentication=SERVER_ENCRYPT` with the existing SERVER retry).
+- `none` — Redis or MongoDB with no auth. Nothing is sent or asked for. A
+  Redis that only has `requirepass` still needs `password` even without a
+  username; saved without its secret, that connection is prompted when you run.
 
 `SavedConnectionSummary` exposes `authMethod` / `domain` / `hasPassword` but
 never the secret. Windows integrated SSO (no password) is not implemented.

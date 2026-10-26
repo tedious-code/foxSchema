@@ -72,6 +72,7 @@ Finished or in-progress design notes. Do not treat them as the map of the code. 
 | Server beam | [plans/server-beam.md](plans/server-beam.md) |
 | Excel and Sheets import | [plans/excel-and-sheets-import.md](plans/excel-and-sheets-import.md) |
 | Feature review test plan | [plans/2026-10-06-review-features-test-plan.md](plans/2026-10-06-review-features-test-plan.md) |
+| Feature and dialect test plan, and its first results | [plans/2026-10-25-feature-and-dialect-test-plan.md](plans/2026-10-25-feature-and-dialect-test-plan.md), [plans/2026-10-26-feature-and-dialect-test-results.md](plans/2026-10-26-feature-and-dialect-test-results.md) |
 
 ## Releases
 

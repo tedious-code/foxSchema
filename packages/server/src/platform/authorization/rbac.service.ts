@@ -275,6 +275,13 @@ const ONE_TIME_GRANTS: Array<{
     key: 'rbac.grant.workspace.manage',
     perms: ['workspace.members', 'workspace.settings'],
     when: (p) => p.has('schema.migrate'),
+  },  {
+    // Read-only as a permission: every role that could save and change things
+    // before keeps doing so. The Demo role's defaults lack both, so it is
+    // skipped and stays read-only; a role emptied on purpose stays empty.
+    key: 'rbac.grant.app.write',
+    perms: ['app.write', 'account.self'],
+    when: () => true,
   },
 ];
 

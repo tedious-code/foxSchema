@@ -17,7 +17,7 @@ import type { AuthMailer } from '../../platform/identity/auth-mail';
 import type { SignupModule } from '../users';
 import { createAuthRoutes } from './auth.routes';
 
-const USER = { id: 'u-1', email: 'u-1@example.test', role: 'editor' };
+const USER = { id: 'u-1', email: 'u-1@example.test', role: 'editor', permissions: ['app.write', 'account.self'] };
 const WORKSPACE = { id: 'personal-u-1', name: 'Personal' };
 
 function routes() {

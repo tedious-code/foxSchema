@@ -47,6 +47,8 @@ export function bindRoutes(app: FastifyInstance, routes: RouteDefinition[]): voi
     app.route({
       method: route.method,
       url: route.path,
+      // Read by the session guard (`req.routeOptions.config.reads`).
+      config: { reads: route.reads === true },
       handler: async (request, reply) => {
         const proceed = await runChain(route.middlewares, request as AppRequest, reply);
         if (!proceed) return reply;

@@ -14,7 +14,7 @@ import type { Permission, WorkspaceRole } from '@foxschema/shared';
 import { type AuthModule, SESSION_COOKIE, SESSION_MAX_AGE_MS, type AuthUser } from './auth.service';
 import { sendError } from '../http/respond';
 import { ServiceError } from '../contracts/actor';
-import { DEMO_READ_ONLY, demoMayCall } from '../authorization/demo-access';
+import { READ_ONLY_ACCOUNT, requestAllowed } from '../authorization/read-only';
 
 /** Put the resolved session user's identity + grants on the request. */
 export function attachAuthUser(
@@ -85,11 +85,12 @@ export function authGuard(auth: AuthModule) {
         sendError(res, 'unauthenticated', 'Authentication required');
         return;
       }
-      // A demo account reads; it writes only through routes that read (demo-access.ts).
-      // Matched on the registered route, `:params` and all, never the raw URL.
-      // Before the workspace reads below: a refused write needs none of them.
-      if (!demoMayCall(session.user.role, req.method, req.routeOptions?.url ?? '')) {
-        sendError(res, 'forbidden', DEMO_READ_ONLY);
+      // An account without app.write reads: a write it may make declares it on
+      // its own route (`reads`, read-only.ts). Before the workspace reads
+      // below: a refused write needs none of them.
+      const routeReads = (req.routeOptions?.config as { reads?: boolean } | undefined)?.reads === true;
+      if (!requestAllowed(session.user.permissions, req.method, routeReads)) {
+        sendError(res, 'forbidden', READ_ONLY_ACCOUNT);
         return;
       }
       if (session.launch && (await auth.registrationState()).required) {

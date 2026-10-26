@@ -93,6 +93,9 @@ export const PERMISSIONS = [
   'admin.users',
   'admin.roles',
   'admin.drivers',
+  // Account
+  'app.write',
+  'account.self',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -156,6 +159,8 @@ export const PERMISSION_META: PermissionMeta[] = [
   { id: 'workspace.create', group: 'Workspace', label: 'Create workspaces', description: 'Create workspaces besides your own. Install-wide: comes from the account role, not a workspace role.' },
   { id: 'admin.users', group: 'Admin', label: 'Manage users', description: 'List FoxSchema logins, assign app roles, and activate or deactivate accounts. Not the same as database users on a connected server.' },
   { id: 'admin.roles', group: 'Admin', label: 'Configure roles', description: 'Edit which FoxSchema permissions each app role receives, including Grant privileges for database GRANT/REVOKE.' },
+  { id: 'app.write', group: 'Account', label: 'Save and change', description: 'Save connections, secrets, scripts and settings, and run anything that writes. Without it an account only reads: it browses, compares and runs queries, and every other route refuses it. The Demo role is the role without it. Install-wide: comes from the account role, not a workspace role.' },
+  { id: 'account.self', group: 'Account', label: 'Manage own account', description: 'Change its own profile and password, ask for a reset or a verification email, and sign its other sessions out. A shared login (the Demo role) has it withheld, so no visitor changes the account for everyone. Install-wide: comes from the account role.' },
   { id: 'admin.drivers', group: 'Admin', label: 'Install drivers', description: 'Install a database driver package on the server (npm install, and a native build for Db2). It downloads and runs code on the machine Fox Schema runs on, for every workspace. Install-wide: comes from the account role, not a workspace role.' },
 ];
 
@@ -163,11 +168,11 @@ const ALL = [...PERMISSIONS];
 
 /**
  * A viewer's reading, without workflows or Git: browse and compare schemas,
- * read history, inspect access, run SELECTs. Every permission that writes is
- * absent. Whatever an admin adds here, the server lets a demo account reach
- * only the routes that read (`DEMO_ALLOWED_WRITES` on the server): saving a
- * connection, a secret, a workspace or a profile stays closed. What SQL it may
- * run follows these permissions, so adding `editor.dml` makes a sandbox.
+ * read history, inspect access, run SELECTs. It lacks `app.write`, so the
+ * server refuses every route that is not declared to read (saving a
+ * connection, a secret, a workspace), and `account.self`, so no visitor
+ * changes the shared login. What SQL it may run follows these permissions, so
+ * adding `editor.dml` makes a sandbox.
  */
 const DEMO: Permission[] = [
   'schema.browse',
@@ -185,8 +190,11 @@ const DEMO: Permission[] = [
   'access.report',
 ];
 
-/** The demo's reading, plus workflows and Git to look at. Each role above builds on the one below. */
-const VIEWER: Permission[] = [...DEMO, 'workflow.access', 'git.view'];
+/**
+ * The demo's reading, plus workflows and Git to look at, and the right to save
+ * its own work and run its own account. Each role above builds on the one below.
+ */
+const VIEWER: Permission[] = [...DEMO, 'workflow.access', 'git.view', 'app.write', 'account.self'];
 
 const EDITOR: Permission[] = [
   ...VIEWER,
@@ -334,6 +342,8 @@ export const INSTALL_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>(
   'admin.roles',
   'admin.drivers',
   'workspace.create',
+  'app.write',
+  'account.self',
 ]);
 
 /**

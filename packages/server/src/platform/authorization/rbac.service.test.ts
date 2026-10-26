@@ -277,6 +277,30 @@ describe('RbacModule', () => {
     }
   });
 
+  it('gives a role saved before read-only existed app.write and account.self, once, and never the Demo role', async () => {
+    const store = await getStore();
+    try {
+      await rbac.setRolePermissions(
+        'editor',
+        DEFAULT_ROLE_PERMISSIONS.editor.filter((p) => p !== 'app.write' && p !== 'account.self')
+      );
+      await rbac.setRolePermissions('demo', DEFAULT_ROLE_PERMISSIONS.demo);
+      await store.run('DELETE FROM app_settings WHERE "key" = ?', ['rbac.grant.app.write']);
+      await backfillDatagridRolePermissions(store);
+      const editor = new Set(await rbac.permissionsForRole('editor'));
+      expect(editor.has('app.write')).toBe(true);
+      expect(editor.has('account.self')).toBe(true);
+      expect(await rbac.permissionsForRole('demo')).not.toContain('app.write');
+      // An admin who then makes editors read-only keeps them that way.
+      await rbac.setRolePermissions('editor', [...editor].filter((p) => p !== 'app.write') as never);
+      await backfillDatagridRolePermissions(store);
+      expect(await rbac.permissionsForRole('editor')).not.toContain('app.write');
+    } finally {
+      await rbac.setRolePermissions('editor', DEFAULT_ROLE_PERMISSIONS.editor);
+      await rbac.setRolePermissions('demo', DEFAULT_ROLE_PERMISSIONS.demo);
+    }
+  });
+
   it('does not backfill Grant privileges onto editor', async () => {
     const store = await getStore();
     try {

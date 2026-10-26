@@ -7,7 +7,7 @@
  * (name, archive, members). Mounted behind `authGuard`.
  */
 import type { FastifyReply } from 'fastify';
-import { Router } from '../../platform/http/router';
+import { Router, reads } from '../../platform/http/router';
 import type { AuthedRequest } from '../../platform/http/types';
 import { sendError } from '../../platform/http/respond';
 import { ServiceError } from '../../platform/contracts/actor';
@@ -132,7 +132,7 @@ export function createWorkspaceRoutes(
   });
 
   /** Act in this workspace from now on (every tab and the CLI's next run follow). */
-  router.post('/:id/select', async (req: AuthedRequest, res: FastifyReply) => {
+  router.post('/:id/select', reads, async (req: AuthedRequest, res: FastifyReply) => {
     try {
       await directory.select(req.userId!, id(req));
       res.send({ ok: true });

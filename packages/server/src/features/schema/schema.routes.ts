@@ -9,7 +9,7 @@ import { scopeOf } from '../../platform/http/scope';
 import type { ConnectionResolver } from '../../platform/connections/resolve';
 import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
-import { Router } from '../../platform/http/router';
+import { Router, reads } from '../../platform/http/router';
 import { requirePermissions } from '../../platform/authorization/rbac.guard';
 import type { AuthedRequest } from '../../platform/http/types';
 import type { ConnectionRef } from '../../platform/connections/resolve';
@@ -26,7 +26,7 @@ export interface SchemaRouteDeps {
 
 export function createSchemaRoutes(deps: SchemaRouteDeps): Router {
   const router = Router();
-  router.post('/schema/list', requirePermissions('schema.browse'), async (req: AppRequest, res: FastifyReply) => {
+  router.post('/schema/list', reads, requirePermissions('schema.browse'), async (req: AppRequest, res: FastifyReply) => {
     try {
       const { dialect, option } = await deps.resolveRef(scopeOf(req as AuthedRequest), req.body as ConnectionRef);
       const provider = deps.connectionModule.getProvider(dialect);
@@ -40,7 +40,7 @@ export function createSchemaRoutes(deps: SchemaRouteDeps): Router {
     }
   });
 
-  router.post('/schema/load', requirePermissions('schema.browse'), async (req: AppRequest, res: FastifyReply) => {
+  router.post('/schema/load', reads, requirePermissions('schema.browse'), async (req: AppRequest, res: FastifyReply) => {
     const { scope, ...ref } = req.body as ConnectionRef & { scope: DbObjectType[] };
     try {
       const { dialect, option, schema } = await deps.resolveRef(scopeOf(req as AuthedRequest), ref);
@@ -59,6 +59,7 @@ export function createSchemaRoutes(deps: SchemaRouteDeps): Router {
   const tableInsightLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 });
   router.post(
     '/schema/table-insight',
+    reads,
     tableInsightLimiter,
     // This powers Data Peek's Insight tab in the SQL Editor. Requiring
     // utility.access locked the whole tab out for the built-in viewer role,

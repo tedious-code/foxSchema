@@ -25,7 +25,7 @@
     "@duckdb/node-api": "1.5.4-r.1",
     "@faker-js/faker": "10.6.0",
     "@fastify/cors": "11.3.1",
-    "@fastify/static": "10.1.6",
+    "@fastify/static": "10.1.7",
     "@foxschema/db": "*",
     "@foxschema/server": "*",
     "@foxschema/shared": "*",
@@ -38,13 +38,13 @@
     "ajv": "8.20.0",
     "better-sqlite3": "13.0.3",
     "cron-parser": "5.10.2",
-    "cronstrue": "3.32.0",
+    "cronstrue": "3.38.0",
     "date-fns": "4.4.0",
     "fastify": "5.12.7",
     "lodash-es": "4.18.1",
-    "lucide-react": "1.58.0",
+    "lucide-react": "1.61.0",
     "monaco-editor": "0.57.0",
-    "mssql": "12.7.9",
+    "mssql": "12.7.11",
     "mysql2": "3.24.6",
     "oracledb": "26.0.0",
     "pg": "8.23.1",
@@ -55,14 +55,14 @@
     "sql-formatter": "15.9.0",
     "tailwindcss": "4.3.3",
     "zod": "4.6.7",
-    "zustand": "5.0.15"
+    "zustand": "5.0.16"
   },
   "optionalDependencies": {
-    "@aws-sdk/client-secrets-manager": "3.1152.0",
+    "@aws-sdk/client-secrets-manager": "3.1156.0",
     "@azure/identity": "4.14.0",
     "@azure/keyvault-secrets": "4.11.2",
     "@google-cloud/secret-manager": "7.2.0",
-    "ibm_db": "4.0.1"
+    "ibm_db": "4.1.0"
   },
   "devDependencies": {
     "@types/lodash-es": "4.17.12",
@@ -74,6 +74,6 @@
     "cross-env": "10.1.0",
     "pino-pretty": "13.2.0",
     "tsx": "4.23.15",
-    "vite": "8.3.4"
+    "vite": "8.3.5"
   }
 }

@@ -13,8 +13,7 @@ import { DemoMode } from '../../platform/identity/demo-mode.service';
 import { SignupModule } from '../users';
 import { AppSettingsStore } from '../../platform/settings/app-settings.service';
 import { sendError } from '../../platform/http/respond';
-import { DEMO_READ_ONLY } from '../../platform/authorization/demo-access';
-import { isDemoRole } from '@foxschema/shared';
+import { READ_ONLY_ACCOUNT } from '../../platform/authorization/read-only';
 import { ServiceError } from '../../platform/contracts/actor';
 import { rateLimit } from '../../platform/guards/rate-limit';
 import { getLogger } from '../../platform/logger/logger';
@@ -146,9 +145,10 @@ export function createAuthRoutes(
       sendError(res, 'unauthenticated', 'Sign in to verify your email.');
       return;
     }
-    // Any visitor could mail the demo address over and over: its profile is locked.
-    if (isDemoRole(session.user.role)) {
-      sendError(res, 'forbidden', DEMO_READ_ONLY);
+    // A shared login (the Demo role) does not manage its own account: any
+    // visitor could mail its address over and over.
+    if (!session.user.permissions.includes('account.self')) {
+      sendError(res, 'forbidden', READ_ONLY_ACCOUNT);
       return;
     }
     if ((await auth.emailVerification(session.user.id)).verified) {
@@ -253,9 +253,9 @@ export function createAuthRoutes(
       sendError(res, 'unauthenticated', 'Authentication required');
       return;
     }
-    // A demo login is every visitor at once: this would sign all the others out.
-    if (isDemoRole(user.role)) {
-      sendError(res, 'forbidden', DEMO_READ_ONLY);
+    // A shared login is every visitor at once: this would sign all the others out.
+    if (!user.permissions.includes('account.self')) {
+      sendError(res, 'forbidden', READ_ONLY_ACCOUNT);
       return;
     }
     res.send({ signedOut: await auth.signOutOtherSessions(user.id, token) });

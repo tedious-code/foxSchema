@@ -471,6 +471,13 @@ settings make that safe:
   demo account) or sign the other visitors out. Its permissions are edited like
   any role's; adding `editor.dml` there turns the demo into a sandbox, since
   the SQL it may run follows those permissions.
+
+  Read-only is a permission, not the role's name: the Demo role is simply the
+  one without **Save and change** (`app.write`) and **Manage own account**
+  (`account.self`). Remove `app.write` from any role and its accounts read only
+  too; give it to Demo and the demo can save. Without it, an account may call a
+  route only if it is a GET or declares that it reads (running a SELECT,
+  comparing, loading a schema, its own preferences, switching workspace).
 - **Demo mode** (Access control → Sign-in → Demo mode). Shows a demo banner on
   every page and your sign-in hint — typically the shared login — on the
   sign-in page. Anyone can read the hint.

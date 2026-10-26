@@ -132,7 +132,7 @@ describe.skipIf(!hasSqlite3())('a published demo', () => {
     ];
     for (const r of refused) {
       expect(r.status, JSON.stringify(r.json)).toBe(403);
-      expect(r.json.error).toMatch(/read-only demo/);
+      expect(r.json.error).toMatch(/read-only/);
     }
     // A write SQL statement is refused by the permissions the Demo role lacks.
     const conn = (await api('GET', '/connections', undefined, demoCookie)).json.connections.find(

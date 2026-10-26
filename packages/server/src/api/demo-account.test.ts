@@ -18,7 +18,7 @@ process.env.APP_ENCRYPTION_KEY ||= '0'.repeat(64);
 
 import { DEFAULT_ROLE_PERMISSIONS } from '@foxschema/shared';
 import { getStore } from '../database/store';
-import { DEMO_ALLOWED_WRITES, DEMO_READ_ONLY } from '../platform/authorization/demo-access';
+import { READ_ONLY_ACCOUNT as DEMO_READ_ONLY } from '../platform/authorization/read-only';
 import { FEATURES, createFeatureContext } from '../app/feature-registry';
 
 let port = 0;
@@ -29,16 +29,33 @@ let demoId = '';
 let viewer = '';
 
 /** Every route the features mount, with its mount's access, built once. */
-let routeTable: Array<{ method: string; path: string; access: string }> | null = null;
+let routeTable: Array<{ method: string; path: string; access: string; reads: boolean }> | null = null;
 function mountedRoutes() {
   if (!routeTable) {
     const ctx = createFeatureContext();
     routeTable = FEATURES.flatMap((f) => f.mounts).flatMap((m) =>
-      m.routes(ctx).flatten(m.prefix).map((r) => ({ method: r.method, path: r.path, access: m.access }))
+      m.routes(ctx).flatten(m.prefix).map((r) => ({ method: r.method, path: r.path, access: m.access, reads: r.reads === true }))
     );
   }
   return routeTable;
 }
+
+/**
+ * The writes declared to only read (`reads` beside their handler). A read-only
+ * account (the Demo role) may call exactly these: adding one here is a review
+ * of whether it really changes nothing a visitor would share.
+ */
+const REVIEWED_READS = [
+  'POST /api/compare',
+  'POST /api/schema/db-access',
+  'POST /api/schema/list',
+  'POST /api/schema/load',
+  'POST /api/schema/table-insight',
+  'POST /api/sql/code-cell/transpile',
+  'POST /api/sql/execute',
+  'POST /api/workspaces/:id/select',
+  'PUT /api/user/preferences',
+];
 
 const DEMO_EMAIL = 'demo-visitor@example.com';
 const DEMO_PASSWORD = 'shared-demo-login-9';
@@ -126,7 +143,7 @@ describe('a demo account', () => {
   it('is refused every write behind sign-in except the few that read — before the route runs', async () => {
     const guarded = mountedRoutes().filter((r) => (r.access === 'user' || r.access === 'registered') && r.method !== 'GET');
     expect(guarded.length).toBeGreaterThan(50);
-    const allowed = new Set(DEMO_ALLOWED_WRITES.map((r) => `${r.method} ${r.path}`));
+    const allowed = new Set(guarded.filter((r) => r.reads).map((r) => `${r.method} ${r.path}`));
 
     const wrong: string[] = [];
     for (const route of guarded) {
@@ -139,9 +156,12 @@ describe('a demo account', () => {
     expect(wrong, 'allow-listed routes must pass the guard; every other write must be refused').toEqual([]);
   }, 120_000);
 
-  it('lists only routes that exist — a renamed route fails here instead of closing quietly', () => {
-    const served = new Set(mountedRoutes().map((r) => `${r.method} ${r.path}`));
-    expect(DEMO_ALLOWED_WRITES.map((r) => `${r.method} ${r.path}`).filter((k) => !served.has(k))).toEqual([]);
+  it('declares reads on exactly the reviewed writes — a new one is a deliberate change here', () => {
+    const declared = mountedRoutes()
+      .filter((r) => r.reads && r.method !== 'GET')
+      .map((r) => `${r.method} ${r.path}`)
+      .sort();
+    expect(declared).toEqual(REVIEWED_READS);
   });
 
   it('runs the reads it is allowed: the guard lets them through to their own checks', async () => {

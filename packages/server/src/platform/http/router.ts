@@ -15,6 +15,19 @@
  */
 import type { HttpMethod, Middleware, RouteHandler } from './types';
 
+/**
+ * Declares that a route only reads, whatever its verb: `router.post('/sql/execute',
+ * reads, handler)`. A POST that carries a SELECT in its body still reads. An
+ * account without `app.write` (the Demo role) may call a route only when it is
+ * a GET or declared this way; every other write refuses it before the handler.
+ *
+ * A route says so beside its own handler, so a new route is closed to a
+ * read-only account until someone decides it reads.
+ */
+export const reads = Object.freeze({ reads: true as const });
+type ReadsMarker = typeof reads;
+type ChainItem = Middleware | RouteHandler | ReadsMarker;
+
 export interface RouteDefinition {
   method: HttpMethod;
   /** As declared, relative to wherever this router is mounted. */
@@ -22,6 +35,8 @@ export interface RouteDefinition {
   /** Guards for this route only, in declaration order. */
   middlewares: Middleware[];
   handler: RouteHandler;
+  /** Declared with `reads`: only reads, whatever its verb. */
+  reads?: true;
 }
 
 interface MountedRouter {
@@ -34,25 +49,27 @@ export class RouteCollector {
   private readonly routes: RouteDefinition[] = [];
   private readonly mounted: MountedRouter[] = [];
 
-  private add(method: HttpMethod, path: string, chain: (Middleware | RouteHandler)[]): void {
-    const handler = chain[chain.length - 1] as RouteHandler;
-    const middlewares = chain.slice(0, -1) as Middleware[];
-    this.routes.push({ method, path, middlewares, handler });
+  private add(method: HttpMethod, path: string, chain: ChainItem[]): void {
+    const isRead = chain.includes(reads);
+    const rest = chain.filter((c) => c !== reads) as (Middleware | RouteHandler)[];
+    const handler = rest[rest.length - 1] as RouteHandler;
+    const middlewares = rest.slice(0, -1) as Middleware[];
+    this.routes.push({ method, path, middlewares, handler, ...(isRead ? { reads: true as const } : {}) });
   }
 
-  get(path: string, ...chain: (Middleware | RouteHandler)[]): void {
+  get(path: string, ...chain: ChainItem[]): void {
     this.add('GET', path, chain);
   }
-  post(path: string, ...chain: (Middleware | RouteHandler)[]): void {
+  post(path: string, ...chain: ChainItem[]): void {
     this.add('POST', path, chain);
   }
-  put(path: string, ...chain: (Middleware | RouteHandler)[]): void {
+  put(path: string, ...chain: ChainItem[]): void {
     this.add('PUT', path, chain);
   }
-  delete(path: string, ...chain: (Middleware | RouteHandler)[]): void {
+  delete(path: string, ...chain: ChainItem[]): void {
     this.add('DELETE', path, chain);
   }
-  patch(path: string, ...chain: (Middleware | RouteHandler)[]): void {
+  patch(path: string, ...chain: ChainItem[]): void {
     this.add('PATCH', path, chain);
   }
 
@@ -98,6 +115,7 @@ export class RouteCollector {
         path: joinPath(prefix, r.path),
         middlewares: [...base, ...r.middlewares],
         handler: r.handler,
+        ...(r.reads ? { reads: r.reads } : {}),
       });
     }
     for (const m of this.mounted) {

@@ -275,10 +275,11 @@ export class AuthModule {
       [normalized]
     );
     if (!row || (row.active !== null && row.active !== undefined && Number(row.active) === 0)) return null;
-    // A demo login is shared and its password is public: a visitor asking for
-    // a reset would change it for everyone. Only an admin resets it. Answered
-    // exactly like an unknown email, so the reply says nothing either way.
-    if (isDemoRole(row.app_role)) return null;
+    // A shared login (no account.self, the Demo role) has a public password: a
+    // visitor asking for a reset would change it for everyone. Only an admin
+    // resets it. Answered exactly like an unknown email, so the reply says
+    // nothing either way.
+    if (!(await this.rbac.permissionsForRole(toAppRole(row.app_role))).includes('account.self')) return null;
     return this.issueCode(row.id, 'reset');
   }
 

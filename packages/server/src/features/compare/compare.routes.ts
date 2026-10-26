@@ -5,7 +5,7 @@
  *
  * Declaration only: path, method, guards. No logic.
  */
-import { Router } from '../../platform/http/router';
+import { Router, reads } from '../../platform/http/router';
 import { requirePermissions } from '../../platform/authorization/rbac.guard';
 import { makeCompareController } from './compare.controller';
 import { makeCompareHandlers } from './compare.handler';
@@ -15,7 +15,7 @@ export function createCompareRoutes(deps: { compareService: CompareService }): R
   const router = Router();
   const handlers = makeCompareHandlers(makeCompareController(deps));
 
-  router.post('/compare', requirePermissions('schema.compare'), handlers.compare);
+  router.post('/compare', reads, requirePermissions('schema.compare'), handlers.compare);
 
   return router;
 }

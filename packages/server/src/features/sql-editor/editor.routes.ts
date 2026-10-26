@@ -9,7 +9,7 @@ import { scopeOf } from '../../platform/http/scope';
 import type { ConnectionResolver } from '../../platform/connections/resolve';
 import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
-import { Router } from '../../platform/http/router';
+import { Router, reads } from '../../platform/http/router';
 import { denyUnless } from '../../platform/authorization/rbac.guard';
 import { rateLimit } from '../../platform/guards/rate-limit';
 import { idempotency } from '../../platform/guards/idempotency';
@@ -80,7 +80,7 @@ export function createEditorRoutes(deps: EditorRouteDeps): Router {
   // made Express call it with (req, res, next); it returned a handler and never
   // called next(), so the request hung with no error and no response.
   const writeIdempotency = idempotency();
-  router.post('/sql/execute', sqlExecuteLimiter, writeIdempotency, async (req: AppRequest, res: FastifyReply) => {
+  router.post('/sql/execute', reads, sqlExecuteLimiter, writeIdempotency, async (req: AppRequest, res: FastifyReply) => {
     const { statements, maxRows, offset, params, datagridAction, seek, orderBy, stopOnError, transaction, ...ref } = req.body as ConnectionRef & {
       statements?: unknown;
       maxRows?: unknown;
@@ -229,7 +229,7 @@ export function createEditorRoutes(deps: EditorRouteDeps): Router {
   // The server already has it for Node cells, so the browser sends the source
   // here. It is compiled, never run: the same permission as opening the editor.
   const transpileLimiter = rateLimit({ windowMs: 60 * 1000, max: 120 });
-  router.post('/sql/code-cell/transpile', transpileLimiter, async (req: AppRequest, res: FastifyReply) => {
+  router.post('/sql/code-cell/transpile', reads, transpileLimiter, async (req: AppRequest, res: FastifyReply) => {
     if (denyUnless(req as AuthedRequest, res, 'editor.access')) return;
     const source = (req.body as { source?: unknown } | undefined)?.source;
     if (typeof source !== 'string' || !source.trim()) {

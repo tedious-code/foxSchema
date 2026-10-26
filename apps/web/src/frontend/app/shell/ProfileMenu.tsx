@@ -1,5 +1,4 @@
 import React, { lazy, useEffect, useRef, useState } from 'react';
-import { isDemoRole } from '@foxschema/shared';
 import { createPortal } from 'react-dom';
 import { LogOut, Palette, ArrowUpCircle, Globe, Shield, MonitorX, MessageSquarePlus, UserPlus } from 'lucide-react';
 import { apiSignOutOthers } from '@/shared/api/authApi';
@@ -23,6 +22,8 @@ export function ProfileMenu(): React.ReactElement | null {
   const { user, logout, launch } = useAuthStore();
   const setActiveView = useUiStore((s) => s.setActiveView);
   const canAdminAccess = useAuthStore((s) => s.can('admin.users') || s.can('admin.roles'));
+  /** A shared login (the Demo role) does not run its own account; the server refuses it too. */
+  const managesOwnAccount = useAuthStore((s) => s.can('account.self'));
   const setRegisterDialogOpen = useAuthStore((s) => s.setRegisterDialogOpen);
   const [open, setOpen] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
@@ -159,8 +160,8 @@ export function ProfileMenu(): React.ReactElement | null {
             <Globe className="w-4 h-4" /> foxschema.com
           </a>
 
-          {/* A demo login is every visitor at once; the server refuses this for it. */}
-          {!isDemoRole(user?.role) && (
+          {/* A shared login is every visitor at once; the server refuses this for it. */}
+          {managesOwnAccount && (
             <button
               type="button"
               data-testid="profile-sign-out-others"

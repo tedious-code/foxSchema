@@ -9,7 +9,7 @@ import { scopeOf } from '../../platform/http/scope';
 import type { WorkspaceScope } from '../../platform/http/scope';
 import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
-import { Router } from '../../platform/http/router';
+import { Router, reads } from '../../platform/http/router';
 import type { ConnectionModule } from '@foxschema/db';
 import { requireAnyPermission, requirePermissions } from '../../platform/authorization/rbac.guard';
 import { rateLimit } from '../../platform/guards/rate-limit';
@@ -195,6 +195,7 @@ export function createAccessRoutes(deps: AccessRouteDeps): Router {
 
   router.post(
     '/schema/db-access',
+    reads,
     dbAccessLimiter,
     // Access workspace tabs use access.*; Utilities → Database Access uses
     // utility.access. Either family may load the catalog.

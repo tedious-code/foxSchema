@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1008** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1015** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1685,6 +1685,21 @@ Every control has a test ID: **1008** buttons, text boxes, selects and textareas
   - `server-insights-refresh` · button · Refresh
   - `server-insights-tab-{id}` · button
   - `server-insights-unlock` · button · Unlock
+- **SqlTracerPanel** · `features/utilities/components/SqlTracerPanel.tsx`
+  - `sql-tracer-detail` · aside
+  - `sql-tracer-detail-text` · pre
+  - `sql-tracer-empty` · p
+  - `sql-tracer-error` · p
+  - `sql-tracer-filter` · input · Text, user, client…
+  - `sql-tracer-mode` · select · Fox activity Live (engine sessions)
+  - `sql-tracer-open-editor` · button · Open in editor
+  - `sql-tracer-panel` · div
+  - `sql-tracer-password-draft` · input · ••••••••
+  - `sql-tracer-row-{seq}` · tr
+  - `sql-tracer-start` · button · Start
+  - `sql-tracer-status` · div
+  - `sql-tracer-stop` · button · Stop
+  - `sql-tracer-unlock` · button · Unlock
 - **UtilitiesView** · `features/utilities/components/UtilitiesView.tsx`
   - `{t.testId}` · button · passed in by the parent
   - `db-access-modal` · div
@@ -1698,6 +1713,7 @@ Every control has a test ID: **1008** buttons, text boxes, selects and textareas
   - `utilities-index-management` · data · Index Management
   - `utilities-object-sizes` · data · Table & Index Size
   - `utilities-query-files` · data · Query files
+  - `utilities-sql-tracer` · data · SQL Tracer
   - `utilities-system-info` · data · System Info
   - `utilities-user-connections` · data · User Connections
   - `utilities-view` · div

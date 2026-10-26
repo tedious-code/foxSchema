@@ -7,6 +7,8 @@ import React from 'react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { UtilitiesView } from './UtilitiesView';
+import { useAuthStore } from '@/platform/authStore';
+import type { AuthUser } from '@/shared/api/authApi';
 
 vi.mock('@/features/compare/state/useSyncStore', () => ({
   useSyncStore: (sel: (s: { connections: { id: string; name: string; dialect: string }[] }) => unknown) =>
@@ -54,6 +56,11 @@ vi.mock('./ServerInsightsModal', () => ({
       </div>
     ) : null,
 }));
+vi.mock('./SqlTracerPanel', () => ({
+  SqlTracerPanel: ({ lockedConnectionId }: { lockedConnectionId?: string }) => (
+    <div data-testid="sql-tracer-embed" data-locked={lockedConnectionId ?? ''} />
+  ),
+}));
 vi.mock('./DatabaseAccessModal', () => ({
   DatabaseAccessModal: ({ open }: { open: boolean }) =>
     open ? <div data-testid="db-access-embedded">grants</div> : null,
@@ -81,6 +88,30 @@ const UTILITY_BUTTONS = [
 describe('UtilitiesView', () => {
   beforeEach(() => {
     localStorage.clear();
+    useAuthStore.setState({ user: null });
+  });
+
+  const signInAs = (permissions: string[]) =>
+    useAuthStore.setState({ user: { id: 'u1', email: 'u1@x.test', role: 'owner', permissions } as unknown as AuthUser });
+
+  it('offers the SQL Tracer only to someone with utility.trace', () => {
+    signInAs(['utility.access']);
+    const { unmount } = render(<UtilitiesView />);
+    expect(screen.queryByTestId('utilities-sql-tracer')).toBeNull();
+    unmount();
+
+    signInAs(['utility.access', 'utility.trace']);
+    render(<UtilitiesView />);
+    fireEvent.click(screen.getByTestId('utilities-sql-tracer'));
+    expect(screen.getByTestId('sql-tracer-embed').getAttribute('data-locked')).toBe('c1');
+  });
+
+  it('does not reopen a remembered tracer for someone who lost utility.trace', () => {
+    localStorage.setItem('foxschema-utilities-tool', 'trace');
+    signInAs(['utility.access']);
+    render(<UtilitiesView />);
+    expect(screen.queryByTestId('sql-tracer-embed')).toBeNull();
+    expect(screen.getByTestId('index-management-embed')).toBeTruthy();
   });
 
   it('lists every utility in the workspace nav, not the SQL sidebar', () => {

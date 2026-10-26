@@ -283,6 +283,13 @@ const ONE_TIME_GRANTS: Array<{
     perms: ['app.write', 'account.self'],
     when: () => true,
   },
+  {
+    // SQL Tracer: owner-like roles (those that deploy migrations) watch the SQL
+    // a connection runs. Editors and below do not: it shows other people's SQL.
+    key: 'rbac.grant.utility.trace',
+    perms: ['utility.trace'],
+    when: (p) => p.has('schema.migrate'),
+  },
 ];
 
 async function applyOneTimeGrants(store: MetadataStore): Promise<void> {

@@ -208,6 +208,9 @@ const ROUTES: RouteExpectation[] = [
   { method: 'DELETE', path: '/api/workflow/connections/:id/grant', status: 200 },
   { method: 'GET', path: '/api/workflow-internal/engine-config', status: 503 },
   { method: 'POST', path: '/api/workflow-internal/connections/resolve', status: 503 },
+  { method: 'POST', path: '/api/sql-trace/start', status: 400 },
+  { method: 'GET', path: '/api/sql-trace/:id/events', status: 404 },
+  { method: 'POST', path: '/api/sql-trace/:id/stop', status: 404 },
 ];
 
 const KEY = '0'.repeat(64);

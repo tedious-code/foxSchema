@@ -8,7 +8,8 @@
  * Connection-first: one credential chip at the top; tools dock as panes.
  * Left list keeps the e2e `utilities-*` / `sql-sidebar-utilities` testids.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import type { Permission } from '@foxschema/shared';
 import {
   Activity,
   Copy,
@@ -18,6 +19,7 @@ import {
   FileSpreadsheet,
   HardDrive,
   KeyRound,
+  ScanSearch,
   Users,
   Wrench,
 } from 'lucide-react';
@@ -31,6 +33,8 @@ import { DatabaseAccessModal } from './DatabaseAccessModal';
 import { FileQueryModal } from './FileQueryModal';
 import { IndexManagementModal } from './IndexManagementModal';
 import { ServerInsightsModal, type ServerInsightsTab } from './ServerInsightsModal';
+import { SqlTracerPanel } from './SqlTracerPanel';
+import { useAuthStore } from '@/platform/authStore';
 import { sectionLabelCls } from '@/shared/components/surfaces';
 import { connectionOptionLabel } from '@/shared/lib/dialectLabel';
 
@@ -43,7 +47,8 @@ export type UtilityTool =
   | 'pool'
   | 'sessions'
   | 'system'
-  | 'sizes';
+  | 'sizes'
+  | 'trace';
 
 const LS_TOOL = 'foxschema-utilities-tool';
 const LS_CONN = 'foxschema-utilities-connection';
@@ -55,6 +60,8 @@ const TOOLS: {
   group: string;
   blurb: string;
   icon: React.ElementType;
+  /** Shown only to someone with this permission, on top of Utilities itself. */
+  permission?: Permission;
 }[] = [
   {
     id: 'indexes',
@@ -113,6 +120,15 @@ const TOOLS: {
     icon: HardDrive,
   },
   {
+    id: 'trace',
+    testId: 'utilities-sql-tracer',
+    label: 'SQL Tracer',
+    group: 'Insights',
+    blurb: 'Watch the statements on this connection for up to 15 minutes. Secrets are masked.',
+    icon: ScanSearch,
+    permission: 'utility.trace',
+  },
+  {
     id: 'dbAccess',
     testId: 'utilities-database-access',
     label: 'DB users & grants',
@@ -162,10 +178,15 @@ function insightTab(tool: UtilityTool): ServerInsightsTab | null {
 export const UtilitiesView: React.FC = () => {
   const setActiveView = useUiStore((s) => s.setActiveView);
   const connections = useSyncStore((s) => s.connections);
-  const [tool, setTool] = useState<UtilityTool>(loadTool);
+  // The ids this person may open, as one string: re-renders when a role change alters them.
+  const allowed = useAuthStore((s) => TOOLS.filter((t) => !t.permission || s.can(t.permission)).map((t) => t.id).join(' '));
+  const tools = useMemo(() => TOOLS.filter((t) => allowed.split(' ').includes(t.id)), [allowed]);
+  const [chosen, setTool] = useState<UtilityTool>(loadTool);
+  // A remembered tool this person may no longer open falls back to the first.
+  const tool = tools.some((t) => t.id === chosen) ? chosen : tools[0]!.id;
   const [connectionId, setConnectionId] = useState('');
   const [fileImportsKey, setFileImportsKey] = useState(0);
-  const active = TOOLS.find((t) => t.id === tool) ?? TOOLS[0]!;
+  const active = tools.find((t) => t.id === tool) ?? tools[0]!;
   const insights = insightTab(tool);
   const conn = connections.find((c) => c.id === connectionId);
   const lockedId = connectionId || undefined;
@@ -216,7 +237,7 @@ export const UtilitiesView: React.FC = () => {
               {group}
             </p>
             <div className="flex flex-col gap-0.5">
-              {TOOLS.filter((t) => t.group === group).map((t) => {
+              {tools.filter((t) => t.group === group).map((t) => {
                 const on = t.id === tool;
                 return (
                   <button
@@ -304,6 +325,7 @@ export const UtilitiesView: React.FC = () => {
               onClose={() => undefined}
             />
           )}
+          {tool === 'trace' && <SqlTracerPanel key={lockedId} lockedConnectionId={lockedId} />}
           {tool === 'dbAccess' && (
             <div
               className="flex min-h-0 flex-1 flex-col overflow-hidden"

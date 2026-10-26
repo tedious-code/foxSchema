@@ -178,10 +178,9 @@ function insightTab(tool: UtilityTool): ServerInsightsTab | null {
 export const UtilitiesView: React.FC = () => {
   const setActiveView = useUiStore((s) => s.setActiveView);
   const connections = useSyncStore((s) => s.connections);
-  // Subscribe to the user, not to `can` (a stable function), so a role change re-renders.
-  const user = useAuthStore((s) => s.user);
-  const can = useAuthStore((s) => s.can);
-  const tools = useMemo(() => TOOLS.filter((t) => !t.permission || can(t.permission)), [user, can]);
+  // The ids this person may open, as one string: re-renders when a role change alters them.
+  const allowed = useAuthStore((s) => TOOLS.filter((t) => !t.permission || s.can(t.permission)).map((t) => t.id).join(' '));
+  const tools = useMemo(() => TOOLS.filter((t) => allowed.split(' ').includes(t.id)), [allowed]);
   const [chosen, setTool] = useState<UtilityTool>(loadTool);
   // A remembered tool this person may no longer open falls back to the first.
   const tool = tools.some((t) => t.id === chosen) ? chosen : tools[0]!.id;

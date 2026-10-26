@@ -35,6 +35,8 @@ export async function executeSql(
   opts?: {
     datagridAction?: 'insert' | 'update' | 'delete';
     seek?: { columns: string[]; values: unknown[]; descending?: boolean | boolean[] };
+    /** Order each page by these columns (a compare run reads both sides this way). */
+    orderBy?: string[];
     /** Leave the statements after a failure unrun; `results` then ends at it. */
     stopOnError?: boolean;
     /** One transaction for the whole batch; a failure rolls back what already ran. */
@@ -49,6 +51,7 @@ export async function executeSql(
       params,
       ...(opts?.datagridAction ? { datagridAction: opts.datagridAction } : {}),
       ...(opts?.seek ? { seek: opts.seek } : {}),
+      ...(opts?.orderBy?.length ? { orderBy: opts.orderBy } : {}),
       ...(opts?.stopOnError ? { stopOnError: true } : {}),
       ...(opts?.transaction ? { transaction: true } : {}),
     });

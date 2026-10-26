@@ -30,7 +30,7 @@ import {
   statementVerb,
 } from '@foxschema/sql';
 import { isSingleSqlStatement } from '../../platform/statements/single-statement';
-import { clampOffset, parseSqlSeek } from './sql-page-wrap.service';
+import { clampOffset, parseSqlOrderBy, parseSqlSeek } from './sql-page-wrap.service';
 import { makeBeamCellQueryRunner, makeCellQueryRunner } from './code-cell-query.service';
 import type { CellQueryRunner } from './code-cell-execute.service';
 import { parseBeamEndpoints } from '@foxschema/shared';
@@ -81,12 +81,14 @@ export function createEditorRoutes(deps: EditorRouteDeps): Router {
   // called next(), so the request hung with no error and no response.
   const writeIdempotency = idempotency();
   router.post('/sql/execute', sqlExecuteLimiter, writeIdempotency, async (req: AppRequest, res: FastifyReply) => {
-    const { statements, maxRows, offset, params, datagridAction, seek, stopOnError, transaction, ...ref } = req.body as ConnectionRef & {
+    const { statements, maxRows, offset, params, datagridAction, seek, orderBy, stopOnError, transaction, ...ref } = req.body as ConnectionRef & {
       statements?: unknown;
       maxRows?: unknown;
       offset?: unknown;
       params?: unknown;
       seek?: unknown;
+      /** Order each page by these columns (a compare run). */
+      orderBy?: unknown;
       /** Leave the statements after a failure unrun (results end at it). */
       stopOnError?: unknown;
       /** Wrap the batch in one transaction and roll it back on the first failure. */
@@ -195,6 +197,11 @@ export function createEditorRoutes(deps: EditorRouteDeps): Router {
       sendError(res, 'invalid_input', parsedSeek.error);
       return;
     }
+    const parsedOrder = parseSqlOrderBy(orderBy);
+    if (!parsedOrder.ok) {
+      sendError(res, 'invalid_input', parsedOrder.error);
+      return;
+    }
     try {
       // Apply the saved connection's schema (CURRENT SCHEMA / search_path) so
       // unqualified names like ORDERS resolve to DEMO.ORDERS, not USER.ORDERS.
@@ -208,7 +215,8 @@ export function createEditorRoutes(deps: EditorRouteDeps): Router {
         (params as unknown[][] | undefined) ?? [],
         parsedSeek.value,
         stopOnError === true,
-        transaction === true
+        transaction === true,
+        parsedOrder.value
       );
       res.send({ results });
     } catch (error: unknown) {

@@ -118,6 +118,15 @@ export function alignResultGridsByKey(
      */
     leftComplete?: boolean;
     rightComplete?: boolean;
+    /**
+     * For a side read in key order and cut short (a compare run): the key of
+     * its last row. A row found only on the other side whose key sorts at or
+     * before it cannot be further down, so it is classified after all. Only
+     * numeric keys are compared: engines sort text by their own collation, and
+     * guessing that order would classify a row the other side does have.
+     */
+    leftWindowEnd?: unknown[];
+    rightWindowEnd?: unknown[];
   }
 ): KeyAlignedGrids | null {
   if (keyNames.length === 0) return null;
@@ -206,7 +215,7 @@ export function alignResultGridsByKey(
       leftGap.push(false);
       rightGap.push(true);
       rowKeyLabels.push(keyLabelForRow(lRow, leftKeys));
-      if (rightComplete) {
+      if (rightComplete || withinWindow(lRow, leftKeys, opts?.rightWindowEnd)) {
         rowOps.push('delete');
         deleteCount += 1;
       } else {
@@ -224,7 +233,7 @@ export function alignResultGridsByKey(
     leftGap.push(true);
     rightGap.push(false);
     rowKeyLabels.push(keyLabelForRow(rRow, rightKeys));
-    if (leftComplete) {
+    if (leftComplete || withinWindow(rRow, rightKeys, opts?.leftWindowEnd)) {
       rowOps.push('insert');
       insertCount += 1;
     } else {
@@ -248,6 +257,47 @@ export function alignResultGridsByKey(
     unresolvedCount,
     duplicateKeys,
   };
+}
+
+const DIGITS = /^\d+$/;
+
+/** An integer or decimal in text (a bigint arrives as text): `-12`, `3.5`. */
+function isNumericText(text: string): boolean {
+  const unsigned = text.startsWith('-') ? text.slice(1) : text;
+  const [whole, fraction, extra] = unsigned.split('.');
+  return extra === undefined && DIGITS.test(whole ?? '') && (fraction === undefined || DIGITS.test(fraction));
+}
+
+/** a < b → negative, a > b → positive; null when either is not a number. */
+function compareNumeric(a: unknown, b: unknown): number | null {
+  const as = typeof a === 'bigint' ? a.toString() : typeof a === 'number' && Number.isFinite(a) ? String(a) : a;
+  const bs = typeof b === 'bigint' ? b.toString() : typeof b === 'number' && Number.isFinite(b) ? String(b) : b;
+  if (typeof as !== 'string' || typeof bs !== 'string' || !isNumericText(as) || !isNumericText(bs)) return null;
+  if (!as.includes('.') && !bs.includes('.')) {
+    const x = BigInt(as);
+    const y = BigInt(bs);
+    return x < y ? -1 : x > y ? 1 : 0;
+  }
+  return Number(as) - Number(bs);
+}
+
+/**
+ * True when `row`'s key sorts at or before `windowEnd`, compared column by
+ * column the way ORDER BY does. False when there is no window end or any key
+ * part is not a number: the row stays unresolved.
+ */
+function withinWindow(
+  row: unknown[],
+  keys: ReturnType<typeof keyColumnsForGrid>,
+  windowEnd: unknown[] | undefined
+): boolean {
+  if (!windowEnd || windowEnd.length !== keys.length) return false;
+  for (let i = 0; i < keys.length; i++) {
+    const cmp = compareNumeric(row[keys[i]!.resultIndex], windowEnd[i]);
+    if (cmp === null) return false;
+    if (cmp !== 0) return cmp < 0;
+  }
+  return true;
 }
 
 function nonKeyDiffer(

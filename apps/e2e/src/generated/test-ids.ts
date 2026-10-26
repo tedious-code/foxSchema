@@ -2239,10 +2239,16 @@ export const TestIds = {
       sqlResultCompareClose: (statementIndex: string | number) => `sql-result-compare-close-${statementIndex}`,
       /** select */
       sqlResultCompareDest: (statementIndex: string | number) => `sql-result-compare-dest-${statementIndex}`,
+      /** button · Difference › */
+      sqlResultCompareDiffNext: (statementIndex: string | number) => `sql-result-compare-diff-next-${statementIndex}`,
+      /** button · ‹ Difference */
+      sqlResultCompareDiffPrev: (statementIndex: string | number) => `sql-result-compare-diff-prev-${statementIndex}`,
       /** button · Export all compare grids as one CSV (columns prefixed by Source / Target) */
       sqlResultCompareExportCsv: (statementIndex: string | number) => `sql-result-compare-export-csv-${statementIndex}`,
       /** button · Export all compare grids as one CSV */
       sqlResultCompareExportCsvModal: (statementIndex: string | number) => `sql-result-compare-export-csv-modal-${statementIndex}`,
+      /** button */
+      sqlResultCompareFilter: (f: string | number, statementIndex: string | number) => `sql-result-compare-filter-${f}-${statementIndex}`,
       /** p */
       sqlResultCompareHint: (statementIndex: string | number) => `sql-result-compare-hint-${statementIndex}`,
       /** span */
@@ -2253,6 +2259,14 @@ export const TestIds = {
       sqlResultCompareMaximizedHint: (statementIndex: string | number) => `sql-result-compare-maximized-hint-${statementIndex}`,
       /** div */
       sqlResultCompareModal: (statementIndex: string | number) => `sql-result-compare-modal-${statementIndex}`,
+      /** span */
+      sqlResultComparePageLabel: (statementIndex: string | number) => `sql-result-compare-page-label-${statementIndex}`,
+      /** button · Next */
+      sqlResultComparePageNext: (statementIndex: string | number) => `sql-result-compare-page-next-${statementIndex}`,
+      /** button · Prev */
+      sqlResultComparePagePrev: (statementIndex: string | number) => `sql-result-compare-page-prev-${statementIndex}`,
+      /** select · Rows per compare page */
+      sqlResultComparePageSize: (statementIndex: string | number) => `sql-result-compare-page-size-${statementIndex}`,
       /** input */
       sqlResultCompareSkipTrigger: (statementIndex: string | number) => `sql-result-compare-skip-trigger-${statementIndex}`,
       /** input */
@@ -2263,6 +2277,16 @@ export const TestIds = {
       sqlResultCompareToggle: (statementIndex: string | number) => `sql-result-compare-toggle-${statementIndex}`,
       /** div */
       sqlResultCompareToolbar: (statementIndex: string | number) => `sql-result-compare-toolbar-${statementIndex}`,
+      /** div */
+      sqlResultCompareView: (statementIndex: string | number) => `sql-result-compare-view-${statementIndex}`,
+      /** button · Back to loaded rows */
+      sqlResultCompareWindowClear: (statementIndex: string | number) => `sql-result-compare-window-clear-${statementIndex}`,
+      /** span */
+      sqlResultCompareWindowError: (statementIndex: string | number) => `sql-result-compare-window-error-${statementIndex}`,
+      /** button · Compare rows */
+      sqlResultCompareWindowRun: (statementIndex: string | number) => `sql-result-compare-window-run-${statementIndex}`,
+      /** span */
+      sqlResultCompareWindowSummary: (statementIndex: string | number) => `sql-result-compare-window-summary-${statementIndex}`,
       /** section */
       sqlResultCred: (connectionId: string | number) => `sql-result-cred-${connectionId}`,
       /** button · Close maximized results */
@@ -4823,18 +4847,30 @@ export type TestId =
   | `sql-result-compare-baseline-${string}`
   | `sql-result-compare-close-${string}`
   | `sql-result-compare-dest-${string}`
+  | `sql-result-compare-diff-next-${string}`
+  | `sql-result-compare-diff-prev-${string}`
   | `sql-result-compare-export-csv-${string}`
   | `sql-result-compare-export-csv-modal-${string}`
+  | `sql-result-compare-filter-${string}-${string}`
   | `sql-result-compare-hint-${string}`
   | `sql-result-compare-legend-${string}`
   | `sql-result-compare-maximize-${string}`
   | `sql-result-compare-maximized-hint-${string}`
   | `sql-result-compare-modal-${string}`
+  | `sql-result-compare-page-label-${string}`
+  | `sql-result-compare-page-next-${string}`
+  | `sql-result-compare-page-prev-${string}`
+  | `sql-result-compare-page-size-${string}`
   | `sql-result-compare-skip-trigger-${string}`
   | `sql-result-compare-sync-scroll-${string}`
   | `sql-result-compare-sync-scroll-modal-${string}`
   | `sql-result-compare-toggle-${string}`
   | `sql-result-compare-toolbar-${string}`
+  | `sql-result-compare-view-${string}`
+  | `sql-result-compare-window-clear-${string}`
+  | `sql-result-compare-window-error-${string}`
+  | `sql-result-compare-window-run-${string}`
+  | `sql-result-compare-window-summary-${string}`
   | `sql-result-cred-${string}`
   | `sql-result-cred-close-${string}`
   | `sql-result-cred-maximize-${string}`

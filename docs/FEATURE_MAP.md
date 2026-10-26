@@ -617,3 +617,11 @@ find apps/e2e/src/tests -name '*.test.ts' | wc -l
 
 A new feature adds a catalog row, a tree node and, if it stores anything, its
 tables in the schema diagram.
+
+The interactive page, [feature-map.html](feature-map.html), is generated. Edit
+its inventory in `docs/feature-map/data.js` (its layout in `template.html`, its
+script in `app.js`; the diagrams come from this page), then rebuild it:
+
+```bash
+npm run docs:feature-map
+```

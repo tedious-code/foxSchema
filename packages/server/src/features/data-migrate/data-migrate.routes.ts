@@ -14,6 +14,7 @@ import { requirePermissions, denyUnless } from '../../platform/authorization/rba
 import type { AuthedRequest } from '../../platform/http/types';
 import type { ConnectionRef } from '../../platform/connections/resolve';
 import { rateLimit } from '../../platform/guards/rate-limit';
+import { DATA_MIGRATE_MAX_OPS } from '@foxschema/shared';
 import { MAX_STATEMENT_LENGTH } from '../sql-editor';
 import type { Permission } from '@foxschema/shared';
 import { CATEGORY_PERMISSION, DATAGRID_ACTION_PERMISSION } from '@foxschema/shared';
@@ -52,8 +53,8 @@ export function createDataMigrateRoutes(deps: DataMigrateRouteDeps): Router {
         sendError(res, 'invalid_input', 'ops[] is required.');
         return;
       }
-      if (body.ops.length > 500) {
-        sendError(res, 'invalid_input', 'At most 500 ops per data migrate.');
+      if (body.ops.length > DATA_MIGRATE_MAX_OPS) {
+        sendError(res, 'invalid_input', `At most ${DATA_MIGRATE_MAX_OPS} ops per data migrate.`);
         return;
       }
       // The connection first: each op is classified as its database reads it.

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * Side-by-side data migrate: key-based insert/update/delete onto a destination
- * grid (≤500 ops). Larger sets toast with Server Beam instructions.
+ * grid (≤ DATA_MIGRATE_ROW_CAP ops, 2,000). Larger sets toast with Server Beam instructions.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';

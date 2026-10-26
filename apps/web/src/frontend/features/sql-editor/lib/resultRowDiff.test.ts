@@ -207,15 +207,15 @@ describe('migrateKeysSafeForMutatingOps', () => {
 });
 
 describe('selectMigrateOps', () => {
-  it('respects checkboxes and caps at 500', () => {
-    const inserts = Array.from({ length: 300 }, (_, i) => ({
+  it('respects checkboxes and caps at the shared limit (2,000)', () => {
+    const inserts = Array.from({ length: 1200 }, (_, i) => ({
       op: 'insert' as const,
       keyLabel: `id=${i}`,
       sourceRow: [i],
     }));
-    const updates = Array.from({ length: 300 }, (_, i) => ({
+    const updates = Array.from({ length: 900 }, (_, i) => ({
       op: 'update' as const,
-      keyLabel: `id=${i + 1000}`,
+      keyLabel: `id=${i + 5000}`,
       sourceRow: [i],
       destRow: [i],
     }));
@@ -225,7 +225,7 @@ describe('selectMigrateOps', () => {
       deletes: [],
       skippedNullKeys: 0,
       duplicateKeys: 0,
-      totalOps: 600,
+      totalOps: 2100,
       unresolved: 0,
     };
     const selected = selectMigrateOps(
@@ -233,7 +233,8 @@ describe('selectMigrateOps', () => {
       { insert: true, update: true, delete: false },
       DATA_MIGRATE_ROW_CAP
     );
-    expect(selected.uncappedCount).toBe(600);
+    expect(DATA_MIGRATE_ROW_CAP).toBe(2000);
+    expect(selected.uncappedCount).toBe(2100);
     expect(selected.truncated).toBe(true);
     expect(selected.ops).toHaveLength(DATA_MIGRATE_ROW_CAP);
     expect(selected.ops.every((o) => o.op === 'insert' || o.op === 'update')).toBe(

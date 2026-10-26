@@ -9,9 +9,11 @@
 
 import { resultValuesEqual, type ResultGridLike } from './resultDataDiff';
 import { normalizeResultKey } from '@/features/sql-editor/lib/resultValueKey';
+import { DATA_MIGRATE_MAX_OPS } from '@foxschema/shared';
 import type { PeekKeyColumn } from './rowDml';
 
-export const DATA_MIGRATE_ROW_CAP = 500;
+/** The route refuses more than this (`DATA_MIGRATE_MAX_OPS`, shared with the server). */
+export const DATA_MIGRATE_ROW_CAP = DATA_MIGRATE_MAX_OPS;
 
 export type RowDiffOp = 'insert' | 'update' | 'delete';
 

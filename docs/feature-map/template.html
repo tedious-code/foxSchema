@@ -1,0 +1,374 @@
+<title>Fox Feature Map</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Schibsted+Grotesk:wght@600;700&display=swap">
+<style>
+/* Layout: a working tool. A header with the inventory's measurements, a tab bar,
+   one panel at a time. The board's columns scroll sideways inside their own box. */
+:root {
+  --bg: #f3f4f6;
+  --surface: #ffffff;
+  --surface-2: #eceef2;
+  --ink: #1b2230;
+  --ink-2: #4a5466;
+  --muted: #6f7988;
+  --line: #dde1e7;
+  --line-2: #c5cbd4;
+  --accent: #b9521d;
+  --accent-ink: #ffffff;
+  --accent-soft: #f9e6dc;
+  --series: #2a78d6;
+  --good: #0a8f0a;
+  --warning: #b07800;
+  --serious: #c45a2c;
+  --critical: #c23434;
+  --scrim: rgba(17, 22, 30, 0.42);
+  --f-display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1318; --surface: #171c23; --surface-2: #1f262f; --ink: #e7eaef; --ink-2: #b3bbc7;
+    --muted: #8b95a4; --line: #29313b; --line-2: #3a4450; --accent: #f08a57; --accent-ink: #1b0f08;
+    --accent-soft: #3a2418; --series: #3987e5; --good: #2fbf2f; --warning: #e0a42a; --serious: #ec835a;
+    --critical: #ef6a6a; --scrim: rgba(0, 0, 0, 0.6); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1318; --surface: #171c23; --surface-2: #1f262f; --ink: #e7eaef; --ink-2: #b3bbc7;
+  --muted: #8b95a4; --line: #29313b; --line-2: #3a4450; --accent: #f08a57; --accent-ink: #1b0f08;
+  --accent-soft: #3a2418; --series: #3987e5; --good: #2fbf2f; --warning: #e0a42a; --serious: #ec835a;
+  --critical: #ef6a6a; --scrim: rgba(0, 0, 0, 0.6); color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+.wrap { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+a { color: var(--accent); }
+code, .mono { font-family: var(--f-mono); font-size: 0.86em; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--series); outline-offset: 2px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.2; }
+h2 { font-size: 1.35rem; }
+h3 { font-size: 1.02rem; }
+.eyebrow { font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.lede { color: var(--ink-2); max-width: 68ch; margin: 0; }
+
+/* Header */
+header.top { background: var(--surface); border-bottom: 1px solid var(--line); }
+header.top .wrap { padding-block: 18px 0; display: grid; gap: 14px; }
+.titlerow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; justify-content: space-between; }
+.titlerow h1 { font-size: clamp(1.5rem, 3.4vw, 2rem); letter-spacing: -0.01em; }
+.titlerow h1 span { color: var(--accent); }
+.stamp { color: var(--muted); font-size: 0.82rem; }
+.stats { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 0; padding: 0; list-style: none; }
+.stats li { display: flex; align-items: baseline; gap: 6px; color: var(--ink-2); font-size: 0.86rem; }
+.stats b { font-family: var(--f-display); font-size: 1.15rem; color: var(--ink); font-weight: 700; }
+nav.tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; margin-bottom: -1px; }
+nav.tabs::-webkit-scrollbar { display: none; }
+nav.tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 14px; color: var(--ink-2); font-weight: 500; cursor: pointer; white-space: nowrap; }
+nav.tabs button:hover { color: var(--ink); }
+nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+
+main .wrap { padding-block: 22px 56px; }
+.panel { display: grid; gap: 22px; }
+.panel:not(.active) { position: absolute; left: -300vw; top: 0; width: 1180px; visibility: hidden; pointer-events: none; }
+.section { display: grid; gap: 12px; min-width: 0; }
+.sechead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+
+/* Controls */
+.btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-2); background: var(--surface); padding: 7px 12px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 0.9rem; }
+.btn:hover { border-color: var(--ink-2); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.danger { border-color: var(--critical); color: var(--critical); }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.toolbar .grow { flex: 1 1 200px; min-width: 0; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field label { font-size: 0.78rem; color: var(--muted); font-weight: 600; }
+input[type="text"], input[type="search"], input[type="date"], select, textarea {
+  width: 100%; border: 1px solid var(--line-2); background: var(--surface); border-radius: 6px; padding: 7px 10px; min-width: 0;
+}
+textarea { resize: vertical; min-height: 84px; }
+.seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 7px 12px; cursor: pointer; font-size: 0.88rem; color: var(--ink-2); }
+.seg button + button { border-left: 1px solid var(--line-2); }
+.seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--ink); font-weight: 600; }
+
+/* Chips and pills */
+.kind { display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; color: var(--ink-2); font-weight: 500; }
+.kind svg { width: 14px; height: 14px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.prio { font: 600 0.72rem/1 var(--f-mono); padding: 3px 6px; border-radius: 4px; border: 1px solid var(--line-2); color: var(--ink-2); }
+.prio.P0 { border-color: var(--critical); color: var(--critical); }
+.prio.P1 { border-color: var(--serious); color: var(--serious); }
+.state { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 0.86rem; }
+.state i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.state.scheduled i { background: var(--series); }
+.state.progress i { background: var(--warning); }
+.state.review i { background: var(--serious); }
+.state.done i { background: var(--good); }
+.state.blocked i { background: var(--critical); border-radius: 1px; }
+.fid { font-family: var(--f-mono); font-size: 0.78rem; color: var(--ink-2); background: var(--surface-2); padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+.tag { font-size: 0.78rem; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); }
+
+/* Plan */
+.summary { display: flex; flex-wrap: wrap; gap: 8px; }
+.summary button { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 6px 10px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.summary button[aria-pressed="true"] { border-color: var(--ink-2); background: var(--surface-2); }
+.summary b { font-family: var(--f-display); font-size: 1.05rem; }
+.notice { border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 12px 14px; color: var(--ink-2); }
+.notice.warn { border-color: var(--serious); }
+.board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(250px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 6px; align-items: start; }
+.col { background: var(--surface-2); border-radius: var(--radius); padding: 10px; display: grid; gap: 8px; min-height: 120px; align-content: start; }
+.col.drop { outline: 2px dashed var(--series); outline-offset: -4px; }
+.colhead { display: flex; align-items: center; justify-content: space-between; padding: 2px 2px 4px; }
+.colhead .n { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.85rem; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 11px; display: grid; gap: 7px; cursor: pointer; text-align: left; width: 100%; }
+.card:hover { border-color: var(--line-2); }
+.card[draggable="true"] { cursor: grab; }
+.card .r1 { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.card .t { font-weight: 600; line-height: 1.35; }
+.card .r3 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 0.8rem; color: var(--muted); }
+.owner { display: inline-flex; align-items: center; gap: 5px; }
+.owner img { width: 18px; height: 18px; border-radius: 50%; }
+.overdue { color: var(--critical); font-weight: 600; }
+.empty { text-align: center; padding: 28px 16px; color: var(--muted); border: 1px dashed var(--line-2); border-radius: var(--radius); }
+.colempty { color: var(--muted); font-size: 0.82rem; padding: 6px 2px; }
+.sched { display: grid; gap: 16px; }
+.sched h3 { font-size: 0.95rem; display: flex; gap: 10px; align-items: baseline; }
+.sched h3 .n { color: var(--muted); font-weight: 400; font-family: var(--f-body); font-size: 0.85rem; }
+.rows { display: grid; gap: 6px; }
+.row { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 10px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; cursor: pointer; text-align: left; width: 100%; }
+.row .t { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.row .meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 640px) { .row { grid-template-columns: 1fr; } .row .meta { justify-content: flex-start; } }
+
+/* Tables */
+.tablebox { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 0.74rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--surface-2); position: sticky; top: 0; }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.yes { color: var(--good); font-weight: 600; }
+td.no { color: var(--muted); }
+
+/* Features */
+.areas { display: flex; flex-wrap: wrap; gap: 6px; }
+.areas button { border: 1px solid var(--line-2); background: var(--surface); border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: 0.86rem; }
+.areas button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap: 14px; }
+.fcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 10px; min-width: 0; align-content: start; }
+.fcard .h { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; }
+.fcard .subs { display: flex; flex-wrap: wrap; gap: 5px; }
+.fcard dl { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 5px 12px; margin: 0; font-size: 0.86rem; }
+.fcard dt { color: var(--muted); font-weight: 600; font-size: 0.78rem; padding-top: 1px; }
+.fcard dd { margin: 0; color: var(--ink-2); overflow-wrap: anywhere; }
+.fcard .foot { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 10px; }
+.openlink { font-size: 0.86rem; color: var(--ink-2); }
+
+/* Diagrams */
+.diagram { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; overflow-x: auto; display: grid; gap: 8px; }
+.diagram pre.mermaid { margin: 0; background: transparent; min-width: 0; }
+.diagram p { margin: 0; color: var(--ink-2); font-size: 0.9rem; max-width: 72ch; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap: 14px; }
+
+/* Charts */
+.chart { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 10px; min-width: 0; position: relative; }
+.chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.chart .lbl { fill: var(--ink-2); font: 12px var(--f-mono); }
+.chart .val { fill: var(--ink); font: 600 12px var(--f-body); font-variant-numeric: tabular-nums; }
+.chart .tick { fill: var(--muted); font: 11px var(--f-body); font-variant-numeric: tabular-nums; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .base { stroke: var(--line-2); stroke-width: 1; }
+.chart .bar { fill: var(--series); }
+.chart .hit { fill: transparent; cursor: default; }
+.chart .hit:hover + .bar, .chart .bar.on { filter: brightness(1.12); }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--surface); font-size: 0.8rem; padding: 6px 8px; border-radius: 5px; white-space: nowrap; z-index: 3; }
+
+/* Dialog */
+.scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 20; display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.dialog { background: var(--surface); border-radius: 10px; width: min(640px, 100%); max-height: 100%; overflow: auto; display: grid; gap: 14px; padding: 18px; border: 1px solid var(--line); }
+.dialog .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 12px; }
+.dialog .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; }
+.dialog fieldset { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px 12px; margin: 0; display: grid; gap: 10px; }
+.dialog legend { font-size: 0.78rem; color: var(--muted); font-weight: 600; padding: 0 4px; }
+.picker { position: relative; }
+.hits { position: absolute; left: 0; right: 0; top: calc(100% + 4px); background: var(--surface); border: 1px solid var(--line-2); border-radius: 6px; z-index: 2; display: grid; max-height: 220px; overflow: auto; }
+.hits button { display: flex; align-items: center; gap: 8px; border: 0; background: none; padding: 7px 10px; cursor: pointer; text-align: left; }
+.hits button:hover { background: var(--surface-2); }
+.hits img { width: 20px; height: 20px; border-radius: 50%; }
+.confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--critical); font-weight: 600; font-size: 0.9rem; }
+.toast { position: fixed; bottom: max(16px, env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--surface); padding: 8px 14px; border-radius: 6px; z-index: 30; font-size: 0.9rem; }
+@media (prefers-reduced-motion: no-preference) { .card, .btn, .row { transition: border-color 0.12s ease; } }
+
+/* Bars (single series, magnitude) */
+.bars { display: grid; gap: 4px; }
+.brow { display: grid; grid-template-columns: minmax(7rem, 12.5rem) minmax(0, 1fr); gap: 10px; align-items: center; min-height: 24px; padding-right: 2.6rem; }
+.blbl { font: 12px var(--f-mono); color: var(--ink-2); text-align: right; overflow-wrap: anywhere; }
+.btrack { position: relative; height: 16px; background-image: repeating-linear-gradient(to right, var(--line) 0 1px, transparent 1px 100%); background-size: calc(100% / var(--n)) 100%; border-left: 1px solid var(--line-2); }
+.bfill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--series); border-radius: 0 4px 4px 0; }
+.bval { position: absolute; top: 50%; transform: translateY(-50%); font: 600 12px var(--f-body); color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.brow:hover .bfill { filter: brightness(1.12); }
+.baxis { min-height: 18px; }
+.bticks { position: relative; height: 16px; }
+.bticks span { position: absolute; transform: translateX(-50%); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.toolbar select { width: auto; max-width: 100%; }
+@media (max-width: 640px) { .toolbar select { flex: 1 1 140px; } .brow { grid-template-columns: minmax(6rem, 9rem) minmax(0, 1fr); } }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="titlerow">
+      <h1>Fox <span>Feature Map</span></h1>
+      <div class="stamp">Measured on <code>main</code> · <code>f9d1e138de</code> · 2026-10-25 · mirrors <code>docs/FEATURE_MAP.md</code></div>
+    </div>
+    <ul class="stats" aria-label="Inventory">
+      <li><b>33</b> features</li>
+      <li><b>153</b> HTTP routes</li>
+      <li><b>17</b> server modules</li>
+      <li><b>14</b> web features</li>
+      <li><b>16</b> engines</li>
+      <li><b>28</b> metadata tables</li>
+      <li><b>49</b> e2e specs</li>
+      <li><b>~530</b> unit-test files</li>
+    </ul>
+    <nav class="tabs" role="tablist" aria-label="Views">
+      <button role="tab" id="tab-plan" data-tab="plan" aria-selected="true">Plan</button>
+      <button role="tab" id="tab-features" data-tab="features" aria-selected="false">Features</button>
+      <button role="tab" id="tab-workflows" data-tab="workflows" aria-selected="false">Workflows</button>
+      <button role="tab" id="tab-schema" data-tab="schema" aria-selected="false">Schema</button>
+      <button role="tab" id="tab-engines" data-tab="engines" aria-selected="false">Engines</button>
+      <button role="tab" id="tab-coverage" data-tab="coverage" aria-selected="false">Coverage</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <!-- PLAN -->
+    <section class="panel active" id="panel-plan" role="tabpanel" aria-labelledby="tab-plan">
+      <div class="sechead">
+        <div class="section" style="gap:4px">
+          <h2>Work plan</h2>
+          <p class="lede">Bug fixes, improvements, tests, new sub-features and manual-test passes, each tied to a feature. Everyone with access sees the same board.</p>
+        </div>
+        <button class="btn primary" id="add-item" type="button">+ Add work item</button>
+      </div>
+      <div class="notice warn" id="ro-note" hidden>You can read this board but not change it. Ask the page's owner for Contributor access to edit it.</div>
+      <div class="notice" id="offline-note" hidden>The shared board is not available in this view, so work items cannot load. Open the page on claude.ai while signed in to see and edit them.</div>
+      <div class="toolbar">
+        <div class="grow"><input type="search" id="q" placeholder="Search titles, details, links…" aria-label="Search work items"></div>
+        <select id="f-feature" aria-label="Feature"></select>
+        <select id="f-kind" aria-label="Kind"></select>
+        <select id="f-owner" aria-label="Owner">
+          <option value="">Anyone</option>
+          <option value="me">Mine</option>
+          <option value="none">Unassigned</option>
+        </select>
+        <div class="seg" role="group" aria-label="View">
+          <button type="button" data-view="board" aria-pressed="true">Board</button>
+          <button type="button" data-view="schedule" aria-pressed="false">Schedule</button>
+          <button type="button" data-view="manual" aria-pressed="false">Manual tests</button>
+        </div>
+      </div>
+      <div class="summary" id="summary" aria-label="Filter by status"></div>
+      <div id="plan-body"></div>
+    </section>
+
+    <!-- FEATURES -->
+    <section class="panel" id="panel-features" role="tabpanel" aria-labelledby="tab-features">
+      <div class="section">
+        <h2>System</h2>
+        <p class="lede">Clients reach one Fastify server through the same guards; features read and write the metadata store and reach the target databases through the driver package.</p>
+        <div class="two">
+          <div class="diagram"><pre class="mermaid">__M0__</pre></div>
+          <div class="diagram"><pre class="mermaid">__M1__</pre><p>Every request passes origin, session, workspace and permission checks before a feature runs.</p></div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="sechead"><h2>Features</h2><span class="stamp">Each card: what it does, where it opens, its API, code, permissions, tables and tests.</span></div>
+        <div class="areas" id="areas" role="group" aria-label="Area"></div>
+        <div class="fgrid" id="fgrid"></div>
+      </div>
+    </section>
+
+    <!-- WORKFLOWS -->
+    <section class="panel" id="panel-workflows" role="tabpanel" aria-labelledby="tab-workflows">
+      <div class="section" style="gap:4px">
+        <h2>Workflows</h2>
+        <p class="lede">The paths a change usually crosses. Read the one you are touching before changing a step in it.</p>
+      </div>
+      <div class="diagram"><h3>Compare → deploy</h3><pre class="mermaid">__M3__</pre><p>The execute gate, the target lock and the history capture are the steps a schema change must keep.</p></div>
+      <div class="diagram"><h3>SQL editor — Run</h3><pre class="mermaid">__M4__</pre><p>Which statements run, how each is classified for its destination's dialect, and where Safe mode and One transaction step in.</p></div>
+      <div class="two">
+        <div class="diagram"><h3>Data compare → data migrate</h3><pre class="mermaid">__M5__</pre></div>
+        <div class="diagram"><h3>Snapshots — capture, compare, revert</h3><pre class="mermaid">__M6__</pre></div>
+      </div>
+      <div class="two">
+        <div class="diagram"><h3>Workflow engine</h3><pre class="mermaid">__M7__</pre></div>
+        <div class="diagram"><h3>Access — inspect, build, apply</h3><pre class="mermaid">__M8__</pre></div>
+      </div>
+    </section>
+
+    <!-- SCHEMA -->
+    <section class="panel" id="panel-schema" role="tabpanel" aria-labelledby="tab-schema">
+      <div class="section" style="gap:4px">
+        <h2>Metadata schema</h2>
+        <p class="lede">28 tables in <code>packages/server/src/database/schema.ts</code>, 31 append-only migrations. Solid lines are declared foreign keys; dotted lines are id columns the code joins on.</p>
+      </div>
+      <div class="diagram"><h3>Identity and workspaces</h3><pre class="mermaid">__M9__</pre></div>
+      <div class="diagram"><h3>Connections, secrets, data and workflow</h3><pre class="mermaid">__M10__</pre></div>
+      <div class="diagram"><h3>Migrations, Git and snapshots</h3><pre class="mermaid">__M11__</pre></div>
+      <div class="section">
+        <h3>Which feature owns each table</h3>
+        <div class="tablebox"><table id="owners"><thead><tr><th>Table</th><th>Feature</th><th class="num">Columns</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- ENGINES -->
+    <section class="panel" id="panel-engines" role="tabpanel" aria-labelledby="tab-engines">
+      <div class="section" style="gap:4px">
+        <h2>Engines and capabilities</h2>
+        <p class="lede">From <code>dialectFeatures()</code>, the one table every screen asks. A missing capability carries a reason the app shows instead of the control.</p>
+      </div>
+      <div class="tablebox"><table id="matrix"></table></div>
+      <p class="lede">Redis and MongoDB run a fail-closed SQL subset in the editor: single-table SELECT, INSERT, UPDATE and DELETE with <code>column = value</code> predicates. DDL auto-commits on MySQL, MariaDB, TiDB, Oracle and CockroachDB, so their transactions cannot undo DDL that already ran.</p>
+    </section>
+
+    <!-- COVERAGE -->
+    <section class="panel" id="panel-coverage" role="tabpanel" aria-labelledby="tab-coverage">
+      <div class="section" style="gap:4px">
+        <h2>Coverage</h2>
+        <p class="lede">Where the API surface is, and how many test files guard each package. A feature with many routes and few tests is where a regression is most likely to slip through.</p>
+      </div>
+      <div class="two">
+        <div class="chart" id="chart-routes"></div>
+        <div class="chart" id="chart-tests"></div>
+      </div>
+      <div class="section">
+        <h3>End-to-end suites</h3>
+        <p class="lede">49 Playwright specs in 33 groups, run with <code>npm run test:e2e:all</code>. Dialect suites need their Docker container and a fresh seed.</p>
+        <div class="areas" id="e2e-groups"></div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<div id="dialog-root"></div>
+<div id="toast-root"></div>
+
+<script>
+/*__DATA__*/
+</script>
+<script>
+/*__APP__*/
+</script>

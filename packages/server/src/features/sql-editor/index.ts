@@ -25,6 +25,7 @@ export const sqlEditorFeature: ServerFeatureModule = {
           MAX_STATEMENT_LENGTH,
           isRunnableStatement,
           testConnection: (dialect, option) => ctx.connectionModule.testConnection(dialect, option as ConnectionOptions),
+          sqlActivity: ctx.sqlActivity,
         }),
     },
   ],

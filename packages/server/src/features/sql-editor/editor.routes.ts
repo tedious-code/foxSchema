@@ -37,7 +37,8 @@ import { parseBeamEndpoints } from '@foxschema/shared';
 import { actorOf } from '../../platform/http/actor-of';
 import type { CodeCellRequestBody } from './code-cell-execute.service';
 import { validateCodeCellRequest } from './code-cell-execute.service';
-import { runStatements, clampMaxRows } from './sql-execute.service';
+import { runStatements, clampMaxRows, type StatementResult } from './sql-execute.service';
+import type { SqlActivityFeed } from '../../platform/sql-activity/sql-activity';
 import { MAX_CODE_CELL_LENGTH, runCodeCellOnServer, transpileTs } from './code-cell-execute.service';
 import { sendError, sendThrown } from '../../platform/http/respond';
 
@@ -56,6 +57,34 @@ export interface EditorRouteDeps {
     dialect: string,
     option: unknown
   ) => Promise<{ success: boolean; version?: string }>;
+  /** Where the statements run on a saved connection are reported, for the SQL Tracer. */
+  sqlActivity?: SqlActivityFeed;
+}
+
+/** Hand each statement that ran to a SQL Tracer watching this saved connection. */
+function reportActivity(
+  feed: SqlActivityFeed | undefined,
+  connectionId: string | undefined,
+  option: Record<string, unknown>,
+  statements: readonly string[],
+  results: readonly StatementResult[]
+): void {
+  if (!feed || !connectionId || !feed.watching(connectionId)) return;
+  const user = typeof option.username === 'string' && option.username ? option.username : null;
+  const database = typeof option.database === 'string' && option.database ? option.database : null;
+  const at = new Date();
+  results.forEach((result, i) => {
+    feed.report({
+      connectionId,
+      text: statements[i] ?? '',
+      user,
+      database,
+      durationMs: result.durationMs,
+      rows: result.ok ? result.rowCount : null,
+      error: result.ok ? null : result.error,
+      at,
+    });
+  });
 }
 
 /**
@@ -218,6 +247,7 @@ export function createEditorRoutes(deps: EditorRouteDeps): Router {
         transaction === true,
         parsedOrder.value
       );
+      reportActivity(deps.sqlActivity, ref.connectionId, resolved.option, statements as string[], results);
       res.send({ results });
     } catch (error: unknown) {
       sendThrown(res, error, 'Query execution failed');

@@ -87,6 +87,8 @@ cd apps/e2e && npx vitest run src/tests/workflow-runs.test.ts
 ```
 
 - `HEADLESS=false` shows the browser.
+- Before believing a failure, check [RUNNING_E2E.md](RUNNING_E2E.md): many come
+  from the machine or a container, not from the app.
 - `npx playwright codegen http://localhost:5173` records the clicks you make
   as `getByTestId(...)` steps, a usable first draft to paste in.
 

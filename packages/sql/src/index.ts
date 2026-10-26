@@ -190,6 +190,15 @@ export {
 } from './modules/utilities/dba-utilities.js';
 export { dbaPrivilegeRemedy } from './modules/utilities/dba-utility-remedy.js';
 export {
+  redactSqlText,
+  TRACE_MAX_EVENTS,
+  TRACE_MAX_MS,
+  TRACE_MAX_TEXT_CHARS,
+  traceText,
+  type TraceEvent,
+  type TraceMode,
+} from './modules/utilities/sql-trace.js';
+export {
   BACKUP_SCOPES,
   backupSupport,
   defaultBackupSettings,

@@ -18,6 +18,7 @@ import type { Router } from './http/router';
 import type { AuthModule } from './identity/auth.service';
 import type { ConnectionStore } from './connections/connection-store.service';
 import type { ConnectionResolver } from './connections/resolve';
+import type { SqlActivityFeed } from './sql-activity/sql-activity';
 
 /**
  * Who may reach a mount, before any per-route permission check:
@@ -58,4 +59,6 @@ export interface FeatureContext {
   readonly connectionModule: ConnectionModule;
   readonly connectionStore: ConnectionStore;
   readonly resolver: ConnectionResolver;
+  /** Statements Fox runs, for the SQL Tracer: the editor reports, the tracer listens. */
+  readonly sqlActivity: SqlActivityFeed;
 }

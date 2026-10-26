@@ -12,6 +12,7 @@
 
 import { isPageableStatement } from '@foxschema/db';
 import {
+  findTopLevelOrderByIndex,
   isSafeSeekColumn,
   isSubsetDialect,
   isTsqlDialect,
@@ -193,6 +194,57 @@ export function wrapSqlForPage(
   }
   // Postgres, MySQL, MariaDB, SQLite, Cockroach, Yugabyte, TiDB, DuckDB, ClickHouse-ish
   return `SELECT * FROM (${inner}) AS ${PAGE_ALIAS} LIMIT ${fetchLimit} OFFSET ${offset}`;
+}
+
+/** Longest key a compare run orders by: more columns than this is not a key. */
+const MAX_ORDER_COLUMNS = 8;
+
+/**
+ * `orderBy` from a request: plain column names, or nothing. Anything else is
+ * refused, never quoted into SQL as given.
+ */
+export function parseSqlOrderBy(raw: unknown): { ok: true; value?: string[] } | { ok: false; error: string } {
+  if (raw == null) return { ok: true, value: undefined };
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_ORDER_COLUMNS) {
+    return { ok: false, error: `orderBy must be 1 to ${MAX_ORDER_COLUMNS} column names` };
+  }
+  if (!raw.every((c) => typeof c === 'string' && isSafeSeekColumn(c))) {
+    return { ok: false, error: 'orderBy must be plain column names' };
+  }
+  return { ok: true, value: raw as string[] };
+}
+
+/**
+ * One page of `sql` in `orderBy` order: the order goes on the outer query,
+ * where every engine honours it (an ORDER BY inside a derived table is not
+ * guaranteed to survive, and SQL Server refuses one without TOP or OFFSET —
+ * so on SQL Server a plain top-level ORDER BY of the statement is dropped;
+ * the outer one decides anyway). Fetches `limit + 1` so the caller learns
+ * whether more rows follow. A compare run reads both sides this way.
+ */
+export function wrapSqlForOrderedPage(
+  sql: string,
+  dialect: string,
+  orderBy: readonly string[],
+  offset: number,
+  limit: number
+): string {
+  const d = dialect.toLowerCase();
+  let inner = sql.trim().replace(/;+\s*$/, '');
+  const fetchLimit = limit + 1;
+  const orderSql = orderBy.map((c) => quoteSqlIdentifier(c, dialect)).join(', ');
+  if (isTsqlDialect(d)) {
+    const at = findTopLevelOrderByIndex(inner);
+    if (at >= 0 && !/\boffset\b/i.test(inner.slice(at))) inner = inner.slice(0, at).trimEnd();
+    return `SELECT * FROM (${inner}) AS ${PAGE_ALIAS} ORDER BY ${orderSql} OFFSET ${offset} ROWS FETCH NEXT ${fetchLimit} ROWS ONLY`;
+  }
+  if (d === 'oracle') {
+    return `SELECT * FROM (${inner}) ${PAGE_ALIAS} ORDER BY ${orderSql} OFFSET ${offset} ROWS FETCH NEXT ${fetchLimit} ROWS ONLY`;
+  }
+  if (d === 'db2') {
+    return `SELECT * FROM (${inner}) AS ${PAGE_ALIAS} ORDER BY ${orderSql} OFFSET ${offset} ROWS FETCH FIRST ${fetchLimit} ROWS ONLY`;
+  }
+  return `SELECT * FROM (${inner}) AS ${PAGE_ALIAS} ORDER BY ${orderSql} LIMIT ${fetchLimit} OFFSET ${offset}`;
 }
 
 export interface SqlSeek {

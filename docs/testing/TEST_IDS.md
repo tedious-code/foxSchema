@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1000** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1008** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1203,18 +1203,30 @@ Every control has a test ID: **1000** buttons, text boxes, selects and textareas
   - `sql-result-compare-baseline-{statementIndex}` · select
   - `sql-result-compare-close-{statementIndex}` · button · Close (Esc)
   - `sql-result-compare-dest-{statementIndex}` · select
+  - `sql-result-compare-diff-next-{statementIndex}` · button · Difference ›
+  - `sql-result-compare-diff-prev-{statementIndex}` · button · ‹ Difference
   - `sql-result-compare-export-csv-{statementIndex}` · button · Export all compare grids as one CSV (columns prefixed by Source / Target)
   - `sql-result-compare-export-csv-modal-{statementIndex}` · button · Export all compare grids as one CSV
+  - `sql-result-compare-filter-{f}-{statementIndex}` · button
   - `sql-result-compare-hint-{statementIndex}` · p
   - `sql-result-compare-legend-{statementIndex}` · span
   - `sql-result-compare-maximize-{statementIndex}` · button · Maximize compare
   - `sql-result-compare-maximized-hint-{statementIndex}` · p
   - `sql-result-compare-modal-{statementIndex}` · div
+  - `sql-result-compare-page-label-{statementIndex}` · span
+  - `sql-result-compare-page-next-{statementIndex}` · button · Next
+  - `sql-result-compare-page-prev-{statementIndex}` · button · Prev
+  - `sql-result-compare-page-size-{statementIndex}` · select · Rows per compare page
   - `sql-result-compare-skip-trigger-{statementIndex}` · input
   - `sql-result-compare-sync-scroll-{statementIndex}` · input
   - `sql-result-compare-sync-scroll-modal-{statementIndex}` · input
   - `sql-result-compare-toggle-{statementIndex}` · input
   - `sql-result-compare-toolbar-{statementIndex}` · div
+  - `sql-result-compare-view-{statementIndex}` · div
+  - `sql-result-compare-window-clear-{statementIndex}` · button · Back to loaded rows
+  - `sql-result-compare-window-error-{statementIndex}` · span
+  - `sql-result-compare-window-run-{statementIndex}` · button · Compare rows
+  - `sql-result-compare-window-summary-{statementIndex}` · span
   - `sql-result-cred-{connectionId}` · section
   - `sql-result-cred-close-{connectionId}` · button · Close maximized results
   - `sql-result-cred-maximize-{connectionId}` · button · Maximize results

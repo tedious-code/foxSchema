@@ -184,6 +184,25 @@ describe('runStatements against a real SQLite file', () => {
     expect(results[0]).toMatchObject({ ok: true, rowCount: 2, truncated: true, hasNext: true });
   });
 
+  it('orders a page by the given keys and says whether more rows follow (a compare run)', async () => {
+    const results = await runStatements(
+      'sqlite',
+      { connectionString: dbPath },
+      ['SELECT id, name FROM t ORDER BY name DESC;'],
+      2,
+      undefined,
+      0,
+      [],
+      undefined,
+      false,
+      false,
+      ['id']
+    );
+    expect(results[0]).toMatchObject({ ok: true, hasNext: true });
+    const ids = (results[0] as { rows: unknown[][] }).rows.map((r) => Number(r[0]));
+    expect(ids).toEqual([...ids].sort((a, b) => a - b));
+  });
+
   it('pages SELECT with OFFSET (page 1 is not page 0)', async () => {
     const page0 = await runStatements(
       'sqlite',

@@ -42,6 +42,7 @@ import {
 import {
   attributeResultColumns,
   collapsedColumnsFor,
+  isSubsetDialect,
   rowKeyFor,
   tablesInOrigins,
 } from '@foxschema/ui-shared';
@@ -57,6 +58,19 @@ import {
   type AlignRowOp,
 } from '@/features/sql-editor/lib/resultKeyAlign';
 import { migrateGridsAreComplete } from '@/features/sql-editor/lib/resultRowDiff';
+import {
+  COMPARE_PAGE_SIZES,
+  COMPARE_WINDOW_ROWS,
+  DEFAULT_COMPARE_PAGE_SIZE,
+  compareFilterCounts,
+  comparePage,
+  filteredRowIndexes,
+  lastRowKey,
+  pageOfNextDifference,
+  sliceAligned,
+  type CompareFilter,
+} from '@/features/sql-editor/lib/compareView';
+import { useCompareWindow } from './useCompareWindow';
 import { sideBySideSectionCount } from '@/features/sql-editor/lib/resultsSections';
 import { detectTriggerManagedColumns } from '@/features/sql-editor/lib/triggerManagedColumns';
 import { resolvePeekKeyColumns } from '@/features/sql-editor/lib/rowDml';
@@ -1027,6 +1041,15 @@ const SideBySideStatementSection: React.FC<{
   const sourceGrid = okGrids.find((g) => g.connectionId === baselineId);
   const destGrid = okGrids.find((g) => g.connectionId === destId);
 
+  /** A new run of the statement makes any compare window describe old rows. */
+  const windowResetKey = okGrids
+    .map((g) => `${g.connectionId}:${g.result.ok ? `${g.result.durationMs}:${g.result.rowCount}` : 'x'}`)
+    .join(',');
+  const compareWindow = useCompareWindow(`${statementIndex}|${windowResetKey}`);
+  const [compareFilter, setCompareFilter] = useState<CompareFilter>('all');
+  const [comparePageIndex, setComparePageIndex] = useState(0);
+  const [comparePageSize, setComparePageSize] = useState<number>(DEFAULT_COMPARE_PAGE_SIZE);
+
   const defaultKeys = useMemo(() => {
     if (!sourceGrid?.result.ok) return [] as string[];
     const cols = sourceGrid.result.columns;
@@ -1118,6 +1141,17 @@ const SideBySideStatementSection: React.FC<{
   // instead of joining it into a string.
   const effectiveKeys = keyNames.length ? keyNames : defaultKeys;
 
+  /** The compare window, while it still describes this pair, by these keys. */
+  const windowState = compareWindow.state;
+  const windowOn =
+    compareActive &&
+    windowState.status === 'ready' &&
+    windowState.sourceId === baselineId &&
+    windowState.destId === destId &&
+    windowState.keys.join('\0') === effectiveKeys.join('\0')
+      ? windowState
+      : null;
+
   /**
    * Whether each side holds its whole result: page 1, no next page, nothing
    * truncated. The same test Data migrate applies before it will write.
@@ -1146,13 +1180,49 @@ const SideBySideStatementSection: React.FC<{
   const keyAligned = useMemo(() => {
     if (!compareActive || !sourceGrid?.result.ok || !destGrid?.result.ok) return null;
     if (effectiveKeys.length === 0) return null;
+    if (windowOn) {
+      // Both windows are in key order: a side cut short at the window ends at
+      // a known key, and a one-sided row before it is classified after all.
+      const sourceMore = Boolean(windowOn.source.hasNext || windowOn.source.truncated);
+      const destMore = Boolean(windowOn.dest.hasNext || windowOn.dest.truncated);
+      return alignResultGridsByKey(
+        { columns: windowOn.source.columns, rows: windowOn.source.rows },
+        { columns: windowOn.dest.columns, rows: windowOn.dest.rows },
+        effectiveKeys,
+        {
+          ...ignoreOpts,
+          leftComplete: !sourceMore,
+          rightComplete: !destMore,
+          leftWindowEnd: sourceMore ? lastRowKey(windowOn.source, effectiveKeys) : undefined,
+          rightWindowEnd: destMore ? lastRowKey(windowOn.dest, effectiveKeys) : undefined,
+        }
+      );
+    }
     return alignResultGridsByKey(
       { columns: sourceGrid.result.columns, rows: sourceGrid.result.rows },
       { columns: destGrid.result.columns, rows: destGrid.result.rows },
       effectiveKeys,
       { ...ignoreOpts, leftComplete: sourceComplete, rightComplete: destComplete }
     );
-  }, [compareActive, sourceGrid, destGrid, effectiveKeys, ignoreOpts, sourceComplete, destComplete]);
+  }, [compareActive, sourceGrid, destGrid, effectiveKeys, ignoreOpts, sourceComplete, destComplete, windowOn]);
+
+  const filterCounts = useMemo(() => (keyAligned ? compareFilterCounts(keyAligned) : null), [keyAligned]);
+  const filteredRows = useMemo(
+    () => (keyAligned ? filteredRowIndexes(keyAligned, compareFilter) : []),
+    [keyAligned, compareFilter]
+  );
+  const pageView = useMemo(
+    () => comparePage(filteredRows, comparePageIndex, comparePageSize),
+    [filteredRows, comparePageIndex, comparePageSize]
+  );
+  /** What the grids show: this page of the filtered rows. Counts stay the whole set's. */
+  const viewAligned = useMemo(
+    () => (keyAligned ? sliceAligned(keyAligned, pageView.rows) : null),
+    [keyAligned, pageView]
+  );
+  useEffect(() => {
+    setComparePageIndex(0);
+  }, [keyAligned, compareFilter, comparePageSize]);
 
   const { diffByConnection, badgeByConnection, legendBits, displayItems } = useMemo(() => {
     const diffByConnection: Record<string, GridDiffSummary> = {};
@@ -1184,7 +1254,7 @@ const SideBySideStatementSection: React.FC<{
         const pair = compareKeyAlignedGrids(
           baselineGrid,
           destGridLike,
-          keyAligned,
+          viewAligned ?? keyAligned,
           ignoreOpts
         );
         diffByConnection[baselineId] = pair.baseline;
@@ -1200,7 +1270,9 @@ const SideBySideStatementSection: React.FC<{
         if (keyAligned.unresolvedCount > 0) {
           legendBits.push(
             `${keyAligned.unresolvedCount} on one side only — the other side's result is cut ` +
-              'off, so they may be further down; raise Rows/page to classify them'
+              (windowOn
+                ? 'off past its last key, so they may be further down'
+                : `off, so they may be further down; Compare ${COMPARE_WINDOW_ROWS.toLocaleString()} rows classifies them`)
           );
         }
         if (keyAligned.duplicateKeys > 0) {
@@ -1238,8 +1310,8 @@ const SideBySideStatementSection: React.FC<{
                 ...item,
                 result: {
                   ...item.result,
-                  rows: keyAligned.leftRows,
-                  rowCount: keyAligned.leftRows.length,
+                  rows: (viewAligned ?? keyAligned).leftRows,
+                  rowCount: (viewAligned ?? keyAligned).leftRows.length,
                 },
               };
             }
@@ -1248,8 +1320,8 @@ const SideBySideStatementSection: React.FC<{
                 ...item,
                 result: {
                   ...item.result,
-                  rows: keyAligned.rightRows,
-                  rowCount: keyAligned.rightRows.length,
+                  rows: (viewAligned ?? keyAligned).rightRows,
+                  rowCount: (viewAligned ?? keyAligned).rightRows.length,
                 },
               };
             }
@@ -1354,23 +1426,27 @@ const SideBySideStatementSection: React.FC<{
     baselineId,
     destId,
     keyAligned,
+    viewAligned,
+    windowOn,
     ignoreOpts,
     triggerIgnoreColumns,
   ]);
 
   const rowSyncByConnection = useMemo(() => {
-    if (!compareActive || !keyAligned || !destId) return undefined;
+    // By the grids' own row index, so from the page being shown.
+    const shown = viewAligned ?? keyAligned;
+    if (!compareActive || !shown || !destId) return undefined;
     return {
       [destId]: {
         isChecked: (rowIdx: number): boolean | null => {
-          const op = keyAligned.rowOps[rowIdx];
+          const op = shown.rowOps[rowIdx];
           if (op === 'match' || op === 'unresolved') return null;
-          const label = keyAligned.rowKeyLabels[rowIdx];
+          const label = shown.rowKeyLabels[rowIdx];
           if (!label) return false;
           return selectedSyncKeys.has(label);
         },
         onToggle: (rowIdx: number, checked: boolean) => {
-          const label = keyAligned.rowKeyLabels[rowIdx];
+          const label = shown.rowKeyLabels[rowIdx];
           if (!label) return;
           setSelectedSyncKeys((prev) => {
             const next = new Set(prev);
@@ -1381,7 +1457,7 @@ const SideBySideStatementSection: React.FC<{
         },
       },
     };
-  }, [compareActive, keyAligned, destId, selectedSyncKeys]);
+  }, [compareActive, keyAligned, viewAligned, destId, selectedSyncKeys]);
 
   const insertServerBeamSample = () => {
     const sample = buildSampleBookmarks().find((b) => b.id === 'sample-server-beam-chunked');
@@ -1475,27 +1551,34 @@ const SideBySideStatementSection: React.FC<{
     compareActive && sourceGrid?.result.ok && destGrid?.result.ok ? (
       <DataMigrateBar
         statementIndex={statementIndex}
+        // A compare window replaces the loaded pages: migrate reads what was compared.
         source={{
           connectionId: sourceGrid.connectionId,
           dialect: sourceGrid.dialect,
           label: sourceGrid.label,
-          columns: sourceGrid.result.columns,
-          rows: sourceGrid.result.rows,
+          columns: (windowOn?.source ?? sourceGrid.result).columns,
+          rows: (windowOn?.source ?? sourceGrid.result).rows,
           statementSql: sourceGrid.statementSql,
-          pageIndex:
-            pageState?.[`${sourceGrid.connectionId}:${statementIndex}`]?.pageIndex ?? 0,
-          hasMore: Boolean(sourceGrid.result.hasNext || sourceGrid.result.truncated),
+          pageIndex: windowOn
+            ? 0
+            : pageState?.[`${sourceGrid.connectionId}:${statementIndex}`]?.pageIndex ?? 0,
+          hasMore: Boolean(
+            (windowOn?.source ?? sourceGrid.result).hasNext || (windowOn?.source ?? sourceGrid.result).truncated
+          ),
         }}
         dest={{
           connectionId: destGrid.connectionId,
           dialect: destGrid.dialect,
           label: destGrid.label,
-          columns: destGrid.result.columns,
-          rows: destGrid.result.rows,
+          columns: (windowOn?.dest ?? destGrid.result).columns,
+          rows: (windowOn?.dest ?? destGrid.result).rows,
           statementSql: destGrid.statementSql,
-          pageIndex:
-            pageState?.[`${destGrid.connectionId}:${statementIndex}`]?.pageIndex ?? 0,
-          hasMore: Boolean(destGrid.result.hasNext || destGrid.result.truncated),
+          pageIndex: windowOn
+            ? 0
+            : pageState?.[`${destGrid.connectionId}:${statementIndex}`]?.pageIndex ?? 0,
+          hasMore: Boolean(
+            (windowOn?.dest ?? destGrid.result).hasNext || (windowOn?.dest ?? destGrid.result).truncated
+          ),
         }}
         ignoreColumns={triggerIgnoreColumns}
         keyNames={effectiveKeys}
@@ -1505,6 +1588,160 @@ const SideBySideStatementSection: React.FC<{
         onAfterMigrate={() => onRefresh?.(destGrid.connectionId)}
         onOpenServerBeamSample={insertServerBeamSample}
       />
+    ) : null;
+
+  const windowSupported = Boolean(
+    sourceGrid?.statementSql &&
+      destGrid?.statementSql &&
+      !isSubsetDialect(sourceGrid.dialect) &&
+      !isSubsetDialect(destGrid.dialect) &&
+      effectiveKeys.length > 0
+  );
+  const runCompareWindow = () => {
+    if (!sourceGrid?.statementSql || !destGrid?.statementSql) return;
+    void compareWindow.run(
+      { connectionId: sourceGrid.connectionId, sql: sourceGrid.statementSql },
+      { connectionId: destGrid.connectionId, sql: destGrid.statementSql },
+      effectiveKeys
+    );
+  };
+  const rowsLabel = (r: { rows: unknown[] ; hasNext?: boolean; truncated?: boolean }) =>
+    `${r.rows.length.toLocaleString()}${r.hasNext || r.truncated ? ' (more follow)' : ''}`;
+  const FILTER_LABELS: Record<CompareFilter, string> = {
+    all: 'All',
+    changed: 'Changed',
+    source: 'Only in source',
+    target: 'Only in target',
+    unresolved: 'Unresolved',
+    matching: 'Matching',
+  };
+  const nextDiffPage = keyAligned
+    ? pageOfNextDifference(keyAligned, filteredRows, pageView.page, comparePageSize, 1)
+    : null;
+  const prevDiffPage = keyAligned
+    ? pageOfNextDifference(keyAligned, filteredRows, pageView.page, comparePageSize, -1)
+    : null;
+  const navBtn =
+    'rounded-md border border-slate-700 px-2 py-0.5 text-slate-200 hover:border-sky-500/40 disabled:opacity-40 disabled:hover:border-slate-700';
+
+  const compareViewBar =
+    compareActive && keyAligned && filterCounts ? (
+      <div
+        className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-300"
+        data-testid={`sql-result-compare-view-${statementIndex}`}
+      >
+        {windowOn ? (
+          <>
+            <span className="text-sky-200" data-testid={`sql-result-compare-window-summary-${statementIndex}`}>
+              Compared {rowsLabel(windowOn.source)} source and {rowsLabel(windowOn.dest)} target rows, ordered by{' '}
+              {windowOn.keys.join(', ')}
+            </span>
+            <button
+              type="button"
+              className={navBtn}
+              data-testid={`sql-result-compare-window-clear-${statementIndex}`}
+              onClick={compareWindow.clear}
+            >
+              Back to loaded rows
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 rounded-md border border-sky-500/40 bg-sky-950/50 px-2 py-0.5 text-sky-200 hover:bg-sky-900/60 disabled:opacity-40"
+            data-testid={`sql-result-compare-window-run-${statementIndex}`}
+            disabled={!windowSupported || windowState.status === 'loading'}
+            title={
+              windowSupported
+                ? `Read the first ${COMPARE_WINDOW_ROWS.toLocaleString()} rows of both sides in key order and compare them all`
+                : 'Needs a statement, key columns and an SQL engine on both sides'
+            }
+            onClick={runCompareWindow}
+          >
+            {windowState.status === 'loading' && (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={SQL_ICON_STROKE} />
+            )}
+            Compare {COMPARE_WINDOW_ROWS.toLocaleString()} rows
+          </button>
+        )}
+        {windowState.status === 'error' && (
+          <span role="alert" className="text-rose-300" data-testid={`sql-result-compare-window-error-${statementIndex}`}>
+            {windowState.error}
+          </span>
+        )}
+        <span className="flex flex-wrap items-center gap-1">
+          {(Object.keys(FILTER_LABELS) as CompareFilter[]).map((f) => (
+            <button
+              key={f}
+              type="button"
+              aria-pressed={compareFilter === f}
+              data-testid={`sql-result-compare-filter-${f}-${statementIndex}`}
+              onClick={() => setCompareFilter(f)}
+              className={`rounded-full border px-2 py-0.5 ${
+                compareFilter === f
+                  ? 'border-sky-500/60 bg-sky-900/50 text-sky-100'
+                  : 'border-slate-700 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {FILTER_LABELS[f]} {filterCounts[f].toLocaleString()}
+            </button>
+          ))}
+        </span>
+        <span className="flex items-center gap-1">
+          <button
+            type="button"
+            className={navBtn}
+            data-testid={`sql-result-compare-diff-prev-${statementIndex}`}
+            disabled={prevDiffPage === null}
+            onClick={() => prevDiffPage !== null && setComparePageIndex(prevDiffPage)}
+          >
+            ‹ Difference
+          </button>
+          <button
+            type="button"
+            className={navBtn}
+            data-testid={`sql-result-compare-page-prev-${statementIndex}`}
+            disabled={pageView.page === 0}
+            onClick={() => setComparePageIndex(pageView.page - 1)}
+          >
+            Prev
+          </button>
+          <span data-testid={`sql-result-compare-page-label-${statementIndex}`}>
+            page {pageView.page + 1} of {pageView.pageCount}
+          </span>
+          <button
+            type="button"
+            className={navBtn}
+            data-testid={`sql-result-compare-page-next-${statementIndex}`}
+            disabled={pageView.page >= pageView.pageCount - 1}
+            onClick={() => setComparePageIndex(pageView.page + 1)}
+          >
+            Next
+          </button>
+          <button
+            type="button"
+            className={navBtn}
+            data-testid={`sql-result-compare-diff-next-${statementIndex}`}
+            disabled={nextDiffPage === null}
+            onClick={() => nextDiffPage !== null && setComparePageIndex(nextDiffPage)}
+          >
+            Difference ›
+          </button>
+          <select
+            aria-label="Rows per compare page"
+            data-testid={`sql-result-compare-page-size-${statementIndex}`}
+            value={comparePageSize}
+            onChange={(e) => setComparePageSize(Number(e.target.value))}
+            className="rounded-md border border-slate-700 bg-slate-950 px-1 py-0.5 text-slate-200"
+          >
+            {COMPARE_PAGE_SIZES.map((n) => (
+              <option key={n} value={n}>
+                {n} / page
+              </option>
+            ))}
+          </select>
+        </span>
+      </div>
     ) : null;
 
   const compareHint = compareActive ? (
@@ -1684,6 +1921,7 @@ const SideBySideStatementSection: React.FC<{
       {!maximized && (
         <>
           {migrateBar}
+          {compareViewBar}
           {compareGrids(false)}
           {compareHint}
         </>
@@ -1774,6 +2012,7 @@ const SideBySideStatementSection: React.FC<{
               </div>
               <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden p-2 sm:p-3">
                 {migrateBar}
+                {compareViewBar}
                 <div className="flex min-h-0 flex-1 flex-col">{compareGrids(true)}</div>
                 {compareHint}
               </div>

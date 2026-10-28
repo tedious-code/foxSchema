@@ -58,6 +58,13 @@ logged and boot carries on.
   wires the session guard itself.
 - Permission checks stay on each route: `requirePermissions('…')` from
   `platform/authorization`. Visibility in the UI is never authorization.
+- A POST that only reads (a SELECT in the body, a schema load) must pass the
+  `reads` marker from `platform/http/router.ts` beside the handler:
+  `router.post('/schema/load', reads, requirePermissions('schema.browse'), handler)`.
+  Without it, an account that lacks `app.write` (the Demo role) is refused
+  before the handler. GETs are already allowed. A new route is closed to a
+  read-only account until someone decides it reads.
+  `packages/server/src/api/demo-account.test.ts` walks every guarded write.
 - `routes` receives a typed `FeatureContext` (the shared connection module,
   connection store, resolver) — never a global container.
 
@@ -155,6 +162,7 @@ The checklist below is what review looks for.
 
 - [ ] Server validates every input (`invalid_input` with a sentence, never a 500).
 - [ ] Every protected route has its `access` level and a `requirePermissions` check.
+- [ ] A route that only reads declares `reads` (or is GET); otherwise a Demo / read-only account gets 403.
 - [ ] No secret is returned or logged (passwords, tokens, connection strings).
 - [ ] Errors use `ServiceError` / `sendError`; the HTTP contract test lists the new routes.
 - [ ] Workspace-owned rows are read and written through a `WorkspaceScope`.

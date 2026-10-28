@@ -238,17 +238,17 @@ td.no { color: var(--muted); }
   <div class="wrap">
     <div class="titlerow">
       <h1>Fox <span>Feature Map</span></h1>
-      <div class="stamp">Measured on <code>main</code> · <code>f9d1e138de</code> · 2026-10-25 · mirrors <code>docs/FEATURE_MAP.md</code></div>
+      <div class="stamp">Measured on <code>main</code> · <code>100fb679</code> · 2026-10-26 · mirrors <code>docs/FEATURE_MAP.md</code></div>
     </div>
     <ul class="stats" aria-label="Inventory">
       <li><b>33</b> features</li>
-      <li><b>153</b> HTTP routes</li>
+      <li><b>155</b> HTTP routes</li>
       <li><b>17</b> server modules</li>
       <li><b>14</b> web features</li>
       <li><b>16</b> engines</li>
       <li><b>28</b> metadata tables</li>
-      <li><b>49</b> e2e specs</li>
-      <li><b>~530</b> unit-test files</li>
+      <li><b>56</b> e2e specs</li>
+      <li><b>~600</b> unit-test files</li>
     </ul>
     <nav class="tabs" role="tablist" aria-label="Views">
       <button role="tab" id="tab-plan" data-tab="plan" aria-selected="true">Plan</button>
@@ -650,7 +650,7 @@ td.no { color: var(--muted); }
       </div>
       <div class="section">
         <h3>End-to-end suites</h3>
-        <p class="lede">49 Playwright specs in 33 groups, run with <code>npm run test:e2e:all</code>. Dialect suites need their Docker container and a fresh seed.</p>
+        <p class="lede">56 Playwright specs in 37 groups, run with <code>npm run test:e2e:all</code>. Dialect suites need their Docker container and a fresh seed.</p>
         <div class="areas" id="e2e-groups"></div>
       </div>
     </section>
@@ -663,7 +663,7 @@ td.no { color: var(--muted); }
 
 <script>
 // Reference data: the inventory of what Fox Schema ships, measured from the
-// codebase on main 91d4165c09 (2026-10-25). Mirrors docs/FEATURE_MAP.md.
+// codebase on main 100fb679 (2026-10-26). Mirrors docs/FEATURE_MAP.md.
 // Work items are not here: they live in the page's shared store.
 const AREAS = [
   { id: 'platform', name: 'Platform' },
@@ -692,7 +692,7 @@ const FEATURES = [
     code: 'server workspaces, platform/workspaces · web workspaces', perms: 'workspace.members, workspace.settings, workspace.create',
     tables: 'workspaces, workspace_members, workspace_invites, workspace_scripts', tests: 'server 5 · web 3 · e2e workspaces, workspaces-sharing-limits' },
   { id: 'platform.connections', area: 'platform', name: 'Connections & drivers',
-    subs: ['Credential manager', 'Connection form: password, Windows, LDAP', 'SSL and pool', 'SQLite / DuckDB file picker', 'Schema list', 'Connection test', 'Driver check and Install driver', 'Cloud provider credentials'],
+    subs: ['Credential manager', 'Connection form: password, Windows, LDAP, No password (Redis / MongoDB)', 'SSL and pool', 'SQLite / DuckDB file picker', 'Schema list', 'Connection test', 'Driver check and Install driver', 'Cloud provider credentials'],
     ui: 'Creds (rail), connection modal', api: '/api/connections (4), /api/connection/test, /api/db/test, /api/driver (2)',
     code: 'server connections, platform/connections, internal/driver-install · web connections', perms: 'workspace role; admin.drivers to install',
     tables: 'connections, cloud_provider_credentials', tests: 'server 1 · web 1' },
@@ -726,7 +726,7 @@ const FEATURES = [
     subs: ['Capture', 'Databases', 'Version timeline', 'Graph', 'Version compare', 'Change chart', 'Object inspector', 'Revert: plan → run', 'Force-migrate: plan → run', 'Rename a version'],
     ui: 'Snapshots (rail)', api: '/api/lokee (11)',
     code: 'server history · web lokee-weave · sql lokee-weave', perms: 'compare.history, schema.migrate.force',
-    tables: 'lokee_databases, lokee_versions, lokee_version_objects, lokee_objects, lokee_latest_objects, lokee_shapes', tests: 'sql 15 · server 3 · web 14 · e2e schema-history, schema-revert, schema-version-revert-edges' },
+    tables: 'lokee_databases, lokee_versions, lokee_version_objects, lokee_objects, lokee_latest_objects, lokee_shapes', tests: 'sql 15 · server 3 · web 14 · e2e schema-history, schema-revert, schema-version-revert-edges, schema-force-migrate' },
 
   { id: 'editor.run', area: 'editor', name: 'Editor & run',
     subs: ['Tabs, stored per workspace', 'Destinations', 'Run rail: In [n], ▶, include, Safe-mode marks, copy with values', 'Selection and caret run', 'Safe mode confirm', 'One transaction', 'Per-dialect write classification', 'Format SQL+JS', 'Clause-aware completions', 'Column picker', 'Shortcuts'],
@@ -744,10 +744,10 @@ const FEATURES = [
     code: 'web ResultsPanel, DataGrid', perms: 'editor.datagrid.insert, update, delete',
     tables: '—', tests: 'e2e sql-editor-result-edit, -copy-export' },
   { id: 'editor.datacompare', area: 'editor', name: 'Data compare & migrate',
-    subs: ['Compare toggle and Source', 'Diff cells', 'Key columns', 'Add, edit, delete', 'Sync column', 'Apply: Transaction where it can roll back, stop or continue, backup snapshot', 'History', 'Preview SQL', 'Multi-target'],
+    subs: ['Compare toggle and Source', 'Compare 2,000 rows in key order', 'In-memory filters and pages', 'Diff cells', 'Key columns', 'Add, edit, delete', 'Sync column', 'Apply up to 2,000 ops (one shared cap)', 'Transaction where it can roll back, stop or continue, backup snapshot', 'History', 'Preview SQL', 'Multi-target'],
     ui: 'Editor, side by side', api: '/api/data-migrate/execute, /api/data-migrations (5)',
-    code: 'server data-migrate · web DataMigrateBar', perms: 'editor.dml',
-    tables: 'data_migrate_runs', tests: 'server 4 · e2e sql-editor-compare-multi-target' },
+    code: 'server data-migrate · web DataMigrateBar, useCompareWindow, compareView.ts', perms: 'editor.dml',
+    tables: 'data_migrate_runs', tests: 'server 4 · e2e sql-editor-compare-multi-target, sql-editor-compare-window' },
   { id: 'editor.peek', area: 'editor', name: 'Data peek',
     subs: ['Cmd/Ctrl-click to open', 'Stacked panels', 'WHERE (one row per AND), ORDER BY, limit', 'Paging', 'Row editor: add, edit, clone, delete, generators', 'Insight tab', 'FK drill and referenced-by', 'Date picker'],
     ui: 'Editor', api: 'with /api/sql/execute',
@@ -855,7 +855,7 @@ const ENGINES = {
   ],
 };
 
-// Routes per feature, from the 153 pinned in http-contract.test.ts.
+// Routes per feature, from the 155 pinned in http-contract.test.ts.
 const ROUTES = [
   ['platform.auth', 22], ['platform.workspaces', 20], ['platform.admin', 19], ['schema.git', 15],
   ['schema.snapshots', 11], ['editor.files', 11], ['platform.secrets', 9], ['platform.connections', 8],
@@ -865,12 +865,12 @@ const ROUTES = [
 
 // Unit-test files per package.
 const TESTS = [
-  ['apps/web', 175], ['packages/server', 100], ['packages/workflow-engine', 87], ['packages/sql', 86],
-  ['apps/cli', 25], ['packages/db', 24], ['apps/workflow-server', 19], ['packages/shared', 12],
+  ['apps/web', 179], ['packages/server', 104], ['packages/workflow-engine', 87], ['packages/sql', 86],
+  ['apps/cli', 14], ['packages/db', 26], ['apps/workflow-server', 19], ['packages/shared', 12],
   ['packages/workflow-contract', 1], ['packages/ui-shared', 1],
 ];
 
-const E2E_GROUPS = ['PostgreSQL', 'MySQL', 'MariaDB', 'SQL Server', 'Oracle', 'DB2', 'SQLite', 'Azure SQL', 'ClickHouse', 'Redshift', 'CockroachDB', 'YugabyteDB', 'TiDB', 'DuckDB', 'Smoke', 'Sign-in', 'One admin or several', 'Workspaces', 'SQL Editor (14 specs)', 'Send feedback', 'Browse', 'History', 'Revert', 'Revert edges', 'Access SQLite', 'Workflow', 'Utilities', 'DB Access', 'Access all', 'Migrations in Git', 'Execute gate', 'Backup & Restore', 'Backup commands'];
+const E2E_GROUPS = ['PostgreSQL', 'MySQL', 'MariaDB', 'SQL Server', 'Oracle', 'DB2', 'SQLite', 'Azure SQL', 'ClickHouse', 'Redshift', 'CockroachDB', 'YugabyteDB', 'TiDB', 'DuckDB', 'Smoke', 'Sign-in', 'One admin or several', 'Demo role', 'Workspaces', 'SQL Editor (16 specs)', 'Compare 2,000 rows', 'Redis editor', 'Send feedback', 'Browse', 'History', 'Revert', 'Revert edges', 'Force-migrate', 'Access SQLite', 'Workflow', 'Utilities', 'DB Access', 'Access all', 'Migrations in Git', 'Execute gate', 'Backup & Restore', 'Backup commands'];
 
 // Metadata table → owning feature, column count (schema.ts, 31 migrations).
 const TABLES = [

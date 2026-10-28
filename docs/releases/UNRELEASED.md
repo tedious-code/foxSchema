@@ -3,6 +3,46 @@
 Notes for the next release. At ship time, rename this file to that version's
 `RELEASE_<version>.md` and use it as the GitHub Release body.
 
+## Data compare: 2,000 rows in key order; migrate the same window
+
+**Compare data** still lines up the pages each grid has already loaded, and
+one-sided rows on a cut-short page stay unresolved. **Compare 2,000 rows**
+re-reads both sides in key order — a fixed window, not a setting — and
+classifies every row inside it. Filters (All / Changed / Only in source /
+Only in target / Unresolved / Matching) and pages (50–500) walk that window
+in memory. **Back to loaded rows** returns to the grids you ran. Redis and
+MongoDB have no ordered window.
+
+**Data migrate** applies up to **2,000** row ops. The screen and
+`POST /api/data-migrate/execute` share one number (`DATA_MIGRATE_MAX_OPS`),
+so a compare window's differences can be applied from the screen that found
+them. Past 2,000 ops still points at Server Beam.
+
+## Read-only is a permission
+
+**Save and change** (`app.write`) is install-wide. Without it an account may
+call only GET, or a route that declares it reads (running a SELECT, comparing,
+loading a schema). The **Demo** role is the role without it and without
+**Manage own account** — a published demo's shared login. Strip `app.write`
+from any role and those accounts read only too. A new POST is closed to such
+an account until its route declares `reads`. See
+[DEPLOYMENT.md](../DEPLOYMENT.md#publishing-a-demo).
+
+## Personal workspaces lend no more than the account holds
+
+A viewer account can still share its workspace and manage members, but it
+invites viewers only — never an editor or owner who could run DDL or GRANT
+with credentials handed out for reading. A membership stored above that
+ceiling still acts at the ceiling. A demo login is a viewer in every
+workspace. Shared workspace owners can still grant owner.
+
+## Redis keys as tables
+
+A Redis prefix (`users` → `users:*`) is one table, one key per row: hash
+fields and JSON object fields become columns. A list, set, sorted set or
+stream key is a table of its own; its elements are the rows. Every read is
+bounded (no `KEYS`, no whole-key `LRANGE`).
+
 ## One workspace on the rail
 
 The workspace you are in sits under the Fox mark on the left rail — switch,

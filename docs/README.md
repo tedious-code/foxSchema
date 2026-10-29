@@ -11,6 +11,7 @@ Living documents describe the tree as it is. Plans and release notes are history
 | What the product is and how to install it | [README](../README.md), [install.md](install.md) |
 | How to use the app | [user-guide.md](user-guide.md) |
 | Where code lives | [CODE_MAP.md](CODE_MAP.md) |
+| Schema types, functions, forms, and features (read this before searching the tree) | [architecture/AGENT-MAP.md](architecture/AGENT-MAP.md) |
 | How the system is put together | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | File and symbol names | [CONVENTIONS.md](CONVENTIONS.md) |
 | How to work in this repo | [CONTRIBUTING.md](../CONTRIBUTING.md), [AGENTS.md](../AGENTS.md) |
@@ -37,6 +38,7 @@ Homebrew install steps live only in [install.md](install.md#homebrew-macos). The
 | --- | --- |
 | Repo layout, dialects, migration flow | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | HTTP server, logging, what is never logged | [BACKEND_ARCHITECTURE.md](BACKEND_ARCHITECTURE.md) |
+| Schema, functions, forms, and which feature owns them | [architecture/AGENT-MAP.md](architecture/AGENT-MAP.md) |
 | Feature folders and how to add one | [architecture/FEATURE-MODULE-GUIDE.md](architecture/FEATURE-MODULE-GUIDE.md) |
 | Which feature may import which | [architecture/FEATURE-DEPENDENCY-RULES.md](architecture/FEATURE-DEPENDENCY-RULES.md) |
 | Dialect hooks | [packages/sql/src/providers/DIALECTS.md](../packages/sql/src/providers/DIALECTS.md) |

@@ -1,0 +1,18 @@
+---
+description: Read the agent map before searching the tree for schema types, functions, forms, or features
+alwaysApply: true
+---
+
+# Find code from the map
+
+Before searching the repository for where a schema type, function, form, or feature lives, read `docs/architecture/AGENT-MAP.md`.
+
+When that file names a path, open that file and stop. Do not scan feature folders, and do not re-read `docs/CODE_MAP.md` for the same question.
+
+Hard rules the map records:
+
+- The web app imports dialect code from `@foxschema/ui-shared`, never `@foxschema/sql`.
+- `TableDiff.tableName` is the uppercased compare key from `compareKey`. Emit DDL from `source?.name` or `targetTable?.name`.
+- `DbSchema` is the catalog model. Compare, the table blueprint, and DDL generation take `TableSchema`.
+- Server features are composed only in `packages/server/src/app/feature-registry.ts`. Workspace views are composed only in `apps/web/src/frontend/app/features/featureRegistry.ts`.
+- A form belongs to the feature in its path. Other features import that feature's root files (`index.ts`, `view.ts`, `ui.ts`), never `components/`.

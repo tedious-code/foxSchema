@@ -17,6 +17,10 @@ that breaks one fails `npx vitest run`. Read it before adding files.
 
 ## Feature modules
 
+Before searching the tree for a schema type, function, form, or feature, read
+[docs/architecture/AGENT-MAP.md](docs/architecture/AGENT-MAP.md). It names the file.
+Open that file instead of scanning feature folders.
+
 Product code is one folder per feature on each side, composed in one static registry
 per side (`packages/server/src/app/feature-registry.ts`,
 `apps/web/src/frontend/app/features/featureRegistry.ts`). Add a feature with

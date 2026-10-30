@@ -26,12 +26,31 @@ const LS_CONN = 'foxschema-access-connection';
 const SECTIONS: {
   id: AccessSection;
   label: string;
+  blurb: string;
   icon: React.ElementType;
   permission: Permission;
 }[] = [
-  { id: 'permission', label: 'Permissions', icon: ShieldCheck, permission: 'access.builder' },
-  { id: 'users', label: 'Users', icon: UserCog, permission: 'access.users' },
-  { id: 'diff', label: 'Insight', icon: GitCompare, permission: 'access.diff' },
+  {
+    id: 'permission',
+    label: 'Permissions',
+    blurb: 'Inspect and grant privileges per principal',
+    icon: ShieldCheck,
+    permission: 'access.builder',
+  },
+  {
+    id: 'users',
+    label: 'Users',
+    blurb: 'Create, alter, or drop database accounts and roles',
+    icon: UserCog,
+    permission: 'access.users',
+  },
+  {
+    id: 'diff',
+    label: 'Insight',
+    blurb: 'Compare held privileges against desired access',
+    icon: GitCompare,
+    permission: 'access.diff',
+  },
 ];
 
 function loadConnectionId(connections: { id: string }[]): string {
@@ -97,6 +116,7 @@ export const AccessView: React.FC = () => {
               key={s.id}
               type="button"
               data-testid={`access-tab-${s.id}`}
+              title={s.blurb}
               aria-current={active ? 'page' : undefined}
               onClick={() => setSection(s.id)}
               className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
@@ -132,6 +152,16 @@ export const AccessView: React.FC = () => {
               {conn.database}
               {conn.schema ? ` · ${conn.schema}` : ''}
             </span>
+          )}
+          {!conn && connections[0] && (
+            <button
+              type="button"
+              data-testid="access-quick-pick-first"
+              onClick={() => pickConnection(connections[0]!.id)}
+              className="self-start truncate text-[10px] font-semibold text-cyan-400 hover:text-cyan-200"
+            >
+              Use {connections[0].name} ({connections[0].dialect}) →
+            </button>
           )}
         </label>
       </nav>

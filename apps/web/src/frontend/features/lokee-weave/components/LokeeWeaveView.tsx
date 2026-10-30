@@ -576,33 +576,56 @@ export function LokeeWeaveView({
           graph draws at once.
         </div>
       )}
-      <div className="flex shrink-0 items-center justify-end gap-2 border-b border-slate-800 px-4 py-1">
-        <button
-          type="button"
-          data-testid="lokee-graph-toggle"
-          aria-pressed={showGraph}
-          onClick={() => setShowGraph((on) => !on)}
-          className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-[11px] font-semibold transition ${
-            showGraph
-              ? 'bg-violet-700/80 text-violet-50'
-              : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-          }`}
-        >
-          <GitBranch className="h-3.5 w-3.5" strokeWidth={SQL_ICON_STROKE} />
-          Graph
-        </button>
-        {canForceMigrate && activeId && (
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-800 px-4 py-1">
+        <div className="flex min-w-0 items-center gap-2 text-[11px] text-slate-400">
+          {subtitle && (
+            <span className="truncate font-mono text-slate-300" title={subtitle}>
+              {subtitle}
+            </span>
+          )}
+          <span className="shrink-0 rounded-full border border-slate-800 bg-slate-950 px-2 py-0.5 text-[10px] font-semibold text-slate-400">
+            {dto.totalVersions || dto.versions.length} snapshot
+            {(dto.totalVersions || dto.versions.length) === 1 ? '' : 's'}
+          </span>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
-            data-testid="lokee-force-migrate-btn"
-            onClick={() => setForceMigrateOpen(true)}
-            title="Apply a stored version to a database it was not captured from"
-            className="inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-[11px] font-semibold text-amber-200/90 transition hover:bg-amber-900/30 hover:text-amber-100"
+            data-testid="lokee-bar-refresh-btn"
+            onClick={refresh}
+            title="Refresh schema history"
+            className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold text-slate-400 transition hover:bg-slate-800 hover:text-slate-200"
           >
-            <Upload className="h-3.5 w-3.5" strokeWidth={SQL_ICON_STROKE} />
-            Force migrate…
+            <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} strokeWidth={SQL_ICON_STROKE} />
+            Refresh
           </button>
-        )}
+          <button
+            type="button"
+            data-testid="lokee-graph-toggle"
+            aria-pressed={showGraph}
+            onClick={() => setShowGraph((on) => !on)}
+            className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-[11px] font-semibold transition ${
+              showGraph
+                ? 'bg-violet-700/80 text-violet-50'
+                : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+            }`}
+          >
+            <GitBranch className="h-3.5 w-3.5" strokeWidth={SQL_ICON_STROKE} />
+            Graph
+          </button>
+          {canForceMigrate && activeId && (
+            <button
+              type="button"
+              data-testid="lokee-force-migrate-btn"
+              onClick={() => setForceMigrateOpen(true)}
+              title="Apply a stored version to a database it was not captured from"
+              className="inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-[11px] font-semibold text-amber-200/90 transition hover:bg-amber-900/30 hover:text-amber-100"
+            >
+              <Upload className="h-3.5 w-3.5" strokeWidth={SQL_ICON_STROKE} />
+              Force migrate…
+            </button>
+          )}
+        </div>
       </div>
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">

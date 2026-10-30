@@ -701,8 +701,9 @@ export const SqlEditorView: React.FC = () => {
             aria-orientation="vertical"
             aria-label="Resize sidebar"
             data-testid="sql-sidebar-resize"
-            title="Drag to resize sidebar"
+            title="Drag to resize sidebar · Double-click to reset width"
             onMouseDown={startSidebarResize}
+            onDoubleClick={() => setSidebarWidth(SIDEBAR_DEFAULT)}
             className="absolute top-0 right-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-cyan-500/40 active:bg-cyan-500/60"
           />
         )}
@@ -922,6 +923,20 @@ export const SqlEditorView: React.FC = () => {
             {runCount} statement{runCount === 1 ? '' : 's'} · {liveSelectedIds.length} server
             {liveSelectedIds.length === 1 ? '' : 's'}
           </span>
+          {liveSelectedIds.length === 0 && !canRunLocal && canEditorDestinations && (
+            <button
+              type="button"
+              data-testid="sql-pick-server-hint"
+              onClick={() => {
+                setSidebarCollapsed(false);
+                selectSidebar('destinations');
+              }}
+              title="Open the Servers sidebar to pick a destination"
+              className="shrink-0 whitespace-nowrap rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-200 hover:bg-amber-500/20 transition"
+            >
+              Pick a server →
+            </button>
+          )}
           <div className="flex-1" />
           {results && results.runs.length > 0 && (
             <button data-testid="sql-clear-results"
@@ -960,7 +975,8 @@ export const SqlEditorView: React.FC = () => {
             aria-label="Resize editor and results"
             data-testid="sql-editor-resize"
             onMouseDown={startEditorResize}
-            title="Drag to resize editor / results"
+            onDoubleClick={() => setEditorPct(EDITOR_PCT_DEFAULT)}
+            title="Drag to resize editor / results · Double-click to reset split"
             className="h-1.5 shrink-0 cursor-row-resize bg-slate-900 hover:bg-cyan-500/40 active:bg-cyan-500/60 transition-colors border-y border-slate-800/80"
           />
 

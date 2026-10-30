@@ -1,5 +1,5 @@
 import { type ConnectionOptions, type DriverAdapter, parseSqlSubset, subsetValue } from '@foxschema/sql';
-import { credentialedCacheKey } from '../../cores/pool-cache.js';
+import { BoundedPoolCache, credentialedCacheKey, disposePoolEndOrClose } from '../../cores/pool-cache.js';
 import { connectTimeoutMs } from '../../cores/timeouts.js';
 import { requireDriver } from '../../cores/driver-loader.js';
 
@@ -26,7 +26,9 @@ class MongoDbAdapter implements DriverAdapter {
   readonly dialect = 'mongodb';
   readonly packageName = 'mongodb';
 
-  private clients = new Map<string, any>();
+  private clients = new BoundedPoolCache<{ client: any; database: string }>(
+    (entry) => disposePoolEndOrClose(entry.client)
+  );
   private mod: any;
 
   private load(): any {
@@ -44,15 +46,13 @@ class MongoDbAdapter implements DriverAdapter {
       password: options.password || '',
       database,
     });
-    let entry = this.clients.get(key);
-    if (!entry) {
+    const entry = await this.clients.getOrCreate(key, async () => {
       const client = new MongoClient(connectionString, {
         serverSelectionTimeoutMS: connectTimeoutMs(options, 10_000),
       });
       await client.connect();
-      entry = { client, database };
-      this.clients.set(key, entry);
-    }
+      return { client, database };
+    });
     // Return a per-acquire handle. setCurrentSchema mutates `database` on the
     // handle; sharing the cached object would leave later acquires pointed at
     // whichever database the previous caller switched to.
@@ -139,9 +139,7 @@ class MongoDbAdapter implements DriverAdapter {
   }
 
   async closeAll(): Promise<void> {
-    const entries = [...this.clients.values()];
-    this.clients.clear();
-    await Promise.all(entries.map((e) => e.client.close().catch(() => undefined)));
+    await this.clients.clear();
   }
 }
 

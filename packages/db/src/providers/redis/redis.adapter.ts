@@ -1,5 +1,5 @@
 import { type ConnectionOptions, type DriverAdapter, parseSqlSubset, subsetValue } from '@foxschema/sql';
-import { credentialedCacheKey } from '../../cores/pool-cache.js';
+import { BoundedPoolCache, credentialedCacheKey } from '../../cores/pool-cache.js';
 import { requireDriver } from '../../cores/driver-loader.js';
 
 /**
@@ -44,7 +44,9 @@ class RedisAdapter implements DriverAdapter {
   readonly dialect = 'redis';
   readonly packageName = 'redis';
 
-  private clients = new Map<string, any>();
+  private clients = new BoundedPoolCache<any>((c) =>
+    typeof c.quit === 'function' ? c.quit().catch(() => undefined) : Promise.resolve()
+  );
   private mod: any;
 
   private load(): any {
@@ -55,25 +57,31 @@ class RedisAdapter implements DriverAdapter {
 
   async acquire(connectionString: string, options: ConnectionOptions, _pooled: boolean): Promise<any> {
     const { createClient } = this.load();
+    const database = options.database || '0';
     const key = credentialedCacheKey({
       connectionString,
       username: options.username || '',
       password: options.password || '',
-      database: options.database || '0',
+      database,
     });
-    let client = this.clients.get(key);
-    if (!client) {
-      client = createClient({
+    const client = await this.clients.getOrCreate(key, async () => {
+      const created = createClient({
         url: connectionString,
         ...(options.username ? { username: options.username } : {}),
         ...(options.password ? { password: options.password } : {}),
       });
-      client.on('error', () => {
+      created.on('error', () => {
         // The driver emits on transient drops; throwing here would take the
         // process down. Failures surface on the command itself instead.
       });
-      await client.connect();
-      this.clients.set(key, client);
+      await created.connect();
+      return created;
+    });
+    // Reset selected DB index on acquire so a previous caller's setCurrentSchema
+    // does not leave the shared socket pointed at a different database index.
+    const dbIndex = Number(database);
+    if (Number.isInteger(dbIndex) && dbIndex >= 0 && typeof client.select === 'function') {
+      await client.select(dbIndex);
     }
     return client;
   }
@@ -236,9 +244,7 @@ class RedisAdapter implements DriverAdapter {
   }
 
   async closeAll(): Promise<void> {
-    const clients = [...this.clients.values()];
-    this.clients.clear();
-    await Promise.all(clients.map((c) => c.quit().catch(() => undefined)));
+    await this.clients.clear();
   }
 }
 

@@ -16,7 +16,7 @@ import { AuthModule } from '../platform/identity/auth.service';
 import { bootFeatures, composeFeatures, createFeatureContext, FEATURES } from '../app/feature-registry';
 import { DEFAULT_API_PORT } from '../defaultApiPort';
 import { assertListenPosture } from '../platform/runtime/deployment';
-import { asAppLogger, getLogger } from '../platform/logger/logger';
+import { asAppLogger, contextAwareAppLogger, getLogger } from '../platform/logger/logger';
 import type { RouteDefinition } from '../platform/http/router';
 
 /** Largest request body the API accepts. Enforced by Fastify as bytes arrive. */
@@ -25,8 +25,9 @@ export const BODY_LIMIT = process.env.FOX_BODY_LIMIT || '10mb';
 /** Every route the API serves, flattened to absolute paths with their guards. */
 export function buildApiRoutes(): RouteDefinition[] {
   // The driver runtime logs through whatever it is given; without this it stays
-  // silent. Installed here so query timing is on wherever the app is built.
-  ConnectionFactory.useLogger(asAppLogger(getLogger()));
+  // silent. Installed here so query timing is on wherever the app is built,
+  // and wrapped in contextAwareAppLogger so slow-query warnings carry reqId.
+  ConnectionFactory.useLogger(contextAwareAppLogger(asAppLogger(getLogger())));
   return composeFeatures(FEATURES, createFeatureContext()).flatten();
 }
 

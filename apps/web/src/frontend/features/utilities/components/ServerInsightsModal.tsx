@@ -90,6 +90,7 @@ export const ServerInsightsModal: React.FC<Props> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DbaUtilityResponse | null>(null);
+  const [sessionFilter, setSessionFilter] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -105,6 +106,7 @@ export const ServerInsightsModal: React.FC<Props> = ({
     setError(null);
     setData(null);
     setPasswordDraft('');
+    setSessionFilter('');
   }, [open, connections, initialTab, lockedConnectionId]);
 
   const conn = connections.find((c) => c.id === connectionId) || null;
@@ -116,6 +118,15 @@ export const ServerInsightsModal: React.FC<Props> = ({
     () => dialectSupportsDbaUtility(conn?.dialect || '', tab),
     [conn?.dialect, tab]
   );
+  const filteredSessions = useMemo(() => {
+    const all = data?.sessions ?? [];
+    const q = sessionFilter.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter((s) =>
+      [s.sessionId, s.userName, s.clientHost, s.databaseName, s.state, s.queryText]
+        .some((v) => (v ?? '').toLowerCase().includes(q))
+    );
+  }, [data?.sessions, sessionFilter]);
 
   const load = useCallback(async () => {
     if (!connectionId || !conn) {
@@ -319,6 +330,32 @@ export const ServerInsightsModal: React.FC<Props> = ({
 
           {!loading && data?.kind === 'pool' && data.pool && (
             <div className="space-y-3">
+              {data.pool.maxConnections != null &&
+                data.pool.maxConnections > 0 &&
+                data.pool.currentConnections != null && (() => {
+                  const pct = Math.min(
+                    100,
+                    Math.max(0, Math.round((data.pool.currentConnections / data.pool.maxConnections) * 100))
+                  );
+                  const barCls =
+                    pct >= 90 ? 'bg-rose-500' : pct >= 70 ? 'bg-amber-400' : 'bg-emerald-400';
+                  return (
+                    <div
+                      data-testid="server-insights-pool-meter"
+                      className="rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2"
+                    >
+                      <div className="flex items-center justify-between text-[11px] font-semibold text-slate-300">
+                        <span>Pool utilization</span>
+                        <span className="font-mono">
+                          {pct}% ({data.pool.currentConnections.toLocaleString()} / {data.pool.maxConnections.toLocaleString()})
+                        </span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                        <div className={`h-full transition-all ${barCls}`} style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })()}
               <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
                 <MetricCard label="Max" value={data.pool.maxConnections?.toLocaleString() ?? '—'} />
                 <MetricCard label="Current" value={data.pool.currentConnections?.toLocaleString() ?? '—'} />
@@ -344,44 +381,61 @@ export const ServerInsightsModal: React.FC<Props> = ({
           )}
 
           {!loading && data?.kind === 'sessions' && (
-            <div className="overflow-auto rounded-lg border border-slate-700">
-              <table className="min-w-full text-left text-[12px]">
-                <thead className="bg-slate-950/60 text-slate-400">
-                  <tr>
-                    <th className="px-3 py-2 font-bold">Session</th>
-                    <th className="px-3 py-2 font-bold">User</th>
-                    <th className="px-3 py-2 font-bold">Host</th>
-                    <th className="px-3 py-2 font-bold">DB</th>
-                    <th className="px-3 py-2 font-bold">State</th>
-                    <th className="px-3 py-2 font-bold">Query</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(data.sessions ?? []).length === 0 ? (
+            <div className="space-y-2">
+              {(data.sessions ?? []).length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <input
+                    type="search"
+                    data-testid="server-insights-session-filter"
+                    value={sessionFilter}
+                    onChange={(e) => setSessionFilter(e.target.value)}
+                    placeholder="Filter by user, host, DB, state, or query…"
+                    className="w-full max-w-xs rounded-md border border-slate-700 bg-slate-950 px-2.5 py-1 text-[12px] text-slate-100 placeholder:text-slate-500 outline-none accent-focus"
+                  />
+                  <span className="text-[11px] font-mono text-slate-400">
+                    {filteredSessions.length} of {(data.sessions ?? []).length} session{(data.sessions ?? []).length === 1 ? '' : 's'}
+                  </span>
+                </div>
+              )}
+              <div className="overflow-auto rounded-lg border border-slate-700">
+                <table className="min-w-full text-left text-[12px]">
+                  <thead className="bg-slate-950/60 text-slate-400">
                     <tr>
-                      <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
-                        No sessions returned.
-                      </td>
+                      <th className="px-3 py-2 font-bold">Session</th>
+                      <th className="px-3 py-2 font-bold">User</th>
+                      <th className="px-3 py-2 font-bold">Host</th>
+                      <th className="px-3 py-2 font-bold">DB</th>
+                      <th className="px-3 py-2 font-bold">State</th>
+                      <th className="px-3 py-2 font-bold">Query</th>
                     </tr>
-                  ) : (
-                    (data.sessions ?? []).map((s) => (
-                      <tr key={s.sessionId} className="border-t border-slate-800 align-top">
-                        <td className="px-3 py-1.5 font-mono text-slate-200">{s.sessionId}</td>
-                        <td className="px-3 py-1.5 font-semibold text-slate-100">{s.userName || '—'}</td>
-                        <td className="px-3 py-1.5 text-slate-400">{s.clientHost || '—'}</td>
-                        <td className="px-3 py-1.5 text-slate-400">{s.databaseName || '—'}</td>
-                        <td className="px-3 py-1.5 text-slate-300">{s.state || '—'}</td>
-                        <td
-                          className="max-w-[280px] truncate px-3 py-1.5 font-mono text-slate-400"
-                          title={s.queryText || ''}
-                        >
-                          {s.queryText || '—'}
+                  </thead>
+                  <tbody>
+                    {filteredSessions.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
+                          {(data.sessions ?? []).length === 0 ? 'No sessions returned.' : 'No sessions match filter.'}
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : (
+                      filteredSessions.map((s) => (
+                        <tr key={s.sessionId} className="border-t border-slate-800 align-top">
+                          <td className="px-3 py-1.5 font-mono text-slate-200">{s.sessionId}</td>
+                          <td className="px-3 py-1.5 font-semibold text-slate-100">{s.userName || '—'}</td>
+                          <td className="px-3 py-1.5 text-slate-400">{s.clientHost || '—'}</td>
+                          <td className="px-3 py-1.5 text-slate-400">{s.databaseName || '—'}</td>
+                          <td className="px-3 py-1.5 text-slate-300">{s.state || '—'}</td>
+                          <td
+                            className="max-w-[280px] truncate px-3 py-1.5 font-mono text-slate-400"
+                            title={s.queryText || ''}
+                          >
+                            {s.queryText || '—'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 

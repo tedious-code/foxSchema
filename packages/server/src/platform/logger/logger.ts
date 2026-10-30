@@ -22,6 +22,7 @@
  * this codebase already measured with CSV parsing.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import pino, { type Logger } from 'pino';
@@ -200,3 +201,30 @@ export function getLogger(options: LoggerOptions = {}): Logger {
 export function asAppLogger(logger: Logger): AppLogger {
   return logger as unknown as AppLogger;
 }
+
+const requestLoggerStorage = new AsyncLocalStorage<AppLogger>();
+
+/**
+ * Bind `req.log` to the current async execution context so database queries
+ * executed through `ConnectionFactory` inherit the request's `reqId` without
+ * threading a logger parameter through every service and provider method.
+ */
+export function enterRequestLogger(logger: AppLogger): void {
+  requestLoggerStorage.enterWith(logger);
+}
+
+/**
+ * An `AppLogger` that delegates to the active request's child logger when inside
+ * a Fastify request lifecycle, or falls back to `fallback` outside a request.
+ */
+export function contextAwareAppLogger(fallback: AppLogger): AppLogger {
+  const active = () => requestLoggerStorage.getStore() ?? fallback;
+  return {
+    trace: (obj, msg) => active().trace(obj, msg),
+    debug: (obj, msg) => active().debug(obj, msg),
+    info: (obj, msg) => active().info(obj, msg),
+    warn: (obj, msg) => active().warn(obj, msg),
+    error: (obj, msg) => active().error(obj, msg),
+  };
+}
+

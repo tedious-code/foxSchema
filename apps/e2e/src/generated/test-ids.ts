@@ -131,6 +131,8 @@ export const TestIds = {
       accessConnection: 'access-connection',
       /** nav · Access */
       accessMenu: 'access-menu',
+      /** button · Use ( ) → */
+      accessQuickPickFirst: 'access-quick-pick-first',
       /** button */
       accessTab: (id: string | number) => `access-tab-${id}`,
       /** div */
@@ -1563,6 +1565,8 @@ export const TestIds = {
       lokeeWeavePage: 'lokee-weave-page',
     },
     LokeeWeaveView: {
+      /** button · Refresh schema history */
+      lokeeBarRefreshBtn: 'lokee-bar-refresh-btn',
       /** button */
       lokeeEmptyCapture: 'lokee-empty-capture',
       /** select · Choose a database… */
@@ -2025,10 +2029,14 @@ export const TestIds = {
       dataPeekRefby: (table: string | number, fkKey: string | number) => `data-peek-refby-${table}-${fkKey}`,
       /** div */
       dataPeekReferencedBy: (id: string | number) => `data-peek-referenced-by-${id}`,
+      /** button · Clear WHERE and ORDER BY filters */
+      dataPeekResetFilters: (id: string | number) => `data-peek-reset-filters-${id}`,
       /** div · Resize data peek panel */
       dataPeekResize: (entryId: string | number) => `data-peek-resize-${entryId}`,
       /** div */
       dataPeekScroll: 'data-peek-scroll',
+      /** span */
+      dataPeekSummary: (id: string | number) => `data-peek-summary-${id}`,
       /** button · Insight */
       dataPeekTabInsight: (id: string | number) => `data-peek-tab-insight-${id}`,
       /** button · Rows */
@@ -2351,6 +2359,8 @@ export const TestIds = {
       sqlMultiTableThreshold: 'sql-multi-table-threshold',
       /** input */
       sqlOneTransaction: 'sql-one-transaction',
+      /** button · Open the Servers sidebar to pick a destination */
+      sqlPickServerHint: 'sql-pick-server-hint',
       /** button · Refresh */
       sqlRefreshBtn: 'sql-refresh-btn',
       /** button */
@@ -3123,8 +3133,12 @@ export const TestIds = {
       serverInsightsModal: 'server-insights-modal',
       /** input · •••••••• */
       serverInsightsPasswordDraft: 'server-insights-password-draft',
+      /** div */
+      serverInsightsPoolMeter: 'server-insights-pool-meter',
       /** button · Refresh */
       serverInsightsRefresh: 'server-insights-refresh',
+      /** input · Filter by user, host, DB, state, or query… */
+      serverInsightsSessionFilter: 'server-insights-session-filter',
       /** button */
       serverInsightsTab: (id: string | number) => `server-insights-tab-${id}`,
       /** button · Unlock */
@@ -3647,6 +3661,7 @@ export type TestId =
   | 'access-principals-counts'
   | `access-principals-filter-${string}`
   | 'access-principals-sidebar'
+  | 'access-quick-pick-first'
   | 'access-report'
   | `access-tab-${string}`
   | 'access-view'
@@ -4065,8 +4080,10 @@ export type TestId =
   | `data-peek-order-dir-${string}-${string}`
   | `data-peek-refby-${string}-${string}`
   | `data-peek-referenced-by-${string}`
+  | `data-peek-reset-filters-${string}`
   | `data-peek-resize-${string}`
   | 'data-peek-scroll'
+  | `data-peek-summary-${string}`
   | `data-peek-tab-insight-${string}`
   | `data-peek-tab-rows-${string}`
   | `data-peek-tabs-${string}`
@@ -4376,6 +4393,7 @@ export type TestId =
   | 'inspector-warnings'
   | 'inspector-why-stack'
   | 'inspector-why-toggle'
+  | 'lokee-bar-refresh-btn'
   | 'lokee-briefing-added'
   | 'lokee-briefing-modified'
   | 'lokee-briefing-removed'
@@ -4577,7 +4595,9 @@ export type TestId =
   | 'server-insights-connection'
   | 'server-insights-modal'
   | 'server-insights-password-draft'
+  | 'server-insights-pool-meter'
   | 'server-insights-refresh'
+  | 'server-insights-session-filter'
   | 'server-insights-size-filter'
   | 'server-insights-size-groups'
   | `server-insights-tab-${string}`
@@ -4764,6 +4784,7 @@ export type TestId =
   | 'sql-pane-refresh'
   | 'sql-pane-resize'
   | `sql-pane-retry-${string}`
+  | 'sql-pick-server-hint'
   | 'sql-pipe-connection-backdrop'
   | 'sql-pipe-connection-clear'
   | 'sql-pipe-connection-filter'

@@ -61,7 +61,7 @@ import {
   originVerdict,
   requestOriginFrom,
 } from '../platform/guards/origin-policy';
-import { loggerConfig } from '../platform/logger/logger';
+import { asAppLogger, enterRequestLogger, loggerConfig } from '../platform/logger/logger';
 
 import { securityHeadersFor } from '../platform/guards/security-headers-core';
 import { pathOf } from '../platform/http/reply';
@@ -197,6 +197,7 @@ export async function createFastifyApp(
   // An onRequest hook covers 404s, rate-limit rejections and error responses,
   // which is exactly where Express middleware ordering tends to leave gaps.
   app.addHook('onRequest', async (req: FastifyRequest, reply: FastifyReply) => {
+    enterRequestLogger(asAppLogger(req.log as unknown as Parameters<typeof asAppLogger>[0]));
     for (const [key, value] of Object.entries(securityHeadersFor(pathOf(req), { hsts }))) {
       reply.header(key, value);
     }

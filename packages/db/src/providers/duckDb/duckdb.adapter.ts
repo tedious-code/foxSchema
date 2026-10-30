@@ -1,4 +1,5 @@
 import { type ConnectionOptions, type DriverAdapter } from '@foxschema/sql';
+import { BoundedPoolCache } from '../../cores/pool-cache.js';
 import { requireDriver } from '../../cores/driver-loader.js';
 
 interface DuckHandle {
@@ -19,7 +20,14 @@ class DuckDbAdapter implements DriverAdapter {
   readonly dialect = 'duckdb';
   readonly packageName = '@duckdb/node-api';
 
-  private handles = new Map<string, Promise<DuckHandle>>();
+  private handles = new BoundedPoolCache<DuckHandle>((h) => {
+    try {
+      h.conn?.closeSync?.();
+      h.instance?.closeSync?.();
+    } catch {
+      /* ignore */
+    }
+  });
   private api: any;
 
   private load(): any {
@@ -29,17 +37,12 @@ class DuckDbAdapter implements DriverAdapter {
   }
 
   async acquire(connectionString: string, _options: ConnectionOptions, _pooled: boolean): Promise<DuckHandle> {
-    let pending = this.handles.get(connectionString);
-    if (!pending) {
+    return this.handles.getOrCreate(connectionString, async () => {
       const { DuckDBInstance } = this.load();
-      pending = (async () => {
-        const instance = await DuckDBInstance.create(connectionString);
-        const conn = await instance.connect();
-        return { instance, conn };
-      })();
-      this.handles.set(connectionString, pending);
-    }
-    return pending;
+      const instance = await DuckDBInstance.create(connectionString);
+      const conn = await instance.connect();
+      return { instance, conn };
+    });
   }
 
   async release(_handle: DuckHandle): Promise<void> {
@@ -71,17 +74,7 @@ class DuckDbAdapter implements DriverAdapter {
   }
 
   async closeAll(): Promise<void> {
-    const pending = Array.from(this.handles.values());
-    this.handles.clear();
-    await Promise.all(
-      pending.map(async (p) => {
-        try {
-          const h = await p;
-          h.conn?.closeSync?.();
-          h.instance?.closeSync?.();
-        } catch { /* ignore */ }
-      })
-    );
+    await this.handles.clear();
   }
 }
 

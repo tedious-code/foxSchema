@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **999** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1004** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -74,6 +74,7 @@ Every control has a test ID: **999** buttons, text boxes, selects and textareas.
 - **AccessView** · `features/access/components/AccessView.tsx`
   - `access-connection` · select · Choose a saved connection…
   - `access-menu` · nav · Access
+  - `access-quick-pick-first` · button · Use ( ) →
   - `access-tab-{id}` · button
   - `access-view` · div
 - **DbAccessPermissionSections** · `features/access/components/DbAccessPermissionSections.tsx`
@@ -817,6 +818,7 @@ Every control has a test ID: **999** buttons, text boxes, selects and textareas.
   - `lokee-version-save` · button
   - `lokee-weave-page` · div
 - **LokeeWeaveView** · `features/lokee-weave/components/LokeeWeaveView.tsx`
+  - `lokee-bar-refresh-btn` · button · Refresh schema history
   - `lokee-empty-capture` · button
   - `lokee-empty-credential` · select · Choose a database…
   - `lokee-force-migrate-btn` · button · Apply a stored version to a database it was not captured from
@@ -1090,8 +1092,10 @@ Every control has a test ID: **999** buttons, text boxes, selects and textareas.
   - `data-peek-order-dir-{id}-{index}` · select · — ASC DESC
   - `data-peek-refby-{table}-{fkKey}` · button
   - `data-peek-referenced-by-{id}` · div
+  - `data-peek-reset-filters-{id}` · button · Clear WHERE and ORDER BY filters
   - `data-peek-resize-{entryId}` · div · Resize data peek panel
   - `data-peek-scroll` · div
+  - `data-peek-summary-{id}` · span
   - `data-peek-tab-insight-{id}` · button · Insight
   - `data-peek-tab-rows-{id}` · button · Rows
   - `data-peek-tabs-{id}` · div
@@ -1259,6 +1263,7 @@ Every control has a test ID: **999** buttons, text boxes, selects and textareas.
   - `sql-max-rows` · input
   - `sql-multi-table-threshold` · input
   - `sql-one-transaction` · input
+  - `sql-pick-server-hint` · button · Open the Servers sidebar to pick a destination
   - `sql-refresh-btn` · button · Refresh
   - `sql-run-btn` · button
   - `sql-runs-drawer-btn` · button · Recent runs
@@ -1660,7 +1665,9 @@ Every control has a test ID: **999** buttons, text boxes, selects and textareas.
   - `server-insights-connection` · select
   - `server-insights-modal` · div
   - `server-insights-password-draft` · input · ••••••••
+  - `server-insights-pool-meter` · div
   - `server-insights-refresh` · button · Refresh
+  - `server-insights-session-filter` · input · Filter by user, host, DB, state, or query…
   - `server-insights-tab-{id}` · button
   - `server-insights-unlock` · button · Unlock
 - **UtilitiesView** · `features/utilities/components/UtilitiesView.tsx`

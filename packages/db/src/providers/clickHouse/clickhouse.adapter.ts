@@ -1,5 +1,5 @@
 import { type ConnectionOptions, type DriverAdapter } from '@foxschema/sql';
-import { credentialedCacheKey } from '../../cores/pool-cache.js';
+import { BoundedPoolCache, credentialedCacheKey, disposePoolEndOrClose } from '../../cores/pool-cache.js';
 import { queryTimeoutMs } from '../../cores/timeouts.js';
 import { requireDriver } from '../../cores/driver-loader.js';
 
@@ -47,7 +47,7 @@ class ClickHouseAdapter implements DriverAdapter {
   readonly dialect = 'clickhouse';
   readonly packageName = '@clickhouse/client';
 
-  private clients = new Map<string, any>();
+  private clients = new BoundedPoolCache<any>(disposePoolEndOrClose);
   private mod: any;
 
   private load(): any {
@@ -69,18 +69,17 @@ class ClickHouseAdapter implements DriverAdapter {
       password,
       database,
     });
-    if (this.clients.has(clientKey)) return this.clients.get(clientKey)!;
-    const { createClient } = this.load();
-    const client = createClient({
-      url: connectionString,
-      username,
-      password,
-      database,
-      request_timeout: queryTimeoutMs(options, 30_000),
-      compression: { response: true, request: false },
+    return this.clients.getOrCreate(clientKey, () => {
+      const { createClient } = this.load();
+      return createClient({
+        url: connectionString,
+        username,
+        password,
+        database,
+        request_timeout: queryTimeoutMs(options, 30_000),
+        compression: { response: true, request: false },
+      });
     });
-    this.clients.set(clientKey, client);
-    return client;
   }
 
   async release(_client: any): Promise<void> {
@@ -119,9 +118,7 @@ class ClickHouseAdapter implements DriverAdapter {
   }
 
   async closeAll(): Promise<void> {
-    const clients = Array.from(this.clients.values());
-    this.clients.clear();
-    await Promise.all(clients.map((c) => (typeof c.close === 'function' ? c.close() : Promise.resolve())));
+    await this.clients.clear();
   }
 }
 

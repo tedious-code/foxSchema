@@ -6,10 +6,10 @@
  * One-time sign-in values arrive in URLs (OAuth `code`/`state`, the Fox
  * sign-in service's `assertion`) and must not reach the request log.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Writable } from 'node:stream';
 import Fastify, { type FastifyInstance } from 'fastify';
-import { loggerConfig, redactUrl } from './logger';
+import { contextAwareAppLogger, enterRequestLogger, loggerConfig, redactUrl } from './logger';
 
 describe('redactUrl', () => {
   it('blanks one-time sign-in values and keeps the rest of the URL', () => {
@@ -76,3 +76,26 @@ describe('the request log', () => {
     expect(logged).not.toContain('NONCE123');
   });
 });
+
+describe('contextAwareAppLogger', () => {
+  it('routes database log calls to the active request logger when in a request context', async () => {
+    const fallback = { trace: vi.fn(), debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const reqLog = { trace: vi.fn(), debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const logger = contextAwareAppLogger(fallback);
+
+    logger.warn({ durationMs: 620 }, 'slow database query');
+    expect(fallback.warn).toHaveBeenCalledTimes(1);
+    expect(reqLog.warn).not.toHaveBeenCalled();
+
+    await new Promise<void>((resolve) => {
+      enterRequestLogger(reqLog);
+      queueMicrotask(() => {
+        logger.warn({ durationMs: 750 }, 'slow database query');
+        resolve();
+      });
+    });
+
+    expect(reqLog.warn).toHaveBeenCalledWith({ durationMs: 750 }, 'slow database query');
+  });
+});
+

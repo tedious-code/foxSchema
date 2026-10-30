@@ -323,6 +323,24 @@ const PeekFilterBar: React.FC<{
       >
         Apply
       </button>
+      {(entry.whereClause.trim() !== '' || entry.orderByClause.trim() !== '') && (
+        <button
+          type="button"
+          data-testid={`data-peek-reset-filters-${entry.id}`}
+          disabled={disabled}
+          title="Clear WHERE and ORDER BY filters"
+          onClick={() => {
+            setWheres(['']);
+            setOrders([{ expr: '', dir: '' }]);
+            whereRef.current = '';
+            orderByRef.current = '';
+            apply();
+          }}
+          className="shrink-0 rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs font-semibold text-slate-300 hover:border-slate-500 hover:text-slate-100 disabled:opacity-50"
+        >
+          Reset
+        </button>
+      )}
     </div>
   );
 };
@@ -330,7 +348,8 @@ const PeekFilterBar: React.FC<{
 const PeekResizeHandle: React.FC<{
   entryId: string;
   heightPx: number;
-}> = ({ entryId, heightPx }) => {
+  defaultHeightPx: number;
+}> = ({ entryId, heightPx, defaultHeightPx }) => {
   const setDataPeekPanelHeight = useSqlEditorStore((s) => s.setDataPeekPanelHeight);
   const startY = useRef(0);
   const startH = useRef(heightPx);
@@ -365,8 +384,9 @@ const PeekResizeHandle: React.FC<{
       aria-label="Resize data peek panel"
       data-testid={`data-peek-resize-${entryId}`}
       onPointerDown={onPointerDown}
+      onDoubleClick={() => setDataPeekPanelHeight(entryId, defaultHeightPx)}
       className="h-2.5 shrink-0 cursor-ns-resize flex items-center justify-center group"
-      title="Drag to resize"
+      title="Drag to resize · Double-click to reset height"
     >
       <span className="block h-1 w-12 rounded-full bg-slate-600 group-hover:bg-cyan-500" />
     </div>
@@ -612,30 +632,41 @@ const PeekGrid: React.FC<{
         )}
       </div>
 
-      <div
-        className="mb-1 shrink-0 inline-flex rounded-md border border-slate-700 overflow-hidden"
-        data-testid={`data-peek-tabs-${entry.id}`}
-      >
-        <button
-          type="button"
-          data-testid={`data-peek-tab-rows-${entry.id}`}
-          onClick={() => setTab('rows')}
-          className={`px-2.5 py-0.5 text-[11px] font-semibold ${
-            tab === 'rows' ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-200'
-          }`}
+      <div className="mb-1 shrink-0 flex items-center gap-2">
+        <div
+          className="inline-flex rounded-md border border-slate-700 overflow-hidden"
+          data-testid={`data-peek-tabs-${entry.id}`}
         >
-          Rows
-        </button>
-        <button
-          type="button"
-          data-testid={`data-peek-tab-insight-${entry.id}`}
-          onClick={() => setTab('insight')}
-          className={`px-2.5 py-0.5 text-[11px] font-semibold ${
-            tab === 'insight' ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          Insight
-        </button>
+          <button
+            type="button"
+            data-testid={`data-peek-tab-rows-${entry.id}`}
+            onClick={() => setTab('rows')}
+            className={`px-2.5 py-0.5 text-[11px] font-semibold ${
+              tab === 'rows' ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Rows
+          </button>
+          <button
+            type="button"
+            data-testid={`data-peek-tab-insight-${entry.id}`}
+            onClick={() => setTab('insight')}
+            className={`px-2.5 py-0.5 text-[11px] font-semibold ${
+              tab === 'insight' ? 'bg-slate-800 text-slate-100' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Insight
+          </button>
+        </div>
+        {entry.result?.ok && (
+          <span
+            data-testid={`data-peek-summary-${entry.id}`}
+            className="text-[11px] font-mono text-slate-400"
+          >
+            {entry.result.rowCount} row{entry.result.rowCount === 1 ? '' : 's'}
+            {entry.result.durationMs != null ? ` · ${entry.result.durationMs}ms` : ''}
+          </span>
+        )}
       </div>
 
       {/* Keep filters editable while a page reloads so clearing WHERE can apply. */}
@@ -727,7 +758,11 @@ const PeekGrid: React.FC<{
         </div>
       )}
 
-      <PeekResizeHandle entryId={entry.id} heightPx={heightPx} />
+      <PeekResizeHandle
+        entryId={entry.id}
+        heightPx={heightPx}
+        defaultHeightPx={variant === 'drill' ? DEFAULT_HEIGHT_DRILL : DEFAULT_HEIGHT_ROOT}
+      />
 
       {crud.overlays}
     </div>

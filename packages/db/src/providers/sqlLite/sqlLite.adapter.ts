@@ -1,4 +1,5 @@
 import { type ConnectionOptions, type DriverAdapter } from '@foxschema/sql';
+import { BoundedPoolCache } from '../../cores/pool-cache.js';
 import { requireDriver } from '../../cores/driver-loader.js';
 
 /**
@@ -11,7 +12,13 @@ class SqliteAdapter implements DriverAdapter {
   readonly dialect = 'sqlite';
   readonly packageName = 'better-sqlite3';
 
-  private dbs = new Map<string, any>();
+  private dbs = new BoundedPoolCache<any>((db) => {
+    try {
+      db.close();
+    } catch {
+      /* ignore */
+    }
+  });
   private driver: any;
 
   private load(): any {
@@ -21,17 +28,14 @@ class SqliteAdapter implements DriverAdapter {
   }
 
   async acquire(connectionString: string, _options: ConnectionOptions, _pooled: boolean): Promise<any> {
-    const Database = this.load();
-    let db = this.dbs.get(connectionString);
-    if (!db) {
+    return this.dbs.getOrCreate(connectionString, () => {
+      const Database = this.load();
       // Read-write: the SQL editor runs user DDL/DML against SQLite too, and a
       // read-only handle fails those with "attempt to write a readonly
       // database". fileMustExist keeps a typo'd path from silently creating an
       // empty database instead of reporting that the file is missing.
-      db = new Database(connectionString, { fileMustExist: true });
-      this.dbs.set(connectionString, db);
-    }
-    return db;
+      return new Database(connectionString, { fileMustExist: true });
+    });
   }
 
   async release(_db: any): Promise<void> {
@@ -67,10 +71,7 @@ class SqliteAdapter implements DriverAdapter {
   }
 
   async closeAll(): Promise<void> {
-    for (const db of this.dbs.values()) {
-      try { db.close(); } catch { /* ignore */ }
-    }
-    this.dbs.clear();
+    await this.dbs.clear();
   }
 }
 

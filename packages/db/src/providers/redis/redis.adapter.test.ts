@@ -130,6 +130,28 @@ describe('redis adapter · every key type through the SQL subset', () => {
     expect(c.calls.filter((x) => x === 'TYPE').length).toBe(2);
   });
 
+  it('refuses to delete every non-hash key exposed as a prefix-table row', async () => {
+    const c = new RedisClientDouble({ json: true })
+      .set('users:list', { type: 'list', value: ['send', 'bill'] })
+      .set('users:set', { type: 'set', value: ['admin'] })
+      .set('users:zset', { type: 'zset', value: [{ value: 'Ana', score: 1 }] })
+      .set('users:stream', { type: 'stream', value: [{ id: '1-0', message: { event: 'joined' } }] })
+      .set('users:string', { type: 'string', value: 'plain' })
+      .set('users:json', { type: 'ReJSON-RL', value: '{"name":"Ana"}' });
+    const q = (sql: string) =>
+      redisAdapter.query(c as never, sql, []) as Promise<Record<string, unknown>[]>;
+
+    const ids = (await q('SELECT id FROM users')).map((row) => row.id).sort();
+    expect(ids).toEqual(['json', 'list', 'set', 'stream', 'string', 'zset']);
+    for (const id of ids) {
+      await expect(q(`DELETE FROM users WHERE id = '${id}'`), String(id)).rejects.toThrow(
+        /only hash keys are deleted through prefix tables/
+      );
+      expect(c.keys.has(`users:${id}`), String(id)).toBe(true);
+    }
+    expect(c.calls).not.toContain('DEL');
+  });
+
   it('pages a prefix scan with a filter, skipping matches for the offset', async () => {
     const { q } = setup();
     expect(await q(`SELECT id FROM users WHERE plan = 'pro' LIMIT 1 OFFSET 1`)).toEqual([{ id: '3' }]);

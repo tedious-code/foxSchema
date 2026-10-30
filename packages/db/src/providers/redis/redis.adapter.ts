@@ -235,6 +235,10 @@ class RedisAdapter implements DriverAdapter {
         ]);
         const row = read?.row;
         if (!row) return [{ rowCount: 0 }] as T[];
+        if (read.type !== 'hash') {
+          const what = read.type === JSON_TYPE ? 'JSON document' : read.type;
+          throw new Error(`Redis: "${key}" is a ${what}; only hash keys are deleted through prefix tables.`);
+        }
         // Same rule as UPDATE: `DELETE … WHERE id = 1 AND status = 'active'`
         // must not remove an inactive row.
         if (!redisRowMatchesPredicates(row, extraWhere(intent.where), params)) {

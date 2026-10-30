@@ -26,7 +26,9 @@ function targetName(cfg: { option: { database?: string }; schema: string }): str
 
 export const CommitMigrationDialog: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
   const { repos, load } = useGitStore();
-  const currentMigrationPlan = useSyncStore((s) => s.currentMigrationPlan);
+  // The cached plan array. A new array only when the selection or compare
+  // changes, so the preview below is not rebuilt on every store update.
+  const plan = useSyncStore((s) => s.currentMigrationPlan());
   const targetConfig = useSyncStore((s) => s.targetConfig);
   const sourceConfig = useSyncStore((s) => s.sourceConfig);
   const setCommittedMigration = useSyncStore((s) => s.setCommittedMigration);
@@ -42,12 +44,6 @@ export const CommitMigrationDialog: React.FC<{ open: boolean; onClose: () => voi
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // The plan as it was when the dialog opened: a fresh array every render
-  // would re-trigger the preview forever.
-  const [plan, setPlan] = useState<ReturnType<typeof currentMigrationPlan>>([]);
-  useEffect(() => {
-    if (open) setPlan(currentMigrationPlan());
-  }, [open, currentMigrationPlan]);
 
   const repo = repos.find((r) => r.id === repoId);
   const planInput = useMemo(
@@ -90,9 +86,17 @@ export const CommitMigrationDialog: React.FC<{ open: boolean; onClose: () => voi
     };
   }, [open, repoId, repos]);
 
-  // The exact file, rebuilt by the server as the note changes.
+  // The exact file, rebuilt by the server as the note or the plan changes.
+  // A string, not the input object: connecting a schema replaces the config
+  // object without changing the file, and that used to cancel the request
+  // before the preview ever appeared.
+  const previewKey = useMemo(() => {
+    if (!open || !repoId || !note.trim() || plan.length === 0) return '';
+    return JSON.stringify({ repoId, ...planInput });
+  }, [open, repoId, note, plan, planInput]);
+
   useEffect(() => {
-    if (!open || !repoId || !note.trim() || plan.length === 0) {
+    if (!previewKey) {
       setPreview(null);
       return;
     }
@@ -115,7 +119,10 @@ export const CommitMigrationDialog: React.FC<{ open: boolean; onClose: () => voi
       current = false;
       clearTimeout(t);
     };
-  }, [open, repoId, note, plan.length, planInput]);
+    // previewKey is the serialized plan, note, and repository. planInput is
+    // the object from the render that produced that key.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewKey]);
 
   if (!open) return null;
 

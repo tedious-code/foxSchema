@@ -190,9 +190,20 @@ describe('workspaces', () => {
     // Not a member yet: it cannot act there.
     expect((await api('POST', `/workspaces/${guestWs.id}/select`, {})).status).toBe(404);
 
-    await driver.goto(BASE_URL);
-    await clickWhen(driver, byTestId('profile-menu-trigger'));
-    await clickWhen(driver, byTestId('profile-access-control'));
+    await driver.goto(BASE_URL, { waitUntil: 'domcontentloaded' });
+    await driver.locator(byTestId('profile-menu-trigger')).waitFor({ state: 'visible' });
+    // A reload while the menu is opening closes the panel. Open it again.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await clickWhen(driver, byTestId('profile-menu-trigger'));
+      await clickWhen(driver, byTestId('profile-access-control'));
+      const tab = driver.locator(byTestId('admin-tab-workspaces'));
+      try {
+        await tab.waitFor({ state: 'visible', timeout: 8_000 });
+        break;
+      } catch (err) {
+        if (attempt === 2) throw err;
+      }
+    }
     await clickWhen(driver, byTestId('admin-tab-workspaces'));
     const row = byTestId(`admin-workspace-${guestWs.id}`);
     await waitFor(driver, row, 15_000);

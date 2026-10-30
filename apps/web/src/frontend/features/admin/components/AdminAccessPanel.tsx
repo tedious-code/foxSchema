@@ -434,7 +434,7 @@ export const AdminAccessPanel: React.FC<{ open: boolean; onClose: () => void }> 
           access what on a connected database.
         </p>
 
-        <div className="flex gap-1 px-4 pt-3 shrink-0">
+        <div className="flex flex-wrap gap-1 px-4 pt-3 shrink-0">
           {canUsers && (
             <button
               type="button"

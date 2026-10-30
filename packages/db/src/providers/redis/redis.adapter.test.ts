@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { pageSubsetSelect } from '@foxschema/sql';
 import { redisAdapter, redisRowMatchesPredicates } from './redis.adapter.js';
 import { RedisClientDouble } from './redis.client-double.js';
+import { MAX_SCAN } from './redis.keyspace.js';
 
 describe('redisRowMatchesPredicates', () => {
   it('matches when every non-id predicate holds', () => {
@@ -150,6 +151,21 @@ describe('redis adapter · every key type through the SQL subset', () => {
       expect(c.keys.has(`users:${id}`), String(id)).toBe(true);
     }
     expect(c.calls).not.toContain('DEL');
+  });
+
+  it('fails closed when a filtered page reaches MAX_SCAN before finding enough rows', async () => {
+    const probeLimit = 201;
+    const c = new RedisClientDouble().set('big', {
+      type: 'list',
+      value: Array.from({ length: MAX_SCAN + 5_000 }, (_, index) => `value-${index}`),
+    });
+    const q = (sql: string) =>
+      redisAdapter.query(c as never, sql, []) as Promise<Record<string, unknown>[]>;
+
+    await expect(q(`SELECT * FROM big WHERE value = 'never-matches' LIMIT ${probeLimit}`)).rejects.toThrow(
+      /scan reached the 50,000-row limit/
+    );
+    expect(c.calls.filter((call) => call === 'LRANGE')).toHaveLength(MAX_SCAN / 500 + 1);
   });
 
   it('pages a prefix scan with a filter, skipping matches for the offset', async () => {

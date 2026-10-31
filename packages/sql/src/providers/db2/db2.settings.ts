@@ -9,7 +9,7 @@ import { buildDb2ConnectionString } from './db2.connection.js';
  * entries (packages/db, apps/web) must match — `ibm-db-pin.test.ts` checks.
  * Changing the version means changing it here and there, nowhere else.
  */
-export const IBM_DB_VERSION = '4.0.1';
+export const IBM_DB_VERSION = '4.1.0';
 
 export const db2Settings: ProviderConnectionSettings = {
   dialect: 'db2',

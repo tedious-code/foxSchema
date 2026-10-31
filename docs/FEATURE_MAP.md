@@ -12,10 +12,11 @@ an interactive page (open it in a browser), and
 [the test and fix plan](plans/2026-10-25-feature-and-dialect-test-plan.md) sets
 the order every feature and dialect is tested in.
 
-Measured on `main` at `100fb679` (2026-10-26): 17 server feature modules,
-155 HTTP routes (pinned by `packages/server/src/api/http-contract.test.ts`),
-14 frontend features, 16 database engines, 28 metadata tables (31 migrations),
-56 e2e specs, ~600 unit-test files. Re-measure with the commands in
+Measured on `main` at `b12bcd5607` (2026-10-31): 34 features, 18 server
+feature modules, 158 HTTP routes (pinned by
+`packages/server/src/api/http-contract.test.ts`), 14 frontend features,
+16 database engines, 28 metadata tables (31 migrations), 57 e2e specs in 35
+groups, ~550 unit-test files. Re-measure with the commands in
 [Keeping this page true](#keeping-this-page-true).
 
 - [System](#system)
@@ -37,7 +38,7 @@ flowchart LR
   end
   subgraph server["Fox server — packages/server (Fastify)"]
     PLAT["platform<br/>identity · RBAC · workspaces<br/>connections · guards"]
-    FEAT["17 feature modules<br/>153 routes"]
+    FEAT["18 feature modules<br/>158 routes"]
   end
   WFS["Workflow server :8081<br/>apps/workflow-server<br/>+ packages/workflow-engine"]
   META[("Metadata store<br/>SQLite · 28 tables")]
@@ -625,7 +626,9 @@ tables in the schema diagram.
 
 The interactive page, [feature-map.html](feature-map.html), is generated. Edit
 its inventory in `docs/feature-map/data.js` (its layout in `template.html`, its
-script in `app.js`; the diagrams come from this page), then rebuild it:
+script in `app.js`; the diagrams come from this page), then rebuild it. Never
+edit the page itself: `feature-map-build.test.ts` fails while it differs from
+the build.
 
 ```bash
 npm run docs:feature-map

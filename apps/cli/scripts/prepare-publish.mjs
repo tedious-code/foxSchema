@@ -140,7 +140,7 @@ const publishPkg = {
     '@duckdb/node-api': webPkg.dependencies['@duckdb/node-api'],
   },
   optionalDependencies: {
-    ibm_db: webPkg.optionalDependencies?.ibm_db || '^4.0.1',
+    ibm_db: webPkg.optionalDependencies?.ibm_db || '^4.1.0',
   },
   publishConfig: { access: 'public' },
 };

@@ -94,6 +94,7 @@ class TraceSession {
   constructor(
     readonly id: string,
     readonly ownerId: string,
+    readonly workspaceId: string,
     readonly connectionId: string,
     readonly mode: TraceMode,
     readonly startedAt: number,
@@ -119,10 +120,15 @@ export class SqlTraceService {
    * Start watching `connectionId`. A trace the same person already has on that
    * connection is stopped first: one trace per person per connection.
    */
-  start(ownerId: string, connectionId: string, mode: TraceMode, target: LiveTarget | null): TraceStatus {
+  start(ownerId: string, workspaceId: string, connectionId: string, mode: TraceMode, target: LiveTarget | null): TraceStatus {
     this.sweep();
     for (const trace of this.traces.values()) {
-      if (trace.ownerId === ownerId && trace.connectionId === connectionId && trace.running) {
+      if (
+        trace.ownerId === ownerId &&
+        trace.workspaceId === workspaceId &&
+        trace.connectionId === connectionId &&
+        trace.running
+      ) {
         this.stopTrace(trace, 'replaced');
       }
     }
@@ -142,6 +148,7 @@ export class SqlTraceService {
     const trace = new TraceSession(
       randomUUID(),
       ownerId,
+      workspaceId,
       connectionId,
       mode,
       this.now(),
@@ -156,16 +163,16 @@ export class SqlTraceService {
   }
 
   /** Events after `after`, polling the engine first on a live trace. */
-  async events(ownerId: string, id: string, after: number): Promise<TraceEventsPage> {
-    const trace = this.owned(ownerId, id);
+  async events(ownerId: string, workspaceId: string, id: string, after: number): Promise<TraceEventsPage> {
+    const trace = this.owned(ownerId, workspaceId, id);
     this.expire(trace);
     if (trace.running && trace.mode === 'live') await this.poll(trace);
     const events = trace.events.filter((event) => event.seq > after);
     return { status: this.status(trace), events };
   }
 
-  stop(ownerId: string, id: string): TraceStatus {
-    const trace = this.owned(ownerId, id);
+  stop(ownerId: string, workspaceId: string, id: string): TraceStatus {
+    const trace = this.owned(ownerId, workspaceId, id);
     if (trace.running) this.stopTrace(trace, 'stopped');
     return this.status(trace);
   }
@@ -175,11 +182,13 @@ export class SqlTraceService {
     for (const trace of this.traces.values()) if (trace.running) this.stopTrace(trace, 'stopped');
   }
 
-  private owned(ownerId: string, id: string): TraceSession {
+  private owned(ownerId: string, workspaceId: string, id: string): TraceSession {
     this.sweep();
     const trace = this.traces.get(id);
     // Someone else's trace answers as missing: its id says nothing.
-    if (!trace || trace.ownerId !== ownerId) throw new ServiceError('not_found', 'Trace not found');
+    if (!trace || trace.ownerId !== ownerId || trace.workspaceId !== workspaceId) {
+      throw new ServiceError('not_found', 'Trace not found');
+    }
     return trace;
   }
 

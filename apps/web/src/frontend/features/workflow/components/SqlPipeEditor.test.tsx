@@ -107,4 +107,36 @@ describe('SqlPipeEditor', () => {
     renderEditor('source.db.sql', 'foxschema-conn-1');
     expect(await screen.findByText(/saved without its password/)).toBeTruthy();
   });
+
+  /** Render with one linked connection saved without a password, once the list has loaded. */
+  async function renderLinkedWithoutPassword(connection: Partial<WorkflowConnectionSummary>) {
+    vi.mocked(workflowConnections.list).mockResolvedValue([
+      { ...WAREHOUSE, ...connection, granted: true, hasPassword: false },
+    ]);
+    renderEditor('source.db.sql', 'foxschema-conn-1');
+    const picker = (await screen.findByLabelText('Database')) as HTMLButtonElement;
+    await waitFor(() => expect(picker.disabled).toBe(false));
+  }
+
+  it.each([
+    ['a SQLite file', { dialect: 'sqlite', database: '/data/app.db' }],
+    ['a DuckDB file', { dialect: 'duckdb', database: '/data/lake.duckdb' }],
+    ['a Redis set to No password', { dialect: 'redis', authMethod: 'none' }],
+    ['a MongoDB set to No password, even naming a user', { dialect: 'mongodb', authMethod: 'none', username: 'etl' }],
+    ['a Redis saved before No password existed, with no user', { dialect: 'redis' }],
+    ['a MongoDB saved before No password existed, with no user', { dialect: 'mongodb' }],
+  ])('does not warn about the password for %s, which signs in without one', async (_label, connection) => {
+    await renderLinkedWithoutPassword(connection);
+    expect(screen.queryByText(/saved without its password/)).toBeNull();
+  });
+
+  it.each([
+    ['a Redis with only requirepass', { dialect: 'redis', authMethod: 'password' }],
+    ['a Redis ACL user', { dialect: 'redis', username: 'etl' }],
+    ['a MongoDB user', { dialect: 'mongodb', username: 'etl' }],
+    ['a Windows login', { dialect: 'sqlserver', username: 'etl', authMethod: 'windows' }],
+  ])('still warns for %s with no saved password', async (_label, connection) => {
+    await renderLinkedWithoutPassword(connection);
+    expect(screen.getByText(/saved without its password/)).toBeTruthy();
+  });
 });

@@ -41,6 +41,8 @@ export class WorkflowConnectionGrants {
       ...(connection.schema ? { schema: connection.schema } : {}),
       ...(connection.host ? { host: connection.host } : {}),
       ...(connection.database ? { database: connection.database } : {}),
+      ...(connection.username ? { username: connection.username } : {}),
+      ...(connection.authMethod ? { authMethod: connection.authMethod } : {}),
       hasPassword: connection.hasPassword,
       granted: granted.has(connection.id),
     }));

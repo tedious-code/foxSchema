@@ -90,6 +90,41 @@ describe('WorkflowConnectionGrants', () => {
     expect(listed.find((c) => c.id === withoutPassword)).toMatchObject({ granted: false, hasPassword: false });
     expect(JSON.stringify(listed)).not.toContain('hidden-pw');
   });
+
+  // The editor decides from these whether a connection with no saved password
+  // can still sign in (a Redis or MongoDB with no user can).
+  it('lists the user and sign-in method of each connection, still with no secrets', async () => {
+    const { id: directory } = await connections.create(bob, {
+      name: 'mainframe',
+      dialect: 'db2',
+      option: { host: 'db2.internal', database: 'SAMPLE', username: 'etl', authMethod: 'ldap', password: 'dir-pw' },
+    });
+    const { id: open } = await connections.create(bob, {
+      name: 'cache',
+      dialect: 'redis',
+      option: { host: 'cache.internal', authMethod: 'none' },
+    });
+    // `requirepass` only: no user, yet a run needs the password it was saved without.
+    const { id: requirepass } = await connections.create(bob, {
+      name: 'sessions',
+      dialect: 'redis',
+      option: { host: 'cache.internal', authMethod: 'password' },
+    });
+
+    const listed = await grants.list(bob);
+    expect(listed.find((c) => c.id === directory)).toMatchObject({
+      username: 'etl',
+      authMethod: 'ldap',
+      hasPassword: true,
+    });
+    const cache = listed.find((c) => c.id === open);
+    expect(cache).toMatchObject({ dialect: 'redis', authMethod: 'none', hasPassword: false });
+    expect(cache).not.toHaveProperty('username');
+    const sessions = listed.find((c) => c.id === requirepass);
+    expect(sessions).toMatchObject({ dialect: 'redis', authMethod: 'password', hasPassword: false });
+    expect(sessions).not.toHaveProperty('username');
+    expect(JSON.stringify(listed)).not.toContain('dir-pw');
+  });
 });
 
 describe('who may put a saved connection in a workflow', () => {

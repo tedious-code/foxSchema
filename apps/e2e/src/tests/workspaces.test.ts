@@ -12,6 +12,7 @@ import { buildDriver, quitDriver, clickWhen, waitFor, BASE_URL } from '../helper
 import { sessionCookie } from '../helpers/app-session.js';
 import { saveScreenshot } from '../helpers/screenshot.js';
 import { byTestId } from '../helpers/test-ids.js';
+import { apiCall } from '../helpers/accounts.js';
 
 const API_URL = process.env.E2E_API_URL ?? 'http://127.0.0.1:3210';
 const RUN = Date.now().toString(36);
@@ -30,14 +31,7 @@ let guestCookie = '';
 const WALKER_EMAIL = `e2e-wswalker-${RUN}@foxschema.test`;
 let walkerId = '';
 
-async function api(method: string, path: string, body?: unknown, cookie = admin) {
-  const res = await fetch(`${API_URL}/api${path}`, {
-    method,
-    headers: { ...(body !== undefined ? { 'content-type': 'application/json' } : {}), cookie },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
-  return { status: res.status, json: (await res.json().catch(() => null)) as any };
-}
+const api = (method: string, path: string, body?: unknown, cookie = admin) => apiCall(method, path, body, cookie);
 
 async function openMenu(page: Page = driver): Promise<void> {
   if (page === driver) await page.goto(BASE_URL);

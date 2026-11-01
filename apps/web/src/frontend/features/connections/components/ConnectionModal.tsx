@@ -23,6 +23,7 @@ import { useAuthStore } from '@/platform/authStore';
 import { PasswordInput } from '@/shared/components/PasswordInput';
 import { Autocomplete } from '@/shared/components/Autocomplete';
 import { DatabaseFilePicker } from './DatabaseFilePicker';
+import { CONNECTION_NAME_MAX } from '@foxschema/shared';
 
 
 interface CredentialInput {
@@ -52,10 +53,11 @@ const dialectOptions = Object.values(PROVIDER_SETTINGS).sort((a, b) =>
   a.label.localeCompare(b.label)
 );
 
-const MAX_NAME_LEN = 50;
-// Credential names allow letters, numbers, spaces, hyphen and underscore only —
-// no other special characters (keeps them safe as labels / dropdown entries).
-const sanitizeName = (raw: string) => raw.replace(/[^A-Za-z0-9 _-]/g, '').slice(0, MAX_NAME_LEN);
+// The server applies the same rule (checkConnectionName): free text, so a name
+// the app made itself (`127.0.0.1/foxdb`, `Files: …`) survives being saved
+// again. Only characters that cannot be seen are dropped.
+const MAX_NAME_LEN = CONNECTION_NAME_MAX;
+const sanitizeName = (raw: string) => raw.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, MAX_NAME_LEN);
 
 export const ConnectionModal: React.FC<Props> = ({
   open,
@@ -270,9 +272,10 @@ export const ConnectionModal: React.FC<Props> = ({
       if (isCredential) {
         // Server persists option.password when savePassword !== false.
         await onSaveCredential?.({
-          name:
+          name: (
             name.trim() ||
-            (isFileDialect ? form.database || selDialect : `${form.host}/${form.database}`),
+            (isFileDialect ? form.database || selDialect : `${form.host}/${form.database}`)
+          ).slice(0, MAX_NAME_LEN),
           dialect: selDialect,
           schema: form.schema,
           option,
@@ -305,8 +308,14 @@ export const ConnectionModal: React.FC<Props> = ({
       />
     )}
     <div data-testid="conn-modal" className="modal-overlay">
-      <div className="w-full max-w-[500px] bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/40">
+      {/* Never taller than the window: the overlay centres it and cannot scroll,
+          so a taller form lost its title and its Save button. The fields scroll. */}
+      <div
+        data-testid="conn-modal-card"
+        className="w-full max-w-[500px] max-h-[calc(100dvh-2rem)] flex flex-col bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/40">
           <div>
             <h2 className="text-slate-100 font-bold text-base">{isCredential ? (initialName ? 'Edit Credential' : 'Add Credential') : 'Connection Parameters'}</h2>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -318,7 +327,7 @@ export const ConnectionModal: React.FC<Props> = ({
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div data-testid="conn-modal-body" className="min-h-0 overflow-y-auto p-6 space-y-4">
           {isCredential && (
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-2">
@@ -331,7 +340,7 @@ export const ConnectionModal: React.FC<Props> = ({
                   maxLength={MAX_NAME_LEN}
                   className={inputCls.replace('font-mono', '')}
                 />
-                <p className="text-[10px] text-slate-500 mt-1">Letters, numbers, spaces, - and _ · max {MAX_NAME_LEN}</p>
+                <p className="text-[10px] text-slate-500 mt-1">Up to {MAX_NAME_LEN} characters</p>
               </div>
               <div>
                 <label className={labelCls}>Dialect</label>
@@ -627,7 +636,7 @@ export const ConnectionModal: React.FC<Props> = ({
           )}
         </div>
 
-        <div className="flex justify-end items-center gap-2 px-6 py-4 bg-slate-950/60 border-t border-slate-800">
+        <div className="shrink-0 flex justify-end items-center gap-2 px-6 py-4 bg-slate-950/60 border-t border-slate-800">
           <button data-testid="conn-cancel" onClick={onClose} className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-850/50 rounded transition">
             Cancel
           </button>

@@ -88,4 +88,21 @@ describe('ConnectionModal', () => {
       expect(screen.queryByTestId('conn-install-driver-package')).toBeNull();
     });
   });
+
+  it('keeps a stored name it would not have let you type before, instead of rewriting it on save', async () => {
+    const onSaveCredential = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ConnectionModal
+        open
+        mode="credential"
+        dialect="postgres"
+        initialName="127.0.0.1/foxdb (staging)"
+        initialOptions={{ host: '127.0.0.1', port: 5432, database: 'foxdb', username: 'fox' }}
+        onClose={() => undefined}
+        onSaveCredential={onSaveCredential}
+      />
+    );
+    expect((screen.getByTestId('conn-name-input') as HTMLInputElement).value).toBe('127.0.0.1/foxdb (staging)');
+  });
 });
+

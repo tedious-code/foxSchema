@@ -1247,6 +1247,10 @@ export const TestIds = {
       connLoadSchemaBtn: 'conn-load-schema-btn',
       /** div */
       connModal: 'conn-modal',
+      /** div */
+      connModalBody: 'conn-modal-body',
+      /** div */
+      connModalCard: 'conn-modal-card',
       /** input · e.g. Prod DB2 */
       connNameInput: 'conn-name-input',
       /** input */
@@ -4078,6 +4082,8 @@ export type TestId =
   | 'conn-ldap-hint'
   | 'conn-load-schema-btn'
   | 'conn-modal'
+  | 'conn-modal-body'
+  | 'conn-modal-card'
   | 'conn-name-input'
   | 'conn-password-input'
   | 'conn-password-input-reveal'

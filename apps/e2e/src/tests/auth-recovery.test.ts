@@ -12,8 +12,8 @@ import { randomBytes } from 'node:crypto';
 import type { Page } from 'playwright';
 import { buildDriver, quitDriver, BASE_URL } from '../helpers/driver.js';
 import { sessionCookie } from '../helpers/app-session.js';
+import { apiCall } from '../helpers/accounts.js';
 
-const API_URL = process.env.E2E_API_URL ?? 'http://127.0.0.1:3210';
 const EMAIL = `e2e-invite-${Date.now()}@foxschema.test`;
 const FIRST_PASSWORD = `first-${randomBytes(6).toString('hex')}`;
 const SECOND_PASSWORD = `second-${randomBytes(6).toString('hex')}`;
@@ -22,14 +22,7 @@ let admin = '';
 let userId = '';
 const pages: Page[] = [];
 
-async function api(method: string, path: string, body?: unknown, cookie = admin) {
-  const res = await fetch(`${API_URL}/api${path}`, {
-    method,
-    headers: { ...(body ? { 'content-type': 'application/json' } : {}), ...(cookie ? { cookie } : {}) },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  return { status: res.status, json: (await res.json().catch(() => null)) as any };
-}
+const api = (method: string, path: string, body?: unknown, cookie = admin) => apiCall(method, path, body, cookie);
 
 async function signedOutPage(): Promise<Page> {
   const page = await buildDriver({ signedIn: false });

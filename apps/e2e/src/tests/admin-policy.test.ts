@@ -13,8 +13,8 @@ import { buildDriver, quitDriver, clickWhen, waitFor, BASE_URL } from '../helper
 import { sessionCookie } from '../helpers/app-session.js';
 import { saveScreenshot } from '../helpers/screenshot.js';
 import { byTestId } from '../helpers/test-ids.js';
+import { apiCall } from '../helpers/accounts.js';
 
-const API_URL = process.env.E2E_API_URL ?? 'http://127.0.0.1:3210';
 const EMAIL = `e2e-policy-${Date.now().toString(36)}@foxschema.test`;
 
 let admin = '';
@@ -22,14 +22,7 @@ let driver: Page;
 let userId = '';
 let policy: { adminPolicy: 'one' | 'several'; source: string | null; activeAdmins: string[] };
 
-async function api(method: string, path: string, body?: unknown) {
-  const res = await fetch(`${API_URL}/api${path}`, {
-    method,
-    headers: { ...(body ? { 'content-type': 'application/json' } : {}), cookie: admin },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  return { status: res.status, json: (await res.json().catch(() => null)) as any };
-}
+const api = (method: string, path: string, body?: unknown) => apiCall(method, path, body, admin);
 
 async function openAppUsers(): Promise<void> {
   // A fresh load each time, so every test reads what the server holds now.

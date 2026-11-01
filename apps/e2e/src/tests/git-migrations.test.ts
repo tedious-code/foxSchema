@@ -21,6 +21,7 @@ import { tryCleanup } from '../helpers/sql-exec.js';
 import { AppPage } from '../pages/AppPage.js';
 import { ConnectionModal } from '../pages/ConnectionModal.js';
 import { MigrationPage } from '../pages/MigrationPage.js';
+import { apiCall } from '../helpers/accounts.js';
 
 /**
  * The real Git server the server's own tests use (packages/server), loaded at
@@ -40,7 +41,6 @@ async function startTestGitServer(): Promise<TestGitServer> {
   return mod.startTestGitServer();
 }
 
-const API_URL = process.env.E2E_API_URL ?? 'http://127.0.0.1:3210';
 
 /**
  * The whole flow for one engine. The seed gives every engine a `demo_a` and a
@@ -60,14 +60,7 @@ let app: AppPage;
 let modal: ConnectionModal;
 let migration: MigrationPage;
 
-async function api(method: string, path: string, body?: unknown) {
-  const res = await fetch(`${API_URL}/api${path}`, {
-    method,
-    headers: { ...(body ? { 'content-type': 'application/json' } : {}), cookie: admin },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
-  return { status: res.status, json: (await res.json().catch(() => null)) as any };
-}
+const api = (method: string, path: string, body?: unknown) => apiCall(method, path, body, admin);
 
 describe.skipIf(!hasConfig(dialect))(`Migrations in Git (${label})`, () => {
   beforeAll(async () => {

@@ -76,7 +76,17 @@ export interface WorkflowConnectionSummary {
   schema?: string;
   host?: string;
   database?: string;
-  /** False for a connection saved without its password: a run could not sign in. */
+  /** The database user, when the connection names one. Never the password. */
+  username?: string;
+  /**
+   * How it signs in, when stored: `windows` or `ldap`, or for Redis and
+   * MongoDB `password` or `none`. Absent means by password.
+   */
+  authMethod?: string;
+  /**
+   * False for a connection saved without its password. That stops a run only
+   * when the connection needs a secret — see `connectionNeedsSecret`.
+   */
   hasPassword: boolean;
   granted: boolean;
 }

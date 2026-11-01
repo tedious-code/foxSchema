@@ -17,6 +17,7 @@ import { monacoLanguage } from '@/features/sql-editor/monaco';
 import { loadSchema } from '@/shared/api/schemaApi';
 import { FilterPicker, connectionPickerOption } from '@/shared/components/FilterPicker';
 import { dialectLabel } from '@/shared/lib/dialectLabel';
+import { connectionNeedsSecret } from '@/shared/lib/provider-settings';
 import { quoteSqlIdentifier } from '@/shared/lib/sql-splitter';
 import type { TableSchema } from '@/shared/lib/types';
 import { workflowConnections } from '../api/workflowApi';
@@ -158,12 +159,14 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
                     : 'No saved connections'
         }
       />
-      {connection && !connection.hasPassword && (
-        <div className="field-error">
-          This connection was saved without its password, so a run cannot sign in. Save the password with the
-          connection in FoxSchema first.
-        </div>
-      )}
+      {connection &&
+        !connection.hasPassword &&
+        connectionNeedsSecret(connection.dialect, connection.authMethod, connection.username) && (
+          <div className="field-error">
+            This connection was saved without its password, so a run cannot sign in. Save the password with the
+            connection in FoxSchema first.
+          </div>
+        )}
       <div className="hint">
         Linking lets workflows use the connection. Only members of its workspace can save, run or inspect a
         workflow that uses it. FoxSchema keeps the password and hands it to the engine for each run.

@@ -30,11 +30,13 @@ async function serve(permissions: Permission[], dialect = 'postgres') {
     authed.userId = req.headers['x-user'] === 'other' ? 'u2' : 'u1';
     authed.appRole = 'owner';
     authed.permissions = new Set(permissions);
+    authed.workspaceId = typeof req.headers['x-fox-workspace'] === 'string' ? req.headers['x-fox-workspace'] : 'ws-default';
   });
   bindRoutes(app, createSqlTraceRoutes({ service, resolveRef }).flatten());
   await app.ready();
-  const start = (payload: Record<string, unknown>) => app!.inject({ method: 'POST', url: '/start', payload });
-  return { server: app, resolveRef, activity, start };
+  const start = (payload: Record<string, unknown>, headers: Record<string, string> = {}) =>
+    app!.inject({ method: 'POST', url: '/start', payload, headers });
+  return { server: app, resolveRef, activity, probeSessions, start };
 }
 
 describe('sql-trace routes', () => {
@@ -85,6 +87,41 @@ describe('sql-trace routes', () => {
     const { id } = (await start({ connectionId: 'c1', mode: 'fox' })).json().status;
     const res = await server.inject({ method: 'GET', url: `/${id}/events`, headers: { 'x-user': 'other' } });
     expect(res.statusCode).toBe(404);
+  });
+
+  it('does not poll or return a live trace from another workspace', async () => {
+    const { server, resolveRef, probeSessions, start } = await serve(['utility.trace']);
+    probeSessions.mockResolvedValue({
+      ok: true,
+      sessions: [{
+        sessionId: 'session-1',
+        userName: 'synthetic-user',
+        clientHost: '127.0.0.1',
+        databaseName: 'synthetic-db',
+        state: 'active',
+        waitEvent: null,
+        queryText: 'SELECT synthetic_sensitive_value',
+        connectedAt: null,
+        applicationName: 'synthetic-client',
+      }],
+    });
+
+    const started = await start(
+      { connectionId: 'connection-from-ws-a', mode: 'live' },
+      { 'x-fox-workspace': 'ws-a' }
+    );
+    const { id } = started.json().status;
+    const page = await server.inject({
+      method: 'GET',
+      url: `/${id}/events`,
+      headers: { 'x-fox-workspace': 'ws-b' },
+    });
+
+    expect(resolveRef).toHaveBeenCalledTimes(1);
+    expect(resolveRef.mock.calls[0]![0]).toEqual({ userId: 'u1', workspaceId: 'ws-a' });
+    expect(page.statusCode).toBe(404);
+    expect(page.body).not.toContain('synthetic_sensitive_value');
+    expect(probeSessions).not.toHaveBeenCalled();
   });
 
   it('rejects a bad cursor', async () => {

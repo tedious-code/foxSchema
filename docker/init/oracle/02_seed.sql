@@ -18,6 +18,13 @@ CREATE USER demo_b IDENTIFIED BY foxpass QUOTA UNLIMITED ON USERS;
 GRANT CREATE SESSION, CREATE TABLE, CREATE VIEW, CREATE SEQUENCE,
       CREATE PROCEDURE, CREATE TRIGGER, CREATE TYPE TO demo_b;
 
+-- Read the data dictionary (DBA_ROLES, DBA_ROLE_PRIVS, DBA_TAB_PRIVS …), as a
+-- DBA using Database Access would. Without it the role probe falls back from
+-- DBA_ROLES to ALL_USERS, and seeded roles like FOX_READER are not listed.
+-- Both schemas, since the e2e account is one of them.
+GRANT SELECT_CATALOG_ROLE TO demo_a;
+GRANT SELECT_CATALOG_ROLE TO demo_b;
+
 -- ============================================================
 -- SCHEMA A  (source — more complete, newer version)
 -- ============================================================

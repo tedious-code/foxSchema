@@ -653,6 +653,8 @@ Every control has a test ID: **1015** buttons, text boxes, selects and textareas
   - `conn-ldap-hint` · p
   - `conn-load-schema-btn` · button · Connect and list available schemas
   - `conn-modal` · div
+  - `conn-modal-body` · div
+  - `conn-modal-card` · div
   - `conn-name-input` · input · e.g. Prod DB2
   - `conn-password-input` · input in PasswordInput
   - `conn-password-input-reveal` · button in PasswordInput · Hold to show password

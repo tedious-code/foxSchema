@@ -238,17 +238,17 @@ td.no { color: var(--muted); }
   <div class="wrap">
     <div class="titlerow">
       <h1>Fox <span>Feature Map</span></h1>
-      <div class="stamp">Measured on <code>main</code> · <code>100fb679</code> · 2026-10-26 · mirrors <code>docs/FEATURE_MAP.md</code></div>
+      <div class="stamp">Measured on <code>main</code> · <code>b12bcd5607</code> · 2026-10-31 · mirrors <code>docs/FEATURE_MAP.md</code></div>
     </div>
     <ul class="stats" aria-label="Inventory">
-      <li><b>33</b> features</li>
-      <li><b>155</b> HTTP routes</li>
-      <li><b>17</b> server modules</li>
+      <li><b>34</b> features</li>
+      <li><b>158</b> HTTP routes</li>
+      <li><b>18</b> server modules</li>
       <li><b>14</b> web features</li>
       <li><b>16</b> engines</li>
       <li><b>28</b> metadata tables</li>
-      <li><b>56</b> e2e specs</li>
-      <li><b>~600</b> unit-test files</li>
+      <li><b>57</b> e2e specs</li>
+      <li><b>~550</b> unit-test files</li>
     </ul>
     <nav class="tabs" role="tablist" aria-label="Views">
       <button role="tab" id="tab-plan" data-tab="plan" aria-selected="true">Plan</button>
@@ -307,7 +307,7 @@ td.no { color: var(--muted); }
   end
   subgraph server["Fox server — packages/server (Fastify)"]
     PLAT["platform&lt;br/&gt;identity · RBAC · workspaces&lt;br/&gt;connections · guards"]
-    FEAT["17 feature modules&lt;br/&gt;153 routes"]
+    FEAT["18 feature modules&lt;br/&gt;158 routes"]
   end
   WFS["Workflow server :8081&lt;br/&gt;apps/workflow-server&lt;br/&gt;+ packages/workflow-engine"]
   META[("Metadata store&lt;br/&gt;SQLite · 28 tables")]
@@ -322,7 +322,8 @@ td.no { color: var(--muted); }
   WFS -- "internal: resolve a granted connection" --&gt; FEAT
   WFS --&gt; ENG</pre></div>
           <div class="diagram"><pre class="mermaid">flowchart LR
-  R[Request] --&gt; O["Origin policy&lt;br/&gt;+ rate limit"] --&gt; S["Session guard&lt;br/&gt;(auth.guard)"] --&gt; W["Workspace scope&lt;br/&gt;(resolveWorkspace)"]
+  R[Request] --&gt; O["Origin policy&lt;br/&gt;+ rate limit"] --&gt; S["Session guard&lt;br/&gt;(auth.guard)"] --&gt; RO["app.write or GET / reads"]
+  RO --&gt; W["Workspace scope&lt;br/&gt;(resolveWorkspace)"]
   W --&gt; P["Permission guard&lt;br/&gt;requirePermissions()"] --&gt; H["Feature route&lt;br/&gt;→ service"]
   H --&gt; C["Connection resolver&lt;br/&gt;(decrypts the saved connection)"] --&gt; D["Driver&lt;br/&gt;packages/db"]
   H --&gt; M[("Metadata store")]</pre><p>Every request passes origin, session, workspace and permission checks before a feature runs.</p></div>
@@ -383,13 +384,15 @@ td.no { color: var(--muted); }
       <div class="two">
         <div class="diagram"><h3>Data compare → data migrate</h3><pre class="mermaid">flowchart LR
   A[Same SELECT on ≥2 destinations] --&gt; B[Side by side + Compare data]
-  B --&gt; C[align rows by key columns]
-  C --&gt; D[add / edit / delete per target&lt;br/&gt;Sync column picks rows]
+  B --&gt; W["Compare 2,000 rows&lt;br/&gt;both sides in key order"]
+  B --&gt; C[or align the pages already loaded]
+  W --&gt; D[add / edit / delete per target&lt;br/&gt;Sync column picks rows]
+  C --&gt; D
   D --&gt; E[Preview SQL]
   E --&gt; F{Safe mode}
   F -- confirm --&gt; G[POST /api/data-migrations/start]
   G --&gt; H[backup snapshot of affected rows]
-  H --&gt; I[POST /api/data-migrate/execute&lt;br/&gt;Transaction only where it can roll back&lt;br/&gt;stop or continue on error]
+  H --&gt; I["POST /api/data-migrate/execute&lt;br/&gt;≤ 2,000 ops, one shared cap&lt;br/&gt;Transaction only where it can roll back"]
   I --&gt; J[POST /api/data-migrations/:id/finish&lt;br/&gt;data_migrate_runs]
   J --&gt; K[History: restore from snapshot]</pre></div>
         <div class="diagram"><h3>Snapshots — capture, compare, revert</h3><pre class="mermaid">flowchart LR
@@ -650,7 +653,7 @@ td.no { color: var(--muted); }
       </div>
       <div class="section">
         <h3>End-to-end suites</h3>
-        <p class="lede">56 Playwright specs in 37 groups, run with <code>npm run test:e2e:all</code>. Dialect suites need their Docker container and a fresh seed.</p>
+        <p class="lede">57 Playwright specs in 35 groups, run with <code>npm run test:e2e:all</code>. Dialect suites need their Docker container and a fresh seed.</p>
         <div class="areas" id="e2e-groups"></div>
       </div>
     </section>
@@ -663,7 +666,7 @@ td.no { color: var(--muted); }
 
 <script>
 // Reference data: the inventory of what Fox Schema ships, measured from the
-// codebase on main 100fb679 (2026-10-26). Mirrors docs/FEATURE_MAP.md.
+// codebase on main b12bcd5607 (2026-10-31). Mirrors docs/FEATURE_MAP.md.
 // Work items are not here: they live in the page's shared store.
 const AREAS = [
   { id: 'platform', name: 'Platform' },
@@ -744,10 +747,10 @@ const FEATURES = [
     code: 'web ResultsPanel, DataGrid', perms: 'editor.datagrid.insert, update, delete',
     tables: '—', tests: 'e2e sql-editor-result-edit, -copy-export' },
   { id: 'editor.datacompare', area: 'editor', name: 'Data compare & migrate',
-    subs: ['Compare toggle and Source', 'Compare 2,000 rows in key order', 'In-memory filters and pages', 'Diff cells', 'Key columns', 'Add, edit, delete', 'Sync column', 'Apply up to 2,000 ops (one shared cap)', 'Transaction where it can roll back, stop or continue, backup snapshot', 'History', 'Preview SQL', 'Multi-target'],
+    subs: ['Compare toggle and Source', 'Diff cells', 'Key columns', 'Add, edit, delete', 'Sync column', 'Apply: Transaction where it can roll back, stop or continue, backup snapshot', 'History', 'Preview SQL', 'Multi-target'],
     ui: 'Editor, side by side', api: '/api/data-migrate/execute, /api/data-migrations (5)',
-    code: 'server data-migrate · web DataMigrateBar, useCompareWindow, compareView.ts', perms: 'editor.dml',
-    tables: 'data_migrate_runs', tests: 'server 4 · e2e sql-editor-compare-multi-target, sql-editor-compare-window' },
+    code: 'server data-migrate · web DataMigrateBar', perms: 'editor.dml',
+    tables: 'data_migrate_runs', tests: 'server 4 · e2e sql-editor-compare-multi-target' },
   { id: 'editor.peek', area: 'editor', name: 'Data peek',
     subs: ['Cmd/Ctrl-click to open', 'Stacked panels', 'WHERE (one row per AND), ORDER BY, limit', 'Paging', 'Row editor: add, edit, clone, delete, generators', 'Insight tab', 'FK drill and referenced-by', 'Date picker'],
     ui: 'Editor', api: 'with /api/sql/execute',
@@ -791,6 +794,11 @@ const FEATURES = [
     subs: ['Database Access modal'],
     ui: 'Utils', api: '/api/schema/db-access', code: 'server access (db-access)', perms: 'utility.access, editor.grant',
     tables: '—', tests: 'e2e database-access-dialects' },
+  { id: 'utilities.trace', area: 'utilities', name: 'SQL Tracer',
+    subs: ['Live: the engine\'s own sessions, about once a second', 'Fox activity: statements run from Fox on a saved connection', 'Secrets masked on the server', 'Stops at 15 min or 10,000 statements, on Stop, or on leaving', 'Open a statement in the editor'],
+    ui: 'Utils → SQL Tracer', api: '/api/sql-trace (3)',
+    code: 'server sql-trace, platform/sql-activity · sql utilities/sql-trace · web SqlTracerPanel', perms: 'utility.trace',
+    tables: '—', tests: 'sql 1 · server 3 · web 1 · e2e utilities-sql-tracer' },
 
   { id: 'access.accounts', area: 'access', name: 'Database accounts',
     subs: ['Create', 'Rename', 'Drop', 'Passwords (per-engine DDL)'],
@@ -855,22 +863,22 @@ const ENGINES = {
   ],
 };
 
-// Routes per feature, from the 155 pinned in http-contract.test.ts.
+// Routes per feature, from the 158 pinned in http-contract.test.ts.
 const ROUTES = [
-  ['platform.auth', 22], ['platform.workspaces', 20], ['platform.admin', 19], ['schema.git', 15],
+  ['platform.auth', 22], ['platform.workspaces', 21], ['platform.admin', 20], ['schema.git', 15],
   ['schema.snapshots', 11], ['editor.files', 11], ['platform.secrets', 9], ['platform.connections', 8],
   ['workflow.engine', 7], ['platform.system', 6], ['editor.datacompare', 6], ['schema.applies', 5],
-  ['utilities + access', 5], ['schema.compare', 4], ['editor.run + code', 3], ['utilities.backup', 2],
+  ['utilities + access', 5], ['schema.compare', 4], ['editor.run + code', 3], ['utilities.trace', 3], ['utilities.backup', 2],
 ];
 
 // Unit-test files per package.
 const TESTS = [
-  ['apps/web', 179], ['packages/server', 104], ['packages/workflow-engine', 87], ['packages/sql', 86],
-  ['apps/cli', 14], ['packages/db', 26], ['apps/workflow-server', 19], ['packages/shared', 12],
+  ['apps/web', 180], ['packages/server', 107], ['packages/workflow-engine', 87], ['packages/sql', 87],
+  ['apps/cli', 25], ['packages/db', 26], ['apps/workflow-server', 19], ['packages/shared', 13],
   ['packages/workflow-contract', 1], ['packages/ui-shared', 1],
 ];
 
-const E2E_GROUPS = ['PostgreSQL', 'MySQL', 'MariaDB', 'SQL Server', 'Oracle', 'DB2', 'SQLite', 'Azure SQL', 'ClickHouse', 'Redshift', 'CockroachDB', 'YugabyteDB', 'TiDB', 'DuckDB', 'Smoke', 'Sign-in', 'One admin or several', 'Demo role', 'Workspaces', 'SQL Editor (16 specs)', 'Compare 2,000 rows', 'Redis editor', 'Send feedback', 'Browse', 'History', 'Revert', 'Revert edges', 'Force-migrate', 'Access SQLite', 'Workflow', 'Utilities', 'DB Access', 'Access all', 'Migrations in Git', 'Execute gate', 'Backup & Restore', 'Backup commands'];
+const E2E_GROUPS = ['PostgreSQL', 'MySQL', 'MariaDB', 'SQL Server', 'Oracle', 'DB2', 'SQLite', 'Azure SQL', 'ClickHouse', 'Redshift', 'CockroachDB', 'YugabyteDB', 'TiDB', 'DuckDB', 'Smoke', 'Sign-in', 'One admin or several', 'Workspaces', 'Demo role', 'SQL Editor (19 specs)', 'Send feedback', 'Browse', 'History', 'Revert', 'Revert edges', 'Force-migrate', 'Access SQLite', 'Workflow', 'Utilities', 'DB Access', 'Access all', 'Migrations in Git', 'Execute gate', 'Backup & Restore', 'Backup commands'];
 
 // Metadata table → owning feature, column count (schema.ts, 31 migrations).
 const TABLES = [

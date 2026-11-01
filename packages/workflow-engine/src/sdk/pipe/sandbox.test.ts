@@ -63,15 +63,32 @@ describe('sandboxed execution', () => {
   });
 
   it('contains runaway allocation inside the worker', async () => {
-    // The worker hits its own heap cap and dies; the host is unaffected.
-    await expect(
-      runSandboxed(
-        'const a = []; while (true) { a.push(new Array(1e6).fill(1)); } ',
-        [],
-        { timeoutMs: 10_000, maxOldGenerationSizeMb: 32 },
-      ),
-    ).rejects.toThrow(SandboxError);
-  }, 20_000);
+    // The sandbox hits its own heap cap and dies; the host is unaffected.
+    //
+    // Each push is an 8 MB array on the old-generation heap, so the 32 MB cap
+    // is reached in ~60 ms (~500 ms with the machine saturated). The deadline
+    // is only a backstop against a hang, so it sits far above that: on a
+    // loaded CI runner the child can stall for seconds, and a 10 s deadline
+    // used to win the race and fail this test with a timeout.
+    // (ArrayBuffers would not work here: their memory is external and never
+    // counts against the heap cap.)
+    const error = await runSandboxed(
+      'const a = []; while (true) { a.push(new Array(1e6).fill(1)); } ',
+      [],
+      { timeoutMs: 60_000, maxOldGenerationSizeMb: 32 },
+    ).then(
+      () => undefined,
+      (rejection: unknown) => rejection,
+    );
+
+    // The heap cap killed it, not the deadline. SandboxTimeoutError is a
+    // sibling of SandboxError, not a subclass, so both checks matter.
+    expect(error).toBeInstanceOf(SandboxError);
+    expect(error).not.toBeInstanceOf(SandboxTimeoutError);
+    // Reaching this line at all means the host survived: had the allocation
+    // run in-process, the test runner itself would have died of OOM.
+    expect((error as Error).message).toMatch(/heap out of memory/i);
+  }, 90_000);
 
   it('does not hand the host environment to sandboxed code', async () => {
     process.env.FOXFLOW_SANDBOX_CANARY = 'leaked';

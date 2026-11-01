@@ -59,6 +59,11 @@ diagnosis before it was written down.
   full, its VM disk turns read-only and Postgres answers with
   `Read-only file system`. `docker builder prune` and `docker image prune` free
   space only inside Docker's own disk image, not on the host.
+- **Restarting Docker.** Once its disk has gone read-only (every container
+  answers `Input/output error`, or `failed to mount … read-only file system`),
+  only a restart of Docker's VM clears it. Quitting the Docker Desktop app is
+  not enough: its backend and VM keep running and the CLI hangs. Run
+  `docker desktop restart`, then start again the containers that were up.
 - **Load.** Five dialect failures at load average 30 became 44/44 at 6.7. Check
   `uptime` before believing a failure. Two `vitest` runs next to the browser
   suite cause worker timeouts and collection errors in unrelated files: rerun
@@ -102,7 +107,7 @@ diagnosis before it was written down.
 | Oracle: "seeded role FOX_READER is not listed" | The e2e Oracle account cannot read the data dictionary, so the probe falls back from `DBA_ROLES` to `ALL_USERS` | A seed grant (`SELECT_CATALOG_ROLE`), still to do |
 | Oracle DDL fails with `ORA-01804` | A newer Oracle image is running against a volume created by an older one, with a different timezone file version. Compare `DST_PRIMARY_TT_VERSION` in `database_properties` with `$ORACLE_HOME/oracore/zoneinfo` | Recreate the Oracle volume and reseed, or pin the older image. Recreating deletes the volume: ask first |
 | YugabyteDB never becomes healthy and seeding hangs | The single node waits for masters at its old IP addresses (see `yugabyted.log`) | Recreate the container with a fresh volume. That deletes its data: ask first |
-| MongoDB live tests fail with "driver mongodb is not installed" | The driver is an optional dependency | `npm install mongodb`, without committing it |
+| MongoDB live tests fail with "driver mongodb is not installed" | The driver is an optional dependency | `npm install mongodb --no-save` in the checkout the API runs from. Run the live tests with `FOX_MONGO_URL='mongodb://foxroot:FoxPass123@127.0.0.1:27017/?authSource=admin'` |
 | Every request returns 502 mid-run | The API process exited. Check its log for the stack. An idle `pg` pool error once did this; `pool-error-guard.ts` stops it now, so don't remove those handlers | Restart the API |
 | Pages time out for a few seconds mid-run | A file changed in the worktree the servers run from. `tsx watch` restarted the API (its log says `Restarting...`), and Vite reloaded open pages | Do A/B edits in another worktree, or wait for the run to finish |
 | SQLite: "attempt to write a readonly database" | The API pools SQLite handles by path. A spec that deletes and reuses one path writes through a stale handle | A per-run directory (`Date.now().toString(36)`) |

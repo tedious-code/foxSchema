@@ -131,6 +131,7 @@ const ALWAYS = [
       'src/tests/sql-editor-result-edit.test.ts',
       'src/tests/sql-editor-run-rail.test.ts',
       'src/tests/redis-editor.test.ts',
+      'src/tests/mongodb-sql.test.ts',
       'src/tests/sql-editor-peek-row-form.test.ts',
       'src/tests/sql-editor-peek-stacking.test.ts',
       'src/tests/sql-editor-data-peek-grid.test.ts',

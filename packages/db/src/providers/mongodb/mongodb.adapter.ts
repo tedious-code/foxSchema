@@ -22,6 +22,9 @@ import { requireDriver } from '../../cores/driver-loader.js';
  * `executeDataMigrateOps` already reports per-op results, so a partial run is
  * visible rather than silent.
  */
+/** The text of an ObjectId, as a SELECT shows `_id`. */
+const OBJECT_ID_HEX = /^[0-9a-f]{24}$/i;
+
 class MongoDbAdapter implements DriverAdapter {
   readonly dialect = 'mongodb';
   readonly packageName = 'mongodb';
@@ -90,17 +93,22 @@ class MongoDbAdapter implements DriverAdapter {
               `(MongoDB matches missing fields as null).`
           );
         }
-        out[p.column] = v;
+        out[p.column] = this.matchValue(p.column, v);
       }
       return out;
     };
 
     switch (intent.kind) {
       case 'select': {
+        // Mongo adds _id to every projection unless told not to; return only
+        // the columns the SELECT names.
         const projection =
           intent.columns === '*'
             ? undefined
-            : Object.fromEntries(intent.columns.map((c) => [c, 1]));
+            : {
+                ...Object.fromEntries(intent.columns.map((c) => [c, 1])),
+                ...(intent.columns.includes('_id') ? {} : { _id: 0 }),
+              };
         // `limit(0)` means "no limit" to Mongo. An empty page (past the end of
         // the reader's own LIMIT) must return nothing, not the collection.
         if (intent.limit === 0) return [] as T[];
@@ -131,6 +139,18 @@ class MongoDbAdapter implements DriverAdapter {
         return [{ rowCount: res.deletedCount }] as T[];
       }
     }
+  }
+
+  /**
+   * A WHERE value as Mongo should match it. A SELECT shows `_id` as text (see
+   * the select case), so the same text must find the document again: match
+   * the ObjectId it came from as well as a string `_id` with that value.
+   * Still exact equality, on either representation.
+   */
+  private matchValue(column: string, value: unknown): unknown {
+    if (column !== '_id' || typeof value !== 'string' || !OBJECT_ID_HEX.test(value)) return value;
+    const { ObjectId } = this.load();
+    return { $in: [new ObjectId(value), value] };
   }
 
   // Standalone Mongo rejects transactions; see the class comment.

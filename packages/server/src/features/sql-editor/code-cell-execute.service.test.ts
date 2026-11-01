@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { executeCodeCellNode } from './code-cell-node-exec.service';
 import {
   clampCodeCellTimeout,
@@ -297,6 +297,48 @@ describe('code cell SQL bridge', () => {
     return { calls, runQuery };
   }
 
+  type HeldQuery = { answer: (rows: Record<string, unknown>[]) => void };
+
+  /**
+   * A runner that holds every bridged query open until the test answers it,
+   * so the test controls what happens while a query is in flight.
+   */
+  function heldRunner() {
+    const arrived: HeldQuery[] = [];
+    const waiters: ((q: HeldQuery) => void)[] = [];
+    let calls = 0;
+    const runQuery = () =>
+      new Promise<Record<string, unknown>[]>((resolve) => {
+        calls += 1;
+        const query = { answer: resolve };
+        const waiter = waiters.shift();
+        if (waiter) waiter(query);
+        else arrived.push(query);
+      });
+    /** The next query the cell sends, whether it has arrived yet or not. */
+    const next = () =>
+      new Promise<HeldQuery>((resolve) => {
+        const query = arrived.shift();
+        if (query) resolve(query);
+        else waiters.push(resolve);
+      });
+    return { runQuery, next, calls: () => calls };
+  }
+
+  /**
+   * Whether `p` has settled once pending callbacks have run. setImmediate is
+   * left real under the fake timers these tests use, so this still yields.
+   */
+  async function hasSettled(p: Promise<unknown>): Promise<boolean> {
+    let settled = false;
+    const mark = () => {
+      settled = true;
+    };
+    void p.then(mark, mark);
+    await new Promise((r) => setImmediate(r));
+    return settled;
+  }
+
   async function runCell(
     body: string,
     opts: Parameters<typeof runCodeCellOnServer>[1],
@@ -361,19 +403,63 @@ describe('code cell SQL bridge', () => {
   }, 30_000);
 
   it('does not count database time against the cell timeout', async () => {
-    // 3 × 2s of query time (6s) under a 4s cell budget. If the clock ran during
-    // bridged queries this would time out; the budget is still generous enough
-    // to absorb worker cold-start when the whole suite runs in parallel.
-    const runQuery = async () => {
-      await new Promise((r) => setTimeout(r, 2000));
-      return [{ n: 1 }];
-    };
-    const result = await runCell(
-      'for (let i=0;i<3;i++) { await sql`SELECT 1`; } return [{ ok: true }];',
-      { dialect: 'sqlite', allowWrites: false, runQuery },
-      4000
-    );
-    expect(result.ok).toBe(true);
+    // The cell clock is a setTimeout in this process, so fake timers drive it
+    // and the test decides how long each query takes. This used to be real
+    // time — 3 × 2s queries under a 4s budget — and the 4s also had to absorb
+    // the worker's cold start, which a loaded machine overran on its own.
+    // Now the cold start and the message hops take real time but no fake
+    // time, so only the time this test moves the clock can spend the budget.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const budget = 4000;
+      const held = heldRunner();
+      const cell = runCell(
+        'for (let i=0;i<3;i++) { await sql`SELECT 1`; } return [{ ok: true }];',
+        { dialect: 'sqlite', allowWrites: false, runQuery: held.runQuery },
+        budget
+      );
+      for (let i = 0; i < 3; i++) {
+        const query = await Promise.race([held.next(), cell.then(() => null)]);
+        if (!query) break; // the cell already ended; the assertion below says how
+        // Each query takes twice the whole budget. A clock that ran during
+        // it would time the cell out right here.
+        vi.advanceTimersByTime(budget * 2);
+        query.answer([{ n: 1 }]);
+      }
+      const result = await cell;
+      expect(result.ok, result.ok ? '' : result.error).toBe(true);
+      expect(held.calls()).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  }, 45_000);
+
+  it('runs the cell clock again once a bridged query returns', async () => {
+    // What keeps the test above honest. There, fake time is the only time
+    // that counts — which proves nothing unless fake time really drives the
+    // cell clock. Here that same clock must kill a cell that stalls after its
+    // query, at once, on fake time alone. If the clock ever stops being a
+    // setTimeout in this process, this fails rather than both passing idly.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const budget = 4000;
+      const held = heldRunner();
+      const cell = runCell(
+        'await sql`SELECT 1`; await new Promise(() => {}); return [];',
+        { dialect: 'sqlite', allowWrites: false, runQuery: held.runQuery },
+        budget
+      );
+      (await held.next()).answer([{ n: 1 }]);
+      // Yielding here also lets the parent finish the query and restart the clock.
+      expect(await hasSettled(cell)).toBe(false);
+      vi.advanceTimersByTime(budget);
+      expect(await hasSettled(cell), 'fake time did not fire the cell clock').toBe(true);
+      const result = await cell;
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toMatch(/timed out/i);
+    } finally {
+      vi.useRealTimers();
+    }
   }, 45_000);
 
   it('routes sql.on(alias) to the matching Server Beam endpoint', async () => {

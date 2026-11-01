@@ -38,6 +38,7 @@ import {
   type SelectColumnPickerAnchor,
 } from './SelectColumnPicker';
 import { StatementRunGutter } from './StatementRunGutter';
+import { statementSelectionRange } from '../lib/statementSelection';
 import { statementCopyText } from '../lib/statementBadges';
 
 interface Props {
@@ -207,17 +208,12 @@ export const SqlEditorPane: React.FC<Props> = ({
     refreshFoxscriptSemanticTokens();
   }, [schemaCache]);
 
-  /** Select a statement's lines (the rail's In [n] number was clicked). */
+  /** Select the statement (the rail's In [n] number was clicked). */
   const revealStatement = (stmt: SplitStatement) => {
     const editor = editorRef.current;
-    if (!editor) return;
-    const model = editor.getModel();
-    const range = {
-      startLineNumber: stmt.startLine,
-      startColumn: 1,
-      endLineNumber: stmt.endLine,
-      endColumn: model ? model.getLineMaxColumn(stmt.endLine) : 1,
-    };
+    const model = editor?.getModel();
+    if (!editor || !model) return;
+    const range = statementSelectionRange(stmt, model);
     editor.revealRangeInCenterIfOutsideViewport(range);
     editor.setSelection(range);
     editor.focus();

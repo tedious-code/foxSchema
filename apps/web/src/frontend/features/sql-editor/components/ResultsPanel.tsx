@@ -1041,11 +1041,12 @@ const SideBySideStatementSection: React.FC<{
   const sourceGrid = okGrids.find((g) => g.connectionId === baselineId);
   const destGrid = okGrids.find((g) => g.connectionId === destId);
 
-  /** A new run of the statement makes any compare window describe old rows. */
-  const windowResetKey = okGrids
-    .map((g) => `${g.connectionId}:${g.result.ok ? `${g.result.durationMs}:${g.result.rowCount}` : 'x'}`)
-    .join(',');
-  const compareWindow = useCompareWindow(`${statementIndex}|${windowResetKey}`);
+  /** A new result object means a new run, even when duration and row count happen to match. */
+  const windowResetKey = useMemo(
+    () => Symbol('compare-result-pair'),
+    [statementIndex, sourceGrid?.result, destGrid?.result]
+  );
+  const compareWindow = useCompareWindow(windowResetKey);
   const [compareFilter, setCompareFilter] = useState<CompareFilter>('all');
   const [comparePageIndex, setComparePageIndex] = useState(0);
   const [comparePageSize, setComparePageSize] = useState<number>(DEFAULT_COMPARE_PAGE_SIZE);

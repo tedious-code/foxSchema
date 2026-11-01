@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { pageSubsetSelect } from '@foxschema/sql';
 import { redisAdapter, redisRowMatchesPredicates } from './redis.adapter.js';
 import { RedisClientDouble } from './redis.client-double.js';
+import { MAX_SCAN } from './redis.keyspace.js';
 
 describe('redisRowMatchesPredicates', () => {
   it('matches when every non-id predicate holds', () => {
@@ -128,6 +129,43 @@ describe('redis adapter · every key type through the SQL subset', () => {
     const { q, c } = setup();
     await q(`UPDATE users SET plan = 'pro' WHERE id = '2'`);
     expect(c.calls.filter((x) => x === 'TYPE').length).toBe(2);
+  });
+
+  it('refuses to delete every non-hash key exposed as a prefix-table row', async () => {
+    const c = new RedisClientDouble({ json: true })
+      .set('users:list', { type: 'list', value: ['send', 'bill'] })
+      .set('users:set', { type: 'set', value: ['admin'] })
+      .set('users:zset', { type: 'zset', value: [{ value: 'Ana', score: 1 }] })
+      .set('users:stream', { type: 'stream', value: [{ id: '1-0', message: { event: 'joined' } }] })
+      .set('users:string', { type: 'string', value: 'plain' })
+      .set('users:json', { type: 'ReJSON-RL', value: '{"name":"Ana"}' });
+    const q = (sql: string) =>
+      redisAdapter.query(c as never, sql, []) as Promise<Record<string, unknown>[]>;
+
+    const ids = (await q('SELECT id FROM users')).map((row) => row.id).sort();
+    expect(ids).toEqual(['json', 'list', 'set', 'stream', 'string', 'zset']);
+    for (const id of ids) {
+      await expect(q(`DELETE FROM users WHERE id = '${id}'`), String(id)).rejects.toThrow(
+        /only hash keys are deleted through prefix tables/
+      );
+      expect(c.keys.has(`users:${id}`), String(id)).toBe(true);
+    }
+    expect(c.calls).not.toContain('DEL');
+  });
+
+  it('fails closed when a filtered page reaches MAX_SCAN before finding enough rows', async () => {
+    const probeLimit = 201;
+    const c = new RedisClientDouble().set('big', {
+      type: 'list',
+      value: Array.from({ length: MAX_SCAN + 5_000 }, (_, index) => `value-${index}`),
+    });
+    const q = (sql: string) =>
+      redisAdapter.query(c as never, sql, []) as Promise<Record<string, unknown>[]>;
+
+    await expect(q(`SELECT * FROM big WHERE value = 'never-matches' LIMIT ${probeLimit}`)).rejects.toThrow(
+      /scan reached the 50,000-row limit/
+    );
+    expect(c.calls.filter((call) => call === 'LRANGE')).toHaveLength(MAX_SCAN / 500 + 1);
   });
 
   it('pages a prefix scan with a filter, skipping matches for the offset', async () => {

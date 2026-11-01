@@ -124,11 +124,19 @@ describe('readCollection', () => {
     ]);
   });
 
-  it('stops filtering after MAX_SCAN elements instead of walking a huge list', async () => {
+  it('fails closed after MAX_SCAN elements instead of returning an incomplete filtered page', async () => {
     const c = new RedisClientDouble().set('big', { type: 'list', value: list(MAX_SCAN + 5_000) });
-    const page = await readCollection(c, 'big', 'list', { offset: 0, limit: 10, matches: () => false });
-    expect(page).toEqual([]);
+    await expect(
+      readCollection(c, 'big', 'list', { offset: 0, limit: 10, matches: () => false })
+    ).rejects.toThrow(/scan reached the 50,000-row limit/);
     expect(c.calls.filter((x) => x === 'LRANGE').length).toBeLessThanOrEqual(MAX_SCAN / 500 + 1);
+  });
+
+  it('returns successfully as soon as a filtered page is full, before MAX_SCAN', async () => {
+    const c = new RedisClientDouble().set('big', { type: 'list', value: list(MAX_SCAN + 5_000) });
+    const page = await readCollection(c, 'big', 'list', { offset: 0, limit: 10, matches: () => true });
+    expect(page.map((row) => row.value)).toEqual(list(10));
+    expect(c.calls.filter((x) => x === 'LRANGE')).toHaveLength(1);
   });
 
   it('reads a sorted set by score, with scores', async () => {

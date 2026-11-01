@@ -30,6 +30,17 @@ export interface RequireDriverOptions {
   unwrapDefault?: boolean;
 }
 
+/**
+ * Why a driver would not load, fit to show a user. Node's "Cannot find
+ * module" error ends with a Require stack: the absolute paths of the server's
+ * own files. That says nothing about the fix and shows the server's folder
+ * layout, so it is cut. Any other error (a native build that will not load)
+ * is kept whole: its detail is what diagnoses it.
+ */
+export function driverLoadReason(error: unknown): string {
+  return errorMessage(error).split(/\r?\n\s*Require stack:/)[0]!.trim();
+}
+
 /** Load `packageName` for `label` (a dialect name), or throw an install hint. */
 export function requireDriver(
   packageName: string,
@@ -43,7 +54,7 @@ export function requireDriver(
     const flags = options.installFlags ? ` ${options.installFlags}` : '';
     throw new Error(
       `Database driver "${packageName}" is not installed for ${label}. ` +
-        `Install it with: npm install ${packageName}${flags} — ${errorMessage(e)}`
+        `Install it with: npm install ${packageName}${flags} — ${driverLoadReason(e)}`
     );
   }
 }

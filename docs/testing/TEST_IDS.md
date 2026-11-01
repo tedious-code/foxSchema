@@ -432,6 +432,12 @@ Every control has a test ID: **1015** buttons, text boxes, selects and textareas
   - `profile-send-feedback` · button · Send feedback
   - `profile-sign-out` · button · Sign out
   - `profile-sign-out-others` · button · Sign out other sessions
+- **ServiceStatusCard** · `app/shell/ServiceStatusCard.tsx`
+  - `home-service-{id}` · li
+  - `home-service-{id}-detail` · span
+  - `home-service-{id}-state` · span
+  - `home-services` · section · Services
+  - `home-services-error` · p
 - **SettingsPanel** · `app/settings/SettingsPanel.tsx`
   - `settings-accent-{id}` · button
   - `settings-apply-preset-{id}` · button · ·

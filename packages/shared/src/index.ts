@@ -17,6 +17,7 @@ export * from './server-beam';
 export * from './lokee-wire';
 export * from './nav';
 export * from './password-policy';
+export * from './service-status';
 export * from './connection-name';
 export * from './migration-status';
 export * from './data-migrate';

@@ -822,6 +822,18 @@ export const TestIds = {
       /** button · Sign out other sessions */
       profileSignOutOthers: 'profile-sign-out-others',
     },
+    ServiceStatusCard: {
+      /** li */
+      homeService: (id: string | number) => `home-service-${id}`,
+      /** span */
+      homeServiceDetail: (id: string | number) => `home-service-${id}-detail`,
+      /** span */
+      homeServiceState: (id: string | number) => `home-service-${id}-state`,
+      /** section · Services */
+      homeServices: 'home-services',
+      /** p */
+      homeServicesError: 'home-services-error',
+    },
     SettingsPanel: {
       /** button */
       settingsAccent: (id: string | number) => `settings-accent-${id}`,
@@ -4408,6 +4420,11 @@ export type TestId =
   | `home-recent-${string}`
   | 'home-recents'
   | 'home-recents-empty'
+  | `home-service-${string}`
+  | `home-service-${string}-detail`
+  | `home-service-${string}-state`
+  | 'home-services'
+  | 'home-services-error'
   | 'home-view'
   | 'index-management-embed'
   | 'index-management-modal'

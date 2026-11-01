@@ -14,6 +14,8 @@ import { AppSettingsStore } from '../../platform/settings/app-settings.service';
 import { targetLocks } from '../../platform/guards/target-lock';
 import { isLocalSingleUser } from '../../platform/runtime/deployment';
 import { sendError } from '../../platform/http/respond';
+import { WorkflowSettingsService } from '../workflow';
+import { readServiceStatus, type ServiceStatusDeps } from './service-status';
 import { keySchemeInfo } from '../../platform/crypto/crypto';
 import { getMetadataDbConfig, SUPPORTED_ENGINES, type DbEngine } from '../../database/config';
 import { createMetadataStore } from '../../database/stores/registry';
@@ -46,8 +48,16 @@ export function createSystemPublicRoutes(): Router {
 }
 
 /** Signed in: updates, app info, the metadata-database probe, activity. */
-export function createSystemRoutes(appSettings = new AppSettingsStore()): Router {
+export function createSystemRoutes(
+  appSettings = new AppSettingsStore(),
+  serviceStatusDeps: ServiceStatusDeps = defaultServiceStatusDeps()
+): Router {
   const router = Router();
+
+  // The Services card on Home: is the workflow engine up, and if not, why.
+  router.get('/system/services', async (_req: AppRequest, res: FastifyReply) => {
+    res.send(await readServiceStatus(serviceStatusDeps));
+  });
 
   // In-app update check — compares the running version against npm (default).
   router.get('/updates/check', async (_req: AppRequest, res: FastifyReply) => {
@@ -161,4 +171,13 @@ export function createSystemRoutes(appSettings = new AppSettingsStore()): Router
   });
 
   return router;
+}
+
+function defaultServiceStatusDeps(): ServiceStatusDeps {
+  const settings = new WorkflowSettingsService();
+  return {
+    probeEngine: () => settings.probeEngineHealth(),
+    version: resolveAppVersion,
+    uptimeSec: () => process.uptime(),
+  };
 }

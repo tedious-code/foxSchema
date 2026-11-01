@@ -117,18 +117,21 @@ export class SqlTraceService {
   }
 
   /**
-   * Start watching `connectionId`. A trace the same person already has on that
-   * connection is stopped first: one trace per person per connection.
+   * Start watching `connectionId`. Two kinds of trace the same person already
+   * has are stopped first:
+   *
+   * - one on the same connection in this workspace: one trace per person per
+   *   connection;
+   * - any in another workspace. The web app sends no workspace header, so
+   *   after a workspace switch its Stop arrives in the new workspace and is
+   *   refused. Without this, the old trace would keep probing until its time
+   *   box and hold a place under MAX_TRACES_PER_OWNER.
    */
   start(ownerId: string, workspaceId: string, connectionId: string, mode: TraceMode, target: LiveTarget | null): TraceStatus {
     this.sweep();
     for (const trace of this.traces.values()) {
-      if (
-        trace.ownerId === ownerId &&
-        trace.workspaceId === workspaceId &&
-        trace.connectionId === connectionId &&
-        trace.running
-      ) {
+      if (!trace.running || trace.ownerId !== ownerId) continue;
+      if (trace.workspaceId !== workspaceId || trace.connectionId === connectionId) {
         this.stopTrace(trace, 'replaced');
       }
     }

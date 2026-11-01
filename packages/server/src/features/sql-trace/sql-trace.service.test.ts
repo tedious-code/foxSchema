@@ -125,6 +125,23 @@ describe('SqlTraceService — bounds', () => {
     expect(() => service.start('u2', WS, 'c-more', 'fox', null)).not.toThrow();
   });
 
+  it('stops the person’s traces in another workspace when they start one', async () => {
+    const { service } = setup();
+    const old = service.start('u1', 'w-old', 'c1', 'live', PG);
+    const other = service.start('u2', 'w-old', 'c1', 'live', PG);
+    // A switch, then a new trace: the old one must not keep probing c1.
+    service.start('u1', WS, 'c2', 'fox', null);
+    expect((await service.events('u1', 'w-old', old.id, 0)).status).toMatchObject({ running: false, stopReason: 'replaced' });
+    // Someone else's trace in that workspace keeps running.
+    expect((await service.events('u2', 'w-old', other.id, 0)).status.running).toBe(true);
+  });
+
+  it('frees the orphaned traces’ places under the cap', () => {
+    const { service } = setup();
+    for (let i = 0; i < MAX_TRACES_PER_OWNER; i++) service.start('u1', 'w-old', `c${i}`, 'fox', null);
+    expect(() => service.start('u1', WS, 'c-new', 'fox', null)).not.toThrow();
+  });
+
   it('answers someone else’s trace as missing', async () => {
     const { service } = setup();
     const { id } = service.start('u1', WS, 'c1', 'fox', null);

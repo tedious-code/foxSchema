@@ -73,6 +73,8 @@ Finished or in-progress design notes. Do not treat them as the map of the code. 
 | Excel and Sheets import | [plans/excel-and-sheets-import.md](plans/excel-and-sheets-import.md) |
 | Feature review test plan | [plans/2026-10-06-review-features-test-plan.md](plans/2026-10-06-review-features-test-plan.md) |
 | Feature and dialect test plan, and its first results | [plans/2026-10-25-feature-and-dialect-test-plan.md](plans/2026-10-25-feature-and-dialect-test-plan.md), [plans/2026-10-26-feature-and-dialect-test-results.md](plans/2026-10-26-feature-and-dialect-test-results.md) |
+| Service status on Home, with start and stop for the Workflow engine (design) | [plans/2026-11-01-service-status.md](plans/2026-11-01-service-status.md) |
+| Safe column change: plan and SQL for review (design) | [plans/2026-11-01-safe-column-change.md](plans/2026-11-01-safe-column-change.md) |
 
 ## Releases
 

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useId, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, Play, Info, ShieldAlert } from 'lucide-react';
 import type { ReadonlyWriteTarget } from '@/features/sql-editor/state/useSqlEditorStore';
@@ -68,6 +68,7 @@ export const WriteConfirmDialog: React.FC<Props> = ({
     return [...set];
   }, [mutating]);
 
+  const titleId = useId();
   const [ackedMissingWhere, setAckedMissingWhere] = useState(false);
   const needsWhereAck = requireMissingWhereAck && missingWhere.length > 0;
   const canConfirm = !needsWhereAck || ackedMissingWhere;
@@ -88,12 +89,15 @@ export const WriteConfirmDialog: React.FC<Props> = ({
       onClick={onCancel}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className="w-full max-w-[520px] bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-slate-800 bg-slate-950/40 flex items-center gap-2.5">
           <ShieldAlert className="w-5 h-5 text-rose-400 shrink-0" strokeWidth={SQL_ICON_STROKE} />
-          <h2 className="text-slate-100 font-bold text-base">{title}</h2>
+          <h2 id={titleId} className="text-slate-100 font-bold text-base">{title}</h2>
         </div>
         <div className="p-6 space-y-3">
           {mutating.length > 0 && (

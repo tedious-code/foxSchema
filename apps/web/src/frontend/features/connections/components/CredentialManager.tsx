@@ -21,6 +21,7 @@ import { CloudProviderCredentialsSection } from '@/features/connections/componen
 import { PROVIDER_SETTINGS, type ConnectionOptions, type Dialect } from '@/shared/lib/provider-settings';
 import { dialectLabel } from '@/shared/lib/dialectLabel';
 import { sessionPasswordMap, setSessionPassword } from '@/shared/lib/sessionPasswords';
+import { useEscapeKey } from '@/shared/lib/useEscapeKey';
 import type { SavedConnectionSummary } from '@/shared/api/authApi';
 
 interface Props {
@@ -157,6 +158,9 @@ export const CredentialManager: React.FC<Props> = ({ open, onClose }) => {
     return groups;
   }, [visible]);
 
+  // Escape closes the manager, but not while the credential form is open on top.
+  useEscapeKey(onClose, open && !adding && !editing);
+
   if (!open) return null;
 
   return createPortal(
@@ -165,6 +169,9 @@ export const CredentialManager: React.FC<Props> = ({ open, onClose }) => {
       className="fixed inset-0 z-[90] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cred-manager-title"
         className="w-full max-w-[620px] bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
@@ -174,7 +181,7 @@ export const CredentialManager: React.FC<Props> = ({ open, onClose }) => {
               <KeyRound className="w-4.5 h-4.5 text-cyan-400" />
             </div>
             <div>
-              <h2 className="text-slate-100 font-bold text-base">Saved Credentials</h2>
+              <h2 id="cred-manager-title" className="text-slate-100 font-bold text-base">Saved Credentials</h2>
               <p className="text-xs text-slate-400 mt-0.5">
                 {tab === 'database'
                   ? 'Encrypted DB connections · reusable from the connection dropdowns'
@@ -192,6 +199,8 @@ export const CredentialManager: React.FC<Props> = ({ open, onClose }) => {
             )}
             <button
               data-testid="cred-close-btn"
+              type="button"
+              aria-label="Close saved credentials"
               onClick={onClose}
               className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition"
             >

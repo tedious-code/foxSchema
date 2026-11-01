@@ -671,7 +671,7 @@ Every control has a test ID: **1015** buttons, text boxes, selects and textareas
 - **CredentialManager** · `features/connections/components/CredentialManager.tsx`
   - `cred-add-btn` · button · Add Credential
   - `cred-clear-filters` · button · Clear filters
-  - `cred-close-btn` · button
+  - `cred-close-btn` · button · Close saved credentials
   - `cred-delete-{id}` · button · Delete
   - `cred-dialect-filter` · select · Filter by provider
   - `cred-edit-{id}` · button · Edit

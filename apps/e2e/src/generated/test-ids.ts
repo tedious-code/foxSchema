@@ -1283,7 +1283,7 @@ export const TestIds = {
       credAddBtn: 'cred-add-btn',
       /** button · Clear filters */
       credClearFilters: 'cred-clear-filters',
-      /** button */
+      /** button · Close saved credentials */
       credCloseBtn: 'cred-close-btn',
       /** button · Delete */
       credDelete: (id: string | number) => `cred-delete-${id}`,

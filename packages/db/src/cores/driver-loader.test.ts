@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { describe, expect, it } from 'vitest';
-import { requireDriver } from './driver-loader.js';
+import { driverLoadReason, requireDriver } from './driver-loader.js';
 
 describe('requireDriver', () => {
   it('turns a missing driver into an install hint naming the package and dialect', () => {
@@ -29,5 +29,29 @@ describe('requireDriver', () => {
     const unwrapped = requireDriver('node:path', 'test');
     const raw = requireDriver('node:path', 'test', { unwrapDefault: false });
     expect(unwrapped).toBe(raw.default ?? raw);
+  });
+
+  it('says why without the server\'s own file paths', () => {
+    let message = '';
+    try {
+      requireDriver('foxschema-no-such-driver', 'redis');
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).toMatch(/Cannot find module 'foxschema-no-such-driver'/);
+    expect(message).not.toMatch(/Require stack/);
+    expect(message).not.toContain(process.cwd());
+  });
+});
+
+describe('driverLoadReason', () => {
+  it('cuts the Require stack off a module-not-found error', () => {
+    const error = new Error("Cannot find module 'redis'\nRequire stack:\n- /srv/fox/packages/db/src/cores/driver-loader.ts");
+    expect(driverLoadReason(error)).toBe("Cannot find module 'redis'");
+  });
+
+  it('keeps any other error whole', () => {
+    const error = new Error('dlopen(/opt/ibm_db/build/Release/odbc_bindings.node, 0x0001): image not found');
+    expect(driverLoadReason(error)).toBe(error.message);
   });
 });

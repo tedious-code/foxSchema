@@ -2,7 +2,8 @@ import { createRequire } from 'node:module';
 import type { DriverInfo } from '@foxschema/sql';
 import { getAdapter, ADAPTERS } from '../providers/adapter-registry.js';
 import { hasDb2Clidriver, setupDb2ClientEnv } from '../providers/db2/db2.env.js';
-import { IBM_DB_VERSION, errorMessage } from '@foxschema/sql';
+import { IBM_DB_VERSION } from '@foxschema/sql';
+import { driverLoadReason } from './driver-loader.js';
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -51,7 +52,7 @@ export class DriverDetector {
         version: mod?.version ?? mod?.default?.version,
       };
     } catch (error: unknown) {
-      const message = errorMessage(error);
+      const message = driverLoadReason(error);
       // ibm_db needs its postinstall (clidriver download + native build). Plain
       // `npm install` with --ignore-scripts leaves a broken package that still
       // "resolves" as a module path but fails on require — tell the user how to

@@ -1831,30 +1831,24 @@ export const useSqlEditorStore = create<SqlEditorState>()(
         const { bookmarks, tabs, shareDestinations } = get();
         const bm = bookmarks.find((b) => b.id === id);
         if (!bm) return;
+        // A bookmark saved without destinations (every sample is) keeps the
+        // ones checked now, rather than unchecking them all.
+        const saved = bm.selectedConnectionIds.length > 0 ? [...bm.selectedConnectionIds] : null;
+        const sharedPatch: Partial<SqlEditorState> =
+          shareDestinations && saved ? { sharedConnectionIds: saved } : {};
         // Reuse an open tab already linked to this bookmark.
         const existingTab = tabs.find((t) => t.bookmarkId === id);
         if (existingTab) {
-          const patch: Partial<SqlEditorState> = { activeTabId: existingTab.id };
-          if (shareDestinations) {
-            patch.sharedConnectionIds = [...bm.selectedConnectionIds];
-          }
-          set(patch);
+          set({ activeTabId: existingTab.id, ...sharedPatch });
           return;
         }
         const tab = createTab({
           title: bm.title,
           sql: bm.sql,
-          selectedConnectionIds: [...bm.selectedConnectionIds],
+          selectedConnectionIds: saved ?? [...get().activeConnectionIds()],
           bookmarkId: bm.id,
         });
-        const patch: Partial<SqlEditorState> = {
-          tabs: [...tabs, tab],
-          activeTabId: tab.id,
-        };
-        if (shareDestinations) {
-          patch.sharedConnectionIds = [...bm.selectedConnectionIds];
-        }
-        set(patch);
+        set({ tabs: [...tabs, tab], activeTabId: tab.id, ...sharedPatch });
       },
 
       renameBookmark: (id, title) => {

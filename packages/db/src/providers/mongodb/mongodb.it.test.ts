@@ -56,6 +56,19 @@ maybe('mongodb adapter against a live server', () => {
     const rows = (await q(`SELECT "name" FROM ${table} WHERE id = ?`, [1])) as any[];
     expect(rows[0]).toHaveProperty('name', 'alice');
     expect(rows[0]).not.toHaveProperty('email');
+    // Mongo adds _id unless told not to; the SELECT did not name it.
+    expect(rows[0]).not.toHaveProperty('_id');
+  });
+
+  it('UPDATE and DELETE find a document by the _id a SELECT showed', async () => {
+    await raw().insertOne({ id: 50, name: 'by-id' });
+    const [row] = (await q(`SELECT _id FROM ${table} WHERE id = ?`, [50])) as any[];
+    const update = await q(`UPDATE ${table} SET name = ? WHERE _id = ?`, ['renamed', row._id]);
+    expect(update[0]).toMatchObject({ rowCount: 1 });
+    expect(await raw().findOne({ id: 50 })).toMatchObject({ name: 'renamed' });
+    const del = await q(`DELETE FROM ${table} WHERE _id = '${row._id}'`);
+    expect(del[0]).toMatchObject({ rowCount: 1 });
+    expect(await raw().countDocuments({ id: 50 })).toBe(0);
   });
 
   it('UPDATE sets only the named fields on the matched document', async () => {

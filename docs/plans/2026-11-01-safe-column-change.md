@@ -93,3 +93,45 @@ it comes later as its own plan.
 
 Running the steps from the app: batches with progress, resume after failure,
 the row-count check before switch-over, and a confirmation before the drop.
+
+## v1 as built (2026-11-02): the planner
+
+`planColumnChange` in `packages/sql/src/modules/utilities/column-change.ts`,
+with one provider file per engine family, registered in `column-change.registry.ts`.
+Differences from the plan above, all from running the generated SQL live:
+
+- **A rename alone is one step**, `RENAME COLUMN` (or `sp_rename`). Every
+  engine here renames in place, instantly, so the add-copy-switch dance is
+  only for type changes.
+- **The sync trigger comes before the copy**, so writes during the copy reach
+  the new column. CockroachDB and TiDB get no trigger; the plan says to run
+  the copy once more just before the switch-over.
+- **Redshift is not in v1.** Its `ALTER TABLE` lacks `ADD COLUMN IF NOT EXISTS`
+  and `SET NOT NULL`. It answers "not yet" rather than SQL that fails there.
+- **MySQL and SQL Server need both sides of a foreign key to have the same
+  type.** The planner refuses a type change on a foreign-key column when the
+  referenced column would keep another type, naming it. PostgreSQL only needs
+  comparable types, so it allows it. MySQL running the plan without this
+  check failed at the constraints step: "incompatible".
+- **SQL Server's switch-over is one batch.** Drivers send each statement as
+  its own batch, and SQL Server refuses a batch that ends inside a
+  transaction, so `BEGIN TRANSACTION … COMMIT` is one statement, with
+  `XACT_ABORT ON`. Its DEFAULT constraint is found by name and dropped through
+  `sp_executesql`, since `EXEC()` takes no function calls.
+- **Also refused for now:** a primary key column, a column other tables'
+  foreign keys reference, an identity column, and a type change on a table
+  without a primary key (the copy batches through it).
+
+Live runs (seeded `demo_a.orders`, 11 rows, batches of 3), every step through
+`POST /api/sql/execute`:
+
+| Engine | Change | Result |
+|---|---|---|
+| PostgreSQL | `status` enum → `varchar(30)`, renamed `state` (NOT NULL, default, index) | All 7 steps; the trigger carried a write made during the copy; data identical; index back under its name; nothing left behind |
+| PostgreSQL | `notes` renamed `note` | One step |
+| MySQL | `status` varchar(20) → varchar(40), renamed `state` | All 7 steps, as above |
+| MySQL | `total` decimal(12,2) → decimal(14,2), used by a view | All 7 steps; the view reads the new column |
+| MySQL | `customer_id` int → bigint (foreign key to `customers.id` int) | Refused by the planner, with the reason |
+| SQL Server | `status` nvarchar(20) → nvarchar(40), renamed `state` (NOT NULL, DEFAULT constraint, index) | All 7 steps, as above |
+
+Next: the Utilities → Change column screen.

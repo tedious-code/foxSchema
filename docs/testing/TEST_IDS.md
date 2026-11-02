@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1015** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1024** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1578,6 +1578,26 @@ Every control has a test ID: **1015** buttons, text boxes, selects and textareas
   - `clone-table-name-option-{value}` · button in Autocomplete
   - `clone-table-name-toggle` · button in Autocomplete
   - `clone-unlock` · button · Unlock
+- **ColumnChangePanel** · `features/utilities/components/ColumnChangePanel.tsx`
+  - `{testId}` · button · passed in by the parent
+  - `column-change-batch` · input
+  - `column-change-column` · select · Pick a column
+  - `column-change-copy-all` · button in CopyButton
+  - `column-change-hint` · p
+  - `column-change-impact` · section · What it touches
+  - `column-change-load-error` · p
+  - `column-change-new-name` · input
+  - `column-change-new-type` · input
+  - `column-change-open-editor` · button · Open in editor
+  - `column-change-panel` · div · What it touches
+  - `column-change-password` · input
+  - `column-change-refused` · p
+  - `column-change-step-{value}` · article
+  - `column-change-step-{value}-copy` · button in CopyButton
+  - `column-change-steps` · section · Steps ( )
+  - `column-change-table` · select
+  - `column-change-unlock` · button · Unlock
+  - `column-change-warnings` · ul
 - **DatabaseAccessModal** · `features/utilities/components/DatabaseAccessModal.tsx`
   - `db-access-all-form` · div
   - `db-access-all-note` · p
@@ -1714,6 +1734,7 @@ Every control has a test ID: **1015** buttons, text boxes, selects and textareas
   - `index-management-modal` · div
   - `sql-sidebar-utilities` · nav · Database utilities
   - `utilities-backup` · data · Backup & Restore
+  - `utilities-change-column` · data · Change Column
   - `utilities-clone-table` · data · Clone Table
   - `utilities-connection` · select
   - `utilities-connection-pool` · data · Connection Pool

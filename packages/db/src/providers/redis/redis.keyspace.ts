@@ -261,7 +261,11 @@ export async function takePage(
   let examined = 0;
   for await (const chunk of chunks) {
     for (const row of chunk) {
-      if (++examined > MAX_SCAN) return out;
+      if (++examined > MAX_SCAN) {
+        throw new Error(
+          `Redis: scan reached the ${MAX_SCAN.toLocaleString()}-row limit before completing the requested page. Narrow the filter or reduce the offset.`
+        );
+      }
       if (!matches(row)) continue;
       if (skipped < offset) {
         skipped++;

@@ -167,7 +167,8 @@ docker compose -f docker-compose.app.yml --profile workflow up -d --build
 
 `WORKFLOW_ENGINE_ENDPOINT` is the unsaved default only. An endpoint saved in
 Workflow settings still wins. Leave the profile off and the app runs as Fox
-Schema alone.
+Schema alone. Home → **Services** (`GET /api/system/services`) shows whether
+this API can reach the engine; it does not start it.
 
 | Variable | Set on | Default | Purpose |
 |----------|--------|---------|---------|

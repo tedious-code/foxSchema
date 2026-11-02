@@ -307,7 +307,7 @@ td.no { color: var(--muted); }
   end
   subgraph server["Fox server — packages/server (Fastify)"]
     PLAT["platform&lt;br/&gt;identity · RBAC · workspaces&lt;br/&gt;connections · guards"]
-    FEAT["18 feature modules&lt;br/&gt;158 routes"]
+    FEAT["18 feature modules&lt;br/&gt;159 routes"]
   end
   WFS["Workflow server :8081&lt;br/&gt;apps/workflow-server&lt;br/&gt;+ packages/workflow-engine"]
   META[("Metadata store&lt;br/&gt;SQLite · 28 tables")]
@@ -666,7 +666,7 @@ td.no { color: var(--muted); }
 
 <script>
 // Reference data: the inventory of what Fox Schema ships, measured from the
-// codebase on main b12bcd5607 (2026-10-31). Mirrors docs/FEATURE_MAP.md.
+// codebase on main 66575674 (2026-11-02). Mirrors docs/FEATURE_MAP.md.
 // Work items are not here: they live in the page's shared store.
 const AREAS = [
   { id: 'platform', name: 'Platform' },
@@ -705,10 +705,10 @@ const FEATURES = [
     code: 'server admin (app-secrets mount)', perms: 'secrets.view, create, edit, delete',
     tables: 'app_secrets, cloud_provider_credentials', tests: 'none dedicated' },
   { id: 'platform.system', area: 'platform', name: 'Shell, health & updates',
-    subs: ['Activity rail and top toolbar', 'Command palette', 'Home', 'Backend-offline banner', 'Activity', 'App info and config', 'Update check and apply', 'Email and update settings', 'Send feedback'],
-    ui: 'App shell, Prefs', api: '/api/health, /api/config, /api/app-info, /api/activity, /api/updates (2)',
-    code: 'server system · web app/shell, app/settings, feedback', perms: '—',
-    tables: 'app_settings', tests: 'server 1 · web 2 · e2e smoke, lazy-loading, send-feedback, auto-error-catch' },
+    subs: ['Activity rail and top toolbar', 'Command palette', 'Home', 'Services card: API, Web UI, Workflow engine status (no start/stop yet)', 'Backend-offline banner', 'Activity', 'App info and config', 'Update check and apply', 'Email and update settings', 'Send feedback'],
+    ui: 'App shell, Prefs, Home', api: '/api/health, /api/config, /api/app-info, /api/activity, /api/updates (2), /api/system/services',
+    code: 'server system (service-status) · web app/shell (ServiceStatusCard), app/settings, feedback', perms: '—',
+    tables: 'app_settings', tests: 'server 2 · web 3 · e2e smoke, lazy-loading, send-feedback, auto-error-catch' },
 
   { id: 'schema.compare', area: 'schema', name: 'Compare & deploy',
     subs: ['Connection pair', 'Browse bar', 'Schema tree', 'Object detail: DDL diff, blueprint, tabs', 'Diff briefing', 'Cross-dialect readiness', 'Dependency and validation warnings', 'Execute gate: missing FK, narrowing', 'Deploy confirm', 'Streamed migration progress'],
@@ -867,11 +867,11 @@ const ENGINES = {
   ],
 };
 
-// Routes per feature, from the 158 pinned in http-contract.test.ts.
+// Routes per feature, from the 159 pinned in http-contract.test.ts.
 const ROUTES = [
   ['platform.auth', 22], ['platform.workspaces', 21], ['platform.admin', 20], ['schema.git', 15],
   ['schema.snapshots', 11], ['editor.files', 11], ['platform.secrets', 9], ['platform.connections', 8],
-  ['workflow.engine', 7], ['platform.system', 6], ['editor.datacompare', 6], ['schema.applies', 5],
+  ['workflow.engine', 7], ['platform.system', 7], ['editor.datacompare', 6], ['schema.applies', 5],
   ['utilities + access', 5], ['schema.compare', 4], ['editor.run + code', 3], ['utilities.trace', 3], ['utilities.backup', 2],
 ];
 
@@ -909,13 +909,13 @@ const DIALECTS = [
   ['db2', 'Db2', 'db2', 'dialects/db2', 'Fold the schema to uppercase, keep the table as SYSCAT stores it. REORG goes through SYSPROC.ADMIN_CMD. ibm_db needs a native build and has none for linux/arm64.'],
   ['sqlserver', 'SQL Server', 'sqlServer', 'dialects/mssql', 'Dropping a database user leaves the server login.'],
   ['azuresql', 'Azure SQL', 'azureSql', 'dialects/azuresql', 'TLS with certificate verification is on by default.'],
-  ['oracle', 'Oracle', 'oracle', 'dialects/oracle', 'DDL auto-commits. Quoted names keep their case. The e2e account needs dictionary access to list roles.'],
+  ['oracle', 'Oracle', 'oracle', 'dialects/oracle', 'DDL auto-commits. Quoted names keep their case. The seed grants SELECT_CATALOG_ROLE to demo_a / demo_b so seeded roles are listed; reseed if FOX_READER is missing.'],
   ['redshift', 'Redshift', 'redshift', 'dialects/redshift', 'Renaming a user always clears its password.'],
   ['sqlite', 'SQLite', 'sqlLite', 'dialects/sqlite', 'A file, not a server. No grants. ALTER TABLE is limited, so some migrations rebuild the table.'],
   ['duckdb', 'DuckDB', 'duckDb', 'dialects/duckdb', 'A file, not a server. No grants.'],
   ['clickhouse', 'ClickHouse', 'clickHouse', 'dialects/clickhouse', 'No row editing and no transactions. GRANT exists, but Fox has no permission builder for it yet.'],
   ['redis', 'Redis', 'redis', 'redis-editor', 'Runs the SQL subset. Keys read as tables: prefixes, lists, sets, sorted sets, streams and JSON (#552). Needs a password only when the connection names a user; a requirepass-only Redis keeps its password on the connection. The dev container falls back to no AUTH.'],
-  ['mongodb', 'MongoDB', 'mongodb', '—', 'Runs the SQL subset. Auth is off in the dev container.'],
+  ['mongodb', 'MongoDB', 'mongodb', 'mongodb-sql', 'Runs the SQL subset. SELECT returns only named columns; _id is text and a write with that hex matches the ObjectId. Auth is off in the dev container unless the live tests set it.'],
 ];
 for (const [id, name, dir, e2e, watch] of DIALECTS) {
   const row = ENGINES.rows.find((r) => r[0] === name) || [name, 0, 0, 0, 0, 0, 0];

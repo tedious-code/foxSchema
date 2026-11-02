@@ -17,11 +17,18 @@ packages/db                 Database drivers and the connection runtime: connect
                             factory, pooling, circuit breaker. Depends on sql.
                             Redis keys-as-tables live in `providers/redis/redis.keyspace.ts`
                             (prefix tables vs collection tables; bounded scans).
+                            MongoDB (`providers/mongodb/mongodb.adapter.ts`) shows
+                            `_id` as text, matches an ObjectId hex a SELECT showed,
+                            and projects only named columns (Mongo would otherwise
+                            add `_id` to every find).
 
 packages/shared             Contracts the frontend, server and CLI must agree on:
                             permission names, error codes, wire message shapes,
-                            the COMMUNITY_NAV registry (`nav.ts`), and the
-                            shared data-migrate cap (`DATA_MIGRATE_MAX_OPS`).
+                            the COMMUNITY_NAV registry (`nav.ts`), the
+                            shared data-migrate cap (`DATA_MIGRATE_MAX_OPS`),
+                            GET `/api/system/services` (`service-status.ts`),
+                            and the connection-name rule (`connection-name.ts`:
+                            120 characters, no control characters).
                             Browser-safe.
 
 packages/workflow-contract  Browser-safe control-plane types for the workflow engine
@@ -77,6 +84,8 @@ flags (`workflow`, `enterprise.channels`).
 interfaces/  The shared vocabulary: TableSchema, TableDiff, MigrationStep.
 providers/   One folder per dialect — settings, SqlDialect, and Access SQL (`*.user-sql.ts`, `*.access-sql.ts`).
              Backup/restore commands are `*.backup.ts` (registered in `modules/utilities/backup.registry.ts`).
+             Safe column-change steps are `*.column-change.ts` (registered in
+             `modules/utilities/column-change.registry.ts`).
              `dialectFamily()` in `provider-settings.ts` maps wire-compatible
              relatives onto mysql / postgres / sqlserver.
 cores/       Connection strings, and shaping catalog rows into TableSchema.
@@ -93,7 +102,7 @@ modules/     One folder per domain, named to match the frontend feature
 | `lokee-weave` | Content-addressed schema versioning and revert |
 | `sql-editor` | FoxScript parsing, code cells, SELECT aliasing, the fail-closed SQL subset Redis and MongoDB run (`sql-subset.ts`) |
 | `access` | Permission intent, effective access, GRANT/REVOKE and account DDL (facades; emitters live in `providers/<dialect>`) |
-| `utilities` | DBA queries: server insights, index fragmentation (`isSafeIndexFragmentationCustomSql`: one read-only SELECT; Db2 defrag is `providers/db2/db2.index-fragmentation.ts`), backup/restore command builders |
+| `utilities` | DBA queries: server insights, index fragmentation (`isSafeIndexFragmentationCustomSql`: one read-only SELECT; Db2 defrag is `providers/db2/db2.index-fragmentation.ts`), backup/restore command builders, SQL Tracer, safe column change (`planColumnChange` in `column-change.ts`; per-family SQL in `providers/<d>/*.column-change.ts`, registered in `column-change.registry.ts` — engines not listed answer "not yet") |
 
 `dialect` and `sql-text` are the foundations: the other folders build on
 them, never the reverse.
@@ -151,12 +160,12 @@ database/    The metadata store and its migrations.
 | Folder | What it covers |
 |---|---|
 | `access` | Database permission inspection and DBA utilities. Index-fragmentation custom SQL is gated read-only in `index-fragmentation.service.ts` (same tokenizer as `/sql/execute`). |
-| `system` | Health and version, updates, app info, the metadata-database probe, activity |
+| `system` | Health and version, updates, app info, the metadata-database probe, activity, Home Services (`GET /api/system/services` → `readServiceStatus`: API always `running`; engine `running` / `not_configured` / `unreachable` from the workflow `/health` probe). Status only — start/stop is later. |
 | `admin` | Users and roles, secrets, cloud credentials, policy |
 | `backup` | Per-user backup defaults (`GET`/`PUT /api/backup-settings`). Commands themselves are built in `@foxschema/sql` (`modules/utilities/backup.ts` + `providers/<d>/*.backup.ts`); the panel runs only a server-side SQL backup, after confirmation, and lists the backups the server recorded (`backupHistoryQuery`); restores are never run. |
 | `auth` | Sign-in, setup, password and SSO routes (the services are `platform/identity`) |
 | `compare` | Schema comparison |
-| `connections` | Routes for saved database connections, driver check/install and connection tests; the store is `platform/connections` (`authMethod` / `domain` on encrypted `ConnectionOptions`; `none` for Redis/MongoDB with no auth; NTLM is adapter-side) |
+| `connections` | Routes for saved database connections, driver check/install and connection tests; the store is `platform/connections` (`authMethod` / `domain` on encrypted `ConnectionOptions`; `none` for Redis/MongoDB with no auth; NTLM is adapter-side). Create and update share `checkConnectionName` (`packages/shared`): free text, 120 characters, no control characters — a narrower form-only rule used to rewrite saved names on edit. |
 | `data-migrate` | Moving data between databases. The route and the editor share `DATA_MIGRATE_MAX_OPS` (2,000) from `@foxschema/shared`. |
 | `files` | File uploads, querying an uploaded file, the import machinery (parsers, column detection, the parse worker pool) and the database-file picker |
 | `git` | Git repositories migrations are committed to: bare local copies through isomorphic-git, branches, fetch / pull / push, and the guarded HTTP client that refuses private addresses. Plan: [plans/2026-10-02-migrations-in-git.md](plans/2026-10-02-migrations-in-git.md) |
@@ -164,6 +173,7 @@ database/    The metadata store and its migrations.
 | `migration` | Applying DDL migrations, and their run history |
 | `schema` | Reading a schema |
 | `sql-editor` | SQL editor, code cells, sandboxed execution. `sql-execute.service.ts` (`runStatements`) applies the saved schema (`adapter.setCurrentSchema`) then optionally `BEGIN`s one transaction for the batch; paging wrap is `sql-page-wrap.service.ts` (`wrapSqlForOrderedPage` for a compare window: outer ORDER BY, `limit + 1`). |
+| `sql-trace` | SQL Tracer sessions: start / events / stop. Live reads the engine's session list; Fox activity is statements this install ran on a saved connection (`platform/sql-activity`). Redacted; 15 min / 10,000 statements. |
 | `users` | Profile, preferences, first-run wizard |
 | `workspaces` | Shared workspaces: create, switch, members, invites, public or private (`/api/workspaces`). Which workspace a request acts in is `platform/workspaces`. A personal workspace's invites and memberships are capped at the account's role (`workspace-role-ceiling.test.ts`). Admins list every workspace (`GET /all`) and open one only by joining. |
 | `workflow` | Workflow engine settings and health; the engine proxy (an allowlist of engine routes, each behind a `workflow.*` permission); saved-connection grants; and the token-guarded internal routes the engine calls to resolve a granted connection and read its settings. Save, run, and steering (cancel / resume / answer a paused run) refuse a connection the caller cannot use in this workspace (`WorkflowConnectionGrants.notUsableBy`). Runbook: [workflow.md](workflow.md). |
@@ -188,7 +198,9 @@ A feature uses the layers it needs; it does not create empty ones.
 ## Frontend — `apps/web/src/frontend`
 
 ```
-app/         The application shell and settings screens.
+app/         The application shell and settings screens. Home's Services card
+             is `app/shell/ServiceStatusCard.tsx` (`GET /api/system/services`
+             via `shared/api/servicesApi.ts`); it does not start or stop anything.
   features/    The view registry: `featureRegistry.ts` (each view's rail
                button, who may see it, where
                someone goes who may not, what it adds to the top toolbar,
@@ -255,8 +267,8 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | `lokee-weave` | Schema history graph and version compare (Snapshots workspace) |
 | `migrations` | Migration run history (Applies on the rail) |
 | `schema-diff` | Diff rendering shared by compare and history |
-| `sql-editor` | SQL editor, its store (`oneTransaction`, `selectOnlyConnection` so the schema browser's connection is the one Run hits), results grid, data peek, the shared Monaco setup (`monaco.ts`) (Index/Clone/Query files live in `utilities`) |
-| `utilities` | Own workspace: clone table, index management, backup & restore commands, server insights, query files, DB users & grants |
+| `sql-editor` | SQL editor, its store (`oneTransaction`, `selectOnlyConnection` so the schema browser's connection is the one Run hits; opening a sample bookmark keeps checked Destinations), results grid, data peek, the shared Monaco setup (`monaco.ts`) (Index/Clone/Query files live in `utilities`). The run rail's **In [n]** selects only that statement. |
+| `utilities` | Own workspace: clone table, Change Column (`ColumnChangePanel` → `planColumnChange` in the browser; nothing runs), index management, backup & restore commands, server insights, SQL Tracer, query files, DB users & grants |
 | `workflow` | Workflow designer (canvas, inspector, triggers, SQL and script editors), runs (`RunsPanel` cancel / answer a paused human gate), variables, credentials and engine settings — through the engine proxy, plus linking saved connections to workflows |
 | `workspaces` | The rail's workspace button (`WorkspaceRailButton`) and the menu it opens: switch, invite, join public, members, settings. Admin → Workspaces lists every workspace; opening one is joining. Editor localStorage is keyed by workspace (`shared/lib/editorWorkspaceStorage.ts`). |
 
@@ -276,6 +288,8 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | Calling an API endpoint | use `api` from `@/shared/api/client` — never `fetch` directly |
 | SQL for permissions or accounts | `packages/sql/src/modules/access/` (facade) + `packages/sql/src/providers/<dialect>/*.user-sql.ts` / `*.access-sql.ts`. Db2 OS-user docker steps: `buildDb2OsUserInstructions`. |
 | Backup / restore commands for an engine | `packages/sql/src/providers/<dialect>/*.backup.ts` registered in `modules/utilities/backup.registry.ts`. Saved folder/format defaults: `packages/server/src/features/backup/`. |
+| Safe column-change SQL for an engine | `packages/sql/src/providers/<dialect>/*.column-change.ts` registered in `modules/utilities/column-change.registry.ts`. The facade (`planColumnChange`) finds impact and blockers; omit the engine to answer "not yet" rather than guessed SQL. The panel is `apps/web/.../ColumnChangePanel.tsx`; no server route. |
+| Home Services / engine reachability | `packages/server/src/features/system/service-status.ts` (`GET /api/system/services`). Types in `packages/shared/src/service-status.ts`. The card is `apps/web/.../app/shell/ServiceStatusCard.tsx`. |
 | A dialect capability the app must branch on | `packages/sql/src/modules/capabilities/` (`dialect-features.ts`) and `packages/sql/src/modules/dialect/` |
 | Guard or cross-cutting HTTP concern | `packages/server/src/platform/` |
 | How a dialect lexes SQL (permission gates, splitter) | `packages/sql/src/modules/sql-text/sql-readings.ts` + `sql-tokens.ts`. Do not add a second scanner. |

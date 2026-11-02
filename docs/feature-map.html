@@ -241,7 +241,7 @@ td.no { color: var(--muted); }
       <div class="stamp">Measured on <code>main</code> · <code>b12bcd5607</code> · 2026-10-31 · mirrors <code>docs/FEATURE_MAP.md</code></div>
     </div>
     <ul class="stats" aria-label="Inventory">
-      <li><b>34</b> features</li>
+      <li><b>35</b> features</li>
       <li><b>158</b> HTTP routes</li>
       <li><b>18</b> server modules</li>
       <li><b>14</b> web features</li>
@@ -781,6 +781,10 @@ const FEATURES = [
     subs: ['Clone a table definition and rows'],
     ui: 'Utils', api: 'through /api/sql/execute', code: 'web CloneTableModal', perms: 'utility.access, editor.ddl',
     tables: '—', tests: 'utilities e2e' },
+  { id: 'utilities.columns', area: 'utilities', name: 'Change column',
+    subs: ['Rename in place', 'Type change: add, sync, batched copy, check, switch over, drop last', 'What it touches', 'Lossy conversions', 'Open in editor'],
+    ui: 'Utils', api: '— (computed in the browser)', code: 'sql utilities/column-change, providers/*/*.column-change · web ColumnChangePanel', perms: 'utility.access',
+    tables: '—', tests: 'sql 56 · web 4 · live: PostgreSQL, MySQL, SQL Server' },
   { id: 'utilities.insights', area: 'utilities', name: 'Server insights',
     subs: ['Server insights', 'Table insight', 'Query files'],
     ui: 'Utils', api: '/api/schema/dba-utility, /api/schema/table-insight',

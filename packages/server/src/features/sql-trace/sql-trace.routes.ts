@@ -68,7 +68,7 @@ export function createSqlTraceRoutes(deps: SqlTraceRouteDeps): Router {
         }
       }
       const target = mode === 'live' ? { dialect: resolved.dialect, option: resolved.option } : null;
-      res.send({ status: deps.service.start(authed.userId!, connectionId, mode, target) });
+      res.send({ status: deps.service.start(authed.userId!, authed.workspaceId!, connectionId, mode, target) });
     } catch (error: unknown) {
       sendThrown(res, error, 'Could not start the trace');
     }
@@ -83,7 +83,8 @@ export function createSqlTraceRoutes(deps: SqlTraceRouteDeps): Router {
       return;
     }
     try {
-      res.send(await deps.service.events((req as AuthedRequest).userId!, id, after));
+      const authed = req as AuthedRequest;
+      res.send(await deps.service.events(authed.userId!, authed.workspaceId!, id, after));
     } catch (error: unknown) {
       sendThrown(res, error, 'Could not read the trace');
     }
@@ -92,7 +93,8 @@ export function createSqlTraceRoutes(deps: SqlTraceRouteDeps): Router {
   router.post('/:id/stop', trace, async (req: AppRequest, res: FastifyReply) => {
     const { id } = req.params as { id: string };
     try {
-      res.send({ status: deps.service.stop((req as AuthedRequest).userId!, id) });
+      const authed = req as AuthedRequest;
+      res.send({ status: deps.service.stop(authed.userId!, authed.workspaceId!, id) });
     } catch (error: unknown) {
       sendThrown(res, error, 'Could not stop the trace');
     }

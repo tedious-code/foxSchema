@@ -13,6 +13,7 @@ import { useSyncStore } from '@/features/compare';
 import { useUiStore } from '@/platform/uiStore';
 import { formatRelativeDay } from '@/shared/lib/relativeTime';
 import { openCommandPalette } from './commandPaletteEvent';
+import { ServiceStatusCard } from './ServiceStatusCard';
 import { diffBriefing } from '@/features/schema-diff';
 import { dialectLabel } from '@/shared/lib/dialectLabel';
 
@@ -134,6 +135,8 @@ export const HomeView: React.FC = () => {
           </span>
         </button>
       </section>
+
+      <ServiceStatusCard />
 
       <section className="mt-6" data-testid="home-recents">
         <h2 className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-2">

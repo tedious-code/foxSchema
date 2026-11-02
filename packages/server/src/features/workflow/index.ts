@@ -18,3 +18,6 @@ export const workflowFeature: ServerFeatureModule = {
     { prefix: '/api/workflow', access: 'user', routes: () => createWorkflowRoutes() },
   ],
 };
+
+/** For the system feature's service status: the engine's endpoint, state and health. */
+export { WorkflowSettingsService } from './workflow-settings.service';

@@ -164,6 +164,7 @@ const ROUTES: RouteExpectation[] = [
   { method: 'POST', path: '/api/signup', status: 400 },
   { method: 'POST', path: '/api/signup/skip', status: 200 },
   { method: 'GET', path: '/api/signup/state', status: 200 },
+  { method: 'GET', path: '/api/system/services', status: 200 },
   { method: 'POST', path: '/api/sql/code-cell', status: 400 },
   { method: 'POST', path: '/api/sql/code-cell/transpile', status: 400 },
   { method: 'POST', path: '/api/sql/execute', status: 400 },

@@ -166,6 +166,10 @@ export type {
   TableSizeGroup,
 } from '@foxschema/sql';
 
+// Safe column change: what a rename or type change touches, and its steps as SQL to review.
+export { DEFAULT_COLUMN_CHANGE_BATCH, planColumnChange } from '@foxschema/sql';
+export type { ColumnChange, ColumnChangeImpact, ColumnChangePlan, ColumnChangeStep } from '@foxschema/sql';
+
 // SQL Tracer: shapes and bounds (the server redacts; the screen only shows).
 export { TRACE_MAX_EVENTS, TRACE_MAX_MS } from '@foxschema/sql';
 export type { TraceEvent, TraceMode } from '@foxschema/sql';

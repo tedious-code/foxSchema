@@ -2960,6 +2960,44 @@ export const TestIds = {
       /** button · Unlock */
       cloneUnlock: 'clone-unlock',
     },
+    ColumnChangePanel: {
+      /** input */
+      columnChangeBatch: 'column-change-batch',
+      /** select · Pick a column */
+      columnChangeColumn: 'column-change-column',
+      /** button */
+      columnChangeCopyAll: 'column-change-copy-all',
+      /** p */
+      columnChangeHint: 'column-change-hint',
+      /** section · What it touches */
+      columnChangeImpact: 'column-change-impact',
+      /** p */
+      columnChangeLoadError: 'column-change-load-error',
+      /** input */
+      columnChangeNewName: 'column-change-new-name',
+      /** input */
+      columnChangeNewType: 'column-change-new-type',
+      /** button · Open in editor */
+      columnChangeOpenEditor: 'column-change-open-editor',
+      /** div · What it touches */
+      columnChangePanel: 'column-change-panel',
+      /** input */
+      columnChangePassword: 'column-change-password',
+      /** p */
+      columnChangeRefused: 'column-change-refused',
+      /** article */
+      columnChangeStep: (value: string | number) => `column-change-step-${value}`,
+      /** button */
+      columnChangeStepCopy: (value: string | number) => `column-change-step-${value}-copy`,
+      /** section · Steps ( ) */
+      columnChangeSteps: 'column-change-steps',
+      /** select */
+      columnChangeTable: 'column-change-table',
+      /** button · Unlock */
+      columnChangeUnlock: 'column-change-unlock',
+      /** ul */
+      columnChangeWarnings: 'column-change-warnings',
+    },
     DatabaseAccessModal: {
       /** div */
       dbAccessAllForm: 'db-access-all-form',
@@ -3229,6 +3267,8 @@ export const TestIds = {
       sqlSidebarUtilities: 'sql-sidebar-utilities',
       /** data · Backup & Restore */
       utilitiesBackup: 'utilities-backup',
+      /** data · Change Column */
+      utilitiesChangeColumn: 'utilities-change-column',
       /** data · Clone Table */
       utilitiesCloneTable: 'utilities-clone-table',
       /** select */
@@ -4077,6 +4117,24 @@ export type TestId =
   | 'cloud-cred-save'
   | `cloud-cred-status-${string}`
   | 'cloud-provider-credentials'
+  | 'column-change-batch'
+  | 'column-change-column'
+  | 'column-change-copy-all'
+  | 'column-change-hint'
+  | 'column-change-impact'
+  | 'column-change-load-error'
+  | 'column-change-new-name'
+  | 'column-change-new-type'
+  | 'column-change-open-editor'
+  | 'column-change-panel'
+  | 'column-change-password'
+  | 'column-change-refused'
+  | `column-change-step-${string}`
+  | `column-change-step-${string}-copy`
+  | 'column-change-steps'
+  | 'column-change-table'
+  | 'column-change-unlock'
+  | 'column-change-warnings'
   | 'command-palette'
   | 'command-palette-btn'
   | 'command-palette-input'
@@ -5190,6 +5248,7 @@ export type TestId =
   | 'user-valid-until'
   | 'user-warnings'
   | 'utilities-backup'
+  | 'utilities-change-column'
   | 'utilities-clone-table'
   | 'utilities-connection'
   | 'utilities-connection-pool'

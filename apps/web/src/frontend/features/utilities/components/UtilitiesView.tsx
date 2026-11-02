@@ -12,6 +12,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { Permission } from '@foxschema/shared';
 import {
   Activity,
+  ArrowRightLeft,
   Copy,
   Cpu,
   Database,
@@ -29,6 +30,7 @@ import { FileImportsPanel } from '@/features/sql-editor/ui';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import { BackupRestorePanel } from './BackupRestorePanel';
 import { CloneTableModal } from './CloneTableModal';
+import { ColumnChangePanel } from './ColumnChangePanel';
 import { DatabaseAccessModal } from './DatabaseAccessModal';
 import { FileQueryModal } from './FileQueryModal';
 import { IndexManagementModal } from './IndexManagementModal';
@@ -43,6 +45,7 @@ export type UtilityTool =
   | 'backup'
   | 'dbAccess'
   | 'clone'
+  | 'columns'
   | 'files'
   | 'pool'
   | 'sessions'
@@ -86,6 +89,14 @@ const TOOLS: {
     group: 'Maintenance',
     blurb: 'Archive a huge table as name_N and recreate an empty live twin.',
     icon: Copy,
+  },
+  {
+    id: 'columns',
+    testId: 'utilities-change-column',
+    label: 'Change Column',
+    group: 'Maintenance',
+    blurb: 'Rename a column or change its type the safe way: what it touches, then the steps as SQL to review.',
+    icon: ArrowRightLeft,
   },
   {
     id: 'pool',
@@ -316,6 +327,7 @@ export const UtilitiesView: React.FC = () => {
               onClose={() => undefined}
             />
           )}
+          {tool === 'columns' && <ColumnChangePanel key={lockedId} lockedConnectionId={lockedId} />}
           {insights && (
             <ServerInsightsModal
               open

@@ -1,5 +1,5 @@
 import { ConnectionFactory } from '../../cores/connection-factory.js';
-import { dbSchemaToTableSchemas, errorMessage } from '@foxschema/sql';
+import { dbSchemaToTableSchemas, errorMessage, parseClickHouseKeyList } from '@foxschema/sql';
 import {
   type SchemaProvider,
   type ConnectionOptions,
@@ -15,7 +15,7 @@ import {
   type TableSchema,
 } from '@foxschema/sql';
 
-interface ChTableRaw { name: string; engine: string; }
+interface ChTableRaw { name: string; engine: string; sorting_key: string; primary_key: string; }
 interface ChViewRaw { name: string; definition: string; }
 interface ChColumnRaw {
   table: string;
@@ -23,6 +23,7 @@ interface ChColumnRaw {
   position: number;
   type: string;
   is_in_primary_key: number | boolean;
+  is_in_sorting_key: number | boolean;
   default_kind: string;
   default_expression: string;
 }
@@ -74,7 +75,7 @@ export class ClickHouseProvider implements SchemaProvider {
 
     const [rawTables, rawViews, rawColumns] = await Promise.all([
       exec<ChTableRaw>(
-        `SELECT name, engine FROM system.tables
+        `SELECT name, engine, sorting_key, primary_key FROM system.tables
          WHERE database = $1 AND engine NOT IN ('View', 'MaterializedView', 'LiveView', 'Window', 'Merge', 'Distributed')
          ORDER BY name`,
         [db]
@@ -86,7 +87,7 @@ export class ClickHouseProvider implements SchemaProvider {
         [db]
       ),
       exec<ChColumnRaw>(
-        `SELECT table, name, position, type, is_in_primary_key, default_kind, default_expression
+        `SELECT table, name, position, type, is_in_primary_key, is_in_sorting_key, default_kind, default_expression
          FROM system.columns WHERE database = $1
          ORDER BY table, position`,
         [db]
@@ -102,11 +103,30 @@ export class ClickHouseProvider implements SchemaProvider {
     const indexes: Record<string, DbIndex[]> = {};
     const indexColumns: Record<string, DbIndexColumn[]> = {};
 
-    // Init tables
+    // Catalog sorting_key / primary_key win: expressions like cityHash64(id)
+    // live only there. Column flags fill in when the catalog strings are empty.
+    const catalogPk = new Set<string>();
     for (const t of rawTables) {
-      tables[t.name] = { name: t.name, columns: {}, primaryKey: [], foreignKeys: [], uniqueConstraints: [], indexes: [] };
+      const orderBy = parseClickHouseKeyList(t.sorting_key);
+      const fromPk = parseClickHouseKeyList(t.primary_key);
+      tables[t.name] = {
+        name: t.name,
+        columns: {},
+        primaryKey: fromPk,
+        foreignKeys: [],
+        uniqueConstraints: [],
+        indexes: [],
+        ...(t.engine ? { engine: t.engine } : {}),
+        ...(orderBy.length ? { orderBy } : {}),
+      };
       columns[t.name] = [];
-      primaryKeys[t.name] = [];
+      primaryKeys[t.name] = fromPk.map((column, i) => ({
+        name: column,
+        constName: 'PRIMARY_KEY',
+        column,
+        colSeq: i + 1,
+      }));
+      if (fromPk.length) catalogPk.add(t.name);
       foreignKeys[t.name] = [];
       uniqueConstraints[t.name] = [];
       indexes[t.name] = [];
@@ -125,11 +145,14 @@ export class ClickHouseProvider implements SchemaProvider {
       };
       if (tables[c.table]) {
         tables[c.table].columns[c.name] = col;
-        if (isPk) tables[c.table].primaryKey.push(c.name);
+        if (isPk && !catalogPk.has(c.table)) tables[c.table].primaryKey.push(c.name);
       }
       (columns[c.table] ??= []).push(col);
-      if (isPk) {
+      if (isPk && !catalogPk.has(c.table)) {
         (primaryKeys[c.table] ??= []).push({ name: c.name, constName: 'PRIMARY_KEY', column: c.name, colSeq: c.position });
+      }
+      if (c.is_in_sorting_key && tables[c.table] && !tables[c.table].orderBy?.length) {
+        (tables[c.table].orderBy ??= []).push(c.name);
       }
     }
 

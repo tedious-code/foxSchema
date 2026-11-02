@@ -1424,3 +1424,152 @@ describe('role membership speaks each engine’s own syntax', () => {
     expect(sql).toContain('REVOKE ROLE foxrole FROM USER gone;');
   });
 });
+
+describe('ClickHouse CREATE TABLE uses ENGINE / ORDER BY, not a PRIMARY KEY constraint', () => {
+  const coupons = tableSchema({
+    name: 'coupons',
+    primaryKey: { name: 'PRIMARY_KEY', columns: ['id'] },
+    columns: [
+      { name: 'id', type: 'Int32', nullable: false, primaryKey: true },
+      { name: 'code', type: 'String', nullable: false, primaryKey: false },
+      { name: 'discount_pct', type: 'Decimal(5, 2)', nullable: false, primaryKey: false },
+      { name: 'valid_until', type: 'Date', nullable: true, primaryKey: false },
+    ],
+  });
+
+  it('maps a logical primary key to MergeTree ORDER BY', () => {
+    const ddl = gen.generateObjectDdl(coupons, 'clickhouse');
+    expect(ddl).toContain('CREATE TABLE coupons (');
+    expect(ddl).toContain('id Int32');
+    expect(ddl).toMatch(/\) ENGINE = MergeTree ORDER BY id;/);
+    expect(ddl).not.toMatch(/PRIMARY KEY/);
+    expect(ddl).not.toMatch(/CONSTRAINT PRIMARY_KEY/);
+  });
+
+  it('maps a composite primary key to ORDER BY (cols)', () => {
+    const ddl = gen.generateObjectDdl(
+      tableSchema({
+        name: 'order_coupons',
+        primaryKey: { name: 'PRIMARY_KEY', columns: ['order_id', 'coupon_id'] },
+        columns: [
+          { name: 'order_id', type: 'Int32', nullable: false, primaryKey: true },
+          { name: 'coupon_id', type: 'Int32', nullable: false, primaryKey: true },
+          { name: 'applied_at', type: 'DateTime', nullable: false, primaryKey: false },
+        ],
+      }),
+      'clickhouse'
+    );
+    expect(ddl).toMatch(/\) ENGINE = MergeTree ORDER BY \(order_id, coupon_id\);/);
+    expect(ddl).not.toMatch(/CONSTRAINT/);
+    expect(ddl).not.toMatch(/PRIMARY KEY \(order_id, coupon_id\)/);
+  });
+
+  it('keeps a captured engine and sorting key', () => {
+    const ddl = gen.generateObjectDdl(
+      tableSchema({
+        ...coupons,
+        engine: 'ReplacingMergeTree',
+        orderBy: ['id', 'code'],
+      }),
+      'clickhouse'
+    );
+    expect(ddl).toMatch(/\) ENGINE = ReplacingMergeTree PRIMARY KEY id ORDER BY \(id, code\);/);
+  });
+
+  it('does not change Postgres / DB2 CREATE TABLE shape', () => {
+    const pg = gen.generateObjectDdl(coupons, 'postgres');
+    expect(pg).toContain('CONSTRAINT PRIMARY_KEY PRIMARY KEY (id)');
+    expect(pg).not.toMatch(/ENGINE/);
+    const db2 = gen.generateObjectDdl(coupons, 'db2');
+    expect(db2).toContain('CONSTRAINT PRIMARY_KEY PRIMARY KEY (id)');
+    expect(db2).not.toMatch(/ENGINE/);
+  });
+
+  it('emits the same ENGINE / ORDER BY form from a migration plan', () => {
+    const diff: TableDiff = {
+      tableName: 'COUPONS',
+      objectType: 'TABLE',
+      status: 'ADDED',
+      columnDiffs: [],
+      indexDiffs: [],
+      foreignKeyDiffs: [],
+      sourceTable: coupons,
+    };
+    const sql = gen
+      .generateMigrationPlan([diff], 'clickhouse', { targetSchema: 'demo_b' })
+      .flatMap((s) => s.statements)
+      .join('\n');
+    expect(sql).toMatch(/CREATE TABLE demo_b\.coupons \(/);
+    expect(sql).toMatch(/ENGINE = MergeTree ORDER BY id;/);
+    expect(sql).not.toMatch(/PRIMARY KEY \(id\)/);
+  });
+
+  it('reviews an in-place key change instead of ALTER TABLE ADD PRIMARY KEY', () => {
+    const diff: TableDiff = {
+      tableName: 'COUPONS',
+      objectType: 'TABLE',
+      status: 'MODIFIED',
+      columnDiffs: [],
+      indexDiffs: [],
+      foreignKeyDiffs: [],
+      sourceTable: tableSchema({
+        name: 'coupons',
+        primaryKey: { name: 'PRIMARY_KEY', columns: ['id', 'code'] },
+        columns: coupons.columns,
+        engine: 'MergeTree',
+        orderBy: ['id', 'code'],
+      }),
+      targetTable: tableSchema({
+        name: 'coupons',
+        primaryKey: { name: 'PRIMARY_KEY', columns: ['id'] },
+        columns: coupons.columns,
+        engine: 'MergeTree',
+        orderBy: ['id'],
+      }),
+    };
+    const sql = gen.generateMigrationPlan([diff], 'clickhouse').flatMap((s) => s.statements).join('\n');
+    expect(sql).toMatch(/-- review:.*PRIMARY KEY is part of the ENGINE clause/i);
+    expect(sql).not.toMatch(/ALTER TABLE .* ADD .*PRIMARY KEY/i);
+  });
+
+  it('reviews an ORDER BY change without emitting ALTER TABLE ADD PRIMARY KEY', () => {
+    const diff: TableDiff = {
+      tableName: 'COUPONS',
+      objectType: 'TABLE',
+      status: 'MODIFIED',
+      columnDiffs: [],
+      indexDiffs: [],
+      foreignKeyDiffs: [],
+      sourceTable: tableSchema({
+        ...coupons,
+        engine: 'MergeTree',
+        orderBy: ['id', 'code'],
+      }),
+      targetTable: tableSchema({
+        ...coupons,
+        engine: 'MergeTree',
+        orderBy: ['id'],
+      }),
+    };
+    const sql = gen.generateMigrationPlan([diff], 'clickhouse').flatMap((s) => s.statements).join('\n');
+    expect(sql).toMatch(/-- review:.*ENGINE \/ ORDER BY cannot be altered in place/i);
+    expect(sql).not.toMatch(/ALTER TABLE .* ADD .*PRIMARY KEY/i);
+  });
+
+  it('drops a ClickHouse table with DROP TABLE IF EXISTS', () => {
+    const diff: TableDiff = {
+      tableName: 'LEGACY_AUDIT_LOG',
+      objectType: 'TABLE',
+      status: 'REMOVED',
+      columnDiffs: [],
+      indexDiffs: [],
+      foreignKeyDiffs: [],
+      targetTable: tableSchema({ name: 'legacy_audit_log', columns: coupons.columns }),
+    };
+    const sql = gen
+      .generateMigrationPlan([diff], 'clickhouse', { targetSchema: 'demo_b' })
+      .flatMap((s) => s.statements)
+      .join('\n');
+    expect(sql).toMatch(/DROP TABLE IF EXISTS demo_b\.legacy_audit_log;/);
+  });
+});

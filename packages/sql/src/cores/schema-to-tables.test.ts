@@ -236,3 +236,36 @@ describe('groupForeignKeyRows', () => {
     expect(out[0]!.fk.referencedColumns).toEqual([]);
   });
 });
+
+describe('dbSchemaToTableSchemas ClickHouse engine / ORDER BY', () => {
+  it('copies engine and sorting key onto TableSchema', () => {
+    const coupons: DbTable = {
+      name: 'coupons',
+      columns: { id: { name: 'id', type: 'Int32', nullable: false } },
+      primaryKey: ['id'],
+      foreignKeys: [],
+      uniqueConstraints: [],
+      indexes: [],
+      engine: 'MergeTree',
+      orderBy: ['id'],
+    };
+    const [t] = dbSchemaToTableSchemas(emptySchema({ coupons }));
+    expect(t?.engine).toBe('MergeTree');
+    expect(t?.orderBy).toEqual(['id']);
+    expect(t?.primaryKey?.columns).toEqual(['id']);
+  });
+
+  it('omits engine / ORDER BY when the catalog did not send them', () => {
+    const orders: DbTable = {
+      name: 'orders',
+      columns: { id: { name: 'id', type: 'int', nullable: false } },
+      primaryKey: ['id'],
+      foreignKeys: [],
+      uniqueConstraints: [],
+      indexes: [],
+    };
+    const [t] = dbSchemaToTableSchemas(emptySchema({ orders }));
+    expect(t?.engine).toBeUndefined();
+    expect(t?.orderBy).toBeUndefined();
+  });
+});

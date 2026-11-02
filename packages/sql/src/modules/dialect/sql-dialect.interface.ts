@@ -84,6 +84,34 @@ export interface SqlDialect {
   /** Statement(s) to drop an existing primary key before adding a new one. */
   dropPrimaryKeyStatements(tableName: string, pkName: string | undefined): string[];
 
+  /**
+   * Add a primary key. Default: `ALTER TABLE t ADD [CONSTRAINT name] PRIMARY KEY (cols)`.
+   * Override when that form is invalid (ClickHouse: `-- review:` recreate).
+   */
+  addPrimaryKeyStatements?(tableName: string, quotedColumns: string[], pkName: string | undefined): string[];
+
+  /**
+   * Emit `PRIMARY KEY (cols)` inside CREATE TABLE. Default true.
+   * ClickHouse only allows CHECK/ASSUME there.
+   */
+  inlinePrimaryKeyConstraint?: boolean;
+
+  /**
+   * Clauses after the CREATE TABLE column list. ClickHouse: ` ENGINE = MergeTree ORDER BY …`.
+   * `quotedOrderBy` is identifier-quoted, or left raw for a function expression.
+   */
+  createTableSuffix?(table: TableSchema, quotedOrderBy: string[]): string;
+
+  /**
+   * ENGINE / ORDER BY changed. Omit when the dialect has no table engine.
+   * ClickHouse cannot ALTER those in place — returns `-- review:` to recreate.
+   */
+  engineChangeStatements?(
+    tableName: string,
+    source: TableSchema,
+    target: TableSchema
+  ): string[];
+
   /** Parse a native type string (e.g. "VARCHAR(255)") into the canonical model. */
   parseType(raw: string): CanonicalType;
 

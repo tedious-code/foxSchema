@@ -12,10 +12,10 @@ an interactive page (open it in a browser), and
 [the test and fix plan](plans/2026-10-25-feature-and-dialect-test-plan.md) sets
 the order every feature and dialect is tested in.
 
-Measured on `main` at `b12bcd5607` (2026-10-31): 35 features, 18 server
-feature modules, 158 HTTP routes (pinned by
+Measured on `main` at `66575674` (2026-11-02): 35 features, 18 server
+feature modules, 159 HTTP routes (pinned by
 `packages/server/src/api/http-contract.test.ts`), 14 frontend features,
-16 database engines, 28 metadata tables (31 migrations), 57 e2e specs in 35
+16 database engines, 28 metadata tables (31 migrations), 58 e2e specs in 35
 groups, ~550 unit-test files. Re-measure with the commands in
 [Keeping this page true](#keeping-this-page-true).
 
@@ -38,7 +38,7 @@ flowchart LR
   end
   subgraph server["Fox server — packages/server (Fastify)"]
     PLAT["platform<br/>identity · RBAC · workspaces<br/>connections · guards"]
-    FEAT["18 feature modules<br/>158 routes"]
+    FEAT["18 feature modules<br/>159 routes"]
   end
   WFS["Workflow server :8081<br/>apps/workflow-server<br/>+ packages/workflow-engine"]
   META[("Metadata store<br/>SQLite · 28 tables")]
@@ -95,7 +95,7 @@ flowchart LR
   PLATF --> p3[platform.workspaces<br/>Workspaces]
   PLATF --> p4[platform.connections<br/>Connections & drivers]
   PLATF --> p5[platform.secrets<br/>App secrets]
-  PLATF --> p6[platform.system<br/>Shell, health, updates]
+  PLATF --> p6[platform.system<br/>Shell, health, services]
 
   SCH --> s1[schema.compare<br/>Compare & deploy]
   SCH --> s2[schema.applies<br/>Migration history]
@@ -149,7 +149,7 @@ in its folders and its e2e specs (`apps/e2e/src/tests`).
 | `platform.workspaces` | Workspaces — rail button and menu, create, switch, archive, restore, settings, members and workspace roles (a personal workspace lends no more than its account holds), invites (accept / decline, 14 days), public discover / join, shared workspace scripts | Rail button under the Fox mark | `/api/workspaces` (20) | server `workspaces`, `platform/workspaces`; web `workspaces` | `workspace.members`, `workspace.settings`, `workspace.create` | `workspaces`, `workspace_members`, `workspace_invites`, `workspace_scripts` | server 5, web 3; e2e `workspaces`, `workspaces-sharing-limits` |
 | `platform.connections` | Connections & drivers — credential manager, connection form (password / Windows / LDAP / No password on Redis and MongoDB, SSL, pool, SQLite / DuckDB file picker), schema list, connection test, driver check and Install driver, cloud provider credentials | Creds (rail), connection modal | `/api/connections` (4), `/api/connection/test`, `/api/db/test`, `/api/driver` (2) | server `connections`, `platform/connections`, `internal/driver-install`; web `connections` | per workspace role; `admin.drivers` to install | `connections`, `cloud_provider_credentials` | server 1, web 1 |
 | `platform.secrets` | App secrets — vault entries, cloud secret providers, resolving a secret | Creds → secrets, editor Secrets panel | `/api/app-secrets` (9) | server `admin` (app-secrets mount) | `secrets.view/create/edit/delete` | `app_secrets`, `cloud_provider_credentials` | — |
-| `platform.system` | Shell, health, updates — activity rail, top toolbar, command palette, home, backend-offline banner, activity, app info, config, update check / apply, email and update settings, send feedback | App shell, Prefs | `/api/health`, `/api/config`, `/api/app-info`, `/api/activity`, `/api/updates` (2) | server `system`; web `app/shell`, `app/settings`, `feedback` | — | `app_settings` | server 1, web 2; e2e `smoke`, `lazy-loading`, `send-feedback`, `auto-error-catch` |
+| `platform.system` | Shell, health, updates — activity rail, top toolbar, command palette, home, **Services** card (API / Web UI / Workflow engine status; no start/stop yet), backend-offline banner, activity, app info, config, update check / apply, email and update settings, send feedback | App shell, Prefs, Home | `/api/health`, `/api/config`, `/api/app-info`, `/api/activity`, `/api/updates` (2), `/api/system/services` | server `system` (`service-status.ts`); web `app/shell` (`ServiceStatusCard`), `app/settings`, `feedback` | — | `app_settings` | server 2, web 3; e2e `smoke`, `lazy-loading`, `send-feedback`, `auto-error-catch` |
 
 ### Schema
 
@@ -548,11 +548,13 @@ the one table every screen asks. "—" has a reason string the UI shows.
 | SQLite | ✓ | — | — | ✓ | ✓ | ✓ | `dialects/sqlite` |
 | DuckDB | ✓ | — | — | ✓ | ✓ | ✓ | `dialects/duckdb` |
 | ClickHouse | ✓ | — | ✓ | ✓ | — | — | `dialects/clickhouse` |
-| Redis | — | — | — | — | ✓ (hash keys; lists, sets, sorted sets, streams and JSON read as tables) | — | — |
-| MongoDB | — | — | — | — | ✓ | — | — |
+| Redis | — | — | — | — | ✓ (hash keys; lists, sets, sorted sets, streams and JSON read as tables) | — | `redis-editor` |
+| MongoDB | — | — | — | — | ✓ | — | `mongodb-sql` |
 
 Redis and MongoDB run a fail-closed SQL subset in the editor (single-table
-SELECT / INSERT / UPDATE / DELETE with `column = value` predicates).
+SELECT / INSERT / UPDATE / DELETE with `column = value` predicates). A MongoDB
+SELECT returns only the columns you name; `_id` is text, and a write that uses
+that value matches the ObjectId a SELECT showed.
 
 ## Tests and known gaps
 
@@ -564,22 +566,20 @@ SELECT / INSERT / UPDATE / DELETE with `column = value` predicates).
 | Unit — web | `apps/web` | 179 (sql-editor 59, lokee-weave 14, access 12, workflow 12, …) |
 | Unit — workflow | `packages/workflow-engine`, `apps/workflow-server` | 87 + 19 |
 | Unit — CLI | `apps/cli` | 14 |
-| E2E (Playwright) | `apps/e2e/src/tests` | 56 spec files (`npm run test:e2e:all`) |
+| E2E (Playwright) | `apps/e2e/src/tests` | 58 spec files (`npm run test:e2e:all`) |
 
-Known gaps and open work (2026-10-26, after #557 – #561) — each belongs on the planning board:
+Known gaps and open work (2026-11-02, after #575 – #589) — each belongs on the planning board:
 
 | Feature | Gap | Kind |
 |---|---|---|
 | `schema.snapshots` | Revert scope e2e ("reverts only the ticked object") recorded as failing — re-check | bug? |
 | `editor.code` | `code-cell-execute.service.test.ts` timeout test flakes under load (4 s budget includes worker cold start) | test |
 | `engines.dialects` | YugabyteDB container stuck on a stale master list (needs a fresh volume) | env |
-| `access.inspector` | Oracle `FOX_READER` role not listed: seed account lacks dictionary access | test |
-| `editor.run` | Opening a sample bookmark replaces the checked Destinations with none | bug |
 | `platform.auth` | Manual walk: SSO with real providers, launch session, email verification with real mail (automated part green 2026-10-25) | manual |
 | `platform.workspaces` | Workspace ceiling caps by rank; a custom role mapping is not intersected with the account's permissions | improvement |
-| `platform.connections` | Redis / MongoDB: an explicit "No password" sign-in choice (a requirepass-only Redis saved without its password is not prompted) | improvement |
-| `platform.admin` | Read-only as a permission: routes declare `reads`, roles lack `app.write` (the Demo role uses a URL allow-list today) | improvement |
-| `editor.datacompare` | Compare 2,000 rows with paging (done, #559/#560); SQL tracer Phase 1 (done, see `utilities.trace`) | feature |
+| `platform.connections` | A requirepass-only Redis saved without its password is not prompted (the **No password** login method is shipped) | improvement |
+| `platform.system` | Home → Services is status only; start/stop the Workflow engine (`admin.services`) is later | feature |
+| `utilities.columns` | SQLite (table rebuild), Oracle, Db2, Redshift, ClickHouse not in v1; primary-key / inbound-FK / identity columns refused; running the steps from the app is v2 | feature |
 
 ## Planning work
 

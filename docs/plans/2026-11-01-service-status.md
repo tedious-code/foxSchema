@@ -1,5 +1,12 @@
 # Service status on Home, with start and stop for the Workflow engine
 
+> **Shipped 2026-11-02 (#587): status only.** Home → Services lists the API,
+> the Web UI and the Workflow engine. Engine states are `running`,
+> `not_configured` and `unreachable` — there is no Stopped row, no Start /
+> Stop, and no `admin.services` yet. Living docs:
+> [user-guide.md](../user-guide.md#first-run), [workflow.md](../workflow.md),
+> [CODE_MAP.md](../CODE_MAP.md). Start and stop remain steps 2–3 below.
+
 Board card: `dashboard-service-control`. Decided on 2026-11-01: v1 shows the
 status of all three services and lets an admin start and stop the Workflow
 engine only.

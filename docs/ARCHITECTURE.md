@@ -274,6 +274,17 @@ only. Key hooks: `dropForeignKeyStatement`, `dropIndexStatement`, `dropTriggerSt
 `dropFunctionStatement`, `dropProcedureStatement`. Full hook map + fallback behavior +
 per-dialect gotchas live in `packages/sql/src/providers/DIALECTS.md` (tracked).
 
+Safe column change is a sibling registry, not a `SqlDialect` hook:
+`planColumnChange` (`modules/utilities/column-change.ts`) finds impact and
+blockers from the schema Fox already loaded; each family writes steps in
+`providers/<d>/*.column-change.ts` (`column-change.registry.ts`). Engines not
+listed answer "not yet" rather than SQL that would fail there. The Utils panel
+computes the plan in the browser (`@foxschema/ui-shared`); Fox runs none of it.
+A rename alone is in-place; a type change adds, copies in batches, switches
+over, and drops last. PostgreSQL / YugabyteDB / CockroachDB, MySQL / MariaDB /
+TiDB, and SQL Server / Azure SQL are in v1. SQLite needs a table rebuild;
+Redshift's `ALTER TABLE` cannot express the steps.
+
 Version-aware DDL: `SchemaProvider.detectVersion?()` → stored in Zustand as
 `targetServerVersion` → flows into `SchemaMapping` → dialect drop hooks use it. Oracle pre-23c
 uses PL/SQL exception blocks; DB2 (all versions) uses SQL PL `CONTINUE HANDLER FOR SQLSTATE '42704'`.
@@ -395,6 +406,7 @@ Constraints:
 2. Register in `provider-settings.ts`, `adapter-registry.ts`, `provider-registry.ts`, `modules/dialect/registry.ts`
    (and `modules/access/user-sql.registry.ts` / `modules/access/access-sql.registry.ts` when the engine has account or GRANT SQL).
    Backup/restore commands: `<d>.backup.ts` in `modules/utilities/backup.registry.ts`. A `history` query, where the engine records its backups, lets the panel list them; a server-side SQL backup can be run from the panel, a restore never is.
+   Safe column change: `<d>.column-change.ts` in `modules/utilities/column-change.registry.ts`. Omit the engine to answer "not yet"; do not guess SQL. SQLite is a table rebuild (later); Redshift is not in v1.
 3. Add the dialect name to the `Dialect` union **and** the `DIALECTS` array in
    `packages/sql/src/providers/provider-settings.ts` (`dialect-registry.test.ts`
    fails until they match `PROVIDER_SETTINGS`). Nothing in `apps/web` needs

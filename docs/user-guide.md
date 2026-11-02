@@ -96,13 +96,20 @@ your email so you can get product updates (new dialects, releases). It is
 optional — use **Skip for now** if you prefer. It only appears once per install.
 
 You land on **Home**: continue last compare / last query, **Snapshots**, **Utilities**,
-and saved connections (grouped by dialect). **⌘K** / **Ctrl+K** searches the same
-views the left rail shows, plus recents. The left rail is the Fox mark (Home),
-the **workspace** button (the one workspace this account is acting in), then
-**Compare**, **Editor**, **Utils**, **Access**, **Workflow**, **Snapshots**, and
-**Creds** and **Applies** at the bottom. A launch session (`foxschema open`
-before you create an account) hides the workspace button — you are already in
-the install owner's personal workspace.
+and saved connections (grouped by dialect). A **Services** card lists the **API**
+(this server, with its version), the **Web UI** (this page loaded), and the
+**Workflow engine** — Running, Not configured (names the missing
+`WORKFLOW_ENGINE_TOKEN` / `FOXFLOW_ENCRYPTION_KEY`), or Unreachable (those are
+set but its health check did not answer). A running engine that is Disabled in
+Workflow settings still shows Running, with “Not taking new runs”. The card
+refreshes every 10 seconds while Home is open. Status only: there is no Start
+or Stop from here yet. **⌘K** / **Ctrl+K** searches the same views the left rail
+shows, plus recents. The left rail is the Fox mark (Home), the **workspace**
+button (the one workspace this account is acting in), then **Compare**,
+**Editor**, **Utils**, **Access**, **Workflow**, **Snapshots**, and **Creds** and
+**Applies** at the bottom. A launch session (`foxschema open` before you create
+an account) hides the workspace button — you are already in the install owner's
+personal workspace.
 
 Saved connections, snapshots, migration runs and secrets belong to a
 **workspace** — every account has its own, and you can share others. See
@@ -191,6 +198,11 @@ admin**) or several. `FOX_ADMIN_POLICY` on the server overrides the switch.
    **collection** (a list, set, sorted set or stream key is a table of its
    own; its elements are the rows). Reads are bounded; the explorer never
    walks the whole keyspace in one command.
+   MongoDB and Redis run a fail-closed SQL subset in the editor (single-table
+   SELECT / INSERT / UPDATE / DELETE with `column = value`). A MongoDB SELECT
+   returns **only the columns you name** — Mongo would otherwise add `_id` to
+   every find. `_id` is shown as text; an UPDATE or DELETE that uses that value
+   finds the document even when Mongo stored it as an ObjectId.
 3. Fill in host, port, database, username, and password. Schema is optional on
    PostgreSQL (the form matches the engine). SQLite and DuckDB are **file paths**
    — use **Browse…**; they have no password.
@@ -198,8 +210,11 @@ admin**) or several. `FOX_ADMIN_POLICY` on the server overrides the switch.
    with no auth (nothing is sent or asked for), or **Password** — which a
    Redis with only `requirepass` needs even without a username. Saved without
    its password, a Password connection asks for it when you run.
-4. **Test** the connection, then save it. Passwords are encrypted — they're stored
-   safely and never shown back to your browser.
+4. **Test** the connection, then save it. The **name** is free text (a host/db,
+   a file path, or `Files: report.csv` are all fine), at most 120 characters,
+   with no line breaks — saving an edit keeps the name as you left it.
+   Passwords are encrypted — they're stored safely and never shown back to your
+   browser.
 
 Do this for both the database you're comparing **from** (Original) and the one you're
 comparing **to** (Target).
@@ -325,8 +340,8 @@ compare / migrate). It lives in the same local web UI you open with `foxschema`.
    hits the tables on screen; check more Destinations afterwards to fan out.
 4. Type SQL in the editor. Multiple statements are fine. The **run rail** on the
    left of the editor gives each statement a row on its first line: its **In [n]**
-   number (the one the Run tooltip and `Out [n]` use — click it to select the
-   statement), a ▶ that runs that cell alone, and a checkbox that includes it in
+   number (the one the Run tooltip and `Out [n]` use — click it to select **only
+   that** statement), a ▶ that runs that cell alone, and a checkbox that includes it in
    **Run**. With Safe mode on, the number turns amber for a write Run will ask you
    to confirm and red with `!` for an UPDATE or DELETE with no WHERE. Or **select**
    a statement (or any SQL) in the editor — Run becomes **Run selection** and only
@@ -446,7 +461,8 @@ Tips:
   Engine CHECK / FK / uniqueness still fail at execute time. Subquery `FROM`,
   joins, and `UNION` result grids stay read-only.
 - **Format** — pretty-print the buffer. **Clear** removes results for the active tab.
-- **Bookmarks** — save reusable snippets from the sidebar.
+- **Bookmarks** — save reusable snippets from the sidebar. Opening a ★ Sample
+  keeps the Destinations you already had checked.
 - **Variables** — named values reused as `${{name}}` or `${{name.col}}` (table
   column → list). Add them in the **Variables** sidebar; right-click a result
   **cell** (scalar), **column header** (list), or **# / empty grid** (table); or
@@ -631,6 +647,31 @@ saved credential at the top, then a tool:
   statement and is not one transaction — if it stops after rename, recover by
   renaming the archive back. Inbound FKs from other tables still point at the
   archive until you update them.
+- **Change Column** — rename a column, change its type, or both, the safe way.
+  Pick a table and column, then a new name and/or type (types you already use
+  on this connection are suggested). Fox shows **what it touches** from the
+  schema it already loaded (indexes, outbound foreign keys, triggers, views
+  whose definition *may* mention the column — a text match) and numbered
+  **steps as SQL**. Nothing runs from here: **Copy all** or **Open in editor**
+  (a new tab against this connection only). The editor's Safe mode then
+  confirms each write, as it already does.
+
+  A **rename alone** is one instant `RENAME COLUMN` (or `sp_rename`). A **type
+  change** adds `<target>__new`, keeps it in step with a trigger where the engine
+  has them, copies in batches (default 10,000, keyed on the primary key — run
+  until 0 rows), checks, switches the names in one go, and drops
+  `<old>__old` last. CockroachDB and TiDB have no trigger here: pause writes,
+  or run the copy once more before the switch-over. MySQL and SQL Server need
+  both sides of a foreign key to have the same type — the planner refuses and
+  names the parent column when they would not. Lossy conversions (narrowing,
+  text to number, dropped time zone) are warnings, not blockers.
+
+  **Engines:** PostgreSQL, YugabyteDB, CockroachDB, MySQL, MariaDB, TiDB, SQL
+  Server, Azure SQL. The rest — including SQLite (needs a table rebuild),
+  Redshift, Oracle, Db2 — say “not yet” rather than SQL that would fail there.
+  Also refused for now: a primary-key column, a column other tables’ foreign
+  keys point at, an identity column, and a type change on a table with no
+  primary key (the copy batches through it).
 - **Backup & Restore** — Fox Schema writes the backup and restore commands
   for this connection. The amber banner says *where* they run, because that is
   what the folder means:
@@ -716,7 +757,8 @@ Developer / ops runbook: [workflow.md](workflow.md). Env vars:
 
 1. Start the engine beside Fox Schema (`npm run dev:with-workflow` in a checkout,
    or deploy `apps/workflow-server` next to Docker/CLI). The published Docker
-   image is Fox Schema only — it does not start the engine.
+   image is Fox Schema only — it does not start the engine. Home → **Services**
+   shows whether this API can reach it; it does not start or stop it.
 2. Open **Workflow** on the activity rail.
 3. **Engine** tab: health should read `engine ok`. Set state to **Enabled** and
    **Save settings**. New installs default to **Disabled**, so Run does nothing
@@ -977,12 +1019,15 @@ off). From the profile menu, **Sign out other sessions** ends every session
 except this one — useful if you left a browser open elsewhere.
 
 **Workflow engine down / Run refused.** The designer is in the UI; jobs run in a
-separate process. Check **Workflow → Engine** health. New installs default to
-**Disabled** — set **Enabled** and Save. `FOXFLOW_ENCRYPTION_KEY` is required at
-engine boot. Saved connections need both `WORKFLOW_ENGINE_TOKEN` (same value on
-FoxSchema and the engine) and an explicit grant (pick the connection on a SQL
-pipe). A 403 on save or run usually means the workflow names a connection from
-another workspace. The published Docker image does not start the engine. See
-[workflow.md](workflow.md).
+separate process. Home → **Services** says Running, Not configured (set
+`WORKFLOW_ENGINE_TOKEN` and `FOXFLOW_ENCRYPTION_KEY` on the API) or Unreachable
+(those are set but `/health` did not answer). Check **Workflow → Engine** health
+too. New installs default to **Disabled** — set **Enabled** and Save; the
+Services card then notes “Not taking new runs” until you do. `FOXFLOW_ENCRYPTION_KEY`
+is required at engine boot. Saved connections need both `WORKFLOW_ENGINE_TOKEN`
+(same value on FoxSchema and the engine) and an explicit grant (pick the
+connection on a SQL pipe). A 403 on save or run usually means the workflow names
+a connection from another workspace. The published Docker image does not start
+the engine. See [workflow.md](workflow.md).
 
 Still stuck? Open a GitHub issue with what you did and the error you saw.

@@ -1,5 +1,11 @@
 # Safe column change: plan and SQL for review
 
+> **Shipped 2026-11-02:** the planner (#588) and Utilities → **Change Column**
+> (#589). Living docs: [user-guide.md](../user-guide.md#utilities),
+> [FEATURE_MAP.md](../FEATURE_MAP.md) (`utilities.columns`),
+> [CODE_MAP.md](../CODE_MAP.md). The “Next: the screen” line at the bottom is
+> done. Running the steps from the app is still v2.
+
 Board card: `safe-column-change`, new feature id `utilities.columns`. Decided
 on 2026-11-01: v1 shows what a change touches and generates the SQL to
 review, copy or open in the editor. Fox runs nothing itself in v1.
@@ -134,4 +140,4 @@ Live runs (seeded `demo_a.orders`, 11 rows, batches of 3), every step through
 | MySQL | `customer_id` int → bigint (foreign key to `customers.id` int) | Refused by the planner, with the reason |
 | SQL Server | `status` nvarchar(20) → nvarchar(40), renamed `state` (NOT NULL, DEFAULT constraint, index) | All 7 steps, as above |
 
-Next: the Utilities → Change column screen.
+The Utilities → Change Column screen shipped in #589.

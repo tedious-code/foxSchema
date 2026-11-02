@@ -191,6 +191,14 @@ Saved in FoxSchema (`workflow.engine_config`). The engine re-reads them every
   let every designer on the install save and run with A's password. The proxy
   now refuses that. Move the workflow (or re-pick a connection that belongs
   here) instead of copying a `foxschema-…` credential id across workspaces.
+- **Home → Services is status, not control.** `GET /api/system/services` reports
+  the API (always `running` if the page loaded) and the engine: `running` (its
+  `/health` answered), `not_configured` (this API lacks `WORKFLOW_ENGINE_TOKEN`
+  or `FOXFLOW_ENCRYPTION_KEY` — `detail` names which), or `unreachable` (those
+  are set but health did not answer). A running engine that is Disabled in
+  Workflow settings still reports `running`, with `detail` “Not taking new
+  runs”. There is no Start / Stop from the card yet
+  ([plan](plans/2026-11-01-service-status.md)).
 - **Docker image does not start the engine.** `Dockerfile` / `docker-compose.app.yml`
   run FoxSchema only. Deploy `apps/workflow-server` beside it and set the token
   on both. See [DEPLOYMENT.md](DEPLOYMENT.md#workflow-engine).

@@ -4,11 +4,12 @@ import { ActivityRail } from '@/app/shell/ActivityRail';
 import { ErrorBoundary } from '@/shared/components/ErrorBoundary';
 import { LoadingScreen } from '@/app/shell/LoadingScreen';
 import { useSyncStore } from '@/features/compare';
+import { CompareErrorBanner } from '@/features/compare/ui';
 import { useAuthStore } from '@/platform/authStore';
 import { useUiStore } from '@/platform/uiStore';
 import { apiGetPreferences } from '@/shared/api/authApi';
 import { ToastHost } from '@/app/shell/ToastHost';
-import { AlertCircle, AlertTriangle, Loader2, X } from 'lucide-react';
+import { AlertTriangle, Loader2, X } from 'lucide-react';
 import { BackendOfflineBanner } from '@/app/shell/BackendOfflineBanner';
 import { DemoBanner } from '@/app/shell/DemoBanner';
 import { CommandPalette } from '@/app/shell/CommandPalette';
@@ -36,7 +37,6 @@ const VIEWS = Object.fromEntries(
 const Workspace: React.FC = () => {
   // Per-field selectors: Workspace parents the whole shell, so a whole-store
   // subscription re-rendered everything on every checkbox click.
-  const errorMsg = useSyncStore((s) => s.errorMsg);
   const warnings = useSyncStore((s) => s.warnings);
   const dismissWarnings = useSyncStore((s) => s.dismissWarnings);
   const activeView = useUiStore((s) => s.activeView);
@@ -71,12 +71,7 @@ const Workspace: React.FC = () => {
         </Suspense>
       )}
 
-      {errorMsg && (
-        <div data-testid="error-banner" className="bg-rose-950/60 border-y border-rose-500/20 px-6 py-2.5 flex items-center gap-2.5 text-xs text-rose-300 font-semibold animate-slide-down">
-          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-          <span>{errorMsg}</span>
-        </div>
-      )}
+      <CompareErrorBanner />
 
       {warnings.length > 0 && (
         <div data-testid="warning-banner" className="bg-amber-950/50 border-y border-amber-500/20 px-6 py-2.5 flex items-start gap-2.5 text-xs text-amber-300 font-medium animate-slide-down">

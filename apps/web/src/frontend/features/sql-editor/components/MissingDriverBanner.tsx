@@ -3,10 +3,11 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * Install driver, offered where a missing driver stops the SQL editor: the
- * schema browser and a failed run. Every banner reads one shared status
- * (`shared/lib/driverStatus`), so an install from any of them shows on all,
- * and a second click joins the running install instead of starting another.
+ * Install driver, offered where a missing driver stops work: the schema
+ * browser, a failed run, and Compare’s connect banner. Every banner reads one
+ * shared status (`shared/lib/driverStatus`), so an install from any of them
+ * shows on all, and a second click joins the running install instead of
+ * starting another.
  */
 import React from 'react';
 import { AlertTriangle, Download, Loader2 } from 'lucide-react';

@@ -55,6 +55,7 @@ describe('accepts exactly the shapes the app emits', () => {
 
   it('SELECT with and without predicates and limit', () => {
     expect(ok('SELECT * FROM users')).toMatchObject({ kind: 'select', columns: '*', where: [] });
+    expect(ok('SELECT* from products')).toMatchObject({ kind: 'select', columns: '*', table: 'products' });
     expect(ok('SELECT "a", "b" FROM t LIMIT 10')).toMatchObject({
       columns: ['a', 'b'],
       limit: 10,
@@ -62,6 +63,28 @@ describe('accepts exactly the shapes the app emits', () => {
     expect(ok('SELECT * FROM t WHERE "k" = ? LIMIT 5')).toMatchObject({
       limit: 5,
       where: [{ column: 'k' }],
+    });
+  });
+
+  it('peels a table alias the SQL From button would have written', () => {
+    expect(ok('SELECT * FROM products p')).toMatchObject({
+      kind: 'select',
+      table: 'products',
+      columns: '*',
+    });
+    expect(ok('SELECT * FROM products AS p')).toMatchObject({ table: 'products', columns: '*' });
+    expect(ok('SELECT p.name, p.sku FROM products p')).toMatchObject({
+      table: 'products',
+      columns: ['name', 'sku'],
+    });
+    expect(ok('SELECT p.name FROM products p WHERE p.sku = 1')).toMatchObject({
+      columns: ['name'],
+      where: [{ column: 'sku' }],
+    });
+    expect(ok('SELECT * FROM products p LIMIT 201 OFFSET 0')).toMatchObject({
+      table: 'products',
+      limit: 201,
+      offset: 0,
     });
   });
 

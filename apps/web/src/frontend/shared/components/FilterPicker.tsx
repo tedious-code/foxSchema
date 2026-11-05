@@ -253,7 +253,7 @@ export function FilterPicker(props: FilterPickerProps): React.ReactElement {
         className={triggerClassName}
       >
         <span className="min-w-0 flex-1 truncate text-left">{summary}</span>
-        <ChevronDown className="h-3 w-3 shrink-0" />
+        <ChevronDown className="h-3.5 w-3.5 shrink-0" />
       </button>
 
       {open &&

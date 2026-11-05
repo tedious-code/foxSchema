@@ -21,6 +21,7 @@ import {
   HardDrive,
   KeyRound,
   ScanSearch,
+  Type,
   Users,
   Wrench,
 } from 'lucide-react';
@@ -31,6 +32,7 @@ import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import { BackupRestorePanel } from './BackupRestorePanel';
 import { CloneTableModal } from './CloneTableModal';
 import { ColumnChangePanel } from './ColumnChangePanel';
+import { TableRenamePanel } from './TableRenamePanel';
 import { DatabaseAccessModal } from './DatabaseAccessModal';
 import { FileQueryModal } from './FileQueryModal';
 import { IndexManagementModal } from './IndexManagementModal';
@@ -45,6 +47,7 @@ export type UtilityTool =
   | 'backup'
   | 'dbAccess'
   | 'clone'
+  | 'rename'
   | 'columns'
   | 'files'
   | 'pool'
@@ -89,6 +92,14 @@ const TOOLS: {
     group: 'Maintenance',
     blurb: 'Archive a huge table as name_N and recreate an empty live twin.',
     icon: Copy,
+  },
+  {
+    id: 'rename',
+    testId: 'utilities-rename-table',
+    label: 'Rename Table',
+    group: 'Maintenance',
+    blurb: 'Rename a live table. Review the dialect SQL, then copy or open it in the editor.',
+    icon: Type,
   },
   {
     id: 'columns',
@@ -327,6 +338,7 @@ export const UtilitiesView: React.FC = () => {
               onClose={() => undefined}
             />
           )}
+          {tool === 'rename' && <TableRenamePanel key={lockedId} lockedConnectionId={lockedId} />}
           {tool === 'columns' && <ColumnChangePanel key={lockedId} lockedConnectionId={lockedId} />}
           {insights && (
             <ServerInsightsModal

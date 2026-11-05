@@ -8,9 +8,11 @@
  * resolves to `/` when routes are bundled into `ui-server.js` — installs then
  * fail intermittently or write into the wrong tree.
  *
- * ibm_db is required from `@foxschema/db` (DriverDetector). Installing only
- * into `@foxschema/web` can leave the module under apps/web/node_modules where
- * packages/db cannot resolve it (sibling package node_modules are not searched).
+ * Drivers are required from `@foxschema/db` (DriverDetector / requireDriver).
+ * Installing only into `@foxschema/web` can leave the module under
+ * apps/web/node_modules where packages/db cannot resolve it (sibling package
+ * node_modules are not searched). That is why a MongoDB/Redis Install used to
+ * add the package to the web app and still throw "Cannot find module".
  */
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -69,8 +71,8 @@ function isFoxschemaMonorepo(dir: string): boolean {
 }
 
 /** Workspace package that owns the optional dep / require site for a driver. */
-export function workspacePackageForDriver(packageName: string): string {
-  return packageName === 'ibm_db' ? '@foxschema/db' : '@foxschema/web';
+export function workspacePackageForDriver(_packageName: string): string {
+  return '@foxschema/db';
 }
 
 function packageNameFromSpec(spec: string): string {

@@ -23,6 +23,8 @@ export const redisSettings: ProviderConnectionSettings = {
   // MULTI/EXEC queues commands; it cannot undo one that ran. The adapter opens
   // nothing, so every command is final as it runs.
   transactions: false,
+  // parseSqlSubset cannot evaluate `FROM t a` or `col AS name`.
+  sqlAlias: false,
 
   buildConnectionString(option: ConnectionOptions): string {
     if (option.connectionString?.trim()) return option.connectionString.trim();

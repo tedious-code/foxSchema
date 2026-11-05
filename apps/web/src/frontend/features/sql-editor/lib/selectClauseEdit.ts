@@ -373,15 +373,29 @@ export function ensureAllFromTablesAliased(sql: string): string {
   return next;
 }
 
+/** `SELECT * FROM fromItem`, as a new statement when `sql` is already non-empty. */
+function startStarSelect(sql: string, fromItem: string): string {
+  const select = `SELECT *\nFROM ${fromItem}`;
+  const trimmed = sql.trim();
+  if (!trimmed) return select;
+  const prefix = trimmed.endsWith(';') ? trimmed : `${trimmed};`;
+  return `${prefix}\n${select}`;
+}
+
 /**
  * Ensure `tableIdent alias` appears in the FROM clause. Creates
  * `SELECT * FROM table alias` when needed. If the table is already bare in
  * FROM, adds a short alias (does not duplicate the table).
+ *
+ * Pass `{ withAlias: false }` for stores that refuse aliases: a new
+ * single-table `SELECT * FROM table` is started instead of comma-joining
+ * (those stores cannot join either).
  */
 export function addTableWithAliasToFrom(
   sql: string,
   tableIdent: string,
-  alias?: string
+  alias?: string,
+  options?: { withAlias?: boolean }
 ): { sql: string; alias: string; added: boolean } {
   const bare = tableIdent.includes('.')
     ? tableIdent.slice(tableIdent.lastIndexOf('.') + 1)
@@ -389,11 +403,16 @@ export function addTableWithAliasToFrom(
   const existing = existingShortAliasForTable(sql, tableIdent);
   if (existing) return { sql, alias: existing, added: false };
 
+  const withAlias = options?.withAlias !== false;
   const aliases = extractTableAliases(sql);
-  // Table already in FROM without a short alias — attach one in place.
   if (aliases[bare.toLowerCase()] || aliases[tableIdent.toLowerCase()]) {
+    if (!withAlias) return { sql, alias: bare, added: false };
     const ensured = ensureTableHasAlias(sql, tableIdent, alias);
     return { sql: ensured.sql, alias: ensured.alias, added: ensured.changed };
+  }
+
+  if (!withAlias) {
+    return { sql: startStarSelect(sql, tableIdent), alias: bare, added: true };
   }
 
   const nextAlias = alias || suggestTableAlias(bare, sql);
@@ -401,15 +420,8 @@ export function addTableWithAliasToFrom(
   const trimmed = sql.trim();
   // A finished statement stays finished. Clicking another table starts the
   // next SELECT instead of writing `… cat;, other o` into the one already done.
-  if (trimmed.endsWith(';')) {
-    return {
-      sql: `${trimmed}\nSELECT *\nFROM ${fragment}`,
-      alias: nextAlias,
-      added: true,
-    };
-  }
-  if (!trimmed) {
-    return { sql: `SELECT *\nFROM ${fragment}`, alias: nextAlias, added: true };
+  if (!trimmed || trimmed.endsWith(';')) {
+    return { sql: startStarSelect(sql, fragment), alias: nextAlias, added: true };
   }
 
   const range = findSelectListRange(sql);

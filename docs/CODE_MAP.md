@@ -268,7 +268,7 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | `migrations` | Migration run history (Applies on the rail) |
 | `schema-diff` | Diff rendering shared by compare and history |
 | `sql-editor` | SQL editor, its store (`oneTransaction`, `selectOnlyConnection` so the schema browser's connection is the one Run hits; opening a sample bookmark keeps checked Destinations), results grid, data peek, the shared Monaco setup (`monaco.ts`) (Index/Clone/Query files live in `utilities`). The run rail's **In [n]** selects only that statement. |
-| `utilities` | Own workspace: clone table, Change Column (`ColumnChangePanel` → `planColumnChange` in the browser; nothing runs), index management, backup & restore commands, server insights, SQL Tracer, query files, DB users & grants |
+| `utilities` | Own workspace: clone table, Rename Table (`TableRenamePanel` → `planTableRename` in the browser; nothing runs), Change Column (`ColumnChangePanel` → `planColumnChange` in the browser; nothing runs), index management, backup & restore commands, server insights, SQL Tracer, query files, DB users & grants |
 | `workflow` | Workflow designer (canvas, inspector, triggers, SQL and script editors), runs (`RunsPanel` cancel / answer a paused human gate), variables, credentials and engine settings — through the engine proxy, plus linking saved connections to workflows |
 | `workspaces` | The rail's workspace button (`WorkspaceRailButton`) and the menu it opens: switch, invite, join public, members, settings. Admin → Workspaces lists every workspace; opening one is joining. Editor localStorage is keyed by workspace (`shared/lib/editorWorkspaceStorage.ts`). |
 

@@ -113,6 +113,7 @@ flowchart LR
 
   UTIL --> u1[utilities.indexes]
   UTIL --> u2[utilities.clone]
+  UTIL --> u8[utilities.rename]
   UTIL --> u3[utilities.insights]
   UTIL --> u4[utilities.backup]
   UTIL --> u5[utilities.dbaccess]
@@ -179,6 +180,7 @@ in its folders and its e2e specs (`apps/e2e/src/tests`).
 |---|---|---|---|---|---|---|---|
 | `utilities.indexes` | Index management — fragmentation (custom probe is one read-only SELECT), batch, rebuild / reorg / optimize SQL (Db2: every index on the table), drop | Utils (rail) | `/api/schema/index-fragmentation`, `-batch` | server `access` (`index-fragmentation.service`); sql `utilities` | `utility.access`, `utility.index.drop` | — | sql 7; e2e `sql-editor-utilities`, `-utilities-dialects` |
 | `utilities.clone` | Clone table | Utils | (editor execute) | web `CloneTableModal` | `utility.access`, `editor.ddl` | — | (utilities e2e) |
+| `utilities.rename` | Rename table — dialect SQL to review (`ALTER TABLE … RENAME TO`, `RENAME TABLE`, `sp_rename`); inbound foreign keys, views and triggers named; nothing runs | Utils | — (computed in the browser) | web `TableRenamePanel` → `planTableRename` | `utility.access` | — | web 3 |
 | `utilities.columns` | Change column — rename or change a type the safe way: what it touches (indexes, foreign keys, views, triggers, lossy conversions), then numbered steps as SQL to review (add, sync trigger, batched copy, check, switch over, drop last); nothing runs | Utils | — (computed in the browser) | sql `utilities/column-change` + `providers/*/*.column-change.ts`; web `ColumnChangePanel` | `utility.access` | — | sql 56 (+ live runs on PostgreSQL, MySQL, SQL Server); web 4 |
 | `utilities.insights` | Server insights, table insight, query files | Utils | `/api/schema/dba-utility`, `/api/schema/table-insight` | server `access` (`dba-utilities.service`) | `utility.access` | — | (utilities e2e) |
 | `utilities.trace` | SQL Tracer — Live (engine sessions, ~1 s) and Fox activity (statements run from Fox on a saved connection); redacted, 15 min / 10,000 statements | Utils | `/api/sql-trace/start`, `/:id/events`, `/:id/stop` | server `sql-trace` (+ `platform/sql-activity`); sql `utilities/sql-trace` | `utility.trace` | — | server 27; web 7; e2e `utilities-sql-tracer` |

@@ -6,7 +6,7 @@
 # (init scripts in docker/init/ auto-seed on first start)
 #
 # This script is for re-seeding without a volume wipe.
-# Usage: bash scripts/seed/seed-all.sh [postgres|mysql|mariadb|sqlserver|oracle|db2|sqlite]
+# Usage: bash scripts/seed/seed-all.sh [postgres|mysql|mariadb|sqlserver|oracle|db2|sqlite|cockroachdb|yugabytedb|clickhouse|tidb|redshift|duckdb|mongodb|redis|all]
 
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -183,6 +183,22 @@ seed_duckdb() {
   step node "$REPO/scripts/seed/seed-duckdb.mjs" || return 1
 }
 
+seed_mongodb() {
+  echo "▶ MongoDB …"
+  require_container foxschema-mongodb || return 1
+  step docker cp "$INIT/mongodb/01_seed.js" foxschema-mongodb:/tmp/01_seed.js || return 1
+  step docker exec foxschema-mongodb mongosh -u foxroot -p FoxPass123 --authenticationDatabase admin --quiet --file /tmp/01_seed.js || return 1
+  echo "  ✓ done"
+}
+
+seed_redis() {
+  echo "▶ Redis …"
+  require_container foxschema-redis || return 1
+  step docker cp "$INIT/redis/01_seed.sh" foxschema-redis:/tmp/01_seed.sh || return 1
+  step docker exec foxschema-redis sh /tmp/01_seed.sh || return 1
+  echo "  ✓ done"
+}
+
 TARGET="${1:-all}"
 case "$TARGET" in
   postgres)    seed_postgres ;;
@@ -198,6 +214,8 @@ case "$TARGET" in
   tidb)        seed_tidb ;;
   redshift)    seed_redshift ;;
   duckdb)      seed_duckdb ;;
+  mongodb)     seed_mongodb ;;
+  redis)       seed_redis ;;
   all)
     # Continue past a failing dialect on purpose — not every machine runs all
     # containers — but keep a list, because a wall of output makes a single "✗"
@@ -217,6 +235,8 @@ case "$TARGET" in
     seed_tidb        || FAILED+=("TiDB")
     seed_redshift    || FAILED+=("Redshift")
     seed_duckdb      || FAILED+=("DuckDB")
+    seed_mongodb     || FAILED+=("MongoDB")
+    seed_redis       || FAILED+=("Redis")
     echo ""
     if [ ${#FAILED[@]} -eq 0 ]; then
       echo "  ✓ all dialects seeded"
@@ -227,7 +247,7 @@ case "$TARGET" in
     ;;
   *)
     echo "Unknown target: $TARGET"
-    echo "Usage: $0 [postgres|mysql|mariadb|sqlserver|oracle|db2|sqlite|cockroachdb|yugabytedb|clickhouse|tidb|redshift|duckdb|all]"
+    echo "Usage: $0 [postgres|mysql|mariadb|sqlserver|oracle|db2|sqlite|cockroachdb|yugabytedb|clickhouse|tidb|redshift|duckdb|mongodb|redis|all]"
     exit 1
     ;;
 esac
@@ -248,4 +268,6 @@ echo "  ClickHouse  localhost:8123  default/foxpass      db=demo_a vs demo_b"
 echo "  TiDB        localhost:4000  foxuser/foxpass       db=demo_a vs demo_b"
 echo "  Redshift*   localhost:5439  foxuser/foxpass      db=foxdb     schema=demo_a vs demo_b"
 echo "  DuckDB      $DD_DIR/demo_a.duckdb  vs  demo_b.duckdb"
+echo "  MongoDB     localhost:27017  foxroot/FoxPass123  db=foxdb  authSource=admin"
+echo "  Redis       localhost:6379   (no password)       db=0"
 echo "  * Redshift service is a local Postgres stand-in for e2e (not Amazon Redshift)."

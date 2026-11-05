@@ -89,6 +89,13 @@ export interface ProviderConnectionSettings {
    * through `dialectHasTransactions`.
    */
   transactions?: boolean;
+  /**
+   * `false` when the store cannot evaluate SQL aliases (`FROM t a`,
+   * `col AS name`). MongoDB and Redis translate a tiny subset and refuse both,
+   * so From-button SQL and execute-time column naming must not invent them.
+   * Absent means true. Read it through `dialectSupportsSqlAlias`.
+   */
+  sqlAlias?: boolean;
   buildConnectionString(option: ConnectionOptions): string;
 }
 

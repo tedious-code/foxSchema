@@ -118,6 +118,18 @@ export function missingDriverPackage(message: string | undefined): string | null
   return found ? found[1]! : null;
 }
 
+/**
+ * The dialect id the same server message names (`… is not installed for mongodb.`).
+ * Compare’s shell banner uses this so Install can run without a SQL editor tab.
+ */
+export function missingDriverDialect(message: string | undefined): string | null {
+  const found = message
+    ? /Database driver "[^"]+" is not installed for ([^.]+)/.exec(message)
+    : null;
+  const named = found?.[1]?.trim();
+  return named ? named : null;
+}
+
 /** The dialect's driver status, re-checked whenever a screen asks for it. */
 export function useDriverStatus(dialect: string): DriverStatus {
   const status = useSyncExternalStore(subscribe, () => driverStatusOf(dialect));

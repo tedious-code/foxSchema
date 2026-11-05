@@ -34,6 +34,7 @@ import {
   appendFkTriggerSql,
   nextArchiveTableName,
   generateRenameTableSql,
+  planTableRename,
   generateCloneTableSql,
   findInboundForeignKeyTables,
   executableSqlStatements,
@@ -725,6 +726,51 @@ describe('clone / archive table', () => {
     expect(generateRenameTableSql('orders', 'orders_1', 'sqlserver', 'dbo')[0]).toContain(
       'sp_rename'
     );
+    expect(generateRenameTableSql('orders', 'orders_1', 'sqlite')).toEqual([
+      'ALTER TABLE orders RENAME TO orders_1;',
+    ]);
+    expect(generateRenameTableSql('orders', 'orders_1', 'clickhouse', 'demo_a')).toEqual([
+      'RENAME TABLE orders TO orders_1;',
+    ]);
+  });
+
+  it('planTableRename reviews dialect SQL and names inbound keys', () => {
+    const items: typeof orders = {
+      ...orders,
+      name: 'order_items',
+      foreignKeys: [
+        { name: 'order_items_order_id_fkey', columns: ['order_id'], referencedTable: 'orders', referencedColumns: ['id'] },
+      ],
+    };
+    const plan = planTableRename({
+      dialect: 'postgres',
+      schema: 'public',
+      table: orders,
+      newName: 'sales_orders',
+      tables: [orders, items],
+    });
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.sql).toContain('ALTER TABLE public.orders RENAME TO sales_orders;');
+    expect(plan.impact.inboundTables).toEqual(['order_items']);
+    expect(plan.warnings[0]).toMatch(/order_items/);
+  });
+
+  it('planTableRename refuses a taken name and MongoDB', () => {
+    const customers = { ...orders, name: 'customers', foreignKeys: [], indices: [] };
+    const taken = planTableRename({
+      dialect: 'postgres',
+      table: orders,
+      newName: 'customers',
+      tables: [orders, customers],
+    });
+    expect(taken.ok).toBe(false);
+    if (taken.ok) return;
+    expect(taken.error).toMatch(/already exists/);
+    expect(planTableRename({ dialect: 'mongodb', table: orders, newName: 'sales', tables: [orders] })).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/mongodb/i),
+    });
   });
 
   it('generateCloneTableSql renames then recreates empty table with indexes and FKs', () => {

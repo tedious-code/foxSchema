@@ -24,6 +24,7 @@ import {
   clearDriverStatus,
   driverStatusOf,
   installDriverFor,
+  missingDriverDialect,
   missingDriverPackage,
 } from './driverStatus';
 
@@ -113,5 +114,22 @@ describe('missingDriverPackage', () => {
     ).toBeNull();
     expect(missingDriverPackage('pgstattuple is not installed')).toBeNull();
     expect(missingDriverPackage(undefined)).toBeNull();
+  });
+});
+
+describe('missingDriverDialect', () => {
+  it('reads the dialect from the loader’s missing-driver message', () => {
+    expect(
+      missingDriverDialect(
+        'Database driver "mongodb" is not installed for mongodb. Install it with: npm install mongodb — Cannot find module \'mongodb\''
+      )
+    ).toBe('mongodb');
+  });
+
+  it('ignores other errors that happen to say "is not installed"', () => {
+    expect(
+      missingDriverDialect('Full-Text Search is not installed, or a full-text component cannot be loaded.')
+    ).toBeNull();
+    expect(missingDriverDialect(undefined)).toBeNull();
   });
 });

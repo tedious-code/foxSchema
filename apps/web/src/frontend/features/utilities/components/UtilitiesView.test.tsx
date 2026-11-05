@@ -41,6 +41,20 @@ vi.mock('./CloneTableModal', () => ({
   CloneTableModal: ({ open }: { open: boolean }) =>
     open ? <div data-testid="clone-table-modal">clone</div> : null,
 }));
+vi.mock('./TableRenamePanel', () => ({
+  TableRenamePanel: ({ lockedConnectionId }: { lockedConnectionId?: string }) => (
+    <div data-testid="table-rename-embed" data-locked={lockedConnectionId ?? ''}>
+      rename
+    </div>
+  ),
+}));
+vi.mock('./ColumnChangePanel', () => ({
+  ColumnChangePanel: ({ lockedConnectionId }: { lockedConnectionId?: string }) => (
+    <div data-testid="column-change-embed" data-locked={lockedConnectionId ?? ''}>
+      columns
+    </div>
+  ),
+}));
 vi.mock('./ServerInsightsModal', () => ({
   ServerInsightsModal: ({
     open,
@@ -78,6 +92,8 @@ const UTILITY_BUTTONS = [
   'utilities-backup',
   'utilities-database-access',
   'utilities-clone-table',
+  'utilities-rename-table',
+  'utilities-change-column',
   'utilities-query-files',
   'utilities-connection-pool',
   'utilities-user-connections',
@@ -130,6 +146,10 @@ describe('UtilitiesView', () => {
     render(<UtilitiesView />);
     fireEvent.click(screen.getByTestId('utilities-clone-table'));
     expect(screen.getByTestId('clone-table-modal')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('utilities-rename-table'));
+    expect(screen.getByTestId('table-rename-embed').getAttribute('data-locked')).toBe('c1');
+    fireEvent.click(screen.getByTestId('utilities-change-column'));
+    expect(screen.getByTestId('column-change-embed').getAttribute('data-locked')).toBe('c1');
     fireEvent.click(screen.getByTestId('utilities-system-info'));
     expect(screen.getByTestId('server-insights-modal')).toBeTruthy();
     expect(screen.getByTestId('server-insights-tab-system')).toBeTruthy();

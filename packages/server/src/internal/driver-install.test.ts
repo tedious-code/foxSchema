@@ -6,6 +6,7 @@ import {
   ibmDbPackageDir,
   isCacheKeyForPackage,
   purgePackageRequireCache,
+  workspacePackageForDriver,
 } from './driver-install';
 
 describe('driverInstallHints — advice must match the driver', () => {
@@ -25,6 +26,16 @@ describe('driverInstallHints — advice must match the driver', () => {
 
   it('names the package it is actually talking about', () => {
     expect(driverInstallHints('better-sqlite3')).toContain('better-sqlite3');
+  });
+});
+
+describe('workspacePackageForDriver', () => {
+  it('installs every driver where @foxschema/db can require it', () => {
+    // Installing mongodb into @foxschema/web nested it under apps/web/node_modules,
+    // and the loader in packages/db still threw Cannot find module 'mongodb'.
+    expect(workspacePackageForDriver('mongodb')).toBe('@foxschema/db');
+    expect(workspacePackageForDriver('redis')).toBe('@foxschema/db');
+    expect(workspacePackageForDriver('ibm_db')).toBe('@foxschema/db');
   });
 });
 

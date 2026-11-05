@@ -1591,6 +1591,84 @@ export function generateRenameTableSql(
   return [`ALTER TABLE ${fromQ} RENAME TO ${toQ};`];
 }
 
+const sameTableName = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+const wordInSql = (text: string, word: string) =>
+  new RegExp(
+    `(^|[^A-Za-z0-9_])${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^A-Za-z0-9_]|$)`,
+    'i'
+  ).test(text);
+
+export interface TableRenameImpact {
+  inboundTables: string[];
+  views: string[];
+  triggers: string[];
+}
+
+export type TableRenamePlan =
+  | { ok: false; error: string; impact?: TableRenameImpact }
+  | {
+      ok: true;
+      statements: string[];
+      sql: string;
+      impact: TableRenameImpact;
+      warnings: string[];
+    };
+
+function tableRenameImpact(table: TableSchema, tables: TableSchema[]): TableRenameImpact {
+  const inboundTables = findInboundForeignKeyTables(tables, table.name);
+  const views = tables
+    .filter((t) => t.objectType === 'VIEW' && t.definition && wordInSql(t.definition, table.name))
+    .map((t) => t.name);
+  const triggers = (table.triggers ?? [])
+    .filter((t) => !t.definition || wordInSql(t.definition, table.name))
+    .map((t) => t.name);
+  return { inboundTables, views, triggers };
+}
+
+/**
+ * Rename a live table: dialect SQL plus what else names it. Fox runs none of
+ * it — Utilities → Rename Table reviews the statement (same as Change Column).
+ */
+export function planTableRename(input: {
+  dialect: string;
+  schema?: string;
+  table: TableSchema;
+  newName: string;
+  tables: TableSchema[];
+}): TableRenamePlan {
+  const family = dialectFamily(input.dialect);
+  const impact = tableRenameImpact(input.table, input.tables);
+  if (family === 'mongodb' || family === 'redis') {
+    return { ok: false, error: `Table rename is not available for ${input.dialect}.`, impact };
+  }
+  const fromBare = bareTableName(input.table.name);
+  const toBare = bareTableName(input.newName);
+  if (!toBare) return { ok: false, error: 'Give the new table name.', impact };
+  if (sameTableName(fromBare, toBare)) {
+    return { ok: false, error: 'Nothing to change: that is already the table name.', impact };
+  }
+  if (input.tables.some((t) => t !== input.table && sameTableName(bareTableName(t.name), toBare))) {
+    return { ok: false, error: `A table named ${toBare} already exists.`, impact };
+  }
+  const statements = generateRenameTableSql(input.table.name, toBare, input.dialect, input.schema);
+  if (statements.length === 0) {
+    return { ok: false, error: 'Could not build a rename statement for this engine.', impact };
+  }
+  const warnings: string[] = [];
+  if (impact.inboundTables.length > 0) {
+    warnings.push(
+      `Foreign keys from ${impact.inboundTables.join(', ')} point at this table. They usually follow a rename; check them.`
+    );
+  }
+  if (impact.views.length > 0) {
+    warnings.push(`Views that may still name the old table: ${impact.views.join(', ')}.`);
+  }
+  if (impact.triggers.length > 0) {
+    warnings.push(`Triggers on this table: ${impact.triggers.join(', ')}.`);
+  }
+  return { ok: true, statements, sql: `${statements.join('\n')}\n`, impact, warnings };
+}
+
 /** Schema-unique index/constraint names — must free them on the archive before recreate. */
 const SCHEMA_UNIQUE_INDEX_DIALECTS = new Set([
   'postgres',

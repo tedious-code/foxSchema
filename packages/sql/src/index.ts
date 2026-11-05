@@ -438,6 +438,7 @@ export {
   isFileDialect,
   dialectFamily,
   dialectHasTransactions,
+  dialectSupportsSqlAlias,
   DIALECTS,
   type Dialect,
 } from './providers/provider-settings.js';

@@ -25,6 +25,8 @@ export const mongoDbSettings: ProviderConnectionSettings = {
   // MongoDB has sessions with transactions on a replica set, but the adapter
   // does not start one: each translated statement is final as it runs.
   transactions: false,
+  // parseSqlSubset cannot evaluate `FROM t a` or `col AS name`.
+  sqlAlias: false,
 
   buildConnectionString(option: ConnectionOptions): string {
     // mongodb+srv:// URLs carry their own host list and no port, so a

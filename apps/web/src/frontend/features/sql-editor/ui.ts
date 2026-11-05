@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * SQL editor pieces Utilities composes: the write confirmation, file imports
- * and the clone-table SQL behind them.
+ * and the clone/rename-table SQL behind them.
  *
  * Heavier than `index.ts`; import this only from code that is itself
  * loaded on demand.
@@ -17,4 +17,5 @@ export {
   executableSqlStatements,
   findInboundForeignKeyTables,
   generateCloneTableSql,
+  planTableRename,
 } from './lib/tableBlueprintSql';

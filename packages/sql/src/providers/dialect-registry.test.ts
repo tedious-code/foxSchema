@@ -17,6 +17,7 @@ import {
   DIALECTS,
   PROVIDER_SETTINGS,
   dialectHasTransactions,
+  dialectSupportsSqlAlias,
   getProviderSettings,
   isFileDialect,
 } from './provider-settings.js';
@@ -70,5 +71,20 @@ describe('dialectHasTransactions', () => {
     expect(dialectHasTransactions('ClickHouse')).toBe(false);
     expect(dialectHasTransactions('editor')).toBe(true);
     expect(dialectHasTransactions('')).toBe(true);
+  });
+});
+
+describe('dialectSupportsSqlAlias', () => {
+  // Their subset translator refuses `FROM t a` and `col AS name`.
+  const NONE = ['mongodb', 'redis'];
+
+  it('is false for exactly the stores that cannot evaluate SQL aliases', () => {
+    expect(DIALECTS.filter((dialect) => !dialectSupportsSqlAlias(dialect)).sort()).toEqual(NONE);
+  });
+
+  it('is case-insensitive, and true for a dialect it does not know', () => {
+    expect(dialectSupportsSqlAlias('MongoDB')).toBe(false);
+    expect(dialectSupportsSqlAlias('editor')).toBe(true);
+    expect(dialectSupportsSqlAlias('')).toBe(true);
   });
 });

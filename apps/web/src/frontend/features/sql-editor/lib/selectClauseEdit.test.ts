@@ -140,6 +140,22 @@ describe('selectClauseEdit', () => {
     );
   });
 
+  it('addTableWithAliasToFrom omits the alias when the store cannot evaluate one', () => {
+    const empty = addTableWithAliasToFrom('', 'products', undefined, { withAlias: false });
+    expect(empty.added).toBe(true);
+    expect(empty.sql).toBe('SELECT *\nFROM products');
+    expect(empty.alias).toBe('products');
+
+    const again = addTableWithAliasToFrom(empty.sql, 'products', undefined, { withAlias: false });
+    expect(again.added).toBe(false);
+    expect(again.sql).toBe(empty.sql);
+
+    const next = addTableWithAliasToFrom(empty.sql, 'customers', undefined, { withAlias: false });
+    expect(next.added).toBe(true);
+    expect(next.sql).toBe('SELECT *\nFROM products;\nSELECT *\nFROM customers');
+    expect(next.sql).not.toMatch(/\bpro\b|\bcus\b/);
+  });
+
   it('addTableWithAliasToFrom creates SELECT * FROM table alias', () => {
     const empty = addTableWithAliasToFrom('', 'users');
     expect(empty.added).toBe(true);

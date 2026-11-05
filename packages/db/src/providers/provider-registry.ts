@@ -14,6 +14,7 @@ import { YugabyteDbProvider } from './yugabyteDb/yugabytedb.provider.js';
 import { TiDbProvider } from './tiDb/tidb.provider.js';
 import { DuckDbProvider } from './duckDb/duckdb.provider.js';
 import { RedisProvider } from './redis/redis.provider.js';
+import { MongoDbProvider } from './mongodb/mongodb.provider.js';
 
 // Register a dialect's schema provider (queries) here — one line per platform.
 export const PROVIDERS: Record<string, SchemaProvider> = {
@@ -31,9 +32,10 @@ export const PROVIDERS: Record<string, SchemaProvider> = {
   yugabytedb: new YugabyteDbProvider(),
   tidb: new TiDbProvider(),
   duckdb: new DuckDbProvider(),
-  // Browsing only: keyspace as tables. Compare and history refuse Redis
-  // (`schemaCompareSupport`), so nothing diffs or generates DDL for it.
+  // Browsing only. Compare and history refuse Redis and MongoDB
+  // (`schemaCompareSupport`), so nothing diffs or generates DDL for them.
   redis: new RedisProvider(),
+  mongodb: new MongoDbProvider(),
 };
 
 export function getRegisteredProvider(dialect: string): SchemaProvider {

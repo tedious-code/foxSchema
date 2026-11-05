@@ -99,11 +99,14 @@ export function ConnectionChip({
       <span className={`shrink-0 text-[10px] font-bold uppercase tracking-wider ${tone.label}`}>
         {label}
       </span>
-      {connections.length > 0 && (
+      {connections.length > 0 ? (
         <FilterPicker
           mode="single"
           testId={savedTestId}
-          className="min-w-0 max-w-[12rem] flex-1"
+          // The host line used to sit beside this control and, on a wide
+          // window, shrink the trigger down to the chevron (about 20px).
+          // The name itself is the click target, so it keeps a floor.
+          className="min-w-[4.5rem] max-w-[12rem] flex-1"
           options={connections.map((c) => ({
             ...connectionPickerOption(c),
             testId: `${savedTestId}-option-${c.id}`,
@@ -114,19 +117,24 @@ export function ConnectionChip({
           }}
           clearLabel="— Saved —"
           summary={pickerSummary}
-          title="Saved connections — search by name, host, database, user, or port"
+          title={
+            summary
+              ? `${summary}. Saved connections — search by name, host, database, user, or port`
+              : 'Saved connections — search by name, host, database, user, or port'
+          }
           placeholder="Search name, host, db, user, port…"
-          triggerClassName="flex w-full min-w-0 items-center gap-1 truncate rounded-full border border-slate-700/60 bg-slate-950 px-2 py-0.5 text-left text-[11px] text-slate-200 accent-focus focus:outline-none"
+          triggerClassName="flex h-7 w-full min-w-0 items-center gap-1.5 truncate rounded-full border border-slate-700/60 bg-slate-950 px-2.5 text-left text-[11px] text-slate-200 accent-focus focus:outline-none"
         />
+      ) : (
+        <span
+          className={`pointer-events-none min-w-0 max-w-[7rem] truncate font-mono text-[10px] font-medium ${
+            summary ? tone.summary : tone.empty
+          }`}
+          title={summary ?? undefined}
+        >
+          {summary ?? 'Add a connection'}
+        </span>
       )}
-      <span
-        className={`pointer-events-none hidden min-w-0 max-w-[7rem] truncate font-mono text-[10px] font-medium xl:inline ${
-          summary ? tone.summary : tone.empty
-        }`}
-        title={summary ?? undefined}
-      >
-        {summary ?? 'Add a connection'}
-      </span>
       <button
         type="button"
         data-testid={editTestId}

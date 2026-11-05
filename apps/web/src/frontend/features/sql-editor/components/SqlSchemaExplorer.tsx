@@ -11,8 +11,8 @@ import {
 import { useSyncStore } from '@/features/compare';
 import { SCHEMA_ROUTINE_SCOPE, useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { connectionPickerOption, FilterPicker } from '@/shared/components/FilterPicker';
-import { hasSqlDialect, isSubsetDialect, quoteIdentifierIfNeeded } from '@foxschema/ui-shared';
-import { getProviderSettings } from '@/shared/lib/provider-settings';
+import { hasSqlDialect, quoteIdentifierIfNeeded } from '@foxschema/ui-shared';
+import { dialectSupportsSqlAlias, getProviderSettings } from '@/shared/lib/provider-settings';
 import { TYPE_META } from '@/features/schema-diff';
 import {
   filterCallParameters,
@@ -521,9 +521,8 @@ const ObjectNode: React.FC<{
   const meta = TYPE_META[table.objectType] ?? TYPE_META.TABLE;
   /** Offer "From": the object reads as rows (a table, an MQT, a Redis key). */
   const canInsertFrom = table.objectType === 'TABLE' || table.objectType === 'MQT';
-  // Redis and MongoDB read SQL through a small parser: one bare table name, no
-  // alias and no `alias.column` (sql-subset.ts refuses both).
-  const subset = isSubsetDialect(dialect);
+  // Redis and MongoDB refuse `FROM t a` and `alias.column` (sqlAlias: false).
+  const supportsSqlAlias = dialectSupportsSqlAlias(dialect);
   const insertName = quoteIdentifierIfNeeded(table.name, dialect);
   const schemaName = schema?.trim();
   const qualifiedName =
@@ -543,13 +542,13 @@ const ObjectNode: React.FC<{
       insertAtCursor(routineInsertText(qualifiedName, table.objectType, params));
       return;
     }
-    if (subset) {
-      insertAtCursor(`${insertName} `);
-      return;
-    }
-    // Tables/views: add into FROM with an auto alias (e.g. users u).
-    const ok = mutateSql((sql) => addTableWithAliasToFrom(sql, qualifiedName).sql);
-    if (!ok) insertAtCursor(`${qualifiedName} `);
+    // Tables/views: add into FROM. SQL engines get an auto alias (users u);
+    // Mongo/Redis get a bare `SELECT * FROM table` and never comma-join.
+    const fromName = supportsSqlAlias ? qualifiedName : insertName;
+    const ok = mutateSql((sql) =>
+      addTableWithAliasToFrom(sql, fromName, undefined, { withAlias: supportsSqlAlias }).sql
+    );
+    if (!ok) insertAtCursor(`${fromName} `);
   };
 
   const onNameClick = (e: React.MouseEvent) => {
@@ -584,7 +583,7 @@ const ObjectNode: React.FC<{
   /** Add `alias.column` into the active SELECT list (or insert at cursor). */
   const insertColumnIntoSelect = (colName: string) => {
     const col = quoteIdentifierIfNeeded(colName, dialect);
-    const expr = subset ? col : `${resolveTableAlias()}.${col}`;
+    const expr = supportsSqlAlias ? `${resolveTableAlias()}.${col}` : col;
     const ok = mutateSql((sql) => insertIntoSelectList(sql, expr));
     if (!ok) insertAtCursor(`${expr}, `);
   };
@@ -667,7 +666,11 @@ const ObjectNode: React.FC<{
           {canInsertFrom && (
             <button
               type="button"
-              title={subset ? `Insert ${table.name}` : `Add ${table.name} to FROM with auto alias`}
+              title={
+                supportsSqlAlias
+                  ? `Add ${table.name} to FROM with auto alias`
+                  : `Add SELECT * FROM ${table.name} (this store has no SQL aliases)`
+              }
               data-testid={`sql-explorer-from-${table.name}`}
               onClick={(e) => {
                 e.stopPropagation();

@@ -1,5 +1,10 @@
 import { ConnectionFactory, getAdapter, type ConnectionOptions } from '@foxschema/db';
-import { autoAliasSelectColumns, errorMessage, isSubsetDialect } from '@foxschema/sql';
+import {
+  autoAliasSelectColumns,
+  dialectSupportsSqlAlias,
+  errorMessage,
+  isSubsetDialect,
+} from '@foxschema/sql';
 import { isPageableStatement, syntaxProbeSql, trimPageProbe, wrapSqlForOrderedPage, wrapSqlForPage, wrapSqlForSeek, type SqlSeek } from './sql-page-wrap.service';
 
 /**
@@ -173,7 +178,11 @@ export async function runStatements(
       // `SELECT 1, 2` arrived as a single key and one column silently vanished.
       // The rewrite is conservative and returns the statement untouched
       // whenever it cannot parse the select list with confidence.
-      const sql = autoAliasSelectColumns(original).sql;
+      // Mongo/Redis refuse `col AS name`. Naming expressions here would turn a
+      // valid `SELECT name, 1 FROM t` into a subset error on those stores.
+      const sql = dialectSupportsSqlAlias(dialect)
+        ? autoAliasSelectColumns(original).sql
+        : original;
       // Placeholders survive the paging wrap (it only nests the SQL in a
       // subquery), so the same positional params apply on either path.
       const params = [...(paramsList[index] ?? [])];

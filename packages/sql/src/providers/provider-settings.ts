@@ -145,6 +145,15 @@ export function dialectHasTransactions(dialect: string): boolean {
   return PROVIDER_SETTINGS[(dialect || '').toLowerCase()]?.transactions !== false;
 }
 
+/**
+ * Whether From-button SQL and execute-time column naming may invent aliases.
+ * MongoDB and Redis answer `false`: their subset translator refuses
+ * `FROM t a` and `col AS name`. An unknown dialect answers `true`.
+ */
+export function dialectSupportsSqlAlias(dialect: string): boolean {
+  return PROVIDER_SETTINGS[(dialect || '').toLowerCase()]?.sqlAlias !== false;
+}
+
 export function isFileDialect(dialect: string): boolean {
   const name = dialect.toLowerCase();
   return name === 'sqlite' || name === 'duckdb';

@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1024** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1030** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -467,7 +467,6 @@ Every control has a test ID: **1024** buttons, text boxes, selects and textareas
 
 - **App** · `App.tsx`
   - `dismiss-warnings-btn` · button · Dismiss
-  - `error-banner` · div
   - `warning-banner` · div
 
 ## auth
@@ -543,6 +542,10 @@ Every control has a test ID: **1024** buttons, text boxes, selects and textareas
   - `browse-connection-select-option-{id}` · input in FilterPicker · Read this database's objects — search by name, host, database, user, or port
   - `browse-connection-select-trigger` · button in FilterPicker · Read this database's objects — search by name, host, database, user, or port
   - `browse-reload-btn` · button · Re-read this database
+- **CompareErrorBanner** · `features/compare/components/CompareErrorBanner.tsx`
+  - `compare-install-driver` · button in MissingDriverBanner · Install the driver package on the server
+  - `compare-install-driver-banner` · div in MissingDriverBanner
+  - `error-banner` · div
 - **CompareToolbar** · `features/compare/components/CompareToolbar.tsx`
   - `compare-btn` · button
   - `lokee-snapshot-target-btn` · button · Take an initial snapshot of the Target schema. Later migrates snapshot automatically.
@@ -562,21 +565,21 @@ Every control has a test ID: **1024** buttons, text boxes, selects and textareas
   - `source-config-btn` · button · Add or edit this connection's credentials
   - `source-connect-btn` · button · Connect and load the schema list
   - `source-connected-btn` · button · Reconnect and refresh schema list
-  - `source-saved-select-backdrop` · div in FilterPicker · Saved connections — search by name, host, database, user, or port
-  - `source-saved-select-clear` · button in FilterPicker · Saved connections — search by name, host, database, user, or port
-  - `source-saved-select-filter` · input in FilterPicker · Saved connections — search by name, host, database, user, or port
-  - `source-saved-select-group-{group}` · div in FilterPicker · Saved connections — search by name, host, database, user, or port
+  - `source-saved-select-backdrop` · div in FilterPicker · Search name, host, db, user, port…
+  - `source-saved-select-clear` · button in FilterPicker · Search name, host, db, user, port…
+  - `source-saved-select-filter` · input in FilterPicker · Search name, host, db, user, port…
+  - `source-saved-select-group-{group}` · div in FilterPicker · Search name, host, db, user, port…
   - `source-saved-select-option-{id}` · data
-  - `source-saved-select-trigger` · button in FilterPicker · Saved connections — search by name, host, database, user, or port
+  - `source-saved-select-trigger` · button in FilterPicker · Search name, host, db, user, port…
   - `target-config-btn` · button · Add or edit this connection's credentials
   - `target-connect-btn` · button · Connect and load the schema list
   - `target-connected-btn` · button · Reconnect and refresh schema list
-  - `target-saved-select-backdrop` · div in FilterPicker · Saved connections — search by name, host, database, user, or port
-  - `target-saved-select-clear` · button in FilterPicker · Saved connections — search by name, host, database, user, or port
-  - `target-saved-select-filter` · input in FilterPicker · Saved connections — search by name, host, database, user, or port
-  - `target-saved-select-group-{group}` · div in FilterPicker · Saved connections — search by name, host, database, user, or port
+  - `target-saved-select-backdrop` · div in FilterPicker · Search name, host, db, user, port…
+  - `target-saved-select-clear` · button in FilterPicker · Search name, host, db, user, port…
+  - `target-saved-select-filter` · input in FilterPicker · Search name, host, db, user, port…
+  - `target-saved-select-group-{group}` · div in FilterPicker · Search name, host, db, user, port…
   - `target-saved-select-option-{id}` · data
-  - `target-saved-select-trigger` · button in FilterPicker · Saved connections — search by name, host, database, user, or port
+  - `target-saved-select-trigger` · button in FilterPicker · Search name, host, db, user, port…
 - **CrossDialectReadinessDialog** · `features/compare/components/CrossDialectReadinessDialog.tsx`
   - `migrate-cross-dialect-readiness-close` · button · Close
 - **DependencyWarningDialog** · `features/compare/components/DependencyWarningDialog.tsx`
@@ -1728,6 +1731,22 @@ Every control has a test ID: **1024** buttons, text boxes, selects and textareas
   - `sql-tracer-status` · div
   - `sql-tracer-stop` · button · Stop
   - `sql-tracer-unlock` · button · Unlock
+- **TableRenamePanel** · `features/utilities/components/TableRenamePanel.tsx`
+  - `{testId}` · button · passed in by the parent
+  - `table-rename-copy` · button in CopyButton
+  - `table-rename-hint` · p
+  - `table-rename-impact` · section · What it touches
+  - `table-rename-load-error` · p
+  - `table-rename-new-name` · input
+  - `table-rename-open-editor` · button · Open in editor
+  - `table-rename-panel` · div · What it touches
+  - `table-rename-password` · input
+  - `table-rename-refused` · p
+  - `table-rename-sql` · section · SQL
+  - `table-rename-statement` · pre
+  - `table-rename-table` · select
+  - `table-rename-unlock` · button · Unlock
+  - `table-rename-warnings` · ul
 - **UtilitiesView** · `features/utilities/components/UtilitiesView.tsx`
   - `{t.testId}` · button · passed in by the parent
   - `db-access-modal` · div
@@ -1742,6 +1761,7 @@ Every control has a test ID: **1024** buttons, text boxes, selects and textareas
   - `utilities-index-management` · data · Index Management
   - `utilities-object-sizes` · data · Table & Index Size
   - `utilities-query-files` · data · Query files
+  - `utilities-rename-table` · data · Rename Table
   - `utilities-sql-tracer` · data · SQL Tracer
   - `utilities-system-info` · data · System Info
   - `utilities-user-connections` · data · User Connections

@@ -34,6 +34,7 @@ export {
   isFileDialect,
   dialectFamily,
   dialectHasTransactions,
+  dialectSupportsSqlAlias,
   DEFAULT_PORTS,
   connectionNeedsSecret,
   needsSessionPassword,

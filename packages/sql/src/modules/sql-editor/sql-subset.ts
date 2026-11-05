@@ -196,6 +196,56 @@ function isPlainFieldRef(name: string): boolean {
 const SEGMENT = /^[A-Za-z_$][\w$]*$/;
 
 /**
+ * Words that follow a table in FROM and are not an alias. The From button on
+ * SQL engines writes `FROM t a`; Mongo/Redis cannot evaluate that, so the
+ * parser peels a trailing alias and uses the table. These keywords must stay
+ * in the tail (WHERE, LIMIT, JOIN, …).
+ */
+const NOT_A_TABLE_ALIAS = new Set([
+  'where',
+  'limit',
+  'offset',
+  'order',
+  'group',
+  'having',
+  'union',
+  'except',
+  'intersect',
+  'fetch',
+  'for',
+  'join',
+  'inner',
+  'left',
+  'right',
+  'full',
+  'cross',
+  'natural',
+  'on',
+  'using',
+  'as',
+]);
+
+/** Peel `AS name` or a bare `name` from the start of the FROM tail. */
+function peelTableAlias(rest: string): { alias?: string; rest: string } {
+  const match = /^(?:AS\s+)?([A-Za-z_][\w$]*)\s*/i.exec(rest);
+  if (!match) return { rest };
+  const name = match[1]!;
+  if (NOT_A_TABLE_ALIAS.has(name.toLowerCase())) return { rest };
+  return { alias: name, rest: rest.slice(match[0].length) };
+}
+
+/** Drop `alias.` / `table.` so `p.name` from `FROM products p` is the field `name`. */
+function stripLeadingQualifier(name: string, qualifiers: readonly string[]): string {
+  const dot = name.indexOf('.');
+  if (dot <= 0) return name;
+  const head = name.slice(0, dot);
+  if (qualifiers.some((q) => q.toLowerCase() === head.toLowerCase())) {
+    return name.slice(dot + 1);
+  }
+  return name;
+}
+
+/**
  * The text inside `( … )` when one pair of parentheses wraps all of `text`,
  * else null. `(a = 1) AND (b = 2)` is not wrapped: its first `(` closes early.
  */
@@ -321,24 +371,12 @@ export function parseSqlSubset(sql: string): SubsetParse {
   let paramCursor = 0;
   const nextParamIndex = () => paramCursor++;
 
-  const select = /^SELECT\s+([\s\S]+?)\s+FROM\s+([^\s]+)([\s\S]*)$/i.exec(text);
+  // `SELECT` and `*` are separate tokens, so `SELECT* FROM t` is valid SQL.
+  // Requiring whitespace after SELECT refused the star form people type.
+  const select = /^SELECT(?:\s+|(?=\*))([\s\S]+?)\s+FROM\s+([^\s]+)([\s\S]*)$/i.exec(text);
   if (select) {
-    const [, cols, table, tail] = select;
-    const columnTexts = cols!.trim() === '*' ? null : splitTop(cols!, COMMA);
-    if (cols!.trim() !== '*' && !columnTexts) return { ok: false, error: 'Could not read the column list.' };
-    // An unquoted column is a plain field name. `COUNT(*)` or `a + 1` is an
-    // expression this store cannot evaluate; it used to come back as a column
-    // of NULLs. A quoted name is taken as written: a Redis field can be
-    // `first-name`.
-    const badColumn = columnTexts?.find((c) => {
-      const t = c.trim();
-      const quoted = /^["`[]/.test(t);
-      return !quoted && !isPlainFieldRef(t);
-    });
-    if (badColumn !== undefined) {
-      return { ok: false, error: `Only plain column names are supported on this store, not \`${badColumn.trim()}\`.` };
-    }
-    const columns = columnTexts ? columnTexts.map(unquote) : ('*' as const);
+    const [, cols, tableRaw, tail] = select;
+    const table = tableName(tableRaw!);
     let rest = (tail ?? '').trim();
     let limit: number | undefined;
     let offset: number | undefined;
@@ -348,6 +386,27 @@ export function parseSqlSubset(sql: string): SubsetParse {
       offset = paged.offset;
       rest = paged.base.trim();
     }
+    // `FROM products p` / `FROM products AS p` — keep the table, drop the alias.
+    const peeled = peelTableAlias(rest);
+    rest = peeled.rest;
+    const qualifiers = peeled.alias ? [table, peeled.alias] : [table];
+    const strip = (name: string) => stripLeadingQualifier(name, qualifiers);
+
+    const columnTexts = cols!.trim() === '*' ? null : splitTop(cols!, COMMA);
+    if (cols!.trim() !== '*' && !columnTexts) return { ok: false, error: 'Could not read the column list.' };
+    // An unquoted column is a plain field name. `COUNT(*)` or `a + 1` is an
+    // expression this store cannot evaluate; it used to come back as a column
+    // of NULLs. A quoted name is taken as written: a Redis field can be
+    // `first-name`.
+    const badColumn = columnTexts?.find((c) => {
+      const t = strip(c.trim());
+      const quoted = /^["`[]/.test(t);
+      return !quoted && !isPlainFieldRef(t);
+    });
+    if (badColumn !== undefined) {
+      return { ok: false, error: `Only plain column names are supported on this store, not \`${badColumn.trim()}\`.` };
+    }
+    const columns = columnTexts ? columnTexts.map((c) => unquote(strip(c))) : ('*' as const);
     let where: SubsetColumnEq[] = [];
     if (rest) {
       const w = /^WHERE\s+([\s\S]+)$/i.exec(rest);
@@ -360,13 +419,13 @@ export function parseSqlSubset(sql: string): SubsetParse {
         };
       }
       if (whereHasNullLiteral(parsed)) return { ok: false, error: WHERE_NULL_REFUSED };
-      where = parsed;
+      where = parsed.map((p) => ({ ...p, column: strip(p.column) }));
     }
     return {
       ok: true,
       intent: {
         kind: 'select',
-        table: tableName(table!),
+        table,
         columns,
         where,
         limit,

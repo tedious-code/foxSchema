@@ -888,8 +888,6 @@ export const TestIds = {
       /** button · Dismiss */
       dismissWarningsBtn: 'dismiss-warnings-btn',
       /** div */
-      errorBanner: 'error-banner',
-      /** div */
       warningBanner: 'warning-banner',
     },
   },
@@ -1032,6 +1030,14 @@ export const TestIds = {
       /** button · Re-read this database */
       browseReloadBtn: 'browse-reload-btn',
     },
+    CompareErrorBanner: {
+      /** button · Install the driver package on the server */
+      compareInstallDriver: 'compare-install-driver',
+      /** div */
+      compareInstallDriverBanner: 'compare-install-driver-banner',
+      /** div */
+      errorBanner: 'error-banner',
+    },
     CompareToolbar: {
       /** button */
       compareBtn: 'compare-btn',
@@ -1069,17 +1075,17 @@ export const TestIds = {
       sourceConnectBtn: 'source-connect-btn',
       /** button · Reconnect and refresh schema list */
       sourceConnectedBtn: 'source-connected-btn',
-      /** div · Saved connections — search by name, host, database, user, or port */
+      /** div · Search name, host, db, user, port… */
       sourceSavedSelectBackdrop: 'source-saved-select-backdrop',
-      /** button · Saved connections — search by name, host, database, user, or port */
+      /** button · Search name, host, db, user, port… */
       sourceSavedSelectClear: 'source-saved-select-clear',
-      /** input · Saved connections — search by name, host, database, user, or port */
+      /** input · Search name, host, db, user, port… */
       sourceSavedSelectFilter: 'source-saved-select-filter',
-      /** div · Saved connections — search by name, host, database, user, or port */
+      /** div · Search name, host, db, user, port… */
       sourceSavedSelectGroup: (group: string | number) => `source-saved-select-group-${group}`,
       /** data */
       sourceSavedSelectOption: (id: string | number) => `source-saved-select-option-${id}`,
-      /** button · Saved connections — search by name, host, database, user, or port */
+      /** button · Search name, host, db, user, port… */
       sourceSavedSelectTrigger: 'source-saved-select-trigger',
       /** button · Add or edit this connection's credentials */
       targetConfigBtn: 'target-config-btn',
@@ -1087,17 +1093,17 @@ export const TestIds = {
       targetConnectBtn: 'target-connect-btn',
       /** button · Reconnect and refresh schema list */
       targetConnectedBtn: 'target-connected-btn',
-      /** div · Saved connections — search by name, host, database, user, or port */
+      /** div · Search name, host, db, user, port… */
       targetSavedSelectBackdrop: 'target-saved-select-backdrop',
-      /** button · Saved connections — search by name, host, database, user, or port */
+      /** button · Search name, host, db, user, port… */
       targetSavedSelectClear: 'target-saved-select-clear',
-      /** input · Saved connections — search by name, host, database, user, or port */
+      /** input · Search name, host, db, user, port… */
       targetSavedSelectFilter: 'target-saved-select-filter',
-      /** div · Saved connections — search by name, host, database, user, or port */
+      /** div · Search name, host, db, user, port… */
       targetSavedSelectGroup: (group: string | number) => `target-saved-select-group-${group}`,
       /** data */
       targetSavedSelectOption: (id: string | number) => `target-saved-select-option-${id}`,
-      /** button · Saved connections — search by name, host, database, user, or port */
+      /** button · Search name, host, db, user, port… */
       targetSavedSelectTrigger: 'target-saved-select-trigger',
     },
     CrossDialectReadinessDialog: {
@@ -3258,6 +3264,36 @@ export const TestIds = {
       /** button · Unlock */
       sqlTracerUnlock: 'sql-tracer-unlock',
     },
+    TableRenamePanel: {
+      /** button */
+      tableRenameCopy: 'table-rename-copy',
+      /** p */
+      tableRenameHint: 'table-rename-hint',
+      /** section · What it touches */
+      tableRenameImpact: 'table-rename-impact',
+      /** p */
+      tableRenameLoadError: 'table-rename-load-error',
+      /** input */
+      tableRenameNewName: 'table-rename-new-name',
+      /** button · Open in editor */
+      tableRenameOpenEditor: 'table-rename-open-editor',
+      /** div · What it touches */
+      tableRenamePanel: 'table-rename-panel',
+      /** input */
+      tableRenamePassword: 'table-rename-password',
+      /** p */
+      tableRenameRefused: 'table-rename-refused',
+      /** section · SQL */
+      tableRenameSql: 'table-rename-sql',
+      /** pre */
+      tableRenameStatement: 'table-rename-statement',
+      /** select */
+      tableRenameTable: 'table-rename-table',
+      /** button · Unlock */
+      tableRenameUnlock: 'table-rename-unlock',
+      /** ul */
+      tableRenameWarnings: 'table-rename-warnings',
+    },
     UtilitiesView: {
       /** div */
       dbAccessModal: 'db-access-modal',
@@ -3283,6 +3319,8 @@ export const TestIds = {
       utilitiesObjectSizes: 'utilities-object-sizes',
       /** data · Query files */
       utilitiesQueryFiles: 'utilities-query-files',
+      /** data · Rename Table */
+      utilitiesRenameTable: 'utilities-rename-table',
       /** data · SQL Tracer */
       utilitiesSqlTracer: 'utilities-sql-tracer',
       /** data · System Info */
@@ -4140,6 +4178,8 @@ export type TestId =
   | 'command-palette-input'
   | `command-palette-item-${string}`
   | 'compare-btn'
+  | 'compare-install-driver'
+  | 'compare-install-driver-banner'
   | 'conn-auth-method'
   | 'conn-cancel'
   | 'conn-close'
@@ -5136,6 +5176,20 @@ export type TestId =
   | 'sync-pane-switcher'
   | 'table-blueprint-indexes'
   | 'table-blueprint-modal'
+  | 'table-rename-copy'
+  | 'table-rename-hint'
+  | 'table-rename-impact'
+  | 'table-rename-load-error'
+  | 'table-rename-new-name'
+  | 'table-rename-open-editor'
+  | 'table-rename-panel'
+  | 'table-rename-password'
+  | 'table-rename-refused'
+  | 'table-rename-sql'
+  | 'table-rename-statement'
+  | 'table-rename-table'
+  | 'table-rename-unlock'
+  | 'table-rename-warnings'
   | 'target-config-btn'
   | 'target-connect-btn'
   | 'target-connected-btn'
@@ -5256,6 +5310,7 @@ export type TestId =
   | 'utilities-index-management'
   | 'utilities-object-sizes'
   | 'utilities-query-files'
+  | 'utilities-rename-table'
   | 'utilities-sql-tracer'
   | 'utilities-system-info'
   | 'utilities-user-connections'

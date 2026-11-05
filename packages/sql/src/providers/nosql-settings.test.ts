@@ -5,6 +5,12 @@ import type { ConnectionOptions } from '../interfaces/schema-provider.interface.
 const opts = (o: Partial<ConnectionOptions>): ConnectionOptions => o as ConnectionOptions;
 
 describe('the new stores are reachable from the connection form', () => {
+  it('declares that MongoDB and Redis cannot evaluate SQL aliases', () => {
+    expect(getProviderSettings('mongodb').sqlAlias).toBe(false);
+    expect(getProviderSettings('redis').sqlAlias).toBe(false);
+    expect(getProviderSettings('postgres').sqlAlias).not.toBe(false);
+  });
+
   it('getProviderSettings resolves them instead of throwing', () => {
     // The gap this fixes: the adapters were registered but this threw
     // "Unsupported dialect", so no connection could be created for them.

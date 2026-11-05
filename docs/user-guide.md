@@ -431,7 +431,7 @@ Tips:
   names: the schema folded to uppercase, the table exactly as the catalog stores
   it, so a table created as `"orders"` is not aimed at `ORDERS`.
   The index form opens under the selected index (no jump to a form at the bottom
-  of the section). Index Management, Clone Table, and Query files live in
+  of the section). Index Management, Clone Table, Rename Table, and Query files live in
   **Utils** — see [Utilities](#utilities).
 - **Data peek** — two ways in:
   - **Schema:** hold **Cmd** (macOS) or **Ctrl** (Windows/Linux) and click a
@@ -647,6 +647,12 @@ saved credential at the top, then a tool:
   statement and is not one transaction — if it stops after rename, recover by
   renaming the archive back. Inbound FKs from other tables still point at the
   archive until you update them.
+- **Rename Table** — rename a live table. Pick the table and the new name;
+  Fox shows **what it touches** (inbound foreign keys, views, triggers) and
+  the dialect SQL (`ALTER TABLE … RENAME TO`, `RENAME TABLE`, or
+  `sp_rename`). Nothing runs from here: **Copy** or **Open in editor** (a new
+  tab against this connection only). Redis and MongoDB are refused — they
+  have no table rename.
 - **Change Column** — rename a column, change its type, or both, the safe way.
   Pick a table and column, then a new name and/or type (types you already use
   on this connection are suggested). Fox shows **what it touches** from the
@@ -977,8 +983,9 @@ line). Stop it with `foxschema stop`.
 **Port already in use (Docker).** Change `PORT` in `.env` and restart
 (`docker compose -f docker-compose.app.yml up -d`).
 
-**"driver not installed" for a database type.** The credential form, the SQL
-editor's schema browser and a failed run all offer **Install driver**. Installing
+**"driver not installed" for a database type.** The credential form, Compare’s
+connect banner, the SQL editor's schema browser and a failed run all offer
+**Install driver**. Installing
 runs npm on the server, so it needs the **Install drivers** permission (admins by
 default); without it the banner gives the command to run instead. Some drivers are
 optional/platform-specific (notably IBM Db2 / `ibm_db`). Prefer:

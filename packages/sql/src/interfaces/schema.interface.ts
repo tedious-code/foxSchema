@@ -112,6 +112,18 @@ export interface TableSchema {
   /** Storage tablespace (tables/MQTs). */
   tablespace?: string;
   /**
+   * Table engine, when the catalog has one. ClickHouse MergeTree family
+   * (`MergeTree`, `ReplacingMergeTree`, …). Absent for engines that do not
+   * name a storage engine on the table.
+   */
+  engine?: string;
+  /**
+   * Sorting / ORDER BY expressions, in key order. ClickHouse MergeTree
+   * requires this; it is usually the logical primary key and may be a
+   * prefix-plus-extra of `primaryKey.columns`. Absent elsewhere.
+   */
+  orderBy?: string[];
+  /**
    * What a non-SQL store keeps behind this "table" — for Redis `hash`, `json`,
    * `string`, `mixed`, `list`, `set`, `zset` or `stream`. Shown as a badge;
    * absent for SQL engines.
@@ -150,6 +162,10 @@ export interface DbTable {
   isMqt?: boolean;
   /** Materialized view's backing query (Postgres matviews). Undefined for plain tables and for dialects that don't expose it (e.g. DB2 MQTs). */
   definition?: string;
+  /** See `TableSchema.engine`. */
+  engine?: string;
+  /** See `TableSchema.orderBy`. */
+  orderBy?: string[];
   /** See `TableSchema.storeType`. */
   storeType?: string;
 }

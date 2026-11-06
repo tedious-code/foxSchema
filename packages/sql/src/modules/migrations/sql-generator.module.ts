@@ -324,7 +324,7 @@ export class SqlGeneratorModule {
     const lines = table.columns.map((c) => `  ${this.renderColumn(c, dialect, mapping, warnings)}`);
 
     const pkCols = this.primaryKeyColumns(table);
-    if (pkCols.length > 0) {
+    if (pkCols.length > 0 && dialect.inlinePrimaryKeyConstraint !== false) {
       const pkName = table.primaryKey?.name;
       // MySQL names every PK constraint "PRIMARY" — emitting CONSTRAINT PRIMARY PRIMARY KEY
       // is redundant and confusing. Skip the CONSTRAINT clause for that reserved name.
@@ -347,7 +347,17 @@ export class SqlGeneratorModule {
       }
     }
 
-    return `CREATE TABLE ${this.qualify(table.name, mapping)} (\n${lines.join(',\n')}\n);`;
+    let suffix = '';
+    if (dialect.createTableSuffix) {
+      const orderSrc = table.orderBy?.length ? table.orderBy : pkCols;
+      // ClickHouse sorting_key can be `tuple()` or `cityHash64(id)` — those are
+      // expressions, not identifiers, and quoting them is a syntax error.
+      suffix = dialect.createTableSuffix(
+        table,
+        orderSrc.map((c) => (/[()]/.test(c) ? c : this.ident(c)))
+      );
+    }
+    return `CREATE TABLE ${this.qualify(table.name, mapping)} (\n${lines.join(',\n')}\n)${suffix};`;
   }
 
   /**
@@ -867,12 +877,26 @@ export class SqlGeneratorModule {
         }
         if (srcPk.length > 0) {
           const pkName = obj.sourceTable?.primaryKey?.name;
-          // MySQL/MariaDB always name the PK constraint "PRIMARY" — emitting
-          // CONSTRAINT PRIMARY PRIMARY KEY is invalid syntax. Skip the CONSTRAINT
-          // clause for that reserved name (mirrors renderCreateTable's guard).
-          const constraint = pkName && pkName.toUpperCase() !== 'PRIMARY' ? `CONSTRAINT ${this.bareName(pkName)} ` : '';
-          statements.push(`ALTER TABLE ${tableName} ADD ${constraint}PRIMARY KEY (${srcPk.join(', ')});`);
+          if (dialect.addPrimaryKeyStatements) {
+            statements.push(
+              ...dialect.addPrimaryKeyStatements(
+                tableName,
+                srcPk.map((c) => this.ident(c)),
+                pkName ? this.bareName(pkName) : undefined
+              )
+            );
+          } else {
+            // MySQL/MariaDB always name the PK constraint "PRIMARY" — emitting
+            // CONSTRAINT PRIMARY PRIMARY KEY is invalid syntax. Skip the CONSTRAINT
+            // clause for that reserved name (mirrors renderCreateTable's guard).
+            const constraint = pkName && pkName.toUpperCase() !== 'PRIMARY' ? `CONSTRAINT ${this.bareName(pkName)} ` : '';
+            statements.push(`ALTER TABLE ${tableName} ADD ${constraint}PRIMARY KEY (${srcPk.join(', ')});`);
+          }
         }
+      }
+
+      if (obj.sourceTable && obj.targetTable && dialect.engineChangeStatements) {
+        statements.push(...dialect.engineChangeStatements(tableName, obj.sourceTable, obj.targetTable));
       }
 
       for (const idx of obj.indexDiffs.filter((i) => i.status === 'ADDED' || i.status === 'MODIFIED')) {

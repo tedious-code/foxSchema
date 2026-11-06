@@ -368,6 +368,7 @@ export type {
 } from './modules/sql-editor/code-cell-types.js';
 export { isCodeCellLast, isCodeCellVars, CODE_CELL_KIND_LABEL } from './modules/sql-editor/code-cell-types.js';
 export type { SqlDialect, CanonicalType, CanonicalBase, RenderedType } from './modules/dialect/sql-dialect.interface.js';
+export { parseClickHouseKeyList } from './providers/clickHouse/clickhouse.sql-dialect.js';
 export { resolveDialect, tryResolveDialect, DIALECT_MAP } from './modules/dialect/registry.js';
 export {
   dialectFeatures,

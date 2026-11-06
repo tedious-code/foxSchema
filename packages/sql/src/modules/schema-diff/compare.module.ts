@@ -107,6 +107,9 @@ export class CompareModule {
         const triggerDiffs = this.compareTriggers(source.triggers ?? [], target.triggers ?? []);
 
         const pkChanged = !this.sameColumns(source.primaryKey?.columns, target.primaryKey?.columns);
+        const engineChanged =
+          (source.engine ?? '').toLowerCase() !== (target.engine ?? '').toLowerCase();
+        const orderByChanged = !this.sameColumns(source.orderBy, target.orderBy);
 
         // Sequences and user-defined types carry their state in dedicated fields
         const sequenceChanged = JSON.stringify(source.sequence ?? {}) !== JSON.stringify(target.sequence ?? {});
@@ -120,6 +123,8 @@ export class CompareModule {
           foreignKeyDiffs.some((d) => d.status !== 'UNCHANGED') ||
           triggerDiffs.some((d) => d.status !== 'UNCHANGED') ||
           pkChanged ||
+          engineChanged ||
+          orderByChanged ||
           sequenceChanged ||
           userTypeChanged ||
           this.normalizeDefinition(source.definition) !== this.normalizeDefinition(target.definition);

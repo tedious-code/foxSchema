@@ -79,6 +79,14 @@ CREATE TABLE demo_a.coupons (
     valid_until  Nullable(Date)
 ) ENGINE = MergeTree ORDER BY id;
 
+-- Composite sorting key. ClickHouse has no table-level PRIMARY KEY constraint;
+-- ORDER BY (order_id, coupon_id) is the MergeTree equivalent of a composite PK.
+CREATE TABLE demo_a.order_coupons (
+    order_id   Int32,
+    coupon_id  Int32,
+    applied_at DateTime DEFAULT now()
+) ENGINE = MergeTree ORDER BY (order_id, coupon_id);
+
 CREATE VIEW demo_a.v_active_products AS
 SELECT id, name, price, sku
 FROM demo_a.products

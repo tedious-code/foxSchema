@@ -1,4 +1,5 @@
 import type { SqlDialect, ColumnSpec } from '../../modules/dialect/sql-dialect.interface.js';
+import type { TableSchema } from '../../interfaces/index.js';
 import { makeDialectTypeFns, plain, sized, decimalAs, tokenizeType } from '../../modules/dialect/type-mapping.js';
 
 // ClickHouse type names are case-sensitive. Lowercase the token for parseMap lookup.
@@ -69,6 +70,81 @@ const CH_DECIMAL_PRECISION: Record<string, number> = {
   decimal256: 76,
 };
 
+function unwrapOuterParens(raw: string): string {
+  let s = raw.trim();
+  while (s.startsWith('(') && s.endsWith(')') && s.length >= 2) {
+    let depth = 0;
+    let wrapsEntire = true;
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i]!;
+      if (ch === '(') depth += 1;
+      else if (ch === ')') {
+        depth -= 1;
+        if (depth === 0 && i !== s.length - 1) {
+          wrapsEntire = false;
+          break;
+        }
+      }
+    }
+    if (!wrapsEntire || depth !== 0) break;
+    s = s.slice(1, -1).trim();
+  }
+  return s;
+}
+
+/**
+ * Split a ClickHouse sorting_key / primary_key catalog string on top-level
+ * commas. `id, created_at` → two columns; `cityHash64(id, 1)` stays one
+ * expression so a nested comma does not become a fake column.
+ */
+export function parseClickHouseKeyList(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  const out: string[] = [];
+  let current = '';
+  let depth = 0;
+  for (const ch of unwrapOuterParens(raw)) {
+    if (ch === '(') depth += 1;
+    else if (ch === ')') depth = Math.max(0, depth - 1);
+    if (ch === ',' && depth === 0) {
+      const piece = current.trim();
+      if (piece) out.push(piece);
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  const last = current.trim();
+  if (last) out.push(last);
+  return out;
+}
+
+function clickHouseEngineName(engine: string | undefined): string {
+  const stripped = (engine ?? '').trim().replace(/^ENGINE\s*=\s*/i, '').trim();
+  return stripped || 'MergeTree';
+}
+
+function clickHouseEngineSql(engine: string | undefined): string {
+  return `ENGINE = ${clickHouseEngineName(engine)}`;
+}
+
+function clickHouseOrderBy(table: TableSchema): string[] {
+  return table.orderBy?.length ? table.orderBy : table.primaryKey?.columns ?? [];
+}
+
+function clickHouseOrderBySql(quotedOrderBy: string[]): string {
+  if (quotedOrderBy.length === 0) return 'tuple()';
+  if (quotedOrderBy.length === 1) return quotedOrderBy[0]!;
+  return `(${quotedOrderBy.join(', ')})`;
+}
+
+function sameKeyList(a: string[] = [], b: string[] = []): boolean {
+  return a.length === b.length && a.every((c, i) => c.toUpperCase() === (b[i] ?? '').toUpperCase());
+}
+
+function clickHousePkReview(tableName: string): string[] {
+  return [`-- review: ${tableName}: ClickHouse PRIMARY KEY is part of the ENGINE clause and cannot be altered in place. Recreate the table to change the key.`];
+}
+
 function parseClickHouseType(raw: string) {
   const parsed = types.parseType(raw);
   const tok = tokenizeType(raw);
@@ -113,8 +189,38 @@ export const clickHouseSqlDialect: SqlDialect = {
   },
 
   dropPrimaryKeyStatements(tableName: string, _pkName: string | undefined): string[] {
-    // ClickHouse PRIMARY KEY is embedded in the ENGINE clause — it cannot be dropped separately.
-    return [`-- review: ${tableName}: ClickHouse PRIMARY KEY is part of the ENGINE clause and cannot be altered in place. Recreate the table to change the key.`];
+    return clickHousePkReview(tableName);
+  },
+
+  addPrimaryKeyStatements(tableName: string, _quotedColumns: string[], _pkName: string | undefined): string[] {
+    return clickHousePkReview(tableName);
+  },
+
+  // Table-level PRIMARY KEY (cols) is not valid inside the column list — only
+  // CHECK / ASSUME. The key is ENGINE … ORDER BY after the closing paren.
+  inlinePrimaryKeyConstraint: false,
+
+  createTableSuffix(table: TableSchema, quotedOrderBy: string[]): string {
+    const pkCols = table.primaryKey?.columns ?? [];
+    // ClickHouse PRIMARY KEY defaults to ORDER BY; only emit it when they differ.
+    const pkClause =
+      pkCols.length > 0 && !sameKeyList(pkCols, clickHouseOrderBy(table))
+        ? ` PRIMARY KEY ${clickHouseOrderBySql(pkCols)}`
+        : '';
+    return ` ${clickHouseEngineSql(table.engine)}${pkClause} ORDER BY ${clickHouseOrderBySql(quotedOrderBy)}`;
+  },
+
+  engineChangeStatements(tableName: string, source: TableSchema, target: TableSchema): string[] {
+    const srcOrder = clickHouseOrderBy(source);
+    if (
+      clickHouseEngineName(source.engine).toLowerCase() === clickHouseEngineName(target.engine).toLowerCase() &&
+      sameKeyList(srcOrder, clickHouseOrderBy(target))
+    ) {
+      return [];
+    }
+    return [
+      `-- review: ${tableName}: ClickHouse ENGINE / ORDER BY cannot be altered in place. Recreate the table to apply ${clickHouseEngineSql(source.engine)} ORDER BY ${clickHouseOrderBySql(srcOrder)}.`,
+    ];
   },
 
   // ClickHouse uses Nullable(T) wrapper instead of NULL / NOT NULL keywords.

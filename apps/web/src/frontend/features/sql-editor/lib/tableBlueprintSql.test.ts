@@ -263,6 +263,12 @@ describe('primary key alter', () => {
     expect(sql[0]).toMatch(/DROP PRIMARY KEY/i);
     expect(sql[1]).toBe('ALTER TABLE t ADD PRIMARY KEY (a, b);');
   });
+
+  it('reviews a ClickHouse composite key change instead of ALTER ADD PRIMARY KEY', () => {
+    const sql = generatePkAlterSql('order_coupons', 'clickhouse', ['order_id'], ['order_id', 'coupon_id']);
+    expect(sql.join('\n')).toMatch(/-- review:/);
+    expect(sql.join('\n')).not.toMatch(/ALTER TABLE .* ADD .*PRIMARY KEY/i);
+  });
 });
 
 describe('create / drop table', () => {
@@ -281,6 +287,22 @@ describe('create / drop table', () => {
     expect(sql[0]).toMatch(/^CREATE TABLE IF NOT EXISTS order_lines/);
     expect(sql[0]).toContain('PRIMARY KEY (order_id, line_no)');
     expect(sql[0]).not.toMatch(/INTEGER NOT NULL PRIMARY KEY/);
+  });
+
+  it('maps a ClickHouse composite PK to MergeTree ORDER BY, not a constraint', () => {
+    const sql = generateCreateTableSql(
+      'order_coupons',
+      [
+        col({ name: 'order_id', type: 'Int32', nullable: false, primaryKey: true }),
+        col({ name: 'coupon_id', type: 'Int32', nullable: false, primaryKey: true }),
+        col({ name: 'applied_at', type: 'DateTime', nullable: false }),
+      ],
+      ['order_id', 'coupon_id'],
+      'clickhouse'
+    );
+    expect(sql[0]).toMatch(/ENGINE = MergeTree ORDER BY \(order_id, coupon_id\)/);
+    expect(sql[0]).not.toMatch(/CONSTRAINT/);
+    expect(sql[0]).not.toContain('PRIMARY KEY (order_id, coupon_id)');
   });
 
   it('uses OBJECT_ID guard for sqlserver create', () => {
@@ -345,6 +367,10 @@ describe('foreign keys & triggers', () => {
     expect(quoteTableRef('My Schema.Odd-Table', 'postgres')).toBe('"My Schema"."Odd-Table"');
     expect(qualifyTableName('test1', 'mcve', 'postgres')).toBe('mcve.test1');
     expect(qualifyTableName('mcve.test1', 'other', 'postgres')).toBe('mcve.test1');
+    expect(qualifyTableName('legacy_audit_log', 'demo_b', 'clickhouse')).toBe(
+      'demo_b.legacy_audit_log'
+    );
+    expect(qualifyTableName('t', 'demo', 'sqlite')).toBe('t');
 
     const sql = generateAddForeignKeySql(
       'test2',

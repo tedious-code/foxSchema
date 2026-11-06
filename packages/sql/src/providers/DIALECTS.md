@@ -21,6 +21,10 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
 | `serialSequenceFromDefault` | no pre-created sequence | serial columns reference a backing sequence (Postgres) |
 | `dropDependentViewsBlock` / `recreateDependentViewsBlock` | none | ALTER/DROP COLUMN fails while a view depends on the column (Postgres) |
 | `nullableTypeWrapper` | append `NULL`/`NOT NULL` | nullability is encoded in the type (ClickHouse `Nullable(T)`) |
+| `inlinePrimaryKeyConstraint` | emit `PRIMARY KEY (cols)` inside CREATE TABLE | engine rejects a table-level PK (ClickHouse: only CHECK/ASSUME there) |
+| `createTableSuffix` | none | clauses after the column list — ClickHouse `ENGINE = MergeTree ORDER BY …` |
+| `addPrimaryKeyStatements` | `ALTER TABLE t ADD [CONSTRAINT] PRIMARY KEY (cols)` | engine cannot ADD PRIMARY KEY (ClickHouse: `-- review:` recreate) |
+| `engineChangeStatements` | none | ENGINE / ORDER BY changed and cannot ALTER in place (ClickHouse) |
 | `quoteIdentifier` | ANSI `"name"`, embedded `"` doubled | engine uses another wrapper — MySQL/MariaDB/TiDB backticks, SQL Server/Azure brackets |
 | `roleMemberStatement` | `GRANT role TO member;` / `REVOKE role FROM member;` | engine does not take the standard form — Db2 names the member kind, SQL Server uses `ALTER ROLE … ADD MEMBER` |
 | `postColumnChangeStatements` | none | table needs maintenance after column changes before its keys/indexes are rebuilt (DB2 `REORG`) |
@@ -147,6 +151,23 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
 
 ### ClickHouse (`clickhouse.sql-dialect.ts`)
 - `nullableTypeWrapper` ⇒ `Nullable(T)`; generator skips `NULL`/`NOT NULL` keywords.
+- **No table-level `PRIMARY KEY` constraint.** ClickHouse only allows `CHECK` /
+  `ASSUME` inside the column list; `CONSTRAINT PRIMARY_KEY PRIMARY KEY (id)` is
+  `Syntax error … Expected one of: CHECK, ASSUME`. `inlinePrimaryKeyConstraint`
+  is false. Logical PK columns (and captured `orderBy`) become
+  `ENGINE = MergeTree ORDER BY id` via `createTableSuffix`. A composite logical
+  PK (`order_id, coupon_id`) is `ORDER BY (order_id, coupon_id)` — ClickHouse
+  MergeTree supports multi-column keys that way, not as a table constraint.
+  When the logical PK is a prefix of a longer `orderBy`, ClickHouse also gets
+  `PRIMARY KEY id` on the engine clause (not inside the column list). A captured
+  `engine` (e.g. `ReplacingMergeTree`) is used as-is; no key → `ORDER BY tuple()`.
+- Changing PK / ENGINE / ORDER BY in place is impossible — `dropPrimaryKeyStatements`,
+  `addPrimaryKeyStatements`, and `engineChangeStatements` emit `-- review:` to
+  recreate the table, never `ALTER TABLE … ADD PRIMARY KEY`.
+- Provider reads `system.tables.engine / sorting_key / primary_key` plus
+  `system.columns.is_in_primary_key / is_in_sorting_key`. Compare treats engine
+  and ORDER BY as table-level changes; other dialects omit those fields and
+  stay UNCHANGED.
 - No traditional indexes/triggers/FKs — those hooks are absent by design.
 - No transactions: the adapter's begin/commit/rollback are no-ops, so
   `clickhouse.settings.ts` sets `transactions: false` (as Redis and MongoDB do).

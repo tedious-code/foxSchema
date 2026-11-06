@@ -41,7 +41,9 @@ export function qualifyTableName(
   const sch = schema?.trim();
   if (!sch) return name;
   const d = dialectName.toLowerCase();
-  if (d === 'sqlite' || d === 'clickhouse') return name;
+  // SQLite is file-scoped and has no schema. ClickHouse databases *are* the
+  // schema — qualify so DROP/CREATE hit demo_b.t instead of the client default.
+  if (d === 'sqlite') return name;
   return `${sch}.${name}`;
 }
 
@@ -727,12 +729,22 @@ export function generatePkAlterSql(
     stmts.push(...dialect.dropPrimaryKeyStatements(qTable, qPk));
   }
   if (next.length > 0) {
-    const cols = next.map((c) => quoteIdent(c, dialectName)).join(', ');
-    const constraint =
-      pkName && pkName.toUpperCase() !== 'PRIMARY'
-        ? `CONSTRAINT ${quoteIdent(pkName, dialectName)} `
-        : '';
-    stmts.push(`ALTER TABLE ${qTable} ADD ${constraint}PRIMARY KEY (${cols});`);
+    const quoted = next.map((c) => quoteIdent(c, dialectName));
+    if (dialect.addPrimaryKeyStatements) {
+      stmts.push(
+        ...dialect.addPrimaryKeyStatements(
+          qTable,
+          quoted,
+          pkName && pkName.toUpperCase() !== 'PRIMARY' ? quoteIdent(pkName, dialectName) : undefined
+        )
+      );
+    } else {
+      const constraint =
+        pkName && pkName.toUpperCase() !== 'PRIMARY'
+          ? `CONSTRAINT ${quoteIdent(pkName, dialectName)} `
+          : '';
+      stmts.push(`ALTER TABLE ${qTable} ADD ${constraint}PRIMARY KEY (${quoted.join(', ')});`);
+    }
   }
   return stmts;
 }
@@ -845,7 +857,8 @@ function createTableBody(
     }
     return `  ${buildColumnDef(c, dialectName)}`;
   });
-  if (pkColumns.length > 0 && !sqliteIdentityPkCol) {
+  const dialect = resolveDialect(dialectName);
+  if (pkColumns.length > 0 && !sqliteIdentityPkCol && dialect.inlinePrimaryKeyConstraint !== false) {
     const cols = pkColumns.map((c) => quoteIdent(c, dialectName)).join(', ');
     const constraint =
       pkName && pkName.toUpperCase() !== 'PRIMARY'
@@ -858,6 +871,27 @@ function createTableBody(
     if (line) lines.push(`  ${line}`);
   }
   return `(\n${lines.join(',\n')}\n)`;
+}
+
+/** ENGINE / ORDER BY (and similar) after the column list. Empty on most dialects. */
+function createTableSuffixSql(
+  tableName: string,
+  columns: ColumnInfo[],
+  pkColumns: string[],
+  dialectName: string
+): string {
+  const dialect = resolveDialect(dialectName);
+  if (!dialect.createTableSuffix) return '';
+  const table: TableSchema = {
+    name: tableName,
+    objectType: 'TABLE',
+    columns,
+    indices: [],
+    foreignKeys: [],
+    ...(pkColumns.length ? { primaryKey: { columns: pkColumns } } : {}),
+  };
+  const quoted = pkColumns.map((c) => (/[()]/.test(c) ? c : quoteIdent(c, dialectName)));
+  return dialect.createTableSuffix(table, quoted);
 }
 
 /**
@@ -881,31 +915,32 @@ export function generateCreateTableSql(
   const support = dialectFkConstraintSupport(dialectName);
   const inlineFks = support.createInline ? foreignKeys : undefined;
   const body = createTableBody(columns, pkColumns, dialectName, pkName, inlineFks, schema);
+  const suffix = createTableSuffixSql(name, columns, pkColumns, dialectName);
   const d = dialectName.toLowerCase();
   const objectIdName = qualifyTableName(name, schema, dialectName);
   const ifNotExists = opts?.ifNotExists !== false;
 
   if (!ifNotExists) {
-    return [`CREATE TABLE ${qTable} ${body};`];
+    return [`CREATE TABLE ${qTable} ${body}${suffix};`];
   }
   if (dialectFamily(d) === 'sqlserver') {
     const escaped = objectIdName.replace(/'/g, "''");
     return [
-      `IF OBJECT_ID(N'${escaped}', N'U') IS NULL\nCREATE TABLE ${qTable} ${body};`,
+      `IF OBJECT_ID(N'${escaped}', N'U') IS NULL\nCREATE TABLE ${qTable} ${body}${suffix};`,
     ];
   }
   if (d === 'oracle') {
     // Oracle 23c+ supports IF NOT EXISTS; older versions ignore and may error on re-run.
-    return [`CREATE TABLE IF NOT EXISTS ${qTable} ${body};`];
+    return [`CREATE TABLE IF NOT EXISTS ${qTable} ${body}${suffix};`];
   }
   if (d === 'db2') {
     // DB2 has no CREATE TABLE IF NOT EXISTS — emit plain CREATE (Apply fails if exists).
     return [
       `-- review: DB2 has no CREATE TABLE IF NOT EXISTS — fails if ${name} already exists`,
-      `CREATE TABLE ${qTable} ${body};`,
+      `CREATE TABLE ${qTable} ${body}${suffix};`,
     ];
   }
-  return [`CREATE TABLE IF NOT EXISTS ${qTable} ${body};`];
+  return [`CREATE TABLE IF NOT EXISTS ${qTable} ${body}${suffix};`];
 }
 
 /**

@@ -90,6 +90,36 @@ describe('CompareModule.compare', () => {
     expect(r.tables[0].status).toBe('MODIFIED');
   });
 
+  it('detects a ClickHouse ORDER BY change while the logical PK stays the same', async () => {
+    const src = table({
+      name: 'COUPONS',
+      primaryKey: { name: 'PRIMARY_KEY', columns: ['id'] },
+      engine: 'MergeTree',
+      orderBy: ['id', 'code'],
+    });
+    const tgt = table({
+      name: 'COUPONS',
+      primaryKey: { name: 'PRIMARY_KEY', columns: ['id'] },
+      engine: 'MergeTree',
+      orderBy: ['id'],
+    });
+    const r = await cmp.compare([src], [tgt]);
+    expect(r.tables[0].status).toBe('MODIFIED');
+  });
+
+  it('detects a ClickHouse table engine change', async () => {
+    const src = table({ name: 'COUPONS', engine: 'ReplacingMergeTree', orderBy: ['id'] });
+    const tgt = table({ name: 'COUPONS', engine: 'MergeTree', orderBy: ['id'] });
+    const r = await cmp.compare([src], [tgt]);
+    expect(r.tables[0].status).toBe('MODIFIED');
+  });
+
+  it('does not mark other dialects modified for missing engine / ORDER BY', async () => {
+    const t = table({ name: 'A', columns: [col('ID')] });
+    const r = await cmp.compare([t], [structuredClone(t)]);
+    expect(r.tables[0].status).toBe('UNCHANGED');
+  });
+
   it('detects a sequence attribute change', async () => {
     const src = table({ name: 'S', objectType: 'SEQUENCE', sequence: { increment: '1' } });
     const tgt = table({ name: 'S', objectType: 'SEQUENCE', sequence: { increment: '10' } });

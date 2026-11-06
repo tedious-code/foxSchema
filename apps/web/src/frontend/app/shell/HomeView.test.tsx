@@ -61,11 +61,11 @@ describe('HomeView', () => {
     expect(ensureSchema).not.toHaveBeenCalled();
   });
 
-  it('opens a saved connection as a SQL destination without introspecting', () => {
+  it('opens Compare from a provider count without listing credentials', () => {
     render(<HomeView />);
-    fireEvent.click(screen.getByTestId('home-connection-c1'));
-    expect(ensureConnectionSelected).toHaveBeenCalledWith('c1');
-    expect(setActiveView).toHaveBeenCalledWith('sqlEditor');
+    fireEvent.click(screen.getByTestId('home-connections-group-sqlite'));
+    expect(setActiveView).toHaveBeenCalledWith('sync');
+    expect(ensureConnectionSelected).not.toHaveBeenCalled();
     expect(ensureSchema).not.toHaveBeenCalled();
   });
 
@@ -82,13 +82,11 @@ describe('HomeView', () => {
 
   it('groups connections by provider on the home index', () => {
     render(<HomeView />);
-    expect(screen.getByTestId('home-connections').textContent).toMatch(/Connections by provider/);
-    expect(screen.getByTestId('home-connections-group-postgres')).toBeTruthy();
-    expect(screen.getByTestId('home-connections-group-sqlite')).toBeTruthy();
-    const sqliteGroup = screen.getByTestId('home-connections-group-sqlite');
-    expect(sqliteGroup.textContent).toMatch(/Demo SQLite/);
-    expect(sqliteGroup.textContent).toMatch(/Lab SQLite/);
-    expect(screen.getByTestId('home-connections-group-postgres').textContent).toMatch(/Warehouse/);
+    const section = screen.getByTestId('home-connections');
+    expect(section.textContent).toMatch(/Connections by provider/);
+    expect(screen.getByTestId('home-connections-count-postgres').textContent).toBe('1');
+    expect(screen.getByTestId('home-connections-count-sqlite').textContent).toBe('2');
+    expect(section.textContent).not.toMatch(/Demo SQLite|Lab SQLite|Warehouse|db\.internal/);
   });
 
   it('opens the Utilities workspace from Home', () => {

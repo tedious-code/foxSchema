@@ -756,6 +756,20 @@ export const TestIds = {
       /** div */
       demoBanner: 'demo-banner',
     },
+    DriverInventoryCard: {
+      /** section · Drivers */
+      homeDrivers: 'home-drivers',
+      /** p */
+      homeDriversActionError: 'home-drivers-action-error',
+      /** button */
+      homeDriversCheck: 'home-drivers-check',
+      /** p */
+      homeDriversError: 'home-drivers-error',
+      /** li */
+      homeDriversLoading: 'home-drivers-loading',
+      /** p */
+      homeDriversQueue: 'home-drivers-queue',
+    },
     featureRegistry: {
       /** data · Snapshots */
       syncPaneHistoryBtn: 'sync-pane-history-btn',
@@ -773,13 +787,13 @@ export const TestIds = {
     HomeView: {
       /** button · Search workspaces and recents ⌘K */
       homeCommandPalette: 'home-command-palette',
-      /** button */
-      homeConnection: (id: string | number) => `home-connection-${id}`,
       /** section · Connections by provider */
       homeConnections: 'home-connections',
       /** span */
       homeConnectionsCount: 'home-connections-count',
-      /** div */
+      /** span */
+      homeConnectionsCountForDialect: (dialect: string | number) => `home-connections-count-${dialect}`,
+      /** button */
       homeConnectionsGroup: (dialect: string | number) => `home-connections-group-${dialect}`,
       /** section */
       homeContinue: 'home-continue',
@@ -4465,15 +4479,21 @@ export type TestId =
   | `history-select-${string}`
   | 'history-select-all'
   | 'home-command-palette'
-  | `home-connection-${string}`
   | 'home-connections'
   | 'home-connections-count'
+  | `home-connections-count-${string}`
   | `home-connections-group-${string}`
   | 'home-continue'
   | 'home-continue-snapshots'
   | 'home-continue-sql'
   | 'home-continue-sync'
   | 'home-continue-utilities'
+  | 'home-drivers'
+  | 'home-drivers-action-error'
+  | 'home-drivers-check'
+  | 'home-drivers-error'
+  | 'home-drivers-loading'
+  | 'home-drivers-queue'
   | 'home-open-btn'
   | `home-recent-${string}`
   | 'home-recents'

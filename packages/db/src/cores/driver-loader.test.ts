@@ -50,8 +50,19 @@ describe('driverLoadReason', () => {
     expect(driverLoadReason(error)).toBe("Cannot find module 'redis'");
   });
 
-  it('keeps any other error whole', () => {
+  it('keeps a native-load error without the install directory', () => {
     const error = new Error('dlopen(/opt/ibm_db/build/Release/odbc_bindings.node, 0x0001): image not found');
-    expect(driverLoadReason(error)).toBe(error.message);
+    expect(driverLoadReason(error)).toBe('dlopen(odbc_bindings.node, 0x0001): image not found');
+  });
+
+  it('does not quote the server home directory from an ENOENT after a driver update', () => {
+    const error = new Error(
+      "ENOENT: no such file or directory, open '/Users/hiphan/Documents/GitHub/foxSchema/node_modules/@clickhouse/client/dist/index.js'"
+    );
+    expect(driverLoadReason(error)).toBe(
+      "ENOENT: no such file or directory, open '@clickhouse/client/dist/index.js'"
+    );
+    expect(driverLoadReason(error)).not.toMatch(/\/Users\//);
+    expect(driverLoadReason(error)).not.toContain('foxSchema');
   });
 });

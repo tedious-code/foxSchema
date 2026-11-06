@@ -20,6 +20,10 @@ describe('friendlyError', () => {
     expect(friendlyError(new Error('connect ETIMEDOUT 10.0.0.5:1433'))).toContain('timed out');
   });
 
+  it('rewrites ECONNRESET', () => {
+    expect(friendlyError(new Error('read ECONNRESET'))).toMatch(/closed the connection before login \(ECONNRESET\)/);
+  });
+
   it('rewrites Postgres auth failure', () => {
     expect(friendlyError(new Error('password authentication failed for user "foo"'))).toBe(
       'Login failed — check the username and password on this connection.'

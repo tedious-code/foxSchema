@@ -25,7 +25,8 @@ export { ConnectionFactory } from './cores/connection-factory.js';
 // cores/open-database.ts for why this sits alongside the factory rather than
 // replacing it.
 export { openDatabase, queryOnce, type OpenDatabase } from './cores/open-database.js';
-export { DriverDetector } from './cores/driver-detector.js';
+export { DriverDetector, readInstalledPackageVersion } from './cores/driver-detector.js';
+export { driverLoadReason, redactInstallPaths } from './cores/driver-loader.js';
 export { assertSafeIdentifier } from './cores/sql-identifier.js';
 export {
   BoundedPoolCache,

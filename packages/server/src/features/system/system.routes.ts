@@ -14,8 +14,17 @@ import { AppSettingsStore } from '../../platform/settings/app-settings.service';
 import { targetLocks } from '../../platform/guards/target-lock';
 import { isLocalSingleUser } from '../../platform/runtime/deployment';
 import { sendError } from '../../platform/http/respond';
+import { requirePermissions } from '../../platform/authorization/rbac.guard';
 import { WorkflowSettingsService } from '../workflow';
 import { readServiceStatus, type ServiceStatusDeps } from './service-status';
+import {
+  installDriverPackage,
+  knownDriverPackage,
+  listDriverInventory,
+  removeDriverPackage,
+  updateDriverPackage,
+  type DriverActionResult,
+} from './drivers.service';
 import { keySchemeInfo } from '../../platform/crypto/crypto';
 import { getMetadataDbConfig, SUPPORTED_ENGINES, type DbEngine } from '../../database/config';
 import { createMetadataStore } from '../../database/stores/registry';
@@ -57,6 +66,23 @@ export function createSystemRoutes(
   // The Services card on Home: is the workflow engine up, and if not, why.
   router.get('/system/services', async (_req: AppRequest, res: FastifyReply) => {
     res.send(await readServiceStatus(serviceStatusDeps));
+  });
+
+  // Home → Drivers: one row per npm package. `?latest=1` asks the registry.
+  router.get('/system/drivers', async (req: AppRequest, res: FastifyReply) => {
+    const raw = (req.query as { latest?: unknown } | undefined)?.latest;
+    const latest = raw === '1' || raw === 'true' || raw === true;
+    res.send(await listDriverInventory({ latest }));
+  });
+
+  router.post('/system/drivers/install', requirePermissions('admin.drivers'), async (req: AppRequest, res: FastifyReply) => {
+    await runDriverAction(req, res, installDriverPackage);
+  });
+  router.post('/system/drivers/update', requirePermissions('admin.drivers'), async (req: AppRequest, res: FastifyReply) => {
+    await runDriverAction(req, res, updateDriverPackage);
+  });
+  router.post('/system/drivers/remove', requirePermissions('admin.drivers'), async (req: AppRequest, res: FastifyReply) => {
+    await runDriverAction(req, res, removeDriverPackage);
   });
 
   // In-app update check — compares the running version against npm (default).
@@ -171,6 +197,31 @@ export function createSystemRoutes(
   });
 
   return router;
+}
+
+function sendDriverAction(res: FastifyReply, result: DriverActionResult): void {
+  if (!result.ok) {
+    sendError(res, result.code, result.message, { extra: result.extra });
+    return;
+  }
+  res.send({ success: true, hint: result.hint });
+}
+
+/** ibm_db clidriver download + native build routinely exceeds the 120s default. */
+const DRIVER_NPM_REQUEST_TIMEOUT_MS = 10 * 60 * 1000;
+
+async function runDriverAction(
+  req: AppRequest,
+  res: FastifyReply,
+  run: (packageName: string) => Promise<DriverActionResult>
+): Promise<void> {
+  req.raw.setTimeout(DRIVER_NPM_REQUEST_TIMEOUT_MS);
+  const pkg = knownDriverPackage((req.body as { packageName?: unknown } | null)?.packageName);
+  if (!pkg) {
+    sendError(res, 'invalid_input', 'A known driver package name is required.');
+    return;
+  }
+  sendDriverAction(res, await run(pkg));
 }
 
 function defaultServiceStatusDeps(): ServiceStatusDeps {

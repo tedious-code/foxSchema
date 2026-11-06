@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import type { DriverInfo } from '@foxschema/sql';
 import { getAdapter, ADAPTERS } from '../providers/adapter-registry.js';
 import { hasDb2Clidriver, setupDb2ClientEnv } from '../providers/db2/db2.env.js';
@@ -6,6 +8,43 @@ import { IBM_DB_VERSION } from '@foxschema/sql';
 import { driverLoadReason } from './driver-loader.js';
 
 const nodeRequire = createRequire(import.meta.url);
+
+/**
+ * Version printed on the package's own package.json, which most drivers do
+ * not also export as `mod.version`. Walks up from the resolved entry when
+ * `package.json` is not in the package's exports map.
+ */
+export function readInstalledPackageVersion(packageName: string): string | undefined {
+  try {
+    const pkgPath = nodeRequire.resolve(`${packageName}/package.json`);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- path is require.resolve of an allow-listed driver package
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as { version?: string };
+    return pkg.version;
+  } catch {
+    try {
+      const main = nodeRequire.resolve(packageName);
+      let dir = dirname(main);
+      for (let i = 0; i < 6; i++) {
+        try {
+          // eslint-disable-next-line security/detect-non-literal-fs-filename -- walks up from the resolved driver entry looking for its manifest
+          const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as {
+            name?: string;
+            version?: string;
+          };
+          if (pkg.name === packageName && pkg.version) return pkg.version;
+        } catch {
+          /* keep walking */
+        }
+        const parent = dirname(dir);
+        if (parent === dir) break;
+        dir = parent;
+      }
+    } catch {
+      /* not installed */
+    }
+    return undefined;
+  }
+}
 
 export type { DriverInfo };
 
@@ -49,7 +88,7 @@ export class DriverDetector {
         provider: dialect,
         packageName,
         installed: true,
-        version: mod?.version ?? mod?.default?.version,
+        version: readInstalledPackageVersion(packageName) ?? mod?.version ?? mod?.default?.version,
       };
     } catch (error: unknown) {
       const message = driverLoadReason(error);
@@ -85,6 +124,14 @@ export class DriverDetector {
   }
 
   static detectAll(): DriverInfo[] {
-    return Object.keys(ADAPTERS).map((dialect) => this.checkDialect(dialect));
+    const byPackage = new Map<string, DriverInfo>();
+    return Object.keys(ADAPTERS).map((dialect) => {
+      const packageName = getAdapter(dialect).packageName;
+      const prior = byPackage.get(packageName);
+      if (prior) return { ...prior, provider: dialect };
+      const info = this.checkDialect(dialect);
+      byPackage.set(packageName, info);
+      return info;
+    });
   }
 }

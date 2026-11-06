@@ -76,6 +76,22 @@ on the server, so it needs the new **Install drivers** permission (admins by
 default, from the account role); without it the banner gives the command to run.
 Every Install button shares one status, and the server runs one install at a time.
 
+Home → **Drivers** (under Services) lists each driver package this install can
+load, with its version. Opening Home checks npm for newer releases. **Install**,
+**Update**, and **Remove** use the same **Install drivers** permission; only
+SQLite (`better-sqlite3`, the metadata store) cannot be removed. Install saves
+the package on `@foxschema/db` so a missing peer (Redis, MongoDB) is actually
+fetched, including nested dependencies. **Update** also pins every workspace
+that already lists the package (so SQL Server is not stuck on the web app's
+`12.7.13` while only `@foxschema/db` moves), and rewrites a caret peer that
+would block a major (`^1.5` vs DuckDB 2). Two clicks queue rather than
+running two npm processes in one `node_modules` (that was the `ENOTEMPTY`
+failure). Remove/update retries leftover rename dirs and does not reload the
+page when the lockfile changes. Load and npm errors keep a package-relative
+file (`@clickhouse/client/dist/index.js`), not the install directory; action
+responses no longer return `cwd` / raw npm output. A dropped TCP socket
+(`ECONNRESET`) is explained as the database closing before login.
+
 ## Workflow: steer a paused run; connections stay in their workspace
 
 **Runs** can cancel a live job and answer **Ask a person**. Saving or running
@@ -94,7 +110,7 @@ catalog names.
   at the bottom of the rail is migration-run history. They are not the same list.
 - **Utils** is its own view (Index Management, **Backup & Restore**, Clone
   Table, insights, Query files, DB users & grants) — not a SQL Editor sidebar.
-- Saved credentials are grouped by dialect; Home continues last compare / query.
+- Saved credentials are counted by dialect on Home (no host, user, or name list); Home continues last compare / query.
   **⌘K** / the command palette list the same views the rail shows.
 
 ## Team workspaces

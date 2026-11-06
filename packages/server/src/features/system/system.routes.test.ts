@@ -7,7 +7,8 @@
  * and a failure to record never fails the answer.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AppRequest } from '../../platform/http/types';
+import type { Permission } from '@foxschema/shared';
+import type { AppRequest, AuthedRequest, Middleware } from '../../platform/http/types';
 import { fakeReply, routeHandler } from '../../platform/http/route-doubles';
 import type { AppSettingsStore } from '../../platform/settings/app-settings.service';
 import { createSystemRoutes } from './system.routes';
@@ -42,5 +43,54 @@ describe('GET /app-info', () => {
     const call = appInfo({ set: async () => Promise.reject(new Error('read-only database')) });
     await call.run();
     expect(call.body().db).toBeTruthy();
+  });
+});
+
+const systemRoutes = createSystemRoutes().flatten();
+const systemRoute = (method: string, path: string) => {
+  const found = systemRoutes.find((r) => r.method === method && r.path === path);
+  if (!found) throw new Error(`${method} ${path} is not registered`);
+  return found;
+};
+
+async function guardsAnswer(middlewares: unknown[], caller: Partial<AuthedRequest>) {
+  const { reply, sent } = fakeReply();
+  for (const middleware of middlewares as Middleware[]) {
+    let passed = false;
+    await middleware(caller as AuthedRequest, reply, () => (passed = true));
+    if (!passed) return sent;
+  }
+  return 'passed' as const;
+}
+
+const caller = (appRole: 'viewer' | 'editor' | 'owner' | 'admin', permissions: Permission[] = []) => ({
+  userId: `${appRole}-1`,
+  appRole,
+  permissions: new Set<Permission>(permissions),
+});
+
+describe('driver inventory routes', () => {
+  it('leaves listing drivers open to everyone signed in', async () => {
+    expect(await guardsAnswer(systemRoute('GET', '/system/drivers').middlewares, caller('viewer'))).toBe('passed');
+  });
+
+  it.each(['/system/drivers/install', '/system/drivers/update', '/system/drivers/remove'] as const)(
+    'refuses %s without admin.drivers',
+    async (path) => {
+      const sent = await guardsAnswer(systemRoute('POST', path).middlewares, caller('owner', ['editor.run']));
+      expect(sent).not.toBe('passed');
+      if (sent === 'passed') return;
+      expect(sent.status).toBe(403);
+      expect(sent.body.missing).toEqual(['admin.drivers']);
+    }
+  );
+
+  it('lets an admin install, update and remove', async () => {
+    for (const path of ['/system/drivers/install', '/system/drivers/update', '/system/drivers/remove']) {
+      expect(await guardsAnswer(systemRoute('POST', path).middlewares, caller('admin'))).toBe('passed');
+      expect(await guardsAnswer(systemRoute('POST', path).middlewares, caller('editor', ['admin.drivers']))).toBe(
+        'passed'
+      );
+    }
   });
 });

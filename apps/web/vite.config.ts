@@ -12,7 +12,19 @@ export default defineConfig({
     react(),
     tailwindcss(),
     // .br and .gz beside every text file, sent by the server in place of it.
-    precompress()
+    precompress(),
+    {
+      name: 'skip-driver-npm-reload',
+      configureServer(server) {
+        // watch.ignored is not enough: Vite's package-data watcher still
+        // full-reloads when npm pkg set writes apps/web/package.json.
+        server.watcher.unwatch(['**/package.json', '**/package-lock.json']);
+      },
+      handleHotUpdate({ file }) {
+        const n = file.replaceAll('\\', '/');
+        if (/\/(package-lock\.json|package\.json)$/.test(n) && !n.includes('/src/')) return [];
+      },
+    },
   ],
   build: {
     rolldownOptions: {
@@ -85,6 +97,17 @@ export default defineConfig({
     dedupe: ['react', 'react-dom', 'ajv'],
   },
   server: {
+    watch: {
+      // Driver install/remove rewrites workspace package.json and the lockfile.
+      // Watching those full-reloads the page, which aborts the in-flight npm
+      // and leaves node_modules half-renamed (ENOTEMPTY).
+      ignored: [
+        '**/node_modules/**',
+        '**/.git/**',
+        '**/package.json',
+        '**/package-lock.json',
+      ],
+    },
     // Explicit IPv4 bind — some Cursor/cloud port-forwards fail on
     // dual-stack `:::5173` with ERR_CONNECTION_REFUSED from the client.
     host: '0.0.0.0',
@@ -99,6 +122,8 @@ export default defineConfig({
         // Match DEFAULT_API_PORT (3210). Override with API_PORT when needed.
         target: `http://localhost:${process.env.API_PORT || 3210}`,
         changeOrigin: true,
+        // Driver install (ibm_db clidriver) exceeds the default 120s proxy idle.
+        timeout: 10 * 60 * 1000,
         // Say it was forwarded. The dev server listens on every interface, and
         // without these headers the API would take a browser elsewhere on the
         // LAN for someone at this machine, who may run first-run setup without

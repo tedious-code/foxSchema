@@ -163,7 +163,7 @@ export const PERMISSION_META: PermissionMeta[] = [
   { id: 'admin.roles', group: 'Admin', label: 'Configure roles', description: 'Edit which FoxSchema permissions each app role receives, including Grant privileges for database GRANT/REVOKE.' },
   { id: 'app.write', group: 'Account', label: 'Save and change', description: 'Save connections, secrets, scripts and settings, and run anything that writes. Without it an account only reads: it browses, compares and runs queries, and every other route refuses it. The Demo role is the role without it. Install-wide: comes from the account role, not a workspace role.' },
   { id: 'account.self', group: 'Account', label: 'Manage own account', description: 'Change its own profile and password, ask for a reset or a verification email, and sign its other sessions out. A shared login (the Demo role) has it withheld, so no visitor changes the account for everyone. Install-wide: comes from the account role.' },
-  { id: 'admin.drivers', group: 'Admin', label: 'Install drivers', description: 'Install a database driver package on the server (npm install, and a native build for Db2). It downloads and runs code on the machine Fox Schema runs on, for every workspace. Install-wide: comes from the account role, not a workspace role.' },
+  { id: 'admin.drivers', group: 'Admin', label: 'Install drivers', description: 'Install, update, or remove a database driver package on the server (npm, and a native build for Db2). It downloads and runs code on the machine Fox Schema runs on, for every workspace. Install-wide: comes from the account role, not a workspace role.' },
 ];
 
 const ALL = [...PERMISSIONS];

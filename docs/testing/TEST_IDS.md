@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1024** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1026** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -399,6 +399,17 @@ Every control has a test ID: **1024** buttons, text boxes, selects and textareas
   - `command-palette-item-{id}` · button
 - **DemoBanner** · `app/shell/DemoBanner.tsx`
   - `demo-banner` · div
+- **DriverInventoryCard** · `app/shell/DriverInventoryCard.tsx`
+  - `{driverRowTestId(row.packageName)}` · li · passed in by the parent
+  - `{id}-detail` · span · passed in by the parent
+  - `{id}-state` · span · passed in by the parent
+  - `{testId}` · button · passed in by the parent
+  - `home-drivers` · section · Drivers
+  - `home-drivers-action-error` · p
+  - `home-drivers-check` · button
+  - `home-drivers-error` · p
+  - `home-drivers-loading` · li
+  - `home-drivers-queue` · p
 - **featureRegistry** · `app/features/featureRegistry.ts`
   - `sync-pane-history-btn` · data · Snapshots
   - `view-access-btn` · data
@@ -408,10 +419,10 @@ Every control has a test ID: **1024** buttons, text boxes, selects and textareas
   - `view-workflow-btn` · data
 - **HomeView** · `app/shell/HomeView.tsx`
   - `home-command-palette` · button · Search workspaces and recents ⌘K
-  - `home-connection-{id}` · button
   - `home-connections` · section · Connections by provider
   - `home-connections-count` · span
-  - `home-connections-group-{dialect}` · div
+  - `home-connections-count-{dialect}` · span
+  - `home-connections-group-{dialect}` · button
   - `home-continue` · section
   - `home-continue-snapshots` · button · Snapshots Schema history Timeline, briefing, and compare pane
   - `home-continue-sql` · button · Last query

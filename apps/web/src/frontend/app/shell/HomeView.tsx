@@ -8,18 +8,32 @@
  */
 import React from 'react';
 import { Camera, Database, GitCompareArrows, Search, Terminal, Wrench } from 'lucide-react';
-import { openRecentQuery, selectEditorConnection, useRecentQueries } from '@/features/sql-editor';
+import { openRecentQuery, useRecentQueries } from '@/features/sql-editor';
 import { useSyncStore } from '@/features/compare';
 import { useUiStore } from '@/platform/uiStore';
 import { formatRelativeDay } from '@/shared/lib/relativeTime';
 import { openCommandPalette } from './commandPaletteEvent';
 import { ServiceStatusCard } from './ServiceStatusCard';
+import { DriverInventoryCard } from './DriverInventoryCard';
 import { diffBriefing } from '@/features/schema-diff';
 import { dialectLabel } from '@/shared/lib/dialectLabel';
 
 function previewSql(sql: string): string {
   const line = sql.trim().split('\n')[0] ?? '';
   return line.length > 88 ? `${line.slice(0, 87)}…` : line;
+}
+
+function connectionsByProvider(
+  connections: Array<{ dialect: string }>
+): Array<{ dialect: string; label: string; count: number }> {
+  const counts = new Map<string, { dialect: string; label: string; count: number }>();
+  for (const connection of connections) {
+    const dialect = connection.dialect.toLowerCase();
+    const row = counts.get(dialect);
+    if (row) row.count += 1;
+    else counts.set(dialect, { dialect, label: dialectLabel(connection.dialect), count: 1 });
+  }
+  return [...counts.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 
 export const HomeView: React.FC = () => {
@@ -36,13 +50,9 @@ export const HomeView: React.FC = () => {
     setActiveView('sqlEditor');
   };
 
-  const openConnection = (id: string) => {
-    void selectEditorConnection(id);
-    setActiveView('sqlEditor');
-  };
-
   const briefing = diffBriefing(compareResult?.tables);
   const lastQuery = recentQueries[0];
+  const providerCounts = connectionsByProvider(connections);
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto p-6" data-testid="home-view">
@@ -137,6 +147,7 @@ export const HomeView: React.FC = () => {
       </section>
 
       <ServiceStatusCard />
+      <DriverInventoryCard />
 
       <section className="mt-6" data-testid="home-recents">
         <h2 className="text-[11px] font-bold uppercase tracking-wide text-slate-500 mb-2">
@@ -188,64 +199,28 @@ export const HomeView: React.FC = () => {
         {connections.length === 0 ? (
           <p className="text-[12px] text-slate-500">Save a connection from Compare to see it here.</p>
         ) : (
-          <div className="space-y-4">
-            {[...connections]
-              .sort(
-                (a, b) =>
-                  dialectLabel(a.dialect).localeCompare(dialectLabel(b.dialect)) ||
-                  (a.name || '').localeCompare(b.name || '')
-              )
-              .reduce<Array<{ dialect: string; label: string; items: typeof connections }>>(
-                (groups, c) => {
-                  const key = c.dialect.toLowerCase();
-                  const last = groups[groups.length - 1];
-                  if (last && last.dialect === key) {
-                    last.items = [...last.items, c];
-                  } else {
-                    groups.push({ dialect: key, label: dialectLabel(c.dialect), items: [c] });
-                  }
-                  return groups;
-                },
-                []
-              )
-              .map((group) => (
-                <div key={group.dialect} data-testid={`home-connections-group-${group.dialect}`}>
-                  <h3 className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                    {group.label}
-                    <span className="ml-1.5 font-mono text-[10px] font-semibold normal-case tracking-normal text-slate-600">
-                      {group.items.length}
-                    </span>
-                  </h3>
-                  <ul className="flex flex-wrap gap-2">
-                    {group.items.map((c) => (
-                      <li key={c.id}>
-                        <button
-                          type="button"
-                          data-testid={`home-connection-${c.id}`}
-                          onClick={() => openConnection(c.id)}
-                          title={[
-                            dialectLabel(c.dialect),
-                            c.name,
-                            c.host && (c.port ? `${c.host}:${c.port}` : c.host),
-                            c.database,
-                            c.username,
-                          ]
-                            .filter(Boolean)
-                            .join(' · ')}
-                          className="inline-flex max-w-full items-center gap-2 rounded-md border border-slate-800 bg-slate-900/40 px-2.5 py-1.5 text-[12px] font-semibold text-slate-200 hover:border-slate-600"
-                        >
-                          <Database className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-                          <span className="truncate">{c.name}</span>
-                          <span className="shrink-0 rounded border border-slate-700/80 bg-slate-950/80 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-400">
-                            {dialectLabel(c.dialect)}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-          </div>
+          <ul className="flex flex-wrap gap-2">
+            {providerCounts.map((group) => (
+              <li key={group.dialect}>
+                <button
+                  type="button"
+                  data-testid={`home-connections-group-${group.dialect}`}
+                  aria-label={`${group.label}: ${group.count} saved`}
+                  onClick={() => setActiveView('sync')}
+                  className="inline-flex items-center gap-2 rounded-md border border-slate-800 bg-slate-900/40 px-2.5 py-1.5 text-[12px] font-semibold text-slate-200 hover:border-slate-600"
+                >
+                  <Database className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                  <span>{group.label}</span>
+                  <span
+                    data-testid={`home-connections-count-${group.dialect}`}
+                    className="rounded-full border border-slate-700 bg-slate-950 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-300"
+                  >
+                    {group.count}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
     </div>

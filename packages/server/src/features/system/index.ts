@@ -2,7 +2,8 @@
  * Fox Schema (foxschema)
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
- * The system feature: liveness, version and updates, app info, activity.
+ * The system feature: liveness, version and updates, app info, activity,
+ * Home Services and Drivers.
  */
 import type { ServerFeatureModule } from '../../platform/feature-module';
 import { createSystemPublicRoutes, createSystemRoutes } from './system.routes';

@@ -8,31 +8,48 @@
  * resolves to `/` when routes are bundled into `ui-server.js` — installs then
  * fail intermittently or write into the wrong tree.
  *
- * ibm_db is required from `@foxschema/db` (DriverDetector). Installing only
- * into `@foxschema/web` can leave the module under apps/web/node_modules where
- * packages/db cannot resolve it (sibling package node_modules are not searched).
+ * Drivers are required from `@foxschema/db` (DriverDetector / requireDriver).
+ * Installing only into `@foxschema/web` can leave the module under
+ * apps/web/node_modules where packages/db cannot resolve it (sibling package
+ * node_modules are not searched). That is why a MongoDB/Redis Install used to
+ * add the package to the web app and still throw "Cannot find module".
  */
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { hasDb2Clidriver, setupDb2ClientEnv } from '@foxschema/db';
-import { errorMessage } from '@foxschema/sql';
+import { driverLoadReason, hasDb2Clidriver, redactInstallPaths, setupDb2ClientEnv } from '@foxschema/db';
 
 const nodeRequire = createRequire(import.meta.url);
 
+/** Same require site as `requireDriver` in `@foxschema/db`. */
+function dbDriverRequire() {
+  try {
+    return createRequire(nodeRequire.resolve('@foxschema/db'));
+  } catch {
+    return nodeRequire;
+  }
+}
+
 export type DriverInstallMode = 'workspace' | 'prefix';
 
-export type DriverInstallTarget = {
-  cwd: string;
-  mode: DriverInstallMode;
-  workspacePkg?: string;
-  /** Human-facing npm command for copy/paste. */
-  manualCommand: (spec: string) => string;
-  /** argv for `npm` (no binary). */
-  npmArgs: (spec: string) => string[];
-};
+/** Workspace that `@foxschema/db` can require optional drivers from. */
+export const DRIVER_WORKSPACE_PACKAGE = '@foxschema/db';
+
+export type DriverInstallTarget =
+  | {
+      cwd: string;
+      mode: 'workspace';
+      workspacePkg: string;
+      manualCommand: (spec: string) => string;
+    }
+  | {
+      cwd: string;
+      mode: 'prefix';
+      manualCommand: (spec: string) => string;
+      npmArgs: (spec: string) => string[];
+    };
 
 function readPkgName(dir: string): string | null {
   try {
@@ -51,26 +68,14 @@ function isFoxschemaMonorepo(dir: string): boolean {
     // eslint-disable-next-line security/detect-non-literal-fs-filename -- walks up from this module's own directory looking for the workspace manifest
     const raw = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as {
       name?: string;
-      workspaces?: string[] | { packages?: string[] };
+      workspaces?: unknown;
     };
     if (raw.name !== 'foxschema' && raw.name !== undefined && !raw.workspaces) return false;
-    const ws = Array.isArray(raw.workspaces)
-      ? raw.workspaces
-      : (raw.workspaces?.packages ?? []);
-    if (!ws.some((p) => p.includes('apps/web') || p.includes('packages/*') || p === 'apps/*')) {
-      // eslint-disable-next-line security/detect-non-literal-fs-filename -- walks up from this module's own directory looking for the workspace manifest
-      return existsSync(join(dir, 'apps/web/package.json'));
-    }
     // eslint-disable-next-line security/detect-non-literal-fs-filename -- walks up from this module's own directory looking for the workspace manifest
     return existsSync(join(dir, 'apps/web/package.json'));
   } catch {
     return false;
   }
-}
-
-/** Workspace package that owns the optional dep / require site for a driver. */
-export function workspacePackageForDriver(packageName: string): string {
-  return packageName === 'ibm_db' ? '@foxschema/db' : '@foxschema/web';
 }
 
 function packageNameFromSpec(spec: string): string {
@@ -82,14 +87,129 @@ function packageNameFromSpec(spec: string): string {
   return spec.split('@')[0] || spec;
 }
 
-function workspaceTarget(cwd: string, workspacePkg: string): DriverInstallTarget {
+function versionFromSpec(spec: string): string {
+  const name = packageNameFromSpec(spec);
+  if (spec === name) return 'latest';
+  const rest = spec.slice(name.length);
+  return rest.startsWith('@') && rest.length > 1 ? rest.slice(1) : 'latest';
+}
+
+const DRIVER_WORKSPACE_DIRS: Record<string, string> = {
+  '@foxschema/db': 'packages/db',
+  '@foxschema/web': 'apps/web',
+};
+
+type DepField = 'dependencies' | 'optionalDependencies' | 'peerDependencies';
+
+type WorkspaceManifest = Partial<Record<DepField, Record<string, string>>>;
+
+function readWorkspaceManifest(root: string, workspacePkg: string): WorkspaceManifest | null {
+  const rel = DRIVER_WORKSPACE_DIRS[workspacePkg];
+  if (!rel) return null;
+  try {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- workspace path is one of two fixed package folders
+    return JSON.parse(readFileSync(join(root, rel, 'package.json'), 'utf8')) as WorkspaceManifest;
+  } catch {
+    return null;
+  }
+}
+
+function majorOf(version: string): string {
+  return version.match(/\d+/)?.[0] ?? '';
+}
+
+/**
+ * A peer that already includes `version` is left alone (`>=6` vs 7.8.0).
+ * `^1.5.4-r.1` does not include DuckDB 2.0.0-r.1 — leaving it is why Update
+ * wrote 2.x onto `@foxschema/web` and npm still hoisted 1.5.4-r.1. ClickHouse
+ * moved because its peer was the exact pin `1.24.1`.
+ */
+export function peerRangeAllowsVersion(range: string, version: string): boolean {
+  const r = range.trim();
+  if (!r || r === '*' || r === 'x' || r === 'latest') return true;
+  if (r === version) return true;
+  if (r.startsWith('>=') || r.startsWith('>')) return true;
+  if (r.startsWith('^')) return majorOf(r.slice(1)) === majorOf(version);
+  if (r.startsWith('~')) {
+    const a = r.slice(1).replace(/^[^\d]*/, '').split('.');
+    const b = version.replace(/^[^\d]*/, '').split('.');
+    return a[0] === b[0] && a[1] === b[1];
+  }
+  if (/^\d/.test(r)) return r === version;
+  return false;
+}
+
+/** Bracket form is what `npm pkg set` documents for scoped names. */
+function pkgSetAssignment(field: DepField, packageName: string, version: string): string {
+  if (packageName.startsWith('@')) return `${field}[${packageName}]=${version}`;
+  return `${field}.${packageName}=${version}`;
+}
+
+export type DriverPkgAssignment = { workspace: string; assignments: string[] };
+
+/**
+ * Which manifests to pin, and which fields. `mssql` is a hard dep of
+ * `@foxschema/web` and a peer of `@foxschema/db` — writing only `-w @foxschema/db`
+ * leaves the web pin at 12.7.13 and the hoisted copy never moves.
+ */
+export function driverInstallPkgSets(
+  root: string,
+  packageName: string,
+  version: string
+): DriverPkgAssignment[] {
+  const byWs = new Map<string, string[]>();
+  const add = (workspace: string, field: DepField) => {
+    const assignment = pkgSetAssignment(field, packageName, version);
+    const list = byWs.get(workspace) ?? [];
+    if (!list.includes(assignment)) list.push(assignment);
+    byWs.set(workspace, list);
+  };
+
+  let dbFetches = false;
+  for (const workspace of Object.keys(DRIVER_WORKSPACE_DIRS)) {
+    const manifest = readWorkspaceManifest(root, workspace);
+    if (!manifest) continue;
+    for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies'] as const) {
+      const current = manifest[field]?.[packageName];
+      if (current === undefined) continue;
+      if (field === 'peerDependencies' && peerRangeAllowsVersion(current, version)) continue;
+      add(workspace, field);
+      if (
+        workspace === DRIVER_WORKSPACE_PACKAGE &&
+        (field === 'dependencies' || field === 'optionalDependencies')
+      ) {
+        dbFetches = true;
+      }
+    }
+  }
+  if (!dbFetches) add(DRIVER_WORKSPACE_PACKAGE, 'dependencies');
+  return [...byWs.entries()].map(([workspace, assignments]) => ({ workspace, assignments }));
+}
+
+export function formatDriverInstallCommand(sets: DriverPkgAssignment[]): string {
+  const pkgSets = sets.map((row) => {
+    const args = row.assignments.map((a) => (a.includes('[') ? `'${a}'` : a)).join(' ');
+    return `npm pkg set ${args} -w ${row.workspace}`;
+  });
+  return [...pkgSets, 'npm install --foreground-scripts'].join(' && ');
+}
+
+/** Copy-paste npm text without the install directory. Spawn still uses the real cwd. */
+export function publicNpmCommand(command: string): string {
+  return redactInstallPaths(
+    command.replace(/--prefix(?:\s+|=)(?:"[^"]+"|'[^']+'|\S+)/g, '--prefix <install-root>')
+  );
+}
+
+function workspaceTarget(cwd: string): DriverInstallTarget {
   return {
     cwd,
     mode: 'workspace',
-    workspacePkg,
-    npmArgs: (spec) => ['install', spec, '--foreground-scripts', '-w', workspacePkg],
+    workspacePkg: DRIVER_WORKSPACE_PACKAGE,
     manualCommand: (spec) =>
-      `npm install ${spec} --foreground-scripts -w ${workspacePkg}`,
+      formatDriverInstallCommand(
+        driverInstallPkgSets(cwd, packageNameFromSpec(spec), versionFromSpec(spec))
+      ),
   };
 }
 
@@ -97,9 +217,9 @@ function prefixTarget(cwd: string): DriverInstallTarget {
   return {
     cwd,
     mode: 'prefix',
-    npmArgs: (spec) => ['install', spec, '--foreground-scripts', '--prefix', cwd],
+    npmArgs: (spec) => ['install', spec, '--save', '--foreground-scripts', '--prefix', cwd],
     manualCommand: (spec) =>
-      `npm install ${spec} --foreground-scripts --prefix "${cwd}"`,
+      `npm install ${spec} --save --foreground-scripts --prefix <install-root>`,
   };
 }
 
@@ -107,12 +227,8 @@ function prefixTarget(cwd: string): DriverInstallTarget {
  * Locate install target from the calling module URL (routes.ts or bundled
  * ui-server.js) and optional process.cwd() fallback.
  */
-export function resolveDriverInstallTarget(
-  fromUrl: string = import.meta.url,
-  packageName = 'ibm_db'
-): DriverInstallTarget {
+export function resolveDriverInstallTarget(fromUrl: string = import.meta.url): DriverInstallTarget {
   const here = dirname(fileURLToPath(fromUrl));
-  const wsPkg = workspacePackageForDriver(packageName);
 
   // Candidate roots by depth, each validated by isFoxschemaMonorepo before
   // use — which is why the backend moving from apps/web/src/backend to
@@ -121,13 +237,13 @@ export function resolveDriverInstallTarget(
   // and invisible to tsc, so they are checked, never trusted.
   const fromApiSource = resolve(here, '../../../../..');
   if (isFoxschemaMonorepo(fromApiSource)) {
-    return workspaceTarget(fromApiSource, wsPkg);
+    return workspaceTarget(fromApiSource);
   }
 
   // packages/server/src/<dir> → ../../../.. = monorepo root
   const fromModules = resolve(here, '../../../..');
   if (isFoxschemaMonorepo(fromModules)) {
-    return workspaceTarget(fromModules, wsPkg);
+    return workspaceTarget(fromModules);
   }
 
   // Bundled ui-server: …/foxschema/dist/ui-server.js → package root is …
@@ -138,7 +254,7 @@ export function resolveDriverInstallTarget(
   }
 
   if (isFoxschemaMonorepo(process.cwd())) {
-    return workspaceTarget(process.cwd(), wsPkg);
+    return workspaceTarget(process.cwd());
   }
 
   // Global npm / Homebrew: install next to the running foxschema package if found
@@ -149,13 +265,11 @@ export function resolveDriverInstallTarget(
     /* not resolvable */
   }
 
-  if (packageName === 'ibm_db') {
-    try {
-      const dbPkg = dirname(nodeRequire.resolve('@foxschema/db/package.json'));
-      return prefixTarget(dbPkg);
-    } catch {
-      /* ignore */
-    }
+  try {
+    const dbPkg = dirname(nodeRequire.resolve('@foxschema/db/package.json'));
+    return prefixTarget(dbPkg);
+  } catch {
+    /* ignore */
   }
 
   return prefixTarget(process.cwd());
@@ -189,18 +303,70 @@ export const DRIVER_NPM_INSTALL_ENV = {
   npm_config_dangerously_allow_all_scripts: 'true',
 } as const;
 
-/** Spawn npm with install scripts forced on, resolving rather than throwing. */
-function runNpm(
+/** npm rename/rm races (ENOTEMPTY) when Vite or a previous npm still holds node_modules. */
+export function isTransientNpmFailure(stderr: string, stdout = ''): boolean {
+  return /\b(ENOTEMPTY|EEXIST|EBUSY|EPERM)\b/.test(`${stderr}\n${stdout}`);
+}
+
+/**
+ * npm's rename dest when swapping a package: `.follow-redirects-4tvSnoXN`.
+ * A failed uninstall leaves these behind; the next npm then hits ENOTEMPTY.
+ * Never matches `.bin`, `.vite`, `.vitest-cache`, `.package-lock.json`.
+ */
+export function isNpmRenameStagingName(name: string): boolean {
+  if (!name.startsWith('.') || name.startsWith('.bin') || name.startsWith('.vite') || name.startsWith('.vitest')) {
+    return false;
+  }
+  if (name === '.package-lock.json') return false;
+  return /^\.[^/]+-[A-Za-z0-9_-]{6,12}$/.test(name);
+}
+
+export function clearNpmRenameStaging(nodeModulesDir: string): void {
+  let names: string[] = [];
+  try {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- workspace node_modules of the install we just ran npm in
+    names = readdirSync(nodeModulesDir);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    if (!isNpmRenameStagingName(name)) continue;
+    try {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- names are filtered to npm's rename-staging pattern
+      rmSync(join(nodeModulesDir, name), { recursive: true, force: true });
+    } catch {
+      // still held open; the retry may still succeed
+    }
+  }
+}
+
+/** Drop npm warn / EBADENGINE noise so the real `npm error` is what the UI shows. */
+export function npmErrorExcerpt(stderr: string, stdout = ''): string {
+  const lines = `${stderr}\n${stdout}`
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter(Boolean);
+  const useful = lines.filter((line) => !/^npm warn /i.test(line) && !/EBADENGINE/.test(line));
+  return redactInstallPaths((useful.length ? useful : lines).join('\n').trim().slice(-2000));
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function spawnCaptured(
+  command: string,
   args: string[],
   cwd: string,
-  manualCommand: string
+  manualCommand: string,
+  extra: { shell?: boolean } = {}
 ): Promise<NpmInstallResult> {
   return new Promise((resolvePromise) => {
-    const proc = spawn('npm', args, {
+    const proc = spawn(command, args, {
       cwd,
       stdio: 'pipe',
       env: { ...process.env, ...DRIVER_NPM_INSTALL_ENV },
-      shell: process.platform === 'win32',
+      ...(extra.shell ? { shell: true } : {}),
     });
     let stdout = '';
     let stderr = '';
@@ -211,8 +377,8 @@ function runNpm(
       stderr += d.toString();
     });
     proc.on('error', (err: Error) => {
-      // `code: null` distinguishes "npm never started" (not on PATH) from a
-      // non-zero exit; the caller reports these differently.
+      // `code: null` distinguishes "the binary never started" (not on PATH)
+      // from a non-zero exit; the caller reports these differently.
       resolvePromise({
         ok: false,
         code: null,
@@ -229,47 +395,35 @@ function runNpm(
   });
 }
 
-/** Spawn `node` in a package directory (ibm_db postinstall, ignoring npm allow-scripts). */
-function runNode(
+function spawnNpmOnce(args: string[], cwd: string, manualCommand: string): Promise<NpmInstallResult> {
+  return spawnCaptured('npm', args, cwd, manualCommand, { shell: process.platform === 'win32' });
+}
+
+/** Spawn npm with install scripts forced on, resolving rather than throwing. */
+async function runNpm(
   args: string[],
   cwd: string,
   manualCommand: string
 ): Promise<NpmInstallResult> {
-  return new Promise((resolvePromise) => {
-    const proc = spawn(process.execPath, args, {
-      cwd,
-      stdio: 'pipe',
-      env: { ...process.env, ...DRIVER_NPM_INSTALL_ENV },
-    });
-    let stdout = '';
-    let stderr = '';
-    proc.stdout?.on('data', (d: Buffer) => {
-      stdout += d.toString();
-    });
-    proc.stderr?.on('data', (d: Buffer) => {
-      stderr += d.toString();
-    });
-    proc.on('error', (err: Error) => {
-      resolvePromise({
-        ok: false,
-        code: null,
-        stdout,
-        stderr: stderr || err.message,
-        cwd,
-        args,
-        manualCommand,
-      });
-    });
-    proc.on('close', (code) => {
-      resolvePromise({ ok: code === 0, code, stdout, stderr, cwd, args, manualCommand });
-    });
-  });
+  clearNpmRenameStaging(join(cwd, 'node_modules'));
+  let last = await spawnNpmOnce(args, cwd, manualCommand);
+  for (let attempt = 0; attempt < 3 && !last.ok && isTransientNpmFailure(last.stderr, last.stdout); attempt++) {
+    clearNpmRenameStaging(join(cwd, 'node_modules'));
+    await sleep(500 * 2 ** attempt);
+    last = await spawnNpmOnce(args, cwd, manualCommand);
+  }
+  return last;
+}
+
+/** Spawn `node` in a package directory (ibm_db postinstall, ignoring npm allow-scripts). */
+function runNode(args: string[], cwd: string, manualCommand: string): Promise<NpmInstallResult> {
+  return spawnCaptured(process.execPath, args, cwd, manualCommand);
 }
 
 /** Directory of the resolved `ibm_db` package, or null if it is not installed. */
 export function ibmDbPackageDir(): string | null {
   try {
-    return dirname(nodeRequire.resolve('ibm_db/package.json'));
+    return dirname(dbDriverRequire().resolve('ibm_db/package.json'));
   } catch {
     return null;
   }
@@ -298,46 +452,104 @@ export function runIbmDbDriverInstallJs(): Promise<NpmInstallResult> {
   return runNode(args, dir, manualCommand);
 }
 
-/** Run `npm install <spec> --foreground-scripts` into the resolved target. */
-export function npmInstallPackage(
+/**
+ * Run `npm install` into the resolved target.
+ *
+ * Workspace installs cannot be `npm install mongodb --save -w @foxschema/db`:
+ * when the package is already an optional peer, npm 11 exits 0, writes
+ * nothing, and verify then throws Cannot find module. Writing it onto
+ * `@foxschema/db` dependencies first forces a real fetch (including nested
+ * deps like `@redis/client`).
+ */
+export async function npmInstallPackage(
   packageSpec: string,
   fromUrl?: string
 ): Promise<NpmInstallResult> {
   const pkg = packageNameFromSpec(packageSpec);
-  const target = resolveDriverInstallTarget(fromUrl, pkg);
+  const target = resolveDriverInstallTarget(fromUrl);
+  if (target.mode === 'workspace') {
+    const version = versionFromSpec(packageSpec);
+    const sets = driverInstallPkgSets(target.cwd, pkg, version);
+    const manualCommand = formatDriverInstallCommand(sets);
+    for (const { workspace, assignments } of sets) {
+      const setResult = await runNpm(
+        ['pkg', 'set', ...assignments, '-w', workspace],
+        target.cwd,
+        manualCommand
+      );
+      if (!setResult.ok) return setResult;
+    }
+    // Root install, not `-w db`: a web pin (mssql 12.7.13) would otherwise
+    // keep the hoisted copy from moving.
+    return runNpm(['install', '--foreground-scripts'], target.cwd, manualCommand);
+  }
   const args = target.npmArgs(packageSpec);
   return runNpm(args, target.cwd, target.manualCommand(packageSpec));
 }
 
-/** Drop cached failed/successful requires so a fresh install can load. */
+/** argv / cwd / copy-paste command for `npm uninstall <package>` at the same target as install. */
+export function npmUninstallArgs(
+  packageName: string,
+  fromUrl?: string,
+  workspacePkg?: string
+): { args: string[]; cwd: string; manualCommand: string } {
+  const pkg = packageNameFromSpec(packageName);
+  const target = resolveDriverInstallTarget(fromUrl);
+  const args =
+    target.mode === 'workspace'
+      ? ['uninstall', pkg, '-w', workspacePkg ?? target.workspacePkg]
+      : ['uninstall', pkg, '--prefix', target.cwd];
+  return { args, cwd: target.cwd, manualCommand: publicNpmCommand(`npm ${args.join(' ')}`) };
+}
+
+/** Run `npm uninstall <package>` from the same target install uses. */
+export function npmUninstallPackage(
+  packageName: string,
+  fromUrl?: string
+): Promise<NpmInstallResult> {
+  const { args, cwd, manualCommand } = npmUninstallArgs(packageName, fromUrl);
+  return runNpm(args, cwd, manualCommand);
+}
+
 /**
  * Does this require-cache key belong to `packageName`?
  *
- * Matches a whole `node_features/<pkg>/` path segment, never a bare substring:
+ * Matches a whole `node_modules/<pkg>/` path segment, never a bare substring:
  * purging `pg` by substring also evicts pg-pool, pg-protocol and anything else
  * whose path merely contains "pg", re-instantiating unrelated module state.
  * Both separators are checked so a Windows cache key is handled too.
  */
 export function isCacheKeyForPackage(key: string, packageName: string): boolean {
   return (
-    key.includes(`/node_features/${packageName}/`) ||
+    key.includes(`/node_modules/${packageName}/`) ||
     key.includes(`\\node_modules\\${packageName}\\`)
   );
 }
 
 export function purgePackageRequireCache(packageName: string): void {
+  const req = dbDriverRequire();
   try {
-    const resolved = nodeRequire.resolve(packageName);
-    delete nodeRequire.cache[resolved];
+    const resolved = req.resolve(packageName);
+    delete req.cache[resolved];
     const root = dirname(resolved) + sep;
-    for (const key of Object.keys(nodeRequire.cache)) {
+    for (const key of Object.keys(req.cache)) {
       if (key.startsWith(root) || isCacheKeyForPackage(key, packageName)) {
-        delete nodeRequire.cache[key];
+        delete req.cache[key];
       }
     }
   } catch {
-    for (const key of Object.keys(nodeRequire.cache)) {
-      if (isCacheKeyForPackage(key, packageName)) delete nodeRequire.cache[key];
+    for (const key of Object.keys(req.cache)) {
+      if (isCacheKeyForPackage(key, packageName)) delete req.cache[key];
+    }
+  }
+  // Failed lookups are cached too. After `npm install redis`, a require that
+  // already threw MODULE_NOT_FOUND would keep failing until this is cleared.
+  const pathCache = (nodeRequire('node:module') as { _pathCache?: Record<string, unknown> })._pathCache;
+  if (pathCache) {
+    for (const key of Object.keys(pathCache)) {
+      if (isCacheKeyForPackage(key, packageName) || key.endsWith(`\u0000${packageName}`)) {
+        delete pathCache[key];
+      }
     }
   }
 }
@@ -371,11 +583,11 @@ export function verifyInstalledDriver(packageName: string): VerifyDriverResult {
     setupDb2ClientEnv();
   }
   try {
-    nodeRequire(packageName);
+    dbDriverRequire()(packageName);
   } catch (e) {
     return {
       ok: false,
-      error: errorMessage(e),
+      error: driverLoadReason(e),
       needsClidriverRebuild: packageName === 'ibm_db',
     };
   }
@@ -406,7 +618,8 @@ export function createInstallQueue<T>(): (key: string, run: () => Promise<T>) =>
   };
 }
 
-const installQueue = createInstallQueue<NpmInstallResult & VerifyDriverResult>();
+type QueuedDriverResult = NpmInstallResult & VerifyDriverResult & { stillInstalled?: boolean };
+const installQueue = createInstallQueue<QueuedDriverResult>();
 
 /**
  * Install + verify. For ibm_db, retries once with a forced reinstall when the
@@ -418,6 +631,35 @@ export function installAndVerifyDriver(
   versionPin?: string
 ): Promise<NpmInstallResult & VerifyDriverResult> {
   return installQueue(packageName, () => runInstallAndVerify(packageName, versionPin));
+}
+
+export type RemoveDriverResult = NpmInstallResult & { stillInstalled: boolean };
+
+/**
+ * Uninstall + drop the require cache. `stillInstalled` is true when the
+ * package still loads afterwards (another workspace still lists it).
+ * Queued with installs so two npm writes never share one tree.
+ */
+export function removeAndVerifyDriver(packageName: string): Promise<RemoveDriverResult> {
+  return installQueue(packageName, async () => {
+    let result = await npmUninstallPackage(packageName);
+    if (!result.ok) return { ...result, stillInstalled: true };
+    purgePackageRequireCache(packageName);
+    let stillInstalled = verifyInstalledDriver(packageName).ok;
+    // Optional peers often live on @foxschema/web as well. One workspace
+    // uninstall leaves the package loadable from the other. Do not run this
+    // when the db uninstall already failed — a second npm on a half-renamed
+    // tree is how ENOTEMPTY shows up as "try -w @foxschema/web".
+    const target = resolveDriverInstallTarget();
+    if (stillInstalled && target.mode === 'workspace') {
+      const web = npmUninstallArgs(packageName, undefined, '@foxschema/web');
+      result = await runNpm(web.args, web.cwd, web.manualCommand);
+      if (!result.ok) return { ...result, stillInstalled: true };
+      purgePackageRequireCache(packageName);
+      stillInstalled = verifyInstalledDriver(packageName).ok;
+    }
+    return { ...result, stillInstalled };
+  }) as Promise<RemoveDriverResult>;
 }
 
 async function runInstallAndVerify(
@@ -434,12 +676,12 @@ async function runInstallAndVerify(
     // lifecycle script fires, so the retry was a no-op. `npm rebuild` exists
     // for exactly this. Verified on npm 11.6.2: re-install --force skips the
     // postinstall, rebuild runs it.
-    const target = resolveDriverInstallTarget(import.meta.url, 'ibm_db');
+    const target = resolveDriverInstallTarget();
     const rebuildArgs =
       target.mode === 'workspace'
-        ? ['rebuild', 'ibm_db', '--foreground-scripts', '-w', target.workspacePkg ?? '@foxschema/db']
+        ? ['rebuild', 'ibm_db', '--foreground-scripts', '-w', target.workspacePkg]
         : ['rebuild', 'ibm_db', '--foreground-scripts', '--prefix', target.cwd];
-    result = await runNpm(rebuildArgs, target.cwd, `npm ${rebuildArgs.join(' ')}`);
+    result = await runNpm(rebuildArgs, target.cwd, publicNpmCommand(`npm ${rebuildArgs.join(' ')}`));
     verify = verifyInstalledDriver(packageName);
   }
 
@@ -464,20 +706,18 @@ export function driverInstallHints(packageName: string): string {
     'Also try: foxschema drivers install db2',
     'Or use Docker (Db2 included, linux/amd64): docker pull 5nickels/foxschema:latest',
   ];
-  {
-    if (process.platform === 'darwin') {
-      lines.unshift(
-        'macOS: ensure Xcode CLT (`xcode-select --install`) and a native Node for your CPU (`node -p process.arch`).'
-      );
-    } else if (process.platform === 'linux' && process.arch === 'arm64') {
-      lines.unshift(
-        'linux/arm64: ibm_db has no official build — use Docker linux/amd64 (or an x64 host).'
-      );
-    } else if (process.platform === 'win32') {
-      lines.unshift(
-        'Windows: install scripts must run so clidriver downloads; avoid npm config set ignore-scripts true.'
-      );
-    }
+  if (process.platform === 'darwin') {
+    lines.unshift(
+      'macOS: ensure Xcode CLT (`xcode-select --install`) and a native Node for your CPU (`node -p process.arch`).'
+    );
+  } else if (process.platform === 'linux' && process.arch === 'arm64') {
+    lines.unshift(
+      'linux/arm64: ibm_db has no official build — use Docker linux/amd64 (or an x64 host).'
+    );
+  } else if (process.platform === 'win32') {
+    lines.unshift(
+      'Windows: install scripts must run so clidriver downloads; avoid npm config set ignore-scripts true.'
+    );
   }
   return lines.join(' ');
 }

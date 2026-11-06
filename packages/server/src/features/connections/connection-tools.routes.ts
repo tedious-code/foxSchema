@@ -56,47 +56,59 @@ export function createConnectionToolRoutes(deps: {
       const {
         installAndVerifyDriver,
         driverInstallHints,
+        npmErrorExcerpt,
+        publicNpmCommand,
       } = await import('../../internal/driver-install');
 
       const result = await installAndVerifyDriver(packageName, versionPin);
+
+      const tryCmd = publicNpmCommand(result.manualCommand);
+      const failed = { extra: { success: false } };
 
       if (result.code === null) {
         // npm never started (not on PATH, blocked by policy). The spawn error
         // is the only useful detail; without this it was reported as "install
         // finished but the driver failed to load", which sends the user off
         // debugging the driver instead of their PATH.
-        const detail = (result.stderr || result.stdout).trim().slice(-2000);
-        sendError(res, 'failed',            `Could not run npm for ${packageName}${detail ? `: ${detail}` : ''}. ` +
-            `Try it yourself: ${result.manualCommand}. ${driverInstallHints(packageName)}`, {
-          extra: { success: false, stderr: result.stderr, cwd: result.cwd },
-        });
+        const detail = npmErrorExcerpt(result.stderr, result.stdout);
+        sendError(
+          res,
+          'failed',
+          `Could not run npm for ${packageName}${detail ? `: ${detail}` : ''}. ` +
+            `Try it yourself: ${tryCmd}. ${driverInstallHints(packageName)}`,
+          failed
+        );
         return;
       }
 
       if (result.code !== 0) {
-        const detail = (result.stderr || result.stdout).trim().slice(-2000);
-        sendError(res, 'failed',            `npm install ${packageName} failed (exit ${result.code})${detail ? `: ${detail}` : ''}. ` +
-            `Try: ${result.manualCommand}. ${driverInstallHints(packageName)}`, {
-          extra: { success: false, stderr: result.stderr, cwd: result.cwd },
-        });
+        const detail = npmErrorExcerpt(result.stderr, result.stdout);
+        sendError(
+          res,
+          'failed',
+          `npm install ${packageName} failed (exit ${result.code})${detail ? `: ${detail}` : ''}. ` +
+            `Try: ${tryCmd}. ${driverInstallHints(packageName)}`,
+          failed
+        );
         return;
       }
 
       if (!result.ok) {
         // npm exited 0 but driver still does not load (scripts skipped / wrong arch).
-        sendError(res, 'failed',            `Install finished but ${packageName} still failed to load` +
+        sendError(
+          res,
+          'failed',
+          `Install finished but ${packageName} still failed to load` +
             (result.error ? `: ${result.error}` : '') +
-            `. Try: ${result.manualCommand}. ${driverInstallHints(packageName)}` +
-            ` Then restart Fox Schema (\`foxschema stop && foxschema\`).`, {
-          extra: { success: false, stderr: result.stderr, cwd: result.cwd },
-        });
+            `. Try: ${tryCmd}. ${driverInstallHints(packageName)}` +
+            ` Then restart Fox Schema (\`foxschema stop && foxschema\`).`,
+          failed
+        );
         return;
       }
 
       res.send({
         success: true,
-        stdout: result.stdout,
-        cwd: result.cwd,
         hint: 'If the driver still shows missing, restart Fox Schema so the process reloads native bindings.',
       });
     } catch (error: unknown) {

@@ -27,6 +27,7 @@ packages/shared             Contracts the frontend, server and CLI must agree on
                             the COMMUNITY_NAV registry (`nav.ts`), the
                             shared data-migrate cap (`DATA_MIGRATE_MAX_OPS`),
                             GET `/api/system/services` (`service-status.ts`),
+                            GET `/api/system/drivers` (`driver-inventory.ts`),
                             and the connection-name rule (`connection-name.ts`:
                             120 characters, no control characters).
                             Browser-safe.
@@ -160,7 +161,7 @@ database/    The metadata store and its migrations.
 | Folder | What it covers |
 |---|---|
 | `access` | Database permission inspection and DBA utilities. Index-fragmentation custom SQL is gated read-only in `index-fragmentation.service.ts` (same tokenizer as `/sql/execute`). |
-| `system` | Health and version, updates, app info, the metadata-database probe, activity, Home Services (`GET /api/system/services` → `readServiceStatus`: API always `running`; engine `running` / `not_configured` / `unreachable` from the workflow `/health` probe). Status only — start/stop is later. |
+| `system` | Health and version, updates, app info, the metadata-database probe, activity, Home Services (`GET /api/system/services` → `readServiceStatus`: API always `running`; engine `running` / `not_configured` / `unreachable` from the workflow `/health` probe). Status only — start/stop is later. Home Drivers (`GET /api/system/drivers`, `POST .../install|update|remove` → `drivers.service`: one row per npm package; `admin.drivers` to change; only `better-sqlite3` cannot be removed). |
 | `admin` | Users and roles, secrets, cloud credentials, policy |
 | `backup` | Per-user backup defaults (`GET`/`PUT /api/backup-settings`). Commands themselves are built in `@foxschema/sql` (`modules/utilities/backup.ts` + `providers/<d>/*.backup.ts`); the panel runs only a server-side SQL backup, after confirmation, and lists the backups the server recorded (`backupHistoryQuery`); restores are never run. |
 | `auth` | Sign-in, setup, password and SSO routes (the services are `platform/identity`) |
@@ -201,6 +202,8 @@ A feature uses the layers it needs; it does not create empty ones.
 app/         The application shell and settings screens. Home's Services card
              is `app/shell/ServiceStatusCard.tsx` (`GET /api/system/services`
              via `shared/api/servicesApi.ts`); it does not start or stop anything.
+             Drivers sit under it: `app/shell/DriverInventoryCard.tsx`
+             (`GET /api/system/drivers`).
   features/    The view registry: `featureRegistry.ts` (each view's rail
                button, who may see it, where
                someone goes who may not, what it adds to the top toolbar,
@@ -290,6 +293,7 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | Backup / restore commands for an engine | `packages/sql/src/providers/<dialect>/*.backup.ts` registered in `modules/utilities/backup.registry.ts`. Saved folder/format defaults: `packages/server/src/features/backup/`. |
 | Safe column-change SQL for an engine | `packages/sql/src/providers/<dialect>/*.column-change.ts` registered in `modules/utilities/column-change.registry.ts`. The facade (`planColumnChange`) finds impact and blockers; omit the engine to answer "not yet" rather than guessed SQL. The panel is `apps/web/.../ColumnChangePanel.tsx`; no server route. |
 | Home Services / engine reachability | `packages/server/src/features/system/service-status.ts` (`GET /api/system/services`). Types in `packages/shared/src/service-status.ts`. The card is `apps/web/.../app/shell/ServiceStatusCard.tsx`. |
+| Home Drivers inventory | `packages/server/src/features/system/drivers.service.ts` (`GET /api/system/drivers`, install/update/remove). Types in `packages/shared/src/driver-inventory.ts`. The card is `apps/web/.../app/shell/DriverInventoryCard.tsx`. |
 | A dialect capability the app must branch on | `packages/sql/src/modules/capabilities/` (`dialect-features.ts`) and `packages/sql/src/modules/dialect/` |
 | Guard or cross-cutting HTTP concern | `packages/server/src/platform/` |
 | How a dialect lexes SQL (permission gates, splitter) | `packages/sql/src/modules/sql-text/sql-readings.ts` + `sql-tokens.ts`. Do not add a second scanner. |

@@ -98,6 +98,23 @@ function asCircuitOpen(error: unknown): { retryAfterSec: number } | undefined {
 }
 
 /**
+ * Node's connect errnos (`read ECONNRESET`) are true, and useless in the UI.
+ * Keep the code in the sentence so logs and e2e still match.
+ */
+export function publicThrownMessage(error: unknown, fallback: string): string {
+  const raw = error instanceof Error ? error.message : String(error ?? '');
+  const code =
+    error && typeof error === 'object' && 'code' in error
+      ? String((error as { code?: unknown }).code ?? '')
+      : '';
+  const hay = `${code} ${raw}`;
+  if (/ECONNRESET/i.test(hay)) {
+    return 'The database closed the connection before login (ECONNRESET). The host accepted TCP then dropped it — often a paused cluster, a firewall, TLS mismatch, or a local Docker database that is listening but not ready.';
+  }
+  return raw.trim() || fallback;
+}
+
+/**
  * Map any thrown value to the wire error contract.
  *
  * Non-ServiceError throws become `failed` with their own message, matching what
@@ -111,7 +128,7 @@ export function toApiError(error: unknown, fallback: string): ApiErrorBody {
   if (circuit) {
     return {
       ok: false,
-      error: error instanceof Error ? error.message : fallback,
+      error: publicThrownMessage(error, fallback),
       code: 'unavailable',
       retryAfterSec: circuit.retryAfterSec,
     };
@@ -119,7 +136,7 @@ export function toApiError(error: unknown, fallback: string): ApiErrorBody {
 
   return {
     ok: false,
-    error: error instanceof Error ? error.message : fallback,
+    error: publicThrownMessage(error, fallback),
     code: 'failed',
   };
 }

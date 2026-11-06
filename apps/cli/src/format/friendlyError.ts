@@ -20,6 +20,11 @@ const PATTERNS: Pattern[] = [
   },
   { test: /ETIMEDOUT/i, render: () => 'Connection timed out — check the host, port, and any firewall/VPN.' },
   {
+    test: /ECONNRESET/i,
+    render: () =>
+      'The database closed the connection before login (ECONNRESET) — often a paused cluster, firewall, TLS mismatch, or a local Docker database that is listening but not ready.',
+  },
+  {
     test: /password authentication failed|access denied for user|login failed for user|ORA-01017|ORA-01005|SQLCODE=-1403|SQL30082/i,
     render: () => 'Login failed — check the username and password on this connection.',
   },

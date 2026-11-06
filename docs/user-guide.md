@@ -103,7 +103,12 @@ and saved connections (grouped by dialect). A **Services** card lists the **API*
 set but its health check did not answer). A running engine that is Disabled in
 Workflow settings still shows Running, with “Not taking new runs”. The card
 refreshes every 10 seconds while Home is open. Status only: there is no Start
-or Stop from here yet. **⌘K** / **Ctrl+K** searches the same views the left rail
+or Stop from here yet. Under it, **Drivers** lists each database driver package
+this install can load (several dialects share one package, e.g. `pg`), whether
+it is installed and which version. Opening Home checks npm for a newer
+release; **Check versions** runs that again. **Install**, **Update**, and **Remove**
+need the **Install drivers** permission (admins by default). Only SQLite
+(`better-sqlite3`, the metadata store) cannot be removed. **⌘K** / **Ctrl+K** searches the same views the left rail
 shows, plus recents. The left rail is the Fox mark (Home), the **workspace**
 button (the one workspace this account is acting in), then **Compare**,
 **Editor**, **Utils**, **Access**, **Workflow**, **Snapshots**, and **Creds** and

@@ -361,12 +361,6 @@ const TRANSACTION_BEGIN = new Set([
 /** Block frames pushed while scanning routine DDL bodies. */
 type RoutineBlock = 'begin' | 'case' | 'try' | 'catch';
 
-function identIsQualified(sql: string, identStart: number): boolean {
-  let k = identStart - 1;
-  while (k >= 0 && /\s/.test(sql[k]!)) k--;
-  return k >= 0 && sql[k] === '.';
-}
-
 /** Split a SQL-only buffer into `;`-terminated statements (no code fences). */
 function splitSqlOnly(sql: string): SplitStatement[] {
   const out: SplitStatement[] = [];
@@ -396,6 +390,19 @@ function splitSqlOnly(sql: string): SplitStatement[] {
   let blockStack: RoutineBlock[] = [];
   /** True at the start of a procedural statement (`BEGIN` body / after `;`). */
   let atProcStmtStart = false;
+  /**
+   * The previous code token was `.`, so the identifier after it is qualified —
+   * `s.begin` is a column name, not a block opener.
+   *
+   * Read from the token stream rather than by scanning the raw text backwards.
+   * A backward scan that skips only whitespace cannot tell a `.` that is code
+   * from one that merely ends a comment, so a review note like
+   * `-- … in CREATE TABLE only (no ALTER ADD).` sitting above a trigger made
+   * its `CREATE` look qualified. `CREATE` was then skipped, the statement never
+   * registered as routine DDL, and the trigger body split at the first `;`
+   * inside `BEGIN … END`.
+   */
+  let prevTokenWasDot = false;
   /** Swallow the next ident after `END IF` / `END CASE` so it is not an opener. */
   let skipNextWord: string | null = null;
 
@@ -452,7 +459,7 @@ function splitSqlOnly(sql: string): SplitStatement[] {
   const onWord = (wordStart: number, wordEnd: number) => {
     const raw = sql.slice(wordStart, wordEnd).toUpperCase();
     const word = raw === 'PROC' ? 'PROCEDURE' : raw;
-    if (identIsQualified(sql, wordStart)) {
+    if (prevTokenWasDot) {
       if (inRoutineDdl) atProcStmtStart = false;
       return;
     }
@@ -546,6 +553,10 @@ function splitSqlOnly(sql: string): SplitStatement[] {
     } else if (token.kind === 'word' && /[A-Za-z_]/.test(sql[token.start]!)) {
       onWord(token.start, token.end);
     }
+    // After onWord, so it describes the token before the next identifier.
+    // Comments and whitespace do not clear it: `a . b` and `a /* c */ . b` are
+    // both qualified, while a `.` that only ends a comment never gets here.
+    if (!isTrivia(token)) prevTokenWasDot = token.kind === 'punct' && token.upper === '.';
     for (let k = token.start; k < token.end; k++) if (sql.charCodeAt(k) === 10) line++;
   }
   flush(len, false);

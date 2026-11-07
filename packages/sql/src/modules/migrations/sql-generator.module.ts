@@ -480,8 +480,11 @@ export class SqlGeneratorModule {
     }
 
     for (const trg of table.triggers ?? []) {
+      // ensureSemicolon, not a bare trim: a catalog definition can end at `END`
+      // with no terminator (SQLite's sqlite_master.sql does), and an
+      // unterminated CREATE TRIGGER swallows whatever statement follows it.
       sql += trg.definition
-        ? `${trg.definition.trim()}\n`
+        ? `${this.ensureSemicolon(trg.definition)}\n`
         : `-- Trigger ${trg.name} (${trg.timing ?? ''} ${trg.event ?? ''}) has no available definition\n`;
     }
 
@@ -591,7 +594,10 @@ export class SqlGeneratorModule {
       for (const trg of source.triggers ?? []) {
         if (!trg.definition) continue;
         const stmt = dialect.createTriggerStatement?.(trg, name) ?? null;
-        statements.push(stmt ?? trg.definition.trim());
+        // See renderCreateTable: an unterminated CREATE TRIGGER swallows the
+        // next statement. The dialect hooks already end in `;`; this is a no-op
+        // for them and supplies the terminator for a raw catalog definition.
+        statements.push(this.ensureSemicolon(stmt ?? trg.definition));
       }
     } else if (obj.objectType === 'SEQUENCE' && source) {
       statements.push(this.renderCreateSequence({ ...source, name }, dialect));
@@ -946,7 +952,7 @@ export class SqlGeneratorModule {
         if (!trg.source?.definition) continue;
         const trgSpec = { name: trg.source.name, timing: trg.source.timing, event: trg.source.event, definition: trg.source.definition };
         const stmt = dialect.createTriggerStatement?.(trgSpec, tableName) ?? null;
-        statements.push(stmt ?? trg.source.definition.trim());
+        statements.push(this.ensureSemicolon(stmt ?? trg.source.definition));
       }
 
       // Recreate any views dropped by the dialect's dropDependentViewsBlock above.

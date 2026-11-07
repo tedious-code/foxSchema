@@ -1109,3 +1109,47 @@ describe('splitting on the shared tokenizer', () => {
     expect(second).toMatchObject({ startLine: 3, endLine: 3 });
   });
 });
+
+describe('splitSqlStatements: a `.` in a comment does not qualify the next identifier', () => {
+  // Found by running a real SQLite migration. The generator writes review notes
+  // above the statements they concern, e.g.
+  //   -- review: skip FK … declare FOREIGN KEY in CREATE TABLE only (no ALTER ADD).
+  // Qualification used to be decided by scanning backwards over whitespace for a
+  // `.`, which cannot tell code from comment text. The note's trailing period made
+  // the following `CREATE` look like `schema.CREATE`, so it was skipped, the
+  // statement never registered as routine DDL, and the trigger body split at the
+  // `;` inside BEGIN … END — leaving a fragment starting with `END`.
+  const trigger = `CREATE TRIGGER trg_decrement_stock
+AFTER INSERT ON order_items
+FOR EACH ROW
+BEGIN
+  UPDATE products SET stock = stock - NEW.qty WHERE id = NEW.product_id;
+END;`;
+
+  it('keeps a trigger whole after a comment ending in a period', () => {
+    const sql = `-- review: declare FOREIGN KEY in CREATE TABLE only (no ALTER ADD).\n${trigger}`;
+    const stmts = splitSqlStatements(sql);
+    expect(stmts).toHaveLength(1);
+    expect(stmts[0]!.text).toContain('UPDATE products');
+    expect(stmts.some((s) => /^\s*END\b/i.test(s.text))).toBe(false);
+  });
+
+  it.each(['--.', '-- .', '--a.', '-- ends with a period.'])(
+    'keeps a trigger whole after the comment %j',
+    (comment) => {
+      expect(splitSqlStatements(`${comment}\n${trigger}`)).toHaveLength(1);
+    }
+  );
+
+  it('still treats a genuinely qualified identifier as qualified', () => {
+    // `s.begin` / `s.end` are column names, not block delimiters: if they were
+    // read as a BEGIN opener the `;` would stop splitting.
+    expect(splitSqlStatements('SELECT s.begin FROM s;\nSELECT 1;')).toHaveLength(2);
+    expect(splitSqlStatements('SELECT s.end FROM s;\nSELECT 1;')).toHaveLength(2);
+  });
+
+  it('reads a qualifier across whitespace and comments', () => {
+    expect(splitSqlStatements('SELECT s . begin FROM s;\nSELECT 1;')).toHaveLength(2);
+    expect(splitSqlStatements('SELECT s /* c */ . begin FROM s;\nSELECT 1;')).toHaveLength(2);
+  });
+});

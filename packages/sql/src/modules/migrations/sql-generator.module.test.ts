@@ -4,6 +4,7 @@ import { db2SqlDialect } from '../../providers/db2/db2.sql-dialect.js';
 import { DIALECT_MAP } from '../dialect/registry.js';
 import { TableDiff } from '../../interfaces/index.js';
 import { TableSchema } from '../../interfaces/index.js';
+import { splitSqlStatements } from '../sql-text/sql-splitter.js';
 
 const gen = new SqlGeneratorModule();
 
@@ -1664,5 +1665,208 @@ END`;
     const sql = gen.generateMigrationSql([diff], 'sqlite');
     expect(sql).toMatch(/END;/);
     expect(sql).not.toMatch(/END;;/);
+  });
+});
+
+describe('identifier quoting: a name that only looks quoted is escaped, not trusted', () => {
+  // Names come from introspecting a source database. A column may be called
+  // something that merely looks wrapped, and emitting it verbatim turned the
+  // migration into "a valid CREATE, then a valid DROP" — a source schema the
+  // user does not control could inject DDL into their own migration.
+  //
+  // The property under test is structural, not textual: the payload's text
+  // necessarily still appears inside the escaped identifier. What must not
+  // happen is it escaping that identifier and becoming code.
+  const payload = '"a" INTEGER); DROP TABLE victim; --"';
+
+  const tableWith = (colName: string) =>
+    tableSchema({
+      name: 'orders',
+      columns: [
+        { name: colName, type: 'INTEGER', nullable: true, primaryKey: false },
+        { name: 'ok_col', type: 'INTEGER', nullable: true, primaryKey: false },
+      ],
+    });
+
+  it.each(['postgres', 'sqlite', 'mysql', 'db2', 'sqlserver'])(
+    'keeps the payload inside one statement on %s',
+    (dialect) => {
+      const ddl = gen.generateObjectDdl(tableWith(payload), dialect);
+      const stmts = splitSqlStatements(ddl);
+      // Before the fix this split into CREATE TABLE … / DROP TABLE victim / junk.
+      expect(stmts).toHaveLength(1);
+      expect(stmts.some((s) => /^\s*DROP\s+TABLE\s+victim/i.test(s.text))).toBe(false);
+    }
+  );
+
+  it('escapes it so the name still round-trips exactly (ANSI)', () => {
+    const ddl = gen.generateObjectDdl(tableWith(payload), 'postgres');
+    // `"` doubled inside the wrapper is the name verbatim, not a truncation.
+    expect(ddl).toContain('"""a"" INTEGER); DROP TABLE victim; --"""');
+  });
+
+  it.each([
+    ['a plain quoted name', '"my col"'],
+    ['an escaped inner quote', '"a""b"'],
+    ['a bracketed name', '[my col]'],
+    ['an escaped inner bracket', '[a]]b]'],
+    ['a backticked name', '`my col`'],
+    ['an escaped inner backtick', '`a``b`'],
+  ])('passes %s through without re-quoting it', (_label, name) => {
+    const ddl = gen.generateObjectDdl(tableWith(name), 'postgres');
+    expect(ddl).toContain(`${name} INTEGER`);
+  });
+
+  it('leaves an ordinary bare name bare', () => {
+    const ddl = gen.generateObjectDdl(tableWith('customer_id'), 'postgres');
+    expect(ddl).toContain('customer_id INTEGER');
+    expect(ddl).not.toContain('"customer_id"');
+  });
+
+  it('still quotes a name that genuinely needs it', () => {
+    const ddl = gen.generateObjectDdl(tableWith('order id'), 'postgres');
+    expect(ddl).toContain('"order id" INTEGER');
+  });
+
+  it('escapes a lone delimiter, which cannot be a wrapper', () => {
+    for (const name of ['"', '"abc', 'abc"', '[abc', '`abc']) {
+      const ddl = gen.generateObjectDdl(tableWith(name), 'postgres');
+      expect(ddl).toContain(`"${name.replace(/"/g, '""')}" INTEGER`);
+    }
+  });
+});
+
+describe('ClickHouse ENGINE clause: identifiers are quoted, catalog expressions are not', () => {
+  const chTable = (over: Partial<TableSchema> & { name: string }) =>
+    tableSchema({ objectType: 'TABLE', ...over });
+  const col = (name: string) => ({ name, type: 'Int32', nullable: false, primaryKey: false });
+  /** The ` ENGINE = … ORDER BY …` suffix, which is the clause under test. */
+  // The `)` that closes the column list starts its own line; the suffix follows
+  // it. Anchoring on the last `)` would instead find the ORDER BY tuple's.
+  const suffixOf = (ddl: string) => ddl.slice(ddl.indexOf('\n)') + 1).trim();
+
+  describe('existing output is unchanged', () => {
+    it.each([
+      [
+        'a logical primary key becomes ORDER BY',
+        chTable({ name: 'coupons', primaryKey: { name: 'PRIMARY_KEY', columns: ['id'] }, columns: [col('id')] }),
+        ') ENGINE = MergeTree ORDER BY id;',
+      ],
+      [
+        'a composite key is wrapped',
+        chTable({
+          name: 'oc',
+          primaryKey: { name: 'PRIMARY_KEY', columns: ['order_id', 'coupon_id'] },
+          columns: [col('order_id'), col('coupon_id')],
+        }),
+        ') ENGINE = MergeTree ORDER BY (order_id, coupon_id);',
+      ],
+      [
+        'an engine PRIMARY KEY is emitted when it differs from ORDER BY',
+        chTable({
+          name: 'c',
+          engine: 'ReplacingMergeTree',
+          primaryKey: { name: 'PRIMARY_KEY', columns: ['id'] },
+          orderBy: ['id', 'code'],
+          columns: [col('id'), col('code')],
+        }),
+        ') ENGINE = ReplacingMergeTree PRIMARY KEY id ORDER BY (id, code);',
+      ],
+      ['no key at all falls back to tuple()', chTable({ name: 'e', columns: [col('id')] }), ') ENGINE = MergeTree ORDER BY tuple();'],
+    ])('%s', (_label, table, expected) => {
+      expect(suffixOf(gen.generateObjectDdl(table, 'clickhouse'))).toBe(expected);
+    });
+  });
+
+  describe('a catalog-rendered sorting key is kept verbatim', () => {
+    // `orderByFromCatalog` marks system.tables.sorting_key — already valid,
+    // correctly quoted SQL, and the only place an expression may come from.
+    it.each([
+      ['a function expression', ['cityHash64(id)'], ') ENGINE = MergeTree ORDER BY cityHash64(id);'],
+      ['an empty tuple', ['tuple()'], ') ENGINE = MergeTree ORDER BY tuple();'],
+      ['a composite expression', ['cityHash64(id)', 'created_at'], ') ENGINE = MergeTree ORDER BY (cityHash64(id), created_at);'],
+      ['a name the engine quoted itself', ['`order id`'], ') ENGINE = MergeTree ORDER BY `order id`;'],
+    ])('%s', (_label, orderBy, expected) => {
+      const ddl = gen.generateObjectDdl(
+        chTable({ name: 'e', engine: 'MergeTree', orderBy, orderByFromCatalog: true, columns: [col('id')] }),
+        'clickhouse'
+      );
+      expect(suffixOf(ddl)).toBe(expected);
+    });
+  });
+
+  describe('an unmarked key is a column name and gets quoted', () => {
+    // Same text, without the marker: a plain column name from
+    // system.columns.is_in_sorting_key, so it must not reach SQL raw.
+    it('quotes a name containing parentheses', () => {
+      const name = 'id) ENGINE = MergeTree ORDER BY (id';
+      const ddl = gen.generateObjectDdl(
+        chTable({ name: 'e', engine: 'MergeTree', orderBy: [name], columns: [col(name)] }),
+        'clickhouse'
+      );
+      expect(suffixOf(ddl)).toBe(`) ENGINE = MergeTree ORDER BY "${name}";`);
+      expect(splitSqlStatements(ddl)).toHaveLength(1);
+    });
+  });
+
+  describe('injection attempts stay inside one statement', () => {
+    /** The dialect has no quoteIdentifier override, so ClickHouse quotes ANSI. */
+    const quoted = (name: string) => `"${name.replace(/"/g, '""')}"`;
+
+    // Each payload carries a parenthesis, because the rule being replaced passed
+    // any entry containing one through raw — without it these would not tell a
+    // fixed generator from a broken one. The `;` then starts a second statement.
+    it.each([
+      ['a parenthesised statement break', 'id); DROP TABLE victim; --'],
+      ['a malformed quoted name', '"a" Int32) ORDER BY (x); DROP TABLE victim; --"'],
+      ['a clause rewrite with no semicolon', 'id) ENGINE = MergeTree ORDER BY (id'],
+    ])('ORDER BY: %s', (_label, name) => {
+      const ddl = gen.generateObjectDdl(
+        chTable({ name: 'e', engine: 'MergeTree', orderBy: [name], columns: [col(name)] }),
+        'clickhouse'
+      );
+      expect(suffixOf(ddl)).toContain(quoted(name));
+      expect(splitSqlStatements(ddl)).toHaveLength(1);
+      expect(ddl).not.toMatch(/^\s*DROP\s+TABLE/im);
+    });
+
+    it.each([
+      ['a parenthesised statement break', 'id); DROP TABLE victim; --'],
+      ['a malformed quoted name', '"a") ORDER BY (x); DROP TABLE victim; --"'],
+      ['a plain statement break', 'id; DROP TABLE victim; --'],
+    ])('PRIMARY KEY: %s', (_label, name) => {
+      // PRIMARY KEY is only emitted when it differs from ORDER BY.
+      const ddl = gen.generateObjectDdl(
+        chTable({
+          name: 'e',
+          engine: 'MergeTree',
+          primaryKey: { name: 'PRIMARY_KEY', columns: [name] },
+          orderBy: ['id', 'ts'],
+          columns: [col(name), col('id'), col('ts')],
+        }),
+        'clickhouse'
+      );
+      expect(suffixOf(ddl)).toContain(`PRIMARY KEY ${quoted(name)}`);
+      expect(splitSqlStatements(ddl)).toHaveLength(1);
+      expect(ddl).not.toMatch(/^\s*DROP\s+TABLE/im);
+    });
+
+    it('never takes the primary key straight from the table, marked or not', () => {
+      const name = 'id); DROP TABLE victim; --';
+      // The catalog marker licenses ORDER BY only; it must not reach PRIMARY KEY.
+      const ddl = gen.generateObjectDdl(
+        chTable({
+          name: 'e',
+          engine: 'MergeTree',
+          primaryKey: { name: 'PRIMARY_KEY', columns: [name] },
+          orderBy: ['id'],
+          orderByFromCatalog: true,
+          columns: [col(name), col('id')],
+        }),
+        'clickhouse'
+      );
+      expect(ddl).toContain(`PRIMARY KEY ${quoted(name)}`);
+      expect(splitSqlStatements(ddl)).toHaveLength(1);
+    });
   });
 });

@@ -1,4 +1,5 @@
 import { ConnectionFactory } from '../../cores/connection-factory.js';
+import { stripCreateViewHeader } from '../../cores/view-definition.js';
 import { dbSchemaToTableSchemas, groupForeignKeyRows, errorMessage } from '@foxschema/sql';
 import {
   type SchemaProvider,
@@ -175,7 +176,9 @@ export class SqliteProvider implements SchemaProvider {
       (views[vw.name] ??= []).push({
         name: vw.name,
         schema: '',
-        definition: vw.sql ?? '',
+        // sqlite_master.sql is the FULL "CREATE VIEW name AS <body>" text, but
+        // `definition` holds only the query — see stripCreateViewHeader.
+        definition: stripCreateViewHeader(vw.sql),
         columns: vw.viewColumns,
         indexes: [],
       });

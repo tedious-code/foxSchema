@@ -119,5 +119,22 @@ export const sqliteSqlDialect: SqlDialect = {
     return `DROP TRIGGER IF EXISTS ${triggerName};`;
   },
 
+  /**
+   * SQLite has no `CREATE OR REPLACE VIEW` — the generator's default emitted
+   * `near "OR": syntax error`. `IF NOT EXISTS` keeps a re-run of the script
+   * harmless, matching how this dialect emits indexes.
+   */
+  createViewStatement(name: string, body: string): string {
+    return `CREATE VIEW IF NOT EXISTS ${name} AS\n${body}`;
+  },
+
+  /**
+   * SQLite has no `ALTER VIEW` either, so a changed view is dropped and
+   * recreated. Views hold no data, so this loses nothing.
+   */
+  alterViewStatement(name: string, body: string): string {
+    return `DROP VIEW IF EXISTS ${name};\nCREATE VIEW ${name} AS\n${body}`;
+  },
+
   ...types,
 };

@@ -1626,3 +1626,43 @@ describe('SQLite views: no CREATE OR REPLACE, no doubled header', () => {
     expect(sql).toMatch(/CREATE OR REPLACE VIEW v_customers AS/i);
   });
 });
+
+describe('trigger definitions are terminated', () => {
+  // SQLite's sqlite_master.sql ends a trigger at `END`, with no `;`. Emitted as
+  // it stands, the CREATE TRIGGER never ends and swallows the next statement.
+  const body = `CREATE TRIGGER trg_decrement_stock
+AFTER INSERT ON order_items
+FOR EACH ROW
+BEGIN
+  UPDATE products SET stock = stock - NEW.qty WHERE id = NEW.product_id;
+END`;
+
+  const withTrigger = (): TableDiff => ({
+    tableName: 'ORDER_ITEMS',
+    objectType: 'TABLE',
+    status: 'ADDED',
+    columnDiffs: [],
+    indexDiffs: [],
+    foreignKeyDiffs: [],
+    sourceTable: tableSchema({
+      name: 'order_items',
+      columns: [{ name: 'qty', type: 'INTEGER', nullable: false, primaryKey: false }],
+      triggers: [{ name: 'trg_decrement_stock', timing: 'AFTER', event: 'INSERT', definition: body }],
+    }),
+  });
+
+  it('terminates a catalog definition that ends at END', () => {
+    const sql = gen.generateMigrationSql([withTrigger()], 'sqlite');
+    expect(sql).toMatch(/END;/);
+    // nothing may follow END on the same statement without a terminator
+    expect(sql).not.toMatch(/END[ \t]*\n[ \t]*\n?[ \t]*(ALTER|CREATE|DROP)\b/i);
+  });
+
+  it('does not double the terminator when one is already there', () => {
+    const diff = withTrigger();
+    diff.sourceTable!.triggers![0]!.definition = `${body};`;
+    const sql = gen.generateMigrationSql([diff], 'sqlite');
+    expect(sql).toMatch(/END;/);
+    expect(sql).not.toMatch(/END;;/);
+  });
+});

@@ -43,19 +43,19 @@ describe('clickHouseSqlDialect CREATE TABLE suffix', () => {
   });
 
   it('defaults to MergeTree ORDER BY the quoted key', () => {
-    expect(clickHouseSqlDialect.createTableSuffix?.(table(), ['id'])).toBe(
+    expect(clickHouseSqlDialect.createTableSuffix?.(table(), ['id'], [])).toBe(
       ' ENGINE = MergeTree ORDER BY id'
     );
   });
 
   it('wraps a composite ORDER BY', () => {
-    expect(clickHouseSqlDialect.createTableSuffix?.(table({ engine: 'MergeTree' }), ['id', 'code'])).toBe(
+    expect(clickHouseSqlDialect.createTableSuffix?.(table({ engine: 'MergeTree' }), ['id', 'code'], [])).toBe(
       ' ENGINE = MergeTree ORDER BY (id, code)'
     );
   });
 
   it('uses tuple() when there is no key', () => {
-    expect(clickHouseSqlDialect.createTableSuffix?.(table(), [])).toBe(
+    expect(clickHouseSqlDialect.createTableSuffix?.(table(), [], [])).toBe(
       ' ENGINE = MergeTree ORDER BY tuple()'
     );
   });
@@ -69,7 +69,7 @@ describe('clickHouseSqlDialect CREATE TABLE suffix', () => {
       primaryKey: { name: 'PRIMARY_KEY', columns: ['id'] },
       orderBy: ['id', 'code'],
     });
-    expect(clickHouseSqlDialect.createTableSuffix?.(t, ['id', 'code'])).toBe(
+    expect(clickHouseSqlDialect.createTableSuffix?.(t, ['id', 'code'], ['id'])).toBe(
       ' ENGINE = MergeTree PRIMARY KEY id ORDER BY (id, code)'
     );
   });

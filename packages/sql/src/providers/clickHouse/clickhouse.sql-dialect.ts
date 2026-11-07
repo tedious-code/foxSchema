@@ -200,13 +200,16 @@ export const clickHouseSqlDialect: SqlDialect = {
   // CHECK / ASSUME. The key is ENGINE … ORDER BY after the closing paren.
   inlinePrimaryKeyConstraint: false,
 
-  createTableSuffix(table: TableSchema, quotedOrderBy: string[]): string {
-    const pkCols = table.primaryKey?.columns ?? [];
+  createTableSuffix(table: TableSchema, quotedOrderBy: string[], quotedPrimaryKey: string[]): string {
     // ClickHouse PRIMARY KEY defaults to ORDER BY; only emit it when they differ.
+    // The comparison is on the raw catalog values, which is what both quoted
+    // arrays were built from — quoting is for emitting, not for matching.
     const pkClause =
-      pkCols.length > 0 && !sameKeyList(pkCols, clickHouseOrderBy(table))
-        ? ` PRIMARY KEY ${clickHouseOrderBySql(pkCols)}`
+      quotedPrimaryKey.length > 0 && !sameKeyList(table.primaryKey?.columns ?? [], clickHouseOrderBy(table))
+        ? ` PRIMARY KEY ${clickHouseOrderBySql(quotedPrimaryKey)}`
         : '';
+    // Only the pre-quoted arrays reach SQL: never `table.primaryKey.columns`,
+    // whose raw names let a hostile column close the clause and append DDL.
     return ` ${clickHouseEngineSql(table.engine)}${pkClause} ORDER BY ${clickHouseOrderBySql(quotedOrderBy)}`;
   },
 

@@ -206,6 +206,9 @@ export function dbSchemaToTableSchemas(dbSchema: DbSchema): TableSchema[] {
       tablespace: table.tablespace,
       ...(table.engine ? { engine: table.engine } : {}),
       ...(table.orderBy?.length ? { orderBy: table.orderBy } : {}),
+      // Carried, not inferred: it says whether those entries are engine-rendered
+      // SQL or bare column names, which decides whether they get quoted.
+      ...(table.orderBy?.length && table.orderByFromCatalog ? { orderByFromCatalog: true } : {}),
       ...(table.storeType ? { storeType: table.storeType } : {}),
       triggers: triggersByTable.get(table.name) ?? [],
       primaryKey: pkColumns.length > 0

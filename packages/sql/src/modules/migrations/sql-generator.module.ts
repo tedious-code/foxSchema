@@ -369,13 +369,21 @@ export class SqlGeneratorModule {
 
     let suffix = '';
     if (dialect.createTableSuffix) {
-      const orderSrc = table.orderBy?.length ? table.orderBy : pkCols;
-      // ClickHouse sorting_key can be `tuple()` or `cityHash64(id)` — those are
-      // expressions, not identifiers, and quoting them is a syntax error.
-      suffix = dialect.createTableSuffix(
-        table,
-        orderSrc.map((c) => (/[()]/.test(c) ? c : this.ident(c)))
-      );
+      // A sorting key the engine rendered itself (ClickHouse `sorting_key`) is
+      // already valid SQL and may be an expression — `tuple()`, `cityHash64(id)`
+      // — so it is emitted verbatim. Anything else is a plain column name and is
+      // quoted.
+      //
+      // Trust comes from `orderByFromCatalog`, never from the text: the previous
+      // rule passed any entry containing a paren through unquoted, which a column
+      // named `id) ORDER BY (id) --` satisfied, so a source schema could carry
+      // DDL out of the ORDER BY clause.
+      const quotedOrderBy =
+        table.orderByFromCatalog && table.orderBy?.length
+          ? [...table.orderBy]
+          : (table.orderBy?.length ? table.orderBy : pkCols).map((c) => this.ident(c));
+      // A primary key is a column list, so it is always quoted.
+      suffix = dialect.createTableSuffix(table, quotedOrderBy, pkCols.map((c) => this.ident(c)));
     }
     return `CREATE TABLE ${this.qualify(table.name, mapping)} (\n${lines.join(',\n')}\n)${suffix};`;
   }

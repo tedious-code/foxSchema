@@ -98,9 +98,20 @@ export interface SqlDialect {
 
   /**
    * Clauses after the CREATE TABLE column list. ClickHouse: ` ENGINE = MergeTree ORDER BY …`.
-   * `quotedOrderBy` is identifier-quoted, or left raw for a function expression.
+   *
+   * Both arrays arrive ready to emit, and an implementation must use them
+   * rather than reading names off `table`: identifiers there are raw catalog
+   * values, and a column is named whatever somebody created, so emitting one
+   * unquoted lets it carry DDL out of the clause.
+   *
+   * `quotedOrderBy` is identifier-quoted, except when
+   * `table.orderByFromCatalog` says the entries are the engine's own rendering
+   * of the sorting key — those are already valid SQL and may be expressions
+   * such as `cityHash64(id)`, so they pass through verbatim.
+   * `quotedPrimaryKey` is always identifier-quoted: a primary key is a column
+   * list, never an expression.
    */
-  createTableSuffix?(table: TableSchema, quotedOrderBy: string[]): string;
+  createTableSuffix?(table: TableSchema, quotedOrderBy: string[], quotedPrimaryKey: string[]): string;
 
   /**
    * ENGINE / ORDER BY changed. Omit when the dialect has no table engine.

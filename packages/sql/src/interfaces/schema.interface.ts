@@ -124,6 +124,18 @@ export interface TableSchema {
    */
   orderBy?: string[];
   /**
+   * `orderBy` came from the engine's own rendering of the sorting key
+   * (ClickHouse `system.tables.sorting_key`), so each entry is already valid,
+   * correctly quoted SQL and may be an expression such as `cityHash64(id)`.
+   * The generator emits those verbatim.
+   *
+   * Absent means the entries are plain column names — from
+   * `system.columns.is_in_sorting_key`, or borrowed from the primary key — and
+   * must be identifier-quoted before they reach SQL. A column is named whatever
+   * somebody created, so an unquoted one can carry DDL out of the clause.
+   */
+  orderByFromCatalog?: boolean;
+  /**
    * What a non-SQL store keeps behind this "table" — for Redis `hash`, `json`,
    * `string`, `mixed`, `list`, `set`, `zset` or `stream`. Shown as a badge;
    * absent for SQL engines.
@@ -166,6 +178,8 @@ export interface DbTable {
   engine?: string;
   /** See `TableSchema.orderBy`. */
   orderBy?: string[];
+  /** See `TableSchema.orderByFromCatalog`. */
+  orderByFromCatalog?: boolean;
   /** See `TableSchema.storeType`. */
   storeType?: string;
 }

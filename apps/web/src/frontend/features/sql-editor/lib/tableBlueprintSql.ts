@@ -890,8 +890,15 @@ function createTableSuffixSql(
     foreignKeys: [],
     ...(pkColumns.length ? { primaryKey: { columns: pkColumns } } : {}),
   };
-  const quoted = pkColumns.map((c) => (/[()]/.test(c) ? c : quoteIdent(c, dialectName)));
-  return dialect.createTableSuffix(table, quoted);
+  // A blueprint's column names are typed by the person building the table, so
+  // they are identifiers — never the engine-rendered sorting key an expression
+  // could legitimately come from (`table.orderByFromCatalog` is unset here).
+  // They are quoted, with no passthrough: the old rule let any name containing
+  // a paren through raw, which is enough to close the clause and append DDL.
+  // ORDER BY and PRIMARY KEY are the same list, since a blueprint has no
+  // separate sorting key.
+  const quoted = pkColumns.map((c) => quoteIdent(c, dialectName));
+  return dialect.createTableSuffix(table, quoted, quoted);
 }
 
 /**

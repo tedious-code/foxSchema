@@ -117,7 +117,10 @@ export class ClickHouseProvider implements SchemaProvider {
         uniqueConstraints: [],
         indexes: [],
         ...(t.engine ? { engine: t.engine } : {}),
-        ...(orderBy.length ? { orderBy } : {}),
+        // Marked as engine-rendered: sorting_key is ClickHouse's own output, so
+        // its entries are already quoted and may be expressions. The column-flag
+        // fallback below pushes bare names and deliberately leaves this unset.
+        ...(orderBy.length ? { orderBy, orderByFromCatalog: true } : {}),
       };
       columns[t.name] = [];
       primaryKeys[t.name] = fromPk.map((column, i) => ({

@@ -1735,3 +1735,138 @@ describe('identifier quoting: a name that only looks quoted is escaped, not trus
     }
   });
 });
+
+describe('ClickHouse ENGINE clause: identifiers are quoted, catalog expressions are not', () => {
+  const chTable = (over: Partial<TableSchema> & { name: string }) =>
+    tableSchema({ objectType: 'TABLE', ...over });
+  const col = (name: string) => ({ name, type: 'Int32', nullable: false, primaryKey: false });
+  /** The ` ENGINE = … ORDER BY …` suffix, which is the clause under test. */
+  // The `)` that closes the column list starts its own line; the suffix follows
+  // it. Anchoring on the last `)` would instead find the ORDER BY tuple's.
+  const suffixOf = (ddl: string) => ddl.slice(ddl.indexOf('\n)') + 1).trim();
+
+  describe('existing output is unchanged', () => {
+    it.each([
+      [
+        'a logical primary key becomes ORDER BY',
+        chTable({ name: 'coupons', primaryKey: { name: 'PRIMARY_KEY', columns: ['id'] }, columns: [col('id')] }),
+        ') ENGINE = MergeTree ORDER BY id;',
+      ],
+      [
+        'a composite key is wrapped',
+        chTable({
+          name: 'oc',
+          primaryKey: { name: 'PRIMARY_KEY', columns: ['order_id', 'coupon_id'] },
+          columns: [col('order_id'), col('coupon_id')],
+        }),
+        ') ENGINE = MergeTree ORDER BY (order_id, coupon_id);',
+      ],
+      [
+        'an engine PRIMARY KEY is emitted when it differs from ORDER BY',
+        chTable({
+          name: 'c',
+          engine: 'ReplacingMergeTree',
+          primaryKey: { name: 'PRIMARY_KEY', columns: ['id'] },
+          orderBy: ['id', 'code'],
+          columns: [col('id'), col('code')],
+        }),
+        ') ENGINE = ReplacingMergeTree PRIMARY KEY id ORDER BY (id, code);',
+      ],
+      ['no key at all falls back to tuple()', chTable({ name: 'e', columns: [col('id')] }), ') ENGINE = MergeTree ORDER BY tuple();'],
+    ])('%s', (_label, table, expected) => {
+      expect(suffixOf(gen.generateObjectDdl(table, 'clickhouse'))).toBe(expected);
+    });
+  });
+
+  describe('a catalog-rendered sorting key is kept verbatim', () => {
+    // `orderByFromCatalog` marks system.tables.sorting_key — already valid,
+    // correctly quoted SQL, and the only place an expression may come from.
+    it.each([
+      ['a function expression', ['cityHash64(id)'], ') ENGINE = MergeTree ORDER BY cityHash64(id);'],
+      ['an empty tuple', ['tuple()'], ') ENGINE = MergeTree ORDER BY tuple();'],
+      ['a composite expression', ['cityHash64(id)', 'created_at'], ') ENGINE = MergeTree ORDER BY (cityHash64(id), created_at);'],
+      ['a name the engine quoted itself', ['`order id`'], ') ENGINE = MergeTree ORDER BY `order id`;'],
+    ])('%s', (_label, orderBy, expected) => {
+      const ddl = gen.generateObjectDdl(
+        chTable({ name: 'e', engine: 'MergeTree', orderBy, orderByFromCatalog: true, columns: [col('id')] }),
+        'clickhouse'
+      );
+      expect(suffixOf(ddl)).toBe(expected);
+    });
+  });
+
+  describe('an unmarked key is a column name and gets quoted', () => {
+    // Same text, without the marker: a plain column name from
+    // system.columns.is_in_sorting_key, so it must not reach SQL raw.
+    it('quotes a name containing parentheses', () => {
+      const name = 'id) ENGINE = MergeTree ORDER BY (id';
+      const ddl = gen.generateObjectDdl(
+        chTable({ name: 'e', engine: 'MergeTree', orderBy: [name], columns: [col(name)] }),
+        'clickhouse'
+      );
+      expect(suffixOf(ddl)).toBe(`) ENGINE = MergeTree ORDER BY "${name}";`);
+      expect(splitSqlStatements(ddl)).toHaveLength(1);
+    });
+  });
+
+  describe('injection attempts stay inside one statement', () => {
+    /** The dialect has no quoteIdentifier override, so ClickHouse quotes ANSI. */
+    const quoted = (name: string) => `"${name.replace(/"/g, '""')}"`;
+
+    // Each payload carries a parenthesis, because the rule being replaced passed
+    // any entry containing one through raw — without it these would not tell a
+    // fixed generator from a broken one. The `;` then starts a second statement.
+    it.each([
+      ['a parenthesised statement break', 'id); DROP TABLE victim; --'],
+      ['a malformed quoted name', '"a" Int32) ORDER BY (x); DROP TABLE victim; --"'],
+      ['a clause rewrite with no semicolon', 'id) ENGINE = MergeTree ORDER BY (id'],
+    ])('ORDER BY: %s', (_label, name) => {
+      const ddl = gen.generateObjectDdl(
+        chTable({ name: 'e', engine: 'MergeTree', orderBy: [name], columns: [col(name)] }),
+        'clickhouse'
+      );
+      expect(suffixOf(ddl)).toContain(quoted(name));
+      expect(splitSqlStatements(ddl)).toHaveLength(1);
+      expect(ddl).not.toMatch(/^\s*DROP\s+TABLE/im);
+    });
+
+    it.each([
+      ['a parenthesised statement break', 'id); DROP TABLE victim; --'],
+      ['a malformed quoted name', '"a") ORDER BY (x); DROP TABLE victim; --"'],
+      ['a plain statement break', 'id; DROP TABLE victim; --'],
+    ])('PRIMARY KEY: %s', (_label, name) => {
+      // PRIMARY KEY is only emitted when it differs from ORDER BY.
+      const ddl = gen.generateObjectDdl(
+        chTable({
+          name: 'e',
+          engine: 'MergeTree',
+          primaryKey: { name: 'PRIMARY_KEY', columns: [name] },
+          orderBy: ['id', 'ts'],
+          columns: [col(name), col('id'), col('ts')],
+        }),
+        'clickhouse'
+      );
+      expect(suffixOf(ddl)).toContain(`PRIMARY KEY ${quoted(name)}`);
+      expect(splitSqlStatements(ddl)).toHaveLength(1);
+      expect(ddl).not.toMatch(/^\s*DROP\s+TABLE/im);
+    });
+
+    it('never takes the primary key straight from the table, marked or not', () => {
+      const name = 'id); DROP TABLE victim; --';
+      // The catalog marker licenses ORDER BY only; it must not reach PRIMARY KEY.
+      const ddl = gen.generateObjectDdl(
+        chTable({
+          name: 'e',
+          engine: 'MergeTree',
+          primaryKey: { name: 'PRIMARY_KEY', columns: [name] },
+          orderBy: ['id'],
+          orderByFromCatalog: true,
+          columns: [col(name), col('id')],
+        }),
+        'clickhouse'
+      );
+      expect(ddl).toContain(`PRIMARY KEY ${quoted(name)}`);
+      expect(splitSqlStatements(ddl)).toHaveLength(1);
+    });
+  });
+});

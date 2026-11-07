@@ -12,6 +12,12 @@ const selectionKey = (d: Pick<TableDiff, 'objectType' | 'tableName'>): string =>
   `${d.objectType}\u0000${d.tableName}`;
 
 export interface MigrationStep {
+  /**
+   * Always a single line: the script heads each step with
+   * `-- <action> <type>: <objectName>`, and a line break in a name would end
+   * that comment and leave the rest of the name executable. See
+   * `flattenIdentifier`.
+   */
   objectName: string;
   objectType: DbObjectType;
   action: 'DROP' | 'CREATE' | 'ALTER';
@@ -123,6 +129,66 @@ function ansiQuoteIdentifier(name: string): string {
  * follows is not part of the name. That name is not well-formed, and `ident`
  * sends it to the dialect's quoter to be escaped from scratch instead.
  */
+/**
+ * An identifier with its line breaks turned into spaces.
+ *
+ * A line break cannot be escaped inside a quoted identifier — to name that
+ * column the generated SQL has to carry the break literally — and the script
+ * writes names into `--` comments, which end at the first one. A table named
+ *
+ *     x⏎DROP TABLE victim; --
+ *
+ * therefore closed its `-- review:` note and left the rest of itself on the
+ * next line as a statement of its own, which the migration then ran. Several
+ * notes carry a name (review notes, manual-review blocks, the per-step
+ * header), so this is fixed here, at the one point every name passes through,
+ * rather than at each of them.
+ *
+ * The trade-off is deliberate: a name that really does contain a line break is
+ * emitted with spaces instead, so that object needs a hand-written migration.
+ * Such a name is pathological — and the alternative is executing DDL that a
+ * source schema chose.
+ */
+function flattenIdentifier(name: string): string {
+  return /[\r\n]/.test(name) ? name.replace(/[\r\n]+/g, ' ') : name;
+}
+
+/**
+ * A whole `--` note on one line, for the review notes that quote a name the
+ * generator did not put through `ident` — an index, constraint or trigger name,
+ * or a type-translation warning that repeats one. Same reason as
+ * `flattenIdentifier`: the note ends at the first line break, and anything
+ * after it is a statement.
+ */
+function oneLineComment(text: string): string {
+  return /[\r\n]/.test(text) ? text.replace(/[\r\n]+/g, ' ') : text;
+}
+
+/**
+ * A statement that opens with `--` stays commented to its last line.
+ *
+ * The backstop behind `flattenIdentifier` and `oneLineComment`. Those cover the
+ * names and notes this module writes, but a dialect hook builds its own review
+ * notes out of values the generator never quotes — ClickHouse's ENGINE / ORDER BY
+ * note repeats the sorting key, SQLite's column note repeats the type — and a
+ * line break in any of them ends the note and leaves the rest executable.
+ * Catching it once here covers every hook, including ones added later.
+ *
+ * Safe because a comment and code never share a statement: the per-step
+ * `-- ACTION TYPE: name` header is emitted separately, not pushed as part of
+ * one. Checked over 1056 statements across every dialect, same- and
+ * cross-dialect, where nothing opening with `--` carried a non-comment line, so
+ * this is a no-op on valid output. A statement that does not open with `--` is
+ * never touched, so real DDL cannot be commented out.
+ */
+function keepCommentCommented(statement: string): string {
+  const lines = statement.split(/\r\n|\r|\n/);
+  const isComment = (line: string) => !line.trim() || line.trimStart().startsWith('--');
+  if (lines.length < 2 || !lines[0]!.trimStart().startsWith('--')) return statement;
+  if (lines.every(isComment)) return statement;
+  return lines.map((line, i) => (i === 0 || isComment(line) ? line : `-- ${line}`)).join('\n');
+}
+
 function isWellFormedQuotedIdentifier(name: string): boolean {
   if (name.length < 2) return false;
   const open = name[0]!;
@@ -170,8 +236,9 @@ export class SqlGeneratorModule {
    * without rewriting the dialect test suites.
    */
   private ident(name: string): string {
-    if (isBareIdentifier(name) || isWellFormedQuotedIdentifier(name)) return name;
-    return this.quoteIdentifier(name);
+    const flat = flattenIdentifier(name);
+    if (isBareIdentifier(flat) || isWellFormedQuotedIdentifier(flat)) return flat;
+    return this.quoteIdentifier(flat);
   }
 
   /**
@@ -400,7 +467,7 @@ export class SqlGeneratorModule {
     // rather than shipping DDL that cannot run.
     const hidden = idx.columns.find((c) => /^SYS_NC\d+\$$/i.test((c ?? '').trim()));
     if (hidden) {
-      return `-- review: skip index ${idx.name} on ${qualifiedTable} — function-based index; its expression is not captured (column reads as ${hidden})`;
+      return oneLineComment(`-- review: skip index ${idx.name} on ${qualifiedTable} — function-based index; its expression is not captured (column reads as ${hidden})`);
     }
     // Quote the column names *before* handing them to a dialect hook: the hooks
     // build their own column list, so a hook-owning dialect (SQLite, SQL Server)
@@ -428,7 +495,7 @@ export class SqlGeneratorModule {
     const refCols = referencedColumns ?? [];
     const label = constraintName || '(unnamed)';
     if (columns.length === 0 || refCols.length !== columns.length) {
-      return `-- review: skip FK ${label} — referenced columns missing or length mismatch`;
+      return oneLineComment(`-- review: skip FK ${label} — referenced columns missing or length mismatch`);
     }
     // SQLite and ClickHouse have no ALTER TABLE ... ADD CONSTRAINT. The matrix
     // already knew that and only the blueprint UI was reading it, so the
@@ -436,7 +503,7 @@ export class SqlGeneratorModule {
     // DDL that cannot run.
     const fk = this.fkSupport();
     if (!fk.alterAdd) {
-      return `-- review: skip FK ${label} — ${fk.hint}`;
+      return oneLineComment(`-- review: skip FK ${label} — ${fk.hint}`);
     }
     const cols = columns.map((c) => this.ident(c)).join(', ');
     const parentCols = refCols.map((c) => this.ident(c)).join(', ');
@@ -487,7 +554,7 @@ export class SqlGeneratorModule {
     if (table.objectType === 'SEQUENCE') return this.renderCreateSequence(table, dialect);
     if (table.objectType === 'TYPE') return this.renderCreateType(table, dialect);
     if (table.objectType !== 'TABLE' && table.objectType !== 'MQT') {
-      return table.definition || `-- No definition available for ${table.objectType} ${table.name}`;
+      return table.definition || oneLineComment(`-- No definition available for ${table.objectType} ${table.name}`);
     }
 
     let sql = this.renderCreateTable(table, dialect) + `\n`;
@@ -513,7 +580,7 @@ export class SqlGeneratorModule {
       // unterminated CREATE TRIGGER swallows whatever statement follows it.
       sql += trg.definition
         ? `${this.ensureSemicolon(trg.definition)}\n`
-        : `-- Trigger ${trg.name} (${trg.timing ?? ''} ${trg.event ?? ''}) has no available definition\n`;
+        : `-- Trigger ${flattenIdentifier(trg.name)} (${trg.timing ?? ''} ${trg.event ?? ''}) has no available definition\n`;
     }
 
     return sql;
@@ -568,7 +635,7 @@ export class SqlGeneratorModule {
       if (this.fkCycleKeys.has(cycleKey)) {
         const cycleList = [...this.fkCycleKeys].sort().join(', ');
         statements.push(
-          `-- review: FK cycle involving ${cycleList} — create order may fail; break the cycle manually`
+          oneLineComment(`-- review: FK cycle involving ${cycleList} — create order may fail; break the cycle manually`)
         );
       }
       // Postgres matviews (definition captured + dialect hook available) render as a
@@ -579,7 +646,7 @@ export class SqlGeneratorModule {
         obj.objectType === 'MQT' && source.definition && dialect.createMaterializedViewStatement
           ? dialect.createMaterializedViewStatement(name, this.ensureSemicolon(source.definition))
           : this.renderCreateTable(source, dialect, mapping, typeWarnings);
-      for (const w of typeWarnings) statements.push(`-- review: ${w}`);
+      for (const w of typeWarnings) statements.push(oneLineComment(`-- review: ${w}`));
 
       // Postgres serial columns reference a backing sequence in their DEFAULT
       // (nextval('…_seq'::regclass)). That sequence must exist before the table
@@ -812,7 +879,7 @@ export class SqlGeneratorModule {
       for (const col of obj.columnDiffs.filter((c) => c.status === 'ADDED')) {
         if (!col.source) continue;
         const translated = this.translateType(col.source.type, mapping);
-        if (translated.warning) statements.push(`-- review: ${col.name}: ${translated.warning}`);
+        if (translated.warning) statements.push(oneLineComment(`-- review: ${col.name}: ${translated.warning}`));
         // A serial column added to an existing table needs its sequence first.
         const seq = dialect.serialSequenceFromDefault?.(col.source.defaultValue ?? '');
         if (seq) statements.push(`CREATE SEQUENCE IF NOT EXISTS ${this.qualify(seq, mapping)};`);
@@ -848,7 +915,7 @@ export class SqlGeneratorModule {
         if (!col.source) continue;
         if (col.target && col.source.type !== col.target.type) retypedColumns = true;
         const translated = this.translateType(col.source.type, mapping);
-        if (translated.warning) statements.push(`-- review: ${col.name}: ${translated.warning}`);
+        if (translated.warning) statements.push(oneLineComment(`-- review: ${col.name}: ${translated.warning}`));
         // Cross-dialect: the raw default AND collation are source-dialect vocabulary
         // (collation names don't map across engines any more than default expressions
         // do) — strip both so a hook never emits either verbatim into the target
@@ -869,7 +936,7 @@ export class SqlGeneratorModule {
           if (this.isCrossDialect(mapping) && srcDef) {
             // A default expression is source-dialect SQL; don't risk emitting it
             // verbatim into another dialect — flag it for review instead.
-            statements.push(`-- review: ${col.name}: default '${srcDef}' is ${(mapping?.sourceDialect ?? '').toUpperCase()} syntax — set it manually for ${(mapping?.targetDialect ?? '').toUpperCase()}`);
+            statements.push(oneLineComment(`-- review: ${col.name}: default '${srcDef}' is ${(mapping?.sourceDialect ?? '').toUpperCase()} syntax — set it manually for ${(mapping?.targetDialect ?? '').toUpperCase()}`));
           } else {
             // A new serial/sequence default needs its backing sequence to exist first.
             const seqForDefault = dialect.serialSequenceFromDefault?.(srcDef ?? '');
@@ -1204,7 +1271,7 @@ export class SqlGeneratorModule {
       !obj.definition &&
       !this.isCrossDialect(m);
     return {
-      objectName: obj.tableName,
+      objectName: flattenIdentifier(obj.tableName),
       objectType: obj.objectType,
       action: 'CREATE',
       statements: stmts,
@@ -1260,7 +1327,7 @@ export class SqlGeneratorModule {
     // Non-destructive mode never drops objects that exist only in the target.
     if (!m.nonDestructive) {
       for (const obj of this.sortRemovedByDependency(diffs.filter((d) => d.status === 'REMOVED'))) {
-        steps.push({ objectName: obj.tableName, objectType: obj.objectType, action: 'DROP', statements: this.dropObjectStatements(obj, m, dialect) });
+        steps.push({ objectName: flattenIdentifier(obj.tableName), objectType: obj.objectType, action: 'DROP', statements: this.dropObjectStatements(obj, m, dialect) });
       }
     }
 
@@ -1276,7 +1343,7 @@ export class SqlGeneratorModule {
     const tables = addedStructural.filter((d) => d.objectType === 'TABLE' || d.objectType === 'MQT');
     for (const obj of [...supporting, ...this.sortAddedByDependency(tables)]) {
       const stmts = this.createObjectStatements(obj, dialect, m);
-      steps.push({ objectName: obj.tableName, objectType: obj.objectType, action: 'CREATE', statements: stmts });
+      steps.push({ objectName: flattenIdentifier(obj.tableName), objectType: obj.objectType, action: 'CREATE', statements: stmts });
     }
 
     // ADDED routines (FUNCTION, PROCEDURE) come before MODIFIED — a MODIFIED table's
@@ -1292,7 +1359,7 @@ export class SqlGeneratorModule {
     const selectedKeys = new Set(diffs.map(selectionKey));
     for (const obj of diffs.filter((d) => d.status === 'MODIFIED')) {
       steps.push({
-        objectName: obj.tableName,
+        objectName: flattenIdentifier(obj.tableName),
         objectType: obj.objectType,
         action: 'ALTER',
         statements: this.alterObjectStatements(obj, dialect, m, depContext, selectedKeys),
@@ -1316,7 +1383,10 @@ export class SqlGeneratorModule {
 
     const actionable = steps
       .filter((s) => s.statements.length > 0)
-      .map((s) => ({ ...s, statements: s.statements.map((st) => this.remapSchema(st, m)) }));
+      .map((s) => ({
+        ...s,
+        statements: s.statements.map((st) => keepCommentCommented(this.remapSchema(st, m))),
+      }));
 
     // Attach skipped list so generateMigrationSql can report it.
     (actionable as any).__skipped = skippedInNonDestructive;

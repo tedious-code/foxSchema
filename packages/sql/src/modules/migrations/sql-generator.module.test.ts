@@ -1870,3 +1870,105 @@ describe('ClickHouse ENGINE clause: identifiers are quoted, catalog expressions 
     });
   });
 });
+
+describe('a line break in a name cannot escape a generated comment', () => {
+  // The script writes names into `--` notes — the per-step header, review notes,
+  // manual-review blocks — and a comment ends at the first line break, so a
+  // name carrying one left the rest of itself on the next line as a statement
+  // the migration then ran.
+  const PAYLOAD = '\nDROP TABLE victim; --';
+  const t = (over: Partial<TableSchema> & { name: string }) => tableSchema(over);
+  const c = (name: string, type = 'INTEGER') => ({ name, type, nullable: true, primaryKey: false });
+  /** Statements that would actually execute the payload. */
+  const escaped = (sql: string) =>
+    splitSqlStatements(sql).filter((s) => /^\s*DROP\s+TABLE\s+victim/i.test(s.text));
+
+  it('keeps the per-step header on one line', () => {
+    const diff: TableDiff = {
+      tableName: `v${PAYLOAD}`,
+      objectType: 'VIEW',
+      status: 'ADDED',
+      definition: 'SELECT 1',
+      columnDiffs: [],
+      indexDiffs: [],
+      foreignKeyDiffs: [],
+    };
+    const sql = gen.generateMigrationSql([diff], 'postgres');
+    expect(escaped(sql)).toHaveLength(0);
+    // The name still reaches the DDL, flattened, so the object is identifiable.
+    expect(sql).toContain('"v DROP TABLE victim; --"');
+  });
+
+  it.each(['postgres', 'sqlite', 'mysql', 'db2', 'sqlserver', 'clickhouse'])(
+    'quotes a column name carrying one on %s',
+    (dialect) => {
+      const ddl = gen.generateObjectDdl(
+        t({ name: 'orders', columns: [c(`col${PAYLOAD}`), c('ok_col')] }),
+        dialect
+      );
+      expect(escaped(ddl)).toHaveLength(0);
+      expect(ddl).not.toMatch(/^\s*DROP\s+TABLE/im);
+    }
+  );
+
+  it('survives a review note built by a dialect from a column type', () => {
+    // SQLite cannot ALTER a column type, so it emits `-- review: … <type>`.
+    const diff: TableDiff = {
+      tableName: 'x',
+      objectType: 'TABLE',
+      status: 'MODIFIED',
+      indexDiffs: [],
+      foreignKeyDiffs: [],
+      columnDiffs: [
+        {
+          name: 'col',
+          status: 'MODIFIED',
+          source: { name: 'col', type: `TEXT${PAYLOAD}`, nullable: false, primaryKey: false },
+          target: { name: 'col', type: 'INTEGER', nullable: true, primaryKey: false },
+        },
+      ],
+    };
+    expect(escaped(gen.generateMigrationSql([diff], 'sqlite'))).toHaveLength(0);
+  });
+
+  it('survives a review note built by a dialect from a sorting key', () => {
+    // ClickHouse cannot ALTER ENGINE / ORDER BY, so it repeats them in a note.
+    const table = (over: Partial<TableSchema>) =>
+      t({ name: 'x', engine: 'MergeTree', columns: [c('a', 'Int32')], ...over });
+    const diff: TableDiff = {
+      tableName: 'x',
+      objectType: 'TABLE',
+      status: 'MODIFIED',
+      columnDiffs: [],
+      indexDiffs: [],
+      foreignKeyDiffs: [],
+      sourceTable: table({ orderBy: [`a${PAYLOAD}`] }),
+      targetTable: table({ engine: 'ReplacingMergeTree', orderBy: ['b'] }),
+    };
+    expect(escaped(gen.generateMigrationSql([diff], 'clickhouse'))).toHaveLength(0);
+  });
+
+  it('survives a cross-dialect manual-review block', () => {
+    const diff: TableDiff = {
+      tableName: `v${PAYLOAD}`,
+      objectType: 'VIEW',
+      status: 'ADDED',
+      definition: 'SELECT 1',
+      columnDiffs: [],
+      indexDiffs: [],
+      foreignKeyDiffs: [],
+    };
+    const sql = gen.generateMigrationSql([diff], 'postgres', { sourceDialect: 'oracle' });
+    expect(escaped(sql)).toHaveLength(0);
+  });
+
+  it('leaves ordinary output untouched', () => {
+    const ddl = gen.generateObjectDdl(
+      t({ name: 'orders', primaryKey: { name: 'PK', columns: ['id'] }, columns: [c('id'), c('name', 'TEXT')] }),
+      'postgres'
+    );
+    expect(ddl).toContain('CREATE TABLE orders (');
+    expect(ddl).toContain('id INTEGER');
+    expect(ddl).not.toMatch(/-- {2}/);
+  });
+});

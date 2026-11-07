@@ -76,7 +76,7 @@ describe('the rail', () => {
       ['sqlEditor', 'Editor', 'view-sql-editor-btn'],
       ['utilities', 'Utils', 'view-utilities-btn'],
       ['access', 'Access', 'view-access-btn'],
-      ['workflow', 'Workflow', 'view-workflow-btn'],
+      // Workflow is held back for 0.3.1 (NAV_FLAGS.workflow === false).
       ['snapshots', 'Snapshots', 'sync-pane-history-btn'],
     ]);
   });
@@ -86,7 +86,7 @@ describe('the rail', () => {
       'sync',
       'sqlEditor',
       'access',
-      'workflow',
+      // no 'workflow': held back for 0.3.1 (NAV_FLAGS.workflow === false).
       'snapshots',
     ]);
   });

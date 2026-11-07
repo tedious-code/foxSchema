@@ -8,6 +8,7 @@ import type { Page } from 'playwright';
 import { buildDriver, quitDriver, BASE_URL } from '../helpers/driver.js';
 import { AppPage } from '../pages/AppPage.js';
 import { WorkflowPage } from '../pages/WorkflowPage.js';
+import { WORKFLOW_ON_RAIL } from '../helpers/features.js';
 
 let driver: Page;
 
@@ -19,7 +20,8 @@ afterAll(async () => {
   await quitDriver(driver);
 });
 
-describe('Workflow workspace', () => {
+// Workflow is off the rail for 0.3.1, so the view cannot be opened; see WORKFLOW_ON_RAIL.
+describe.skipIf(!WORKFLOW_ON_RAIL)('Workflow workspace', () => {
   it('opens from the activity rail and shows owner panes', async () => {
     const app = new AppPage(driver);
     await app.open();

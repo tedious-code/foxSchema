@@ -114,8 +114,16 @@ export const WORKSPACE_VIEWS: Record<ActiveView, WorkspaceViewDefinition> = {
   settings: { load: () => import('@/app/settings/SettingsView') },
 };
 
-/** Workflow is on in this edition; flags gate nav items, not routes. */
-const NAV_FLAGS = { workflow: true } as const;
+/**
+ * Flags gate nav items, not routes.
+ *
+ * Workflow is held back for 0.3.1: it is a large feature and is not ready to
+ * be offered yet, so it is off the rail and out of the command palette. The
+ * view and `/api/workflow` are untouched — a direct URL still reaches it, and
+ * the engine still answers — so turning this back to `true` is the whole of
+ * putting it back.
+ */
+const NAV_FLAGS = { workflow: false } as const;
 
 export interface RailItem {
   view: ActiveView;

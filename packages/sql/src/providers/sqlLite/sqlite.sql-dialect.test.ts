@@ -39,3 +39,20 @@ describe('sqlite CREATE INDEX', () => {
     ).toBe('CREATE INDEX IF NOT EXISTS main.idx_active ON t (id) WHERE active = 1;');
   });
 });
+
+describe('sqlite views', () => {
+  const BODY = 'SELECT id FROM customers';
+
+  it('creates a view without CREATE OR REPLACE, which SQLite rejects', () => {
+    const sql = sqliteSqlDialect.createViewStatement!('v_customers', BODY);
+    expect(sql).toBe(`CREATE VIEW IF NOT EXISTS v_customers AS\n${BODY}`);
+    expect(sql).not.toMatch(/OR\s+REPLACE/i);
+  });
+
+  it('replaces a changed view by dropping it first — SQLite has no ALTER VIEW', () => {
+    const sql = sqliteSqlDialect.alterViewStatement!('v_customers', BODY);
+    expect(sql).toBe(`DROP VIEW IF EXISTS v_customers;\nCREATE VIEW v_customers AS\n${BODY}`);
+    expect(sql).not.toMatch(/ALTER\s+VIEW/i);
+    expect(sql).not.toMatch(/OR\s+REPLACE/i);
+  });
+});

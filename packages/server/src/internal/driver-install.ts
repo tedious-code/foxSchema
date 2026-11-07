@@ -332,7 +332,9 @@ export function clearNpmRenameStaging(nodeModulesDir: string): void {
   for (const name of names) {
     if (!isNpmRenameStagingName(name)) continue;
     try {
-      // eslint-disable-next-line security/detect-non-literal-fs-filename -- names are filtered to npm's rename-staging pattern
+      // names are filtered to npm's rename-staging pattern. No eslint-disable here:
+      // security/detect-non-literal-fs-filename does not cover rmSync, so a
+      // directive for it would itself be an "unused disable" error.
       rmSync(join(nodeModulesDir, name), { recursive: true, force: true });
     } catch {
       // still held open; the retry may still succeed

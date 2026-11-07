@@ -1573,3 +1573,56 @@ describe('ClickHouse CREATE TABLE uses ENGINE / ORDER BY, not a PRIMARY KEY cons
     expect(sql).toMatch(/DROP TABLE IF EXISTS demo_b\.legacy_audit_log;/);
   });
 });
+
+describe('SQLite views: no CREATE OR REPLACE, no doubled header', () => {
+  // `definition` holds only the query — the SQLite provider strips the
+  // `CREATE VIEW … AS` header that sqlite_master.sql carries
+  // (cores/view-definition.ts). The generator supplies the header itself.
+  const body = 'SELECT id, name FROM customers';
+
+  const addedView: TableDiff = {
+    tableName: 'V_CUSTOMERS',
+    objectType: 'VIEW',
+    status: 'ADDED',
+    definition: body,
+    columnDiffs: [],
+    indexDiffs: [],
+    foreignKeyDiffs: [],
+  };
+
+  /** Only the executable lines — the script's `-- CREATE VIEW:` headers are comments. */
+  const executable = (sql: string) =>
+    sql
+      .split('\n')
+      .filter((line) => line.trim() && !line.trim().startsWith('--'))
+      .join('\n');
+
+  it('creates an added view with valid SQLite syntax', () => {
+    const sql = executable(gen.generateMigrationSql([addedView], 'sqlite'));
+    expect(sql).toMatch(/CREATE VIEW IF NOT EXISTS V_CUSTOMERS AS/i);
+    // SQLite has no CREATE OR REPLACE VIEW — it is `near "OR": syntax error`.
+    expect(sql).not.toMatch(/OR\s+REPLACE/i);
+    // and the header must appear once, not wrapped around another CREATE VIEW
+    expect(sql).not.toMatch(/AS\s+CREATE\s+VIEW/i);
+    expect(sql.match(/CREATE VIEW/gi)?.length).toBe(1);
+  });
+
+  it('replaces a modified view with DROP + CREATE', () => {
+    const modifiedView: TableDiff = {
+      ...addedView,
+      status: 'MODIFIED',
+      sourceTable: { objectType: 'VIEW', name: 'v_customers', definition: body, columns: [], indices: [], foreignKeys: [] },
+      targetTable: { objectType: 'VIEW', name: 'v_customers', definition: 'SELECT id FROM customers', columns: [], indices: [], foreignKeys: [] },
+    };
+    const sql = executable(gen.generateMigrationSql([modifiedView], 'sqlite'));
+    expect(sql).toMatch(/DROP VIEW IF EXISTS v_customers;/i);
+    expect(sql).toMatch(/CREATE VIEW v_customers AS/i);
+    expect(sql).not.toMatch(/OR\s+REPLACE/i);
+    expect(sql).not.toMatch(/ALTER\s+VIEW/i);
+  });
+
+  it('still uses CREATE OR REPLACE VIEW on Postgres', () => {
+    const sql = gen.generateMigrationSql([addedView], 'postgres');
+    expect(sql).toMatch(/CREATE OR REPLACE VIEW v_customers AS/i);
+  });
+});

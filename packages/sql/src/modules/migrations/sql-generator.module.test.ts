@@ -4,6 +4,7 @@ import { db2SqlDialect } from '../../providers/db2/db2.sql-dialect.js';
 import { DIALECT_MAP } from '../dialect/registry.js';
 import { TableDiff } from '../../interfaces/index.js';
 import { TableSchema } from '../../interfaces/index.js';
+import { splitSqlStatements } from '../sql-text/sql-splitter.js';
 
 const gen = new SqlGeneratorModule();
 
@@ -1664,5 +1665,73 @@ END`;
     const sql = gen.generateMigrationSql([diff], 'sqlite');
     expect(sql).toMatch(/END;/);
     expect(sql).not.toMatch(/END;;/);
+  });
+});
+
+describe('identifier quoting: a name that only looks quoted is escaped, not trusted', () => {
+  // Names come from introspecting a source database. A column may be called
+  // something that merely looks wrapped, and emitting it verbatim turned the
+  // migration into "a valid CREATE, then a valid DROP" — a source schema the
+  // user does not control could inject DDL into their own migration.
+  //
+  // The property under test is structural, not textual: the payload's text
+  // necessarily still appears inside the escaped identifier. What must not
+  // happen is it escaping that identifier and becoming code.
+  const payload = '"a" INTEGER); DROP TABLE victim; --"';
+
+  const tableWith = (colName: string) =>
+    tableSchema({
+      name: 'orders',
+      columns: [
+        { name: colName, type: 'INTEGER', nullable: true, primaryKey: false },
+        { name: 'ok_col', type: 'INTEGER', nullable: true, primaryKey: false },
+      ],
+    });
+
+  it.each(['postgres', 'sqlite', 'mysql', 'db2', 'sqlserver'])(
+    'keeps the payload inside one statement on %s',
+    (dialect) => {
+      const ddl = gen.generateObjectDdl(tableWith(payload), dialect);
+      const stmts = splitSqlStatements(ddl);
+      // Before the fix this split into CREATE TABLE … / DROP TABLE victim / junk.
+      expect(stmts).toHaveLength(1);
+      expect(stmts.some((s) => /^\s*DROP\s+TABLE\s+victim/i.test(s.text))).toBe(false);
+    }
+  );
+
+  it('escapes it so the name still round-trips exactly (ANSI)', () => {
+    const ddl = gen.generateObjectDdl(tableWith(payload), 'postgres');
+    // `"` doubled inside the wrapper is the name verbatim, not a truncation.
+    expect(ddl).toContain('"""a"" INTEGER); DROP TABLE victim; --"""');
+  });
+
+  it.each([
+    ['a plain quoted name', '"my col"'],
+    ['an escaped inner quote', '"a""b"'],
+    ['a bracketed name', '[my col]'],
+    ['an escaped inner bracket', '[a]]b]'],
+    ['a backticked name', '`my col`'],
+    ['an escaped inner backtick', '`a``b`'],
+  ])('passes %s through without re-quoting it', (_label, name) => {
+    const ddl = gen.generateObjectDdl(tableWith(name), 'postgres');
+    expect(ddl).toContain(`${name} INTEGER`);
+  });
+
+  it('leaves an ordinary bare name bare', () => {
+    const ddl = gen.generateObjectDdl(tableWith('customer_id'), 'postgres');
+    expect(ddl).toContain('customer_id INTEGER');
+    expect(ddl).not.toContain('"customer_id"');
+  });
+
+  it('still quotes a name that genuinely needs it', () => {
+    const ddl = gen.generateObjectDdl(tableWith('order id'), 'postgres');
+    expect(ddl).toContain('"order id" INTEGER');
+  });
+
+  it('escapes a lone delimiter, which cannot be a wrapper', () => {
+    for (const name of ['"', '"abc', 'abc"', '[abc', '`abc']) {
+      const ddl = gen.generateObjectDdl(tableWith(name), 'postgres');
+      expect(ddl).toContain(`"${name.replace(/"/g, '""')}" INTEGER`);
+    }
   });
 });

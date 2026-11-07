@@ -98,20 +98,40 @@ function ansiQuoteIdentifier(name: string): string {
 }
 
 /**
- * Already wrapped — by an earlier pass here, or by the catalog that handed it
- * over. Quoting it again nests the quotes and breaks the statement, and
- * `bareName` genuinely is applied twice on some paths (the primary-key name
- * reaches it once on the way in and once on the way out).
+ * Already wrapped, **and wrapped correctly** — by an earlier pass here, or by
+ * the catalog that handed it over. Such a name is passed through, because
+ * quoting it again nests the quotes and breaks the statement, and `bareName`
+ * genuinely is applied twice on some paths (the primary-key name reaches it
+ * once on the way in and once on the way out).
+ *
+ * Matching the delimiters alone is not enough, and the difference is a DDL
+ * injection. Names come from introspecting a source database, so a column may
+ * be called whatever somebody created — including something that merely
+ * *looks* wrapped:
+ *
+ *     "a" INTEGER); DROP TABLE victim; --"
+ *
+ * That starts and ends with `"`, so a shape check called it quoted and emitted
+ * it verbatim, and `CREATE TABLE … ("a" INTEGER); DROP TABLE victim; --" …)`
+ * is a valid CREATE followed by a valid DROP. A source schema the user does not
+ * control — a vendor database, a restored dump, a shared or multi-tenant one —
+ * could therefore put arbitrary DDL into the migration they run on their target.
+ *
+ * So the body is checked too. Every dialect here escapes the closing delimiter
+ * by doubling it (`""`, ```` `` ````, `]]`), so with the doubled pairs removed a
+ * surviving delimiter means the body closes the identifier early and whatever
+ * follows is not part of the name. That name is not well-formed, and `ident`
+ * sends it to the dialect's quoter to be escaped from scratch instead.
  */
-function isQuotedIdentifier(name: string): boolean {
+function isWellFormedQuotedIdentifier(name: string): boolean {
   if (name.length < 2) return false;
-  const first = name[0]!;
-  const last = name[name.length - 1]!;
-  return (
-    (first === '"' && last === '"') ||
-    (first === '`' && last === '`') ||
-    (first === '[' && last === ']')
-  );
+  const open = name[0]!;
+  if (open !== '"' && open !== '`' && open !== '[') return false;
+  // `[` is closed by `]`; the others close with the character that opened them.
+  const close = open === '[' ? ']' : open;
+  if (name[name.length - 1] !== close) return false;
+  const body = name.slice(1, -1);
+  return !body.split(close + close).join('').includes(close);
 }
 
 export class SqlGeneratorModule {
@@ -150,7 +170,7 @@ export class SqlGeneratorModule {
    * without rewriting the dialect test suites.
    */
   private ident(name: string): string {
-    if (isBareIdentifier(name) || isQuotedIdentifier(name)) return name;
+    if (isBareIdentifier(name) || isWellFormedQuotedIdentifier(name)) return name;
     return this.quoteIdentifier(name);
   }
 

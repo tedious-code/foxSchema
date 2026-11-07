@@ -95,10 +95,12 @@ it comes later as its own plan.
   it renders (the same rule as `helpers/sql-exec.ts`).
 - **Web:** pick, impact list, steps render, Copy and Open in editor.
 
-## Later (v2)
+## Later (v2) — partly shipped
 
-Running the steps from the app: batches with progress, resume after failure,
-the row-count check before switch-over, and a confirmation before the drop.
+Running the steps from the app is in three parts: add the nullable column,
+copy with **processed / total**, then constraints / triggers / description.
+Each part’s SQL can be copied or Run (Safe mode confirms). Resume-after-failure
+and a dedicated confirm before drop are still later.
 
 ## v1 as built (2026-11-02): the planner
 

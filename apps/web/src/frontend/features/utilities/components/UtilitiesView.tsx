@@ -93,9 +93,9 @@ const TOOLS: {
   {
     id: 'columns',
     testId: 'utilities-change-column',
-    label: 'Change Column',
+    label: 'Rename Column',
     group: 'Maintenance',
-    blurb: 'Rename a column or change its type the safe way: what it touches, then the steps as SQL to review.',
+    blurb: 'Rename a column or change its type the safe way: what it touches (constraints, triggers, functions, procedures), then the steps as SQL to review.',
     icon: ArrowRightLeft,
   },
   {

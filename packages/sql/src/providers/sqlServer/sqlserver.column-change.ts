@@ -25,20 +25,54 @@ const syncName = (ctx: ColumnChangeContext) => `fox_sync_${ctx.table}_${ctx.colu
 const swap = (cols: string[], from: string, to: string) =>
   cols.map((c) => (c.toLowerCase() === from.toLowerCase() ? to : c));
 
+function sqlServerCopyPatch(ctx: ColumnChangeContext): string {
+  const t = table(ctx);
+  const col = q(ctx.column.name);
+  const next = q(ctx.newColumn);
+  return `UPDATE TOP (${ctx.batchSize}) ${t} SET ${next} = CAST(${col} AS ${ctx.targetType})\nWHERE ${next} IS NULL AND ${col} IS NOT NULL;`;
+}
+
+/** One T-SQL batch: no inner `;`, so the WHILE stays one statement for the driver. */
+function sqlServerCopyLoop(ctx: ColumnChangeContext): string {
+  const nested = sqlServerCopyPatch(ctx)
+    .replace(/;?\s*$/, '')
+    .split('\n')
+    .map((line) => `  ${line}`)
+    .join('\n');
+  return [
+    'SET NOCOUNT ON',
+    'DECLARE @fox_n int = 1',
+    'WHILE @fox_n > 0',
+    'BEGIN',
+    nested,
+    '  SET @fox_n = @@ROWCOUNT',
+    'END;',
+  ].join('\n');
+}
+
 export const sqlServerColumnChange: ColumnChangeDialect = {
   triggers: true,
   foreignKeyTypesMustMatch: true,
 
   renameSteps: (ctx) => [
-    {
-      title: `Rename ${ctx.column.name} to ${ctx.targetName}`,
-      rerunSafe: false,
+      {
+        phase: 'add',
+        title: `Rename ${ctx.column.name} to ${ctx.targetName}`,
+        rerunSafe: false,
       sql: `EXEC sp_rename ${lit(schemaOf(ctx), ctx.table, ctx.column.name)}, ${lit(ctx.targetName)}, N'COLUMN';`,
       note:
         'Instant: only the catalog changes, and indexes follow. Views, procedures and functions that name the column ' +
         'do not; SQL Server warns about this, and they need updating after the rename.',
     },
   ],
+
+  progressSql: (ctx) => ({
+    totalSql: `SELECT COUNT(*) AS n FROM ${table(ctx)};`,
+    remainingSql:
+      `SELECT COUNT(*) AS n FROM ${table(ctx)}\n` +
+      `WHERE ${q(ctx.newColumn)} IS NULL AND ${q(ctx.column.name)} IS NOT NULL;`,
+    patchSql: sqlServerCopyPatch(ctx),
+  }),
 
   rebuildSteps: (ctx) => {
     const t = table(ctx);
@@ -49,6 +83,7 @@ export const sqlServerColumnChange: ColumnChangeDialect = {
     const steps: ColumnChangeStep[] = [];
 
     steps.push({
+      phase: 'add',
       title: `Add the new column ${ctx.newColumn} (${ctx.targetType})`,
       rerunSafe: false,
       sql: `ALTER TABLE ${t} ADD ${next} ${ctx.targetType} NULL;`,
@@ -56,6 +91,7 @@ export const sqlServerColumnChange: ColumnChangeDialect = {
     });
 
     steps.push({
+      phase: 'copy',
       title: 'Keep the new column in step while the copy runs',
       rerunSafe: false,
       sql:
@@ -70,13 +106,15 @@ export const sqlServerColumnChange: ColumnChangeDialect = {
     });
 
     steps.push({
+      phase: 'copy',
       title: `Copy the data in batches of ${ctx.batchSize.toLocaleString('en-US')}`,
       rerunSafe: true,
-      sql: `UPDATE TOP (${ctx.batchSize}) ${t} SET ${next} = CAST(${col} AS ${ctx.targetType})\nWHERE ${next} IS NULL AND ${col} IS NOT NULL;`,
-      note: 'Run it again until it affects 0 rows. A value that does not convert stops the batch with an error and changes nothing.',
+      sql: sqlServerCopyLoop(ctx),
+      note: 'Loops until a batch affects 0 rows. Fox Run does that loop and shows processed / total. A value that does not convert stops the batch with an error and changes nothing.',
     });
 
     steps.push({
+      phase: 'copy',
       title: 'Check that every row was copied',
       rerunSafe: true,
       sql: `SELECT COUNT(*) AS mismatched FROM ${t}\nWHERE (${col} IS NULL AND ${next} IS NOT NULL) OR (${col} IS NOT NULL AND ${next} IS NULL);`,
@@ -84,6 +122,7 @@ export const sqlServerColumnChange: ColumnChangeDialect = {
     });
 
     const constraints: string[] = [];
+    constraints.push(sqlServerCopyComment(ctx));
     if (!ctx.column.nullable) constraints.push(`ALTER TABLE ${t} ALTER COLUMN ${next} ${ctx.targetType} NOT NULL;`);
     if (ctx.column.defaultValue && !ctx.typeChanged) {
       constraints.push(`ALTER TABLE ${t} ADD DEFAULT ${ctx.column.defaultValue} FOR ${next};`);
@@ -105,6 +144,7 @@ export const sqlServerColumnChange: ColumnChangeDialect = {
     }
     if (constraints.length > 0) {
       steps.push({
+        phase: 'finish',
         title: 'Give the new column the old one’s constraints and indexes',
         rerunSafe: false,
         sql: constraints.join('\n'),
@@ -116,6 +156,7 @@ export const sqlServerColumnChange: ColumnChangeDialect = {
     }
 
     steps.push({
+      phase: 'finish',
       title: 'Switch over',
       rerunSafe: false,
       // One batch, so one statement: drivers send each statement as its own
@@ -160,6 +201,7 @@ export const sqlServerColumnChange: ColumnChangeDialect = {
       finish.push(`EXEC sp_rename ${lit(schemaOf(ctx), `${fk.name}__new`)}, ${lit(fk.name)}, N'OBJECT';`);
     }
     steps.push({
+      phase: 'finish',
       title: `Drop the old column ${ctx.oldColumn}`,
       rerunSafe: false,
       sql: finish.join('\n'),
@@ -167,6 +209,47 @@ export const sqlServerColumnChange: ColumnChangeDialect = {
         'Only after you have checked the new column and the applications using it. Its indexes, foreign keys and default ' +
         'are dropped first, as SQL Server requires; the new ones then take their names.',
     });
+    const rebuilt = sqlServerRebuildTriggers(ctx);
+    if (rebuilt) steps.push(rebuilt);
     return steps;
   },
 };
+
+const ssWord = (name: string) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+function sqlServerCopyComment(ctx: ColumnChangeContext): string {
+  const schema = schemaOf(ctx);
+  // One statement: drivers send each `;` as its own batch, and @fox_desc would not live.
+  return [
+    `DECLARE @fox_desc sql_variant, @fox_has int`,
+    `SELECT @fox_desc = ep.value FROM sys.extended_properties AS ep`,
+    `JOIN sys.columns AS c ON c.object_id = ep.major_id AND c.column_id = ep.minor_id`,
+    `WHERE ep.major_id = OBJECT_ID(${lit(schema, ctx.table)}) AND ep.name = N'MS_Description' AND c.name = ${lit(ctx.column.name)}`,
+    `IF @fox_desc IS NOT NULL BEGIN`,
+    `  SELECT @fox_has = COUNT(*) FROM sys.extended_properties AS ep`,
+    `  JOIN sys.columns AS c ON c.object_id = ep.major_id AND c.column_id = ep.minor_id`,
+    `  WHERE ep.major_id = OBJECT_ID(${lit(schema, ctx.table)}) AND ep.name = N'MS_Description' AND c.name = ${lit(ctx.newColumn)}`,
+    `  IF @fox_has = 0 EXEC sp_addextendedproperty N'MS_Description', @fox_desc, N'SCHEMA', ${lit(schema)}, N'TABLE', ${lit(ctx.table)}, N'COLUMN', ${lit(ctx.newColumn)}`,
+    `END;`,
+  ].join('\n');
+}
+
+function sqlServerRebuildTriggers(ctx: ColumnChangeContext): ColumnChangeStep | undefined {
+  if (ctx.triggers.length === 0) return undefined;
+  const sql = ctx.triggers
+    .map((trg) => {
+      const drop = `DROP TRIGGER IF EXISTS ${q(schemaOf(ctx))}.${q(trg.name)};`;
+      const body = trg.definition?.trim();
+      if (!body) return `${drop}\n-- Recreate ${trg.name} after checking the new column name.`;
+      const rewritten = body.replace(new RegExp(`\\b${ssWord(ctx.column.name)}\\b`, 'g'), ctx.targetName);
+      return `${drop}\n${rewritten.replace(/;?\s*$/, '')};`;
+    })
+    .join('\n');
+  return {
+    phase: 'finish',
+    title: 'Recreate table triggers that name the column',
+    rerunSafe: false,
+    sql,
+    note: 'Dropped and recreated after the switch-over, with the old column name rewritten to the new one. Check the body before running.',
+  };
+}

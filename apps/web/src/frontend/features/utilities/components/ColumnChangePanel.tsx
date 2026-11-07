@@ -3,17 +3,28 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * Utilities → Change Column: rename a column or change its type the safe way.
- * Shows what the change touches, then the steps as SQL to review, copy, or
- * open in a new editor tab for that connection. Nothing runs from here
- * (docs/plans/2026-11-01-safe-column-change.md).
+ * Utilities → Rename Column: rename a column or change its type the safe way.
+ * A type change is three parts — add a nullable column, copy rows in a loop
+ * (with progress), then constraints / triggers / description — each with
+ * preview SQL to copy, run, or execute all. Lossy type conversions warn
+ * and must be acknowledged before Run or Execute all.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, Copy, Loader2, SquareTerminal } from 'lucide-react';
+import { Check, Copy, Loader2, Play, SquareTerminal } from 'lucide-react';
 import { useSyncStore } from '@/features/compare';
 import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { useUiStore } from '@/platform/uiStore';
-import { DEFAULT_COLUMN_CHANGE_BATCH, planColumnChange, type ColumnChangeStep } from '@/shared/lib/column-change';
+import { executeSql, type SqlStatementResult } from '@/shared/api/sqlApi';
+import {
+  COLUMN_CHANGE_PHASES,
+  DEFAULT_COLUMN_CHANGE_BATCH,
+  planColumnChange,
+  type ColumnChangePhase,
+  type ColumnChangePlan,
+  type ColumnChangeProgressSql,
+  type ColumnChangeStep,
+} from '@/shared/lib/column-change';
+import { splitSqlStatements } from '@/shared/lib/sql-splitter';
 import { needsSessionPassword } from '@/shared/lib/provider-settings';
 import { sectionLabelCls } from '@/shared/components/surfaces';
 import type { TableSchema } from '@/shared/lib/types';
@@ -23,12 +34,68 @@ interface Props {
   lockedConnectionId?: string;
 }
 
+type RunTarget = ColumnChangePhase | 'all';
+
+const PHASE_ORDER: ColumnChangePhase[] = ['add', 'copy', 'finish'];
+
+function statusFor(phase: ColumnChangePhase): string {
+  if (phase === 'add') return 'New column is in place.';
+  if (phase === 'copy') return 'Copy finished. Check the mismatch count is 0 before the last part.';
+  return 'Constraints, triggers and description are applied.';
+}
+
+function progressFor(phase: ColumnChangePhase): string {
+  if (phase === 'add') return 'Adding the new column…';
+  if (phase === 'copy') return 'Copying data…';
+  return 'Applying constraints, triggers and description…';
+}
+
 const inputCls =
   'w-full rounded-lg border border-slate-700 bg-slate-950/70 px-2.5 py-1.5 text-[13px] text-slate-100 outline-none accent-focus';
 
 /** The steps as one script, each under a comment naming it. */
 export function columnChangeScript(steps: ColumnChangeStep[]): string {
   return steps.map((s, i) => `-- Step ${i + 1}: ${s.title}\n${s.sql}`).join('\n\n') + '\n';
+}
+
+function statementsOf(sql: string): string[] {
+  return splitSqlStatements(sql)
+    .map((s) => s.text.trim())
+    .filter(Boolean);
+}
+
+function countFrom(result: SqlStatementResult | undefined): number {
+  if (!result) throw new Error('No row count came back.');
+  if (!result.ok) throw new Error(result.error);
+  const raw = result.rows?.[0]?.[0];
+  const n = typeof raw === 'bigint' ? Number(raw) : Number(raw);
+  if (!Number.isFinite(n)) throw new Error('Could not read the row count.');
+  return n;
+}
+
+/** Loop the one-batch patch until remaining is 0. Never run the preview DO / procedure / WHILE. */
+async function runCopyBatches(
+  progress: ColumnChangeProgressSql,
+  exec: (sql: string) => Promise<SqlStatementResult[]>,
+  report: (state: { done: number; total: number }) => void,
+): Promise<void> {
+  async function rows(sql: string): Promise<number> {
+    return countFrom((await exec(sql))[0]);
+  }
+  const total = await rows(progress.totalSql);
+  let remaining = await rows(progress.remainingSql);
+  report({ done: Math.max(0, total - remaining), total });
+  while (remaining > 0) {
+    const before = remaining;
+    await exec(progress.patchSql);
+    remaining = await rows(progress.remainingSql);
+    report({ done: Math.max(0, total - remaining), total });
+    if (remaining >= before) {
+      throw new Error(
+        `A batch copied no further rows (${remaining.toLocaleString('en-US')} still waiting). Stop and check the preview SQL.`
+      );
+    }
+  }
 }
 
 const CopyButton: React.FC<{ text: string; testId: string; label: string }> = ({ text, testId, label }) => {
@@ -68,6 +135,13 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
   const [passwordDraft, setPasswordDraft] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [runningTarget, setRunningTarget] = useState<RunTarget | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
+  const [runStatus, setRunStatus] = useState<string | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<RunTarget | null>(null);
+  const [ackLossy, setAckLossy] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const safeMode = useSqlEditorStore((s) => s.safeMode);
 
   const conn = connections.find((c) => c.id === lockedConnectionId) ?? null;
   const needsPassword = Boolean(conn && needsSessionPassword(conn, sessionPasswords[lockedConnectionId]));
@@ -90,7 +164,9 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
     setLoadError(null);
     try {
       ensureConnectionSelected(lockedConnectionId);
-      await ensureSchema(lockedConnectionId);
+      await ensureSchema(lockedConnectionId, {
+        scope: ['TABLE', 'VIEW', 'MQT', 'PROCEDURE', 'FUNCTION'],
+      });
       const entry = useSqlEditorStore.getState().schemaCache[lockedConnectionId];
       if (entry?.status === 'error') setLoadError(entry.error || 'Could not load the schema');
     } catch (e: unknown) {
@@ -111,7 +187,17 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
   useEffect(() => {
     setNewName('');
     setNewType('');
+    setRunError(null);
+    setRunStatus(null);
+    setConfirmTarget(null);
+    setAckLossy(false);
+    setProgress(null);
   }, [tableName, columnName]);
+
+  useEffect(() => {
+    setAckLossy(false);
+    setConfirmTarget(null);
+  }, [newType]);
 
   const plan = useMemo(() => {
     if (!conn || !table || !column || (!newName.trim() && !newType.trim())) return null;
@@ -127,6 +213,119 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
   }, [conn, table, column, newName, newType, batchSize, all]);
 
   const script = plan?.ok ? columnChangeScript(plan.steps) : '';
+  const typeChange = Boolean(plan?.ok && plan.progress);
+  const conversionWarning = plan?.ok ? plan.impact.lossy : undefined;
+  const runDisabled =
+    Boolean(runningTarget) || needsPassword || Boolean(conversionWarning && !ackLossy);
+  const parts = typeChange
+    ? COLUMN_CHANGE_PHASES
+    : [{ id: 'add' as const, title: 'Rename', blurb: 'Instant catalog rename. Indexes follow; application SQL that names the column does not.' }];
+
+  const runStatements = useCallback(
+    async (sql: string): Promise<SqlStatementResult[]> => {
+      const statements = statementsOf(sql);
+      if (statements.length === 0) return [];
+      const { results } = await executeSql(
+        {
+          connectionId: lockedConnectionId,
+          password: sessionPasswords[lockedConnectionId] || undefined,
+          schema: conn?.schema?.trim() || undefined,
+        },
+        statements,
+        undefined,
+        undefined,
+        undefined,
+        { stopOnError: true }
+      );
+      const failed = results.find((row) => !row.ok);
+      if (failed && !failed.ok) throw new Error(failed.error);
+      return results;
+    },
+    [lockedConnectionId, sessionPasswords, conn]
+  );
+
+  const executePhase = useCallback(
+    async (phase: ColumnChangePhase, live: Extract<ColumnChangePlan, { ok: true }>, reload: boolean) => {
+      const steps = live.steps.filter((s) => s.phase === phase);
+      if (steps.length === 0) return;
+      if (phase === 'copy' && live.progress) {
+        for (const step of steps) {
+          if (step.title.startsWith('Copy the data')) {
+            await runCopyBatches(live.progress, runStatements, setProgress);
+          } else {
+            await runStatements(step.sql);
+          }
+        }
+      } else {
+        for (const step of steps) await runStatements(step.sql);
+        if (reload && phase !== 'copy') await ensureSchema(lockedConnectionId, { force: true });
+      }
+    },
+    [runStatements, ensureSchema, lockedConnectionId]
+  );
+
+  const runPhase = useCallback(
+    async (phase: ColumnChangePhase, live: Extract<ColumnChangePlan, { ok: true }>) => {
+      setRunningTarget(phase);
+      setRunError(null);
+      setRunStatus(null);
+      setConfirmTarget(null);
+      try {
+        await executePhase(phase, live, true);
+        setRunStatus(statusFor(phase));
+      } catch (e: unknown) {
+        setRunError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setRunningTarget(null);
+      }
+    },
+    [executePhase]
+  );
+
+  const runAll = useCallback(
+    async (live: Extract<ColumnChangePlan, { ok: true }>) => {
+      const phases = live.progress ? PHASE_ORDER : (['add'] as ColumnChangePhase[]);
+      setRunningTarget('all');
+      setRunError(null);
+      setRunStatus(null);
+      setConfirmTarget(null);
+      try {
+        for (let i = 0; i < phases.length; i++) {
+          const phase = phases[i]!;
+          setRunStatus(progressFor(phase));
+          await executePhase(phase, live, i === phases.length - 1);
+        }
+        setRunStatus(live.progress ? 'All parts finished.' : 'Rename finished.');
+      } catch (e: unknown) {
+        setRunError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setRunningTarget(null);
+      }
+    },
+    [executePhase]
+  );
+
+  const startRun = (target: RunTarget, live: Extract<ColumnChangePlan, { ok: true }>) => {
+    if (target === 'all') void runAll(live);
+    else void runPhase(target, live);
+  };
+
+  const askOrRun = (target: RunTarget) => {
+    if (!plan?.ok) return;
+    if (needsPassword) {
+      setRunError('Enter the session password for this credential first.');
+      return;
+    }
+    if (plan.impact.lossy && !ackLossy) {
+      setRunError('Acknowledge the type-conversion warning before running.');
+      return;
+    }
+    if (safeMode) {
+      setConfirmTarget(target);
+      return;
+    }
+    startRun(target, plan);
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5" data-testid="column-change-panel">
@@ -244,7 +443,7 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
 
       {!plan && column && (
         <p className="text-[12px] text-slate-500" data-testid="column-change-hint">
-          Give a new name, a new type, or both. Nothing runs from here: you get the steps as SQL to review.
+          Give a new name, a new type, or both. You get the SQL in parts to copy or run here.
         </p>
       )}
 
@@ -264,7 +463,8 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
             <ul className="mt-1 space-y-0.5 text-[12px] text-slate-300">
               {plan.impact.indexes.map((i) => (
                 <li key={`i-${i.name}`}>
-                  {i.unique ? 'Unique index' : 'Index'} <code>{i.name}</code> ({i.columns.join(', ')})
+                  {i.constraint ? 'Unique constraint' : i.unique ? 'Unique index' : 'Index'}{' '}
+                  <code>{i.name}</code> ({i.columns.join(', ')})
                 </li>
               ))}
               {plan.impact.outboundForeignKeys.map((fk) => (
@@ -282,13 +482,47 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
                   Trigger <code>{t.name}</code> may use it
                 </li>
               ))}
+              {plan.impact.functions.map((fn) => (
+                <li key={`fn-${fn}`}>
+                  Function <code>{fn}</code> may use it
+                </li>
+              ))}
+              {plan.impact.procedures.map((p) => (
+                <li key={`p-${p}`}>
+                  Procedure <code>{p}</code> may use it
+                </li>
+              ))}
               {plan.impact.indexes.length +
                 plan.impact.outboundForeignKeys.length +
                 plan.impact.views.length +
-                plan.impact.triggers.length ===
-                0 && <li className="text-slate-500">No index, key, view or trigger uses it.</li>}
+                plan.impact.triggers.length +
+                plan.impact.functions.length +
+                plan.impact.procedures.length ===
+                0 && <li className="text-slate-500">No index, key, view, trigger, function or procedure uses it.</li>}
             </ul>
           </section>
+
+          {conversionWarning && (
+            <div
+              className="space-y-2 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-100"
+              data-testid="column-change-conversion"
+            >
+              <p>
+                <span className="font-bold">Type conversion warning.</span> {conversionWarning} Acknowledge this
+                before Run or Execute all.
+              </p>
+              <label className="flex items-start gap-1.5 text-amber-200">
+                <input
+                  type="checkbox"
+                  data-testid="column-change-confirm-lossy"
+                  checked={ackLossy}
+                  onChange={(e) => setAckLossy(e.target.checked)}
+                  className="mt-0.5 h-3 w-3 accent-amber-500"
+                />
+                I understand some values may fail to convert or be truncated.
+              </label>
+            </div>
+          )}
 
           {plan.warnings.length > 0 && (
             <ul
@@ -302,9 +536,42 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
           )}
 
           <section className="space-y-3" data-testid="column-change-steps">
-            <div className="flex items-center gap-2">
-              <h2 className={`${sectionLabelCls} flex-1`}>Steps ({plan.steps.length})</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className={`${sectionLabelCls} flex-1`}>
+                {typeChange ? 'Three parts' : 'Rename'} ({plan.steps.length} steps)
+              </h2>
               <CopyButton text={script} testId="column-change-copy-all" label="Copy all" />
+              {confirmTarget === 'all' ? (
+                <span className="inline-flex items-center gap-1">
+                  <button
+                    type="button"
+                    data-testid="column-change-confirm-all"
+                    onClick={() => startRun('all', plan)}
+                    className="rounded-md bg-amber-400 px-2 py-1 text-[11px] font-bold on-accent-fg"
+                  >
+                    Confirm execute all
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="column-change-confirm-all-cancel"
+                    onClick={() => setConfirmTarget(null)}
+                    className="rounded-md border border-slate-700 px-2 py-1 text-[11px] font-semibold text-slate-300"
+                  >
+                    Cancel
+                  </button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  data-testid="column-change-run-all"
+                  disabled={runDisabled}
+                  onClick={() => askOrRun('all')}
+                  className="inline-flex items-center gap-1 rounded-md border border-emerald-700/60 bg-emerald-950/40 px-2 py-1 text-[11px] font-bold text-emerald-200 hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {runningTarget === 'all' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+                  {runningTarget === 'all' ? 'Executing…' : 'Execute all'}
+                </button>
+              )}
               <button
                 type="button"
                 data-testid="column-change-open-editor"
@@ -323,26 +590,100 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
                 <SquareTerminal className="h-3 w-3" /> Open in editor
               </button>
             </div>
-            {plan.steps.map((step, i) => (
-              <article
-                key={step.title}
-                className="rounded-lg border border-slate-800 bg-slate-900/40"
-                data-testid={`column-change-step-${i + 1}`}
-              >
-                <header className="flex items-center gap-2 border-b border-slate-800 px-3 py-2">
-                  <span className="text-[12px] font-bold text-slate-100">
-                    {i + 1}. {step.title}
-                  </span>
-                  {step.rerunSafe && (
-                    <span className="rounded-full border border-sky-500/40 px-1.5 text-[10px] text-sky-300">safe to rerun</span>
+
+            {runError && (
+              <p className="text-[12px] text-rose-300" data-testid="column-change-run-error">
+                {runError}
+              </p>
+            )}
+            {runStatus && !runError && (
+              <p className="text-[12px] text-emerald-300" data-testid="column-change-run-status">
+                {runStatus}
+              </p>
+            )}
+
+            {parts.map((part) => {
+              const steps = plan.steps.filter((s) => s.phase === part.id);
+              if (steps.length === 0) return null;
+              const partScript = columnChangeScript(steps);
+              const busy = runningTarget === part.id || runningTarget === 'all';
+              return (
+                <section
+                  key={part.id}
+                  className="space-y-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3"
+                  data-testid={`column-change-part-${part.id}`}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-[12px] font-bold text-slate-100">{part.title}</h3>
+                    <span className="flex-1 text-[11px] text-slate-500">{part.blurb}</span>
+                    <CopyButton text={partScript} testId={`column-change-part-${part.id}-copy`} label="Copy SQL" />
+                    {confirmTarget === part.id ? (
+                      <span className="inline-flex items-center gap-1">
+                        <button
+                          type="button"
+                          data-testid={`column-change-confirm-${part.id}`}
+                          onClick={() => startRun(part.id, plan)}
+                          className="rounded-md bg-amber-400 px-2 py-1 text-[11px] font-bold on-accent-fg"
+                        >
+                          Confirm run
+                        </button>
+                        <button
+                          type="button"
+                          data-testid={`column-change-confirm-${part.id}-cancel`}
+                          onClick={() => setConfirmTarget(null)}
+                          className="rounded-md border border-slate-700 px-2 py-1 text-[11px] font-semibold text-slate-300"
+                        >
+                          Cancel
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        data-testid={`column-change-run-${part.id}`}
+                        disabled={runDisabled}
+                        onClick={() => askOrRun(part.id)}
+                        className="inline-flex items-center gap-1 rounded-md border border-emerald-700/60 bg-emerald-950/40 px-2 py-1 text-[11px] font-bold text-emerald-200 hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+                        {busy ? 'Running…' : 'Run'}
+                      </button>
+                    )}
+                  </div>
+                  {part.id === 'copy' && progress && (
+                    <p className="font-mono text-[12px] text-sky-300" data-testid="column-change-progress">
+                      Processing {progress.done.toLocaleString('en-US')} / {progress.total.toLocaleString('en-US')}
+                    </p>
                   )}
-                  <span className="flex-1" />
-                  <CopyButton text={step.sql} testId={`column-change-step-${i + 1}-copy`} label="Copy" />
-                </header>
-                <pre className="overflow-x-auto px-3 py-2 font-mono text-[11px] leading-relaxed text-slate-200">{step.sql}</pre>
-                {step.note && <p className="px-3 pb-2 text-[11px] text-slate-500">{step.note}</p>}
-              </article>
-            ))}
+                  {steps.map((step) => {
+                    const index = plan.steps.indexOf(step);
+                    return (
+                      <article
+                        key={step.title}
+                        className="rounded-lg border border-slate-800 bg-slate-900/40"
+                        data-testid={`column-change-step-${index + 1}`}
+                      >
+                        <header className="flex items-center gap-2 border-b border-slate-800 px-3 py-2">
+                          <span className="text-[12px] font-bold text-slate-100">
+                            {index + 1}. {step.title}
+                          </span>
+                          {step.rerunSafe && (
+                            <span className="rounded-full border border-sky-500/40 px-1.5 text-[10px] text-sky-300">
+                              safe to rerun
+                            </span>
+                          )}
+                          <span className="flex-1" />
+                          <CopyButton text={step.sql} testId={`column-change-step-${index + 1}-copy`} label="Copy" />
+                        </header>
+                        <pre className="overflow-x-auto px-3 py-2 font-mono text-[11px] leading-relaxed text-slate-200">
+                          {step.sql}
+                        </pre>
+                        {step.note && <p className="px-3 pb-2 text-[11px] text-slate-500">{step.note}</p>}
+                      </article>
+                    );
+                  })}
+                </section>
+              );
+            })}
           </section>
         </>
       )}

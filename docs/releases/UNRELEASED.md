@@ -3,6 +3,26 @@
 Notes for the next release. At ship time, rename this file to that version's
 `RELEASE_<version>.md` and use it as the GitHub Release body.
 
+## Rename Column: three parts, and Run from Utils
+
+**Rename Column** (Utilities) is add → copy → finish. The first part creates the new
+column nullable, with no default. The second copies rows in a loop of batches
+and shows **processed / total** (preview SQL is the loop; Run still patches
+one batch at a time). The third moves constraints, indexes, the catalog
+comment, and table triggers, then switches over. Each part has preview SQL:
+**Copy** or **Run** here (Safe mode confirms). **Execute all** runs every part
+in order. Copy all / Open in editor still send the whole script.
+
+Narrowing a type (bigger to smaller), converting text to a number or boolean,
+or another conversion that can fail or truncate is a warning: acknowledge it
+before Run or Execute all.
+
+Generated scripts were executed live on PostgreSQL, YugabyteDB, CockroachDB,
+MySQL, MariaDB, TiDB, and SQL Server (Azure SQL uses the same T-SQL). TiDB
+cannot rename two columns in one ALTER, so the switch is two statements.
+Oracle, SQLite, Redshift, Db2, ClickHouse, and DuckDB still refuse with
+“not yet.”
+
 ## Data compare: 2,000 rows in key order; migrate the same window
 
 **Compare data** still lines up the pages each grid has already loaded, and

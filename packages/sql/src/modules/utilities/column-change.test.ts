@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import type { ColumnInfo, TableSchema } from '../../interfaces/schema.interface.js';
 import { splitSqlStatements } from '../sql-text/sql-splitter.js';
 import { lossyConversion, planColumnChange } from './column-change.js';
+import { COLUMN_CHANGE_MAP } from './column-change.registry.js';
 import type { ColumnChangeInput, ColumnChangePlan } from './column-change.types.js';
 
 const col = (name: string, type: string, extra: Partial<ColumnInfo> = {}): ColumnInfo => ({
@@ -58,7 +59,15 @@ const openOrders = table('v_open_orders', {
   objectType: 'VIEW',
   definition: "SELECT id, status FROM orders WHERE status <> 'done'",
 });
-const ALL = [customers, products, orders, orderItems, openOrders];
+const statusFn = table('orders_status_label', {
+  objectType: 'FUNCTION',
+  definition: 'CREATE FUNCTION orders_status_label(oid int) RETURNS text AS $$ SELECT status FROM orders WHERE id = oid $$',
+});
+const statusProc = table('bump_order_status', {
+  objectType: 'PROCEDURE',
+  definition: 'CREATE PROCEDURE bump_order_status(oid int) AS $$ UPDATE orders SET status = \'done\' WHERE id = oid $$',
+});
+const ALL = [customers, products, orders, orderItems, openOrders, statusFn, statusProc];
 
 const plan = (over: Partial<ColumnChangeInput> & Pick<ColumnChangeInput, 'column' | 'change'>): ColumnChangePlan =>
   planColumnChange({ dialect: 'postgres', schema: 'shop', table: orders, tables: ALL, batchSize: 500, ...over });
@@ -96,11 +105,13 @@ describe('planColumnChange: what it refuses', () => {
 });
 
 describe('planColumnChange: what it touches', () => {
-  it('finds the indexes, foreign keys, triggers and views that involve the column', () => {
+  it('finds the indexes, foreign keys, triggers, views, functions and procedures that involve the column', () => {
     const { impact } = ok(plan({ column: 'status', change: { newType: 'varchar(40)' } }));
     expect(impact.indexes.map((i) => i.name)).toEqual(['orders_status_created']);
     expect(impact.triggers.map((t) => t.name)).toEqual(['orders_audit']);
     expect(impact.views).toEqual(['v_open_orders']);
+    expect(impact.functions).toEqual(['orders_status_label']);
+    expect(impact.procedures).toEqual(['bump_order_status']);
     expect(impact.inPrimaryKey).toBe(false);
     const fk = ok(plan({ column: 'customer_id', change: { newType: 'bigint' } })).impact;
     expect(fk.outboundForeignKeys.map((f) => f.name)).toEqual(['orders_customer_fk']);
@@ -111,7 +122,10 @@ describe('planColumnChange: what it touches', () => {
     const p = ok(plan({ column: 'status', change: { newType: 'varchar(5)' } }));
     expect(p.warnings.join('\n')).toMatch(/v_open_orders/);
     expect(p.warnings.join('\n')).toMatch(/orders_audit/);
-    expect(p.warnings.join('\n')).toMatch(/longer than 5 characters/);
+    expect(p.warnings.join('\n')).toMatch(/orders_status_label/);
+    expect(p.warnings.join('\n')).toMatch(/bump_order_status/);
+    expect(p.impact.lossy).toMatch(/Narrowing varchar\(20\) to varchar\(5\)/);
+    expect(p.impact.lossy).toMatch(/longer than 5 characters/);
   });
 });
 
@@ -132,7 +146,7 @@ describe('planColumnChange: a rename alone', () => {
 describe('planColumnChange: a type change on PostgreSQL', () => {
   const p = plan({ column: 'status', change: { newName: 'state', newType: 'varchar(40)' } });
 
-  it('lays out add, sync, copy, check, constraints, switch-over and drop, in that order', () => {
+  it('lays out add, sync, copy, check, constraints, switch-over, drop and triggers, in that order', () => {
     expect(ok(p).steps.map((s) => s.title)).toEqual([
       'Add the new column state__new (varchar(40))',
       'Keep the new column in step while the copy runs',
@@ -141,11 +155,29 @@ describe('planColumnChange: a type change on PostgreSQL', () => {
       'Give the new column the old one’s constraints and indexes',
       'Switch over',
       'Drop the old column status__old',
+      'Recreate table triggers that name the column',
+    ]);
+    expect(ok(p).steps.map((s) => s.phase)).toEqual([
+      'add',
+      'copy',
+      'copy',
+      'copy',
+      'finish',
+      'finish',
+      'finish',
+      'finish',
     ]);
   });
 
-  it('copies in key order, only rows not yet copied, so a rerun picks up where it stopped', () => {
-    expect(sqlOf(p, /^Copy/)).toBe(
+  it('copies a column comment onto the new column from the catalog', () => {
+    expect(sqlOf(p, /constraints/)).toContain('COMMENT ON COLUMN');
+    expect(sqlOf(p, /constraints/)).toContain('pg_description');
+  });
+
+  it('gives COUNT SQL and a one-batch patch for copy progress', () => {
+    expect(ok(p).progress?.totalSql).toBe('SELECT COUNT(*) AS n FROM "shop"."orders";');
+    expect(ok(p).progress?.remainingSql).toContain('"state__new" IS NULL');
+    expect(ok(p).progress?.patchSql).toBe(
       'UPDATE "shop"."orders" SET "state__new" = CAST("status" AS varchar(40))\n' +
         'WHERE ("id") IN (\n' +
         '  SELECT "id" FROM "shop"."orders"\n' +
@@ -153,6 +185,16 @@ describe('planColumnChange: a type change on PostgreSQL', () => {
         '  ORDER BY "id" LIMIT 500\n' +
         ');'
     );
+  });
+
+  it('previews the copy as a plpgsql loop around that patch', () => {
+    const sql = sqlOf(p, /^Copy/);
+    expect(sql).toContain('DO $fox_copy$');
+    expect(sql).toContain('LOOP');
+    expect(sql).toContain('EXIT WHEN n = 0;');
+    expect(sql).toContain('SET "state__new" = CAST("status" AS varchar(40))');
+    expect(sql).toContain('ORDER BY "id" LIMIT 500');
+    expect(splitSqlStatements(sql)).toHaveLength(1);
   });
 
   it('carries NOT NULL and rebuilds the index on the new column, and drops the default when the type changes', () => {
@@ -200,16 +242,35 @@ describe('planColumnChange: engines without triggers', () => {
     expect(p.steps.some((s) => /Keep the new column in step/.test(s.title))).toBe(false);
     expect(p.warnings.join('\n')).toMatch(/no triggers/);
     expect(p.steps.find((s) => /^Copy/.test(s.title))?.note).toMatch(/run it once more just before the switch-over/);
+    expect(sqlOf(p, /^Copy/)).toContain('-- Repeat until this UPDATE changes 0 rows');
+    expect(sqlOf(p, /^Copy/)).not.toContain('DO $fox_copy$');
+    expect(sqlOf(p, /^Copy/)).not.toContain('CREATE PROCEDURE');
+  });
+
+  it('TiDB switches with two RENAME statements: one ALTER cannot rename both columns', () => {
+    const sql = sqlOf(plan({ dialect: 'tidb', column: 'status', change: { newType: 'varchar(40)' } }), /^Switch/);
+    expect(sql).toBe(
+      [
+        'ALTER TABLE `shop`.`orders` RENAME COLUMN `status` TO `status__old`;',
+        'ALTER TABLE `shop`.`orders` RENAME COLUMN `status__new` TO `status`;',
+      ].join('\n')
+    );
+    expect(splitSqlStatements(sql)).toHaveLength(2);
   });
 });
 
 describe('planColumnChange: MySQL', () => {
   const p = plan({ dialect: 'mysql', column: 'status', change: { newType: 'varchar(40)' } });
 
-  it('copies with UPDATE … LIMIT and renames both columns in one ALTER', () => {
-    expect(sqlOf(p, /^Copy/)).toBe(
+  it('copies with a procedure loop around UPDATE … LIMIT, and renames both columns in one ALTER', () => {
+    const sql = sqlOf(p, /^Copy/);
+    expect(ok(p).progress?.patchSql).toBe(
       'UPDATE `shop`.`orders` SET `status__new` = `status`\nWHERE `status__new` IS NULL AND `status` IS NOT NULL\nLIMIT 500;'
     );
+    expect(sql).toContain('CREATE PROCEDURE `fox_copy_orders_status`()');
+    expect(sql).toContain('UNTIL ROW_COUNT() = 0 END REPEAT;');
+    expect(sql).toContain('CALL `fox_copy_orders_status`();');
+    expect(splitSqlStatements(sql)).toHaveLength(4);
     expect(sqlOf(p, /^Switch/)).toContain(
       'ALTER TABLE `shop`.`orders` RENAME COLUMN `status` TO `status__old`, RENAME COLUMN `status__new` TO `status`;'
     );
@@ -236,10 +297,14 @@ describe('planColumnChange: MySQL', () => {
 describe('planColumnChange: SQL Server', () => {
   const p = plan({ dialect: 'sqlserver', column: 'status', change: { newType: 'nvarchar(40)' } });
 
-  it('copies with UPDATE TOP, and renames through sp_rename in one batch and one transaction', () => {
-    expect(sqlOf(p, /^Copy/)).toBe(
+  it('copies with a WHILE loop around UPDATE TOP, and renames through sp_rename in one batch and one transaction', () => {
+    expect(ok(p).progress?.patchSql).toBe(
       'UPDATE TOP (500) [shop].[orders] SET [status__new] = CAST([status] AS nvarchar(40))\nWHERE [status__new] IS NULL AND [status] IS NOT NULL;'
     );
+    const copy = sqlOf(p, /^Copy/);
+    expect(copy).toContain('WHILE @fox_n > 0');
+    expect(copy).toContain('SET @fox_n = @@ROWCOUNT');
+    expect(splitSqlStatements(copy)).toHaveLength(1);
     expect(sqlOf(p, /^Switch/)).toBe(
       [
         'SET XACT_ABORT ON',
@@ -305,10 +370,14 @@ describe('planColumnChange: the steps split into the statements meant', () => {
 
 describe('lossyConversion', () => {
   it.each([
-    ['varchar(100)', 'varchar(20)', /longer than 20/],
-    ['text', 'varchar(50)', /longer than 50/],
-    ['varchar(20)', 'integer', /not a valid integer/],
-    ['bigint', 'int', /range/],
+    ['varchar(100)', 'varchar(20)', /Narrowing varchar\(100\) to varchar\(20\).*longer than 20/],
+    ['text', 'varchar(50)', /Narrowing text to varchar\(50\).*longer than 50/],
+    ['varchar(20)', 'integer', /Converting text \(varchar\(20\)\) to a number \(integer\)/],
+    ['nvarchar(40)', 'numeric(10,2)', /Converting text \(nvarchar\(40\)\) to a number/],
+    ['varchar(20)', 'boolean', /Converting text \(varchar\(20\)\) to boolean/],
+    ['text', 'bool', /true or false/],
+    ['bigint', 'int', /Narrowing bigint to int.*range/],
+    ['double precision', 'real', /Narrowing double precision to real.*precision/],
     ['double precision', 'integer', /rounded/],
     ['numeric(10,2)', 'numeric(10,0)', /decimal places/],
     ['numeric(10,2)', 'numeric(6,2)', /before the decimal point/],
@@ -326,7 +395,55 @@ describe('lossyConversion', () => {
     ['date', 'timestamp'],
     ['timestamp', 'timestamptz'],
     ['integer', 'text'],
+    ['real', 'double precision'],
   ])('%s → %s is safe', (from, to) => {
     expect(lossyConversion(from, to)).toBeUndefined();
   });
+});
+
+describe('planColumnChange: unique constraints and filtered indexes', () => {
+  it('finds a unique constraint and a partial index whose predicate names the column', () => {
+    const flags = table('flags', {
+      columns: [col('id', 'integer', { primaryKey: true, nullable: false }), col('code', 'text')],
+      primaryKey: { columns: ['id'] },
+      indices: [
+        { name: 'flags_code_key', columns: ['code'], unique: true, constraint: true },
+        { name: 'flags_code_partial', columns: ['id'], unique: false, filter: 'code IS NOT NULL' },
+      ],
+    });
+    const p = ok(planColumnChange({ dialect: 'postgres', table: flags, tables: [flags], column: 'code', change: { newName: 'flag' } }));
+    expect(p.impact.indexes.map((i) => i.name).sort()).toEqual(['flags_code_key', 'flags_code_partial']);
+  });
+});
+
+describe('planColumnChange: every registered dialect', () => {
+  const dialects = Object.keys(COLUMN_CHANGE_MAP);
+
+  it.each(dialects)('%s generates a rename script', (dialect) => {
+    const p = ok(plan({ dialect, column: 'status', change: { newName: 'state' } }));
+    expect(p.steps).toHaveLength(1);
+    expect(p.steps[0]!.sql.trim().length).toBeGreaterThan(10);
+    expect(splitSqlStatements(p.steps[0]!.sql).length).toBeGreaterThan(0);
+  });
+
+  it.each(dialects)('%s generates a type-change script with add, copy and finish SQL', (dialect) => {
+    const p = ok(plan({ dialect, column: 'status', change: { newType: 'varchar(40)' } }));
+    expect(p.steps.filter((s) => s.phase === 'add').length).toBeGreaterThan(0);
+    expect(p.steps.filter((s) => s.phase === 'copy').length).toBeGreaterThan(0);
+    expect(p.steps.filter((s) => s.phase === 'finish').length).toBeGreaterThan(0);
+    for (const step of p.steps) {
+      expect(step.sql.trim().length, `${dialect} ${step.title}`).toBeGreaterThan(0);
+      expect(splitSqlStatements(step.sql).length, `${dialect} ${step.title} splits`).toBeGreaterThan(0);
+    }
+    expect(p.progress?.patchSql).toMatch(/UPDATE/i);
+  });
+
+  it.each(['oracle', 'sqlite', 'redshift', 'db2', 'clickhouse', 'duckdb'] as const)(
+    '%s is refused as not yet',
+    (dialect) => {
+      const p = plan({ dialect, column: 'status', change: { newType: 'varchar(40)' } });
+      expect(p.ok).toBe(false);
+      expect(!p.ok && p.error).toMatch(/not available/i);
+    }
+  );
 });

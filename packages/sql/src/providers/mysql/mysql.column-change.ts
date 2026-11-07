@@ -24,13 +24,47 @@ const syncName = (ctx: ColumnChangeContext, kind: 'ins' | 'upd') =>
 const swap = (cols: string[], from: string, to: string) =>
   cols.map((c) => (c.toLowerCase() === from.toLowerCase() ? to : c));
 
-export function mysqlFamilyColumnChange(options: { triggers: boolean }): ColumnChangeDialect {
+function procName(ctx: ColumnChangeContext): string {
+  const ident = `fox_copy_${ctx.table}_${ctx.column.name}`.replace(/[^A-Za-z0-9_]/g, '_').slice(0, 64);
+  return q(ident);
+}
+
+function mysqlCopyPatch(ctx: ColumnChangeContext): string {
+  const t = table(ctx);
+  const col = q(ctx.column.name);
+  const next = q(ctx.newColumn);
+  return `UPDATE ${t} SET ${next} = ${col}\nWHERE ${next} IS NULL AND ${col} IS NOT NULL\nLIMIT ${ctx.batchSize};`;
+}
+
+/** MySQL/MariaDB stored procedure loop. TiDB has no usable procedures here, so the patch plus a repeat note. */
+function mysqlCopyLoop(ctx: ColumnChangeContext, procedural: boolean): string {
+  const patch = mysqlCopyPatch(ctx);
+  if (!procedural) {
+    return `-- Repeat until this UPDATE changes 0 rows. Fox Run loops it and shows progress.\n${patch}`;
+  }
+  const name = procName(ctx);
+  const nested = patch.split('\n').map((line) => `    ${line}`).join('\n');
+  return [
+    `DROP PROCEDURE IF EXISTS ${name};`,
+    `CREATE PROCEDURE ${name}()`,
+    'BEGIN',
+    '  REPEAT',
+    nested,
+    '  UNTIL ROW_COUNT() = 0 END REPEAT;',
+    'END;',
+    `CALL ${name}();`,
+    `DROP PROCEDURE ${name};`,
+  ].join('\n');
+}
+
+export function mysqlFamilyColumnChange(options: { triggers: boolean; atomicSwitch?: boolean }): ColumnChangeDialect {
   return {
     triggers: options.triggers,
     foreignKeyTypesMustMatch: true,
 
     renameSteps: (ctx) => [
       {
+        phase: 'add',
         title: `Rename ${ctx.column.name} to ${ctx.targetName}`,
         rerunSafe: false,
         sql: `ALTER TABLE ${table(ctx)} RENAME COLUMN ${q(ctx.column.name)} TO ${q(ctx.targetName)};`,
@@ -39,6 +73,14 @@ export function mysqlFamilyColumnChange(options: { triggers: boolean }): ColumnC
           'MySQL keeps their text, so recreate them after the rename.',
       },
     ],
+
+    progressSql: (ctx) => ({
+      totalSql: `SELECT COUNT(*) AS n FROM ${table(ctx)};`,
+      remainingSql:
+        `SELECT COUNT(*) AS n FROM ${table(ctx)}\n` +
+        `WHERE ${q(ctx.newColumn)} IS NULL AND ${q(ctx.column.name)} IS NOT NULL;`,
+      patchSql: mysqlCopyPatch(ctx),
+    }),
 
     rebuildSteps: (ctx) => {
       const t = table(ctx);
@@ -49,6 +91,7 @@ export function mysqlFamilyColumnChange(options: { triggers: boolean }): ColumnC
       const steps: ColumnChangeStep[] = [];
 
       steps.push({
+        phase: 'add',
         title: `Add the new column ${ctx.newColumn} (${ctx.targetType})`,
         rerunSafe: false,
         sql: `ALTER TABLE ${t} ADD COLUMN ${next} ${ctx.targetType} NULL;`,
@@ -57,6 +100,7 @@ export function mysqlFamilyColumnChange(options: { triggers: boolean }): ColumnC
 
       if (options.triggers) {
         steps.push({
+          phase: 'copy',
           title: 'Keep the new column in step while the copy runs',
           rerunSafe: false,
           sql: [
@@ -68,16 +112,18 @@ export function mysqlFamilyColumnChange(options: { triggers: boolean }): ColumnC
       }
 
       steps.push({
+        phase: 'copy',
         title: `Copy the data in batches of ${ctx.batchSize.toLocaleString('en-US')}`,
         rerunSafe: true,
-        sql: `UPDATE ${t} SET ${next} = ${col}\nWHERE ${next} IS NULL AND ${col} IS NOT NULL\nLIMIT ${ctx.batchSize};`,
+        sql: mysqlCopyLoop(ctx, options.triggers),
         note:
-          'Run it again until it changes 0 rows. Run with strict SQL mode (the default) so a value that does not convert ' +
+          'Loops until a batch changes 0 rows. Fox Run does that loop and shows processed / total. Run with strict SQL mode (the default) so a value that does not convert ' +
           'stops with an error instead of being stored as 0 or NULL.' +
           (options.triggers ? '' : ' This engine has no triggers: pause writes to the column, or run it once more just before the switch-over.'),
       });
 
       steps.push({
+        phase: 'copy',
         title: 'Check that every row was copied',
         rerunSafe: true,
         sql: `SELECT COUNT(*) AS mismatched FROM ${t}\nWHERE (${col} IS NULL AND ${next} IS NOT NULL) OR (${col} IS NOT NULL AND ${next} IS NULL);`,
@@ -85,6 +131,7 @@ export function mysqlFamilyColumnChange(options: { triggers: boolean }): ColumnC
       });
 
       const constraints: string[] = [];
+      constraints.push(mysqlCopyComment(ctx));
       if (!ctx.column.nullable) {
         const keepDefault = ctx.column.defaultValue && !ctx.typeChanged ? ` DEFAULT ${ctx.column.defaultValue}` : '';
         constraints.push(`ALTER TABLE ${t} MODIFY COLUMN ${next} ${ctx.targetType} NOT NULL${keepDefault};`);
@@ -104,6 +151,7 @@ export function mysqlFamilyColumnChange(options: { triggers: boolean }): ColumnC
       }
       if (constraints.length > 0) {
         steps.push({
+          phase: 'finish',
           title: 'Give the new column the old one’s constraints and indexes',
           rerunSafe: false,
           sql: constraints.join('\n'),
@@ -114,16 +162,26 @@ export function mysqlFamilyColumnChange(options: { triggers: boolean }): ColumnC
         });
       }
 
+      const switchRenames =
+        options.atomicSwitch === false
+          ? [
+              `ALTER TABLE ${t} RENAME COLUMN ${col} TO ${q(ctx.oldColumn)};`,
+              `ALTER TABLE ${t} RENAME COLUMN ${next} TO ${q(ctx.targetName)};`,
+            ]
+          : [`ALTER TABLE ${t} RENAME COLUMN ${col} TO ${q(ctx.oldColumn)}, RENAME COLUMN ${next} TO ${q(ctx.targetName)};`];
       steps.push({
+        phase: 'finish',
         title: 'Switch over',
         rerunSafe: false,
         sql: [
           ...(options.triggers ? [`DROP TRIGGER IF EXISTS ${ins};`, `DROP TRIGGER IF EXISTS ${upd};`] : []),
-          `ALTER TABLE ${t} RENAME COLUMN ${col} TO ${q(ctx.oldColumn)}, RENAME COLUMN ${next} TO ${q(ctx.targetName)};`,
+          ...switchRenames,
         ].join('\n'),
         note:
-          'One ALTER renames both columns at once. Run these together: a write between dropping the triggers and the rename ' +
-          'would not reach the new column.',
+          options.atomicSwitch === false
+            ? 'Two ALTERs: this engine cannot rename both columns in one statement. A write between them can miss the new name.'
+            : 'One ALTER renames both columns at once. Run these together: a write between dropping the triggers and the rename ' +
+              'would not reach the new column.',
       });
 
       const finish: string[] = [];
@@ -133,6 +191,7 @@ export function mysqlFamilyColumnChange(options: { triggers: boolean }): ColumnC
       finish.push(`ALTER TABLE ${t} DROP COLUMN ${q(ctx.oldColumn)};`);
       for (const idx of ctx.indexes) finish.push(`ALTER TABLE ${t} RENAME INDEX ${q(`${idx.name}__new`)} TO ${q(idx.name)};`);
       steps.push({
+        phase: 'finish',
         title: `Drop the old column ${ctx.oldColumn}`,
         rerunSafe: false,
         sql: finish.join('\n'),
@@ -142,8 +201,47 @@ export function mysqlFamilyColumnChange(options: { triggers: boolean }): ColumnC
             ? ' MySQL cannot rename a foreign key, so the new ones keep their __new names.'
             : ''),
       });
+      const rebuilt = mysqlRebuildTriggers(ctx);
+      if (rebuilt) steps.push(rebuilt);
       return steps;
     },
+  };
+}
+
+const mysqlLit = (value: string) => value.replace(/'/g, "''");
+const mysqlWord = (name: string) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+function mysqlCopyComment(ctx: ColumnChangeContext): string {
+  const schema = ctx.schema || '';
+  const schemaPred = schema
+    ? `TABLE_SCHEMA = '${mysqlLit(schema)}'`
+    : 'TABLE_SCHEMA = DATABASE()';
+  return [
+    `SET @fox_col_comment = (SELECT COLUMN_COMMENT FROM information_schema.COLUMNS WHERE ${schemaPred} AND TABLE_NAME = '${mysqlLit(ctx.table)}' AND COLUMN_NAME = '${mysqlLit(ctx.column.name)}');`,
+    `SET @fox_col_sql = CONCAT('ALTER TABLE ${table(ctx)} MODIFY COLUMN ${q(ctx.newColumn)} ${ctx.targetType.replace(/'/g, "''")} NULL COMMENT ', QUOTE(IFNULL(@fox_col_comment, '')));`,
+    'PREPARE fox_col_stmt FROM @fox_col_sql;',
+    'EXECUTE fox_col_stmt;',
+    'DEALLOCATE PREPARE fox_col_stmt;',
+  ].join('\n');
+}
+
+function mysqlRebuildTriggers(ctx: ColumnChangeContext): ColumnChangeStep | undefined {
+  if (ctx.triggers.length === 0) return undefined;
+  const sql = ctx.triggers
+    .map((trg) => {
+      const drop = `DROP TRIGGER IF EXISTS ${q(trg.name)};`;
+      const body = trg.definition?.trim();
+      if (!body) return `${drop}\n-- Recreate ${trg.name} after checking the new column name.`;
+      const rewritten = body.replace(new RegExp(`\\b${mysqlWord(ctx.column.name)}\\b`, 'g'), ctx.targetName);
+      return `${drop}\n${rewritten.replace(/;?\s*$/, '')};`;
+    })
+    .join('\n');
+  return {
+    phase: 'finish',
+    title: 'Recreate table triggers that name the column',
+    rerunSafe: false,
+    sql,
+    note: 'Dropped and recreated after the switch-over, with the old column name rewritten to the new one. Check the body before running.',
   };
 }
 

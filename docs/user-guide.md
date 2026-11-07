@@ -652,24 +652,30 @@ saved credential at the top, then a tool:
   statement and is not one transaction — if it stops after rename, recover by
   renaming the archive back. Inbound FKs from other tables still point at the
   archive until you update them.
-- **Change Column** — rename a column, change its type, or both, the safe way.
+- **Rename Column** — rename a column, change its type, or both, the safe way.
   Pick a table and column, then a new name and/or type (types you already use
   on this connection are suggested). Fox shows **what it touches** from the
-  schema it already loaded (indexes, outbound foreign keys, triggers, views
-  whose definition *may* mention the column — a text match) and numbered
-  **steps as SQL**. Nothing runs from here: **Copy all** or **Open in editor**
-  (a new tab against this connection only). The editor's Safe mode then
-  confirms each write, as it already does.
+  schema it already loaded (indexes, unique constraints, outbound foreign keys,
+  triggers, functions, procedures, and views whose definition *may* mention the
+  column — a text match). A **rename alone**
+  is one instant `RENAME COLUMN` (or `sp_rename`). A **type change** is three
+  parts, each with preview SQL you can **Copy** or **Run** here (Safe mode
+  confirms): **add** a nullable column with no default, **copy** rows in a
+  loop of batches with progress (`copied / total`) — Copy SQL is the loop,
+  Run still patches one batch at a time — then **constraints, triggers and
+  description** (indexes, keys, catalog comment, table triggers rewritten to
+  the new name, switch-over, drop the old column). **Execute all** runs the
+  three parts in order against this connection (Safe mode confirms once).
+  **Copy all** and **Open in editor** still send the whole script to a new tab
+  against this connection only.
 
-  A **rename alone** is one instant `RENAME COLUMN` (or `sp_rename`). A **type
-  change** adds `<target>__new`, keeps it in step with a trigger where the engine
-  has them, copies in batches (default 10,000, keyed on the primary key — run
-  until 0 rows), checks, switches the names in one go, and drops
-  `<old>__old` last. CockroachDB and TiDB have no trigger here: pause writes,
-  or run the copy once more before the switch-over. MySQL and SQL Server need
-  both sides of a foreign key to have the same type — the planner refuses and
-  names the parent column when they would not. Lossy conversions (narrowing,
-  text to number, dropped time zone) are warnings, not blockers.
+  CockroachDB and TiDB have no copy trigger: pause writes, or run the copy
+  once more before the last part. MySQL and SQL Server need both sides of a
+  foreign key to have the same type — the planner refuses and names the parent
+  column when they would not. Changing to a smaller type, text to a number,
+  text to boolean, or another conversion that can fail or truncate is a
+  **warning**: acknowledge it before Run or Execute all. The copy still stops
+  on the first value that does not convert.
 
   **Engines:** PostgreSQL, YugabyteDB, CockroachDB, MySQL, MariaDB, TiDB, SQL
   Server, Azure SQL. The rest — including SQLite (needs a table rebuild),

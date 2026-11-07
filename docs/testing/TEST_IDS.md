@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1026** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1033** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1593,6 +1593,12 @@ Every control has a test ID: **1026** buttons, text boxes, selects and textareas
   - `{testId}` · button · passed in by the parent
   - `column-change-batch` · input
   - `column-change-column` · select · Pick a column
+  - `column-change-confirm-{id}` · button · Confirm run
+  - `column-change-confirm-{id}-cancel` · button · Cancel
+  - `column-change-confirm-all` · button · Confirm execute all
+  - `column-change-confirm-all-cancel` · button · Cancel
+  - `column-change-confirm-lossy` · input
+  - `column-change-conversion` · div
   - `column-change-copy-all` · button in CopyButton
   - `column-change-hint` · p
   - `column-change-impact` · section · What it touches
@@ -1601,11 +1607,18 @@ Every control has a test ID: **1026** buttons, text boxes, selects and textareas
   - `column-change-new-type` · input
   - `column-change-open-editor` · button · Open in editor
   - `column-change-panel` · div · What it touches
+  - `column-change-part-{id}` · section
+  - `column-change-part-{id}-copy` · button in CopyButton
   - `column-change-password` · input
+  - `column-change-progress` · p
   - `column-change-refused` · p
+  - `column-change-run-{id}` · button
+  - `column-change-run-all` · button
+  - `column-change-run-error` · p
+  - `column-change-run-status` · p
   - `column-change-step-{value}` · article
   - `column-change-step-{value}-copy` · button in CopyButton
-  - `column-change-steps` · section · Steps ( )
+  - `column-change-steps` · section · ( steps)
   - `column-change-table` · select
   - `column-change-unlock` · button · Unlock
   - `column-change-warnings` · ul
@@ -1745,7 +1758,7 @@ Every control has a test ID: **1026** buttons, text boxes, selects and textareas
   - `index-management-modal` · div
   - `sql-sidebar-utilities` · nav · Database utilities
   - `utilities-backup` · data · Backup & Restore
-  - `utilities-change-column` · data · Change Column
+  - `utilities-change-column` · data · Rename Column
   - `utilities-clone-table` · data · Clone Table
   - `utilities-connection` · select
   - `utilities-connection-pool` · data · Connection Pool

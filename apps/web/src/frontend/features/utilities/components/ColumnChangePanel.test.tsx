@@ -1,7 +1,12 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TableSchema } from '@/shared/lib/types';
+
+const executeSql = vi.hoisted(() => vi.fn());
+vi.mock('@/shared/api/sqlApi', () => ({
+  executeSql: (...args: unknown[]) => executeSql(...args),
+}));
 
 vi.mock('@/features/compare', () => {
   const state = { connections: [{ id: 'pg', name: 'Shop', dialect: 'postgres', schema: 'shop', hasPassword: true }] };
@@ -26,12 +31,22 @@ const orders: TableSchema = {
   foreignKeys: [],
 };
 
+const statusFn: TableSchema = {
+  name: 'orders_status_label',
+  objectType: 'FUNCTION',
+  definition: 'SELECT status FROM orders WHERE id = $1',
+  columns: [],
+  indices: [],
+  foreignKeys: [],
+};
+
 const pick = (testId: string, value: string) => fireEvent.change(screen.getByTestId(testId), { target: { value } });
 
 describe('ColumnChangePanel', () => {
   beforeEach(() => {
+    executeSql.mockReset();
     useSqlEditorStore.setState({
-      schemaCache: { pg: { status: 'ready', tables: [orders] } },
+      schemaCache: { pg: { status: 'ready', tables: [orders, statusFn] } },
       ensureSchema: async () => undefined,
       ensureConnectionSelected: () => undefined,
     } as never);
@@ -46,6 +61,10 @@ describe('ColumnChangePanel', () => {
     pick('column-change-new-type', 'varchar(40)');
 
     expect(screen.getByTestId('column-change-impact').textContent).toContain('orders_status_idx');
+    expect(screen.getByTestId('column-change-impact').textContent).toContain('orders_status_label');
+    expect(screen.getByTestId('column-change-part-add')).toBeTruthy();
+    expect(screen.getByTestId('column-change-part-copy')).toBeTruthy();
+    expect(screen.getByTestId('column-change-part-finish')).toBeTruthy();
     expect(screen.getAllByTestId(/^column-change-step-\d+$/)).toHaveLength(7);
     expect(screen.getByTestId('column-change-step-1').textContent).toContain(
       'ALTER TABLE "shop"."orders" ADD COLUMN IF NOT EXISTS "status__new" varchar(40);'
@@ -84,6 +103,46 @@ describe('ColumnChangePanel', () => {
     expect(screen.queryByTestId('column-change-steps')).toBeNull();
   });
 
+  it('runs the add-column part against this connection', async () => {
+    useSqlEditorStore.setState({ safeMode: false } as never);
+    executeSql.mockResolvedValue({ results: [{ ok: true, columns: [], rows: [], rowCount: 0, truncated: false, durationMs: 1 }] });
+    render(<ColumnChangePanel lockedConnectionId="pg" />);
+    pick('column-change-table', 'orders');
+    pick('column-change-column', 'status');
+    pick('column-change-new-type', 'varchar(40)');
+    fireEvent.click(screen.getByTestId('column-change-run-add'));
+    await waitFor(() => expect(executeSql).toHaveBeenCalled());
+    expect(executeSql.mock.calls[0]![0]).toMatchObject({ connectionId: 'pg' });
+    expect((executeSql.mock.calls[0]![1] as string[])[0]).toContain('ADD COLUMN IF NOT EXISTS "status__new"');
+  });
+
+  it('runs the copy part as a loop of one-batch patches and shows progress', async () => {
+    useSqlEditorStore.setState({ safeMode: false } as never);
+    const count = (n: number) => ({
+      results: [{ ok: true, columns: ['n'], rows: [[n]], rowCount: 1, truncated: false, durationMs: 1 }],
+    });
+    const ok = { results: [{ ok: true, columns: [], rows: [], rowCount: 0, truncated: false, durationMs: 1 }] };
+    executeSql
+      .mockResolvedValueOnce(ok) // sync trigger
+      .mockResolvedValueOnce(count(10)) // total
+      .mockResolvedValueOnce(count(10)) // remaining before
+      .mockResolvedValueOnce(ok) // patch
+      .mockResolvedValueOnce(count(0)) // remaining after
+      .mockResolvedValueOnce(count(0)); // mismatch check
+    render(<ColumnChangePanel lockedConnectionId="pg" />);
+    pick('column-change-table', 'orders');
+    pick('column-change-column', 'status');
+    pick('column-change-new-type', 'varchar(40)');
+    expect(screen.getByTestId('column-change-step-3').textContent).toContain('DO $fox_copy$');
+    fireEvent.click(screen.getByTestId('column-change-run-copy'));
+    await waitFor(() => expect(screen.getByTestId('column-change-progress').textContent).toMatch(/10/));
+    const sqlBatches = executeSql.mock.calls.map((c) => (c[1] as string[]).join('\n'));
+    expect(sqlBatches.some((s) => s.includes('UPDATE "shop"."orders" SET "status__new"') && !s.includes('DO $fox_copy$'))).toBe(
+      true
+    );
+    expect(sqlBatches.some((s) => s.includes('DO $fox_copy$'))).toBe(false);
+  });
+
   it('starts a new change when another column is picked', () => {
     render(<ColumnChangePanel lockedConnectionId="pg" />);
     pick('column-change-table', 'orders');
@@ -91,5 +150,61 @@ describe('ColumnChangePanel', () => {
     pick('column-change-new-name', 'state');
     pick('column-change-column', 'id');
     expect((screen.getByTestId('column-change-new-name') as HTMLInputElement).value).toBe('');
+  });
+
+  it('warns on a narrowing or incompatible type and requires acknowledgement before run', () => {
+    useSqlEditorStore.setState({ safeMode: false } as never);
+    render(<ColumnChangePanel lockedConnectionId="pg" />);
+    pick('column-change-table', 'orders');
+    pick('column-change-column', 'status');
+    pick('column-change-new-type', 'integer');
+    expect(screen.getByTestId('column-change-conversion').textContent).toMatch(/text \(varchar\(20\)\) to a number \(integer\)/);
+    expect((screen.getByTestId('column-change-run-all') as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByTestId('column-change-run-add') as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByTestId('column-change-confirm-lossy'));
+    expect((screen.getByTestId('column-change-run-all') as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByTestId('column-change-run-add') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('warns when shrinking a string and when converting text to boolean', () => {
+    render(<ColumnChangePanel lockedConnectionId="pg" />);
+    pick('column-change-table', 'orders');
+    pick('column-change-column', 'status');
+    pick('column-change-new-type', 'varchar(5)');
+    expect(screen.getByTestId('column-change-conversion').textContent).toMatch(/Narrowing varchar\(20\) to varchar\(5\)/);
+    pick('column-change-new-type', 'boolean');
+    expect(screen.getByTestId('column-change-conversion').textContent).toMatch(/text \(varchar\(20\)\) to boolean/);
+  });
+
+  it('executes all parts in order against this connection', async () => {
+    useSqlEditorStore.setState({ safeMode: false } as never);
+    const ok = { results: [{ ok: true, columns: [], rows: [], rowCount: 0, truncated: false, durationMs: 1 }] };
+    const count = (n: number) => ({
+      results: [{ ok: true, columns: ['n'], rows: [[n]], rowCount: 1, truncated: false, durationMs: 1 }],
+    });
+    let remaining = 10;
+    executeSql.mockImplementation((_opts: unknown, statements: string[]) => {
+      const sql = statements.join('\n');
+      if (/COUNT\(\*\) AS n/i.test(sql) && sql.includes('IS NULL')) return Promise.resolve(count(remaining));
+      if (/COUNT\(\*\)/i.test(sql)) return Promise.resolve(count(remaining > 0 ? 10 : 0));
+      if (sql.includes('SET "status__new"')) remaining = 0;
+      return Promise.resolve(ok);
+    });
+    render(<ColumnChangePanel lockedConnectionId="pg" />);
+    pick('column-change-table', 'orders');
+    pick('column-change-column', 'status');
+    pick('column-change-new-type', 'varchar(40)');
+    fireEvent.click(screen.getByTestId('column-change-run-all'));
+    await waitFor(() => expect(screen.getByTestId('column-change-run-status').textContent).toMatch(/All parts finished/));
+    const batches = executeSql.mock.calls.map((c) => (c[1] as string[]).join('\n'));
+    expect(batches.some((s) => s.includes('ADD COLUMN IF NOT EXISTS "status__new"'))).toBe(true);
+    expect(batches.some((s) => s.includes('UPDATE "shop"."orders" SET "status__new"') && !s.includes('DO $fox_copy$'))).toBe(
+      true
+    );
+    expect(batches.some((s) => s.includes('DROP COLUMN "status__old"'))).toBe(true);
+    const addAt = batches.findIndex((s) => s.includes('ADD COLUMN IF NOT EXISTS "status__new"'));
+    const dropAt = batches.findIndex((s) => s.includes('DROP COLUMN "status__old"'));
+    expect(addAt).toBeGreaterThanOrEqual(0);
+    expect(dropAt).toBeGreaterThan(addAt);
   });
 });

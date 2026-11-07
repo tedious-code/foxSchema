@@ -20,10 +20,29 @@ import type {
   ColumnChangeContext,
   ColumnChangeImpact,
   ColumnChangeInput,
+  ColumnChangePhase,
   ColumnChangePlan,
 } from './column-change.types.js';
 
 export const DEFAULT_COLUMN_CHANGE_BATCH = 10_000;
+
+export const COLUMN_CHANGE_PHASES: Array<{
+  id: ColumnChangePhase;
+  title: string;
+  blurb: string;
+}> = [
+  { id: 'add', title: 'Add the new column', blurb: 'Nullable, no default — existing rows are not rewritten.' },
+  {
+    id: 'copy',
+    title: 'Copy the data',
+    blurb: 'A loop of batched UPDATEs until every row is copied. Preview the loop, or Run it here with progress.',
+  },
+  {
+    id: 'finish',
+    title: 'Constraints, triggers, description',
+    blurb: 'Move indexes, keys and comments, recreate table triggers, then switch over.',
+  },
+];
 
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 const engineName = (dialect: string) => PROVIDER_SETTINGS[dialect.toLowerCase()]?.label ?? dialect;
@@ -62,7 +81,13 @@ export function planColumnChange(input: ColumnChangeInput): ColumnChangePlan {
     warnings.push(`Views that may use the column: ${impact.views.join(', ')}. Check them after the change.`);
   }
   if (impact.triggers.length > 0) {
-    warnings.push(`Triggers on the table that may use the column: ${impact.triggers.map((t) => t.name).join(', ')}.`);
+    warnings.push(`Triggers that may use the column: ${impact.triggers.map((t) => t.name).join(', ')}.`);
+  }
+  if (impact.functions.length > 0) {
+    warnings.push(`Functions that may use the column: ${impact.functions.join(', ')}. Check them after the change.`);
+  }
+  if (impact.procedures.length > 0) {
+    warnings.push(`Procedures that may use the column: ${impact.procedures.join(', ')}. Check them after the change.`);
   }
 
   const primaryKey = input.table.primaryKey?.columns?.length
@@ -79,6 +104,7 @@ export function planColumnChange(input: ColumnChangeInput): ColumnChangePlan {
     primaryKey,
     indexes: impact.indexes,
     outboundForeignKeys: impact.outboundForeignKeys,
+    triggers: impact.triggers,
     batchSize: Math.max(1, Math.floor(input.batchSize ?? DEFAULT_COLUMN_CHANGE_BATCH)),
     typeChanged,
   };
@@ -110,18 +136,16 @@ export function planColumnChange(input: ColumnChangeInput): ColumnChangePlan {
       }
     }
   }
-  if (impact.lossy) warnings.push(impact.lossy);
   if (!dialect.triggers) {
     warnings.push('This engine has no triggers here: writes during the copy are caught by running the copy once more before the switch-over.');
   }
-  return { ok: true, impact, steps: dialect.rebuildSteps(ctx), warnings };
+  return { ok: true, impact, steps: dialect.rebuildSteps(ctx), warnings, progress: dialect.progressSql(ctx) };
 }
 
 function findImpact(input: ColumnChangeInput, column: ColumnInfo, newType: string | undefined): ColumnChangeImpact {
   const { table } = input;
   const name = column.name;
   const inPrimaryKey = column.primaryKey || has(table.primaryKey?.columns ?? [], name);
-  const indexes = (table.indices ?? []).filter((i) => has(i.columns, name));
   const outboundForeignKeys = (table.foreignKeys ?? []).filter((fk) => has(fk.columns, name));
   const inboundForeignKeys = input.tables
     .filter((t) => t !== table && t.objectType !== 'VIEW')
@@ -135,10 +159,30 @@ function findImpact(input: ColumnChangeInput, column: ColumnInfo, newType: strin
         )
         .map((foreignKey) => ({ table: t.name, foreignKey }))
     );
-  const triggers = (table.triggers ?? []).filter((t) => !t.definition || wordIn(t.definition, name));
-  const views = input.tables
-    .filter((t: TableSchema) => t.objectType === 'VIEW' && t.definition && wordIn(t.definition, table.name) && wordIn(t.definition, name))
-    .map((t) => t.name);
+  const namedIn = (objectType: TableSchema['objectType']) =>
+    input.tables
+      .filter(
+        (t) =>
+          t.objectType === objectType &&
+          t.definition &&
+          wordIn(t.definition, table.name) &&
+          wordIn(t.definition, name)
+      )
+      .map((t) => t.name);
+  const indexes = (table.indices ?? []).filter(
+    (i) => has(i.columns, name) || (i.filter ? wordIn(i.filter, name) : false)
+  );
+  const onTable = (table.triggers ?? []).filter((t) => !t.definition || wordIn(t.definition, name));
+  const extraTriggers = input.tables
+    .filter((t) => t.objectType === 'TRIGGER' && t.definition && wordIn(t.definition, table.name) && wordIn(t.definition, name))
+    .map((t) => ({ name: t.name, definition: t.definition }));
+  const triggers = [
+    ...onTable,
+    ...extraTriggers.filter((t) => !onTable.some((x) => same(x.name, t.name))),
+  ];
+  const views = namedIn('VIEW');
+  const functions = namedIn('FUNCTION');
+  const procedures = namedIn('PROCEDURE');
   return {
     inPrimaryKey,
     indexes,
@@ -146,6 +190,8 @@ function findImpact(input: ColumnChangeInput, column: ColumnInfo, newType: strin
     inboundForeignKeys,
     triggers,
     views,
+    functions,
+    procedures,
     lossy: newType ? lossyConversion(column.type, newType) : undefined,
   };
 }
@@ -166,6 +212,11 @@ const INT_RANK: Record<string, number> = {
   tinyint: 1, smallint: 2, int2: 2, mediumint: 3, int: 4, integer: 4, int4: 4, serial: 4, bigint: 5, int8: 5, bigserial: 5,
 };
 
+const FLOAT_RANK: Record<string, number> = {
+  real: 1, float4: 1,
+  float: 2, double: 2, 'double precision': 2, float8: 2,
+};
+
 function shapeOf(type: string): TypeShape {
   const t = normType(type);
   const base = t.replace(/\(.*$/, '').trim();
@@ -176,7 +227,7 @@ function shapeOf(type: string): TypeShape {
   }
   if (base in INT_RANK) return { kind: 'int', size: INT_RANK[base] };
   if (/^(decimal|numeric|number|money)$/.test(base)) return { kind: 'decimal', size: num(args[0]), scale: num(args[1]) ?? 0 };
-  if (/^(float|double|double precision|real|float4|float8)$/.test(base)) return { kind: 'float' };
+  if (base in FLOAT_RANK) return { kind: 'float', size: FLOAT_RANK[base] };
   if (base === 'date') return { kind: 'date' };
   if (/^(timestamptz|datetimeoffset)$/.test(base) || /with time zone/.test(t)) return { kind: 'datetimetz' };
   if (/^(timestamp|datetime|datetime2|smalldatetime)/.test(base)) return { kind: 'datetime' };
@@ -188,12 +239,23 @@ function shapeOf(type: string): TypeShape {
 export function lossyConversion(from: string, to: string): string | undefined {
   const a = shapeOf(from);
   const b = shapeOf(to);
+  if (a.kind === 'text' && b.kind === 'bool') {
+    return `Converting text (${from}) to boolean (${to}): only values that read as true or false convert; other values stop the copy with an error.`;
+  }
   if (b.kind === 'bool' && a.kind !== 'bool') return `Only values that read as true or false convert to ${to}.`;
+  if (a.kind === 'text' && (b.kind === 'int' || b.kind === 'decimal' || b.kind === 'float')) {
+    return `Converting text (${from}) to a number (${to}): values that are not a valid ${to} stop the copy with an error.`;
+  }
   if (a.kind === 'text' && b.kind !== 'text') return `Text that is not a valid ${to} stops the copy with an error.`;
   if (a.kind === 'text' && b.kind === 'text' && b.size !== undefined && (a.size === undefined || b.size < a.size)) {
-    return `Values longer than ${b.size} characters do not fit ${to}.`;
+    return `Narrowing ${from} to ${to}: values longer than ${b.size} characters do not fit.`;
   }
-  if (a.kind === 'int' && b.kind === 'int' && (b.size ?? 0) < (a.size ?? 0)) return `Numbers outside ${to}'s range do not fit.`;
+  if (a.kind === 'int' && b.kind === 'int' && (b.size ?? 0) < (a.size ?? 0)) {
+    return `Narrowing ${from} to ${to}: numbers outside ${to}'s range do not fit.`;
+  }
+  if (a.kind === 'float' && b.kind === 'float' && (b.size ?? 0) < (a.size ?? 0)) {
+    return `Narrowing ${from} to ${to}: some values lose precision.`;
+  }
   if (a.kind === 'float' && (b.kind === 'int' || b.kind === 'decimal')) return `Fractions are rounded to fit ${to}.`;
   if (a.kind === 'decimal' && b.kind === 'int' && (a.scale ?? 0) > 0) return `Fractions are rounded to fit ${to}.`;
   if (a.kind === 'decimal' && b.kind === 'decimal') {

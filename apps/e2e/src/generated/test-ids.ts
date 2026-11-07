@@ -2979,6 +2979,18 @@ export const TestIds = {
       columnChangeBatch: 'column-change-batch',
       /** select · Pick a column */
       columnChangeColumn: 'column-change-column',
+      /** button · Confirm run */
+      columnChangeConfirm: (id: string | number) => `column-change-confirm-${id}`,
+      /** button · Cancel */
+      columnChangeConfirmCancel: (id: string | number) => `column-change-confirm-${id}-cancel`,
+      /** button · Confirm execute all */
+      columnChangeConfirmAll: 'column-change-confirm-all',
+      /** button · Cancel */
+      columnChangeConfirmAllCancel: 'column-change-confirm-all-cancel',
+      /** input */
+      columnChangeConfirmLossy: 'column-change-confirm-lossy',
+      /** div */
+      columnChangeConversion: 'column-change-conversion',
       /** button */
       columnChangeCopyAll: 'column-change-copy-all',
       /** p */
@@ -2995,15 +3007,29 @@ export const TestIds = {
       columnChangeOpenEditor: 'column-change-open-editor',
       /** div · What it touches */
       columnChangePanel: 'column-change-panel',
+      /** section */
+      columnChangePart: (id: string | number) => `column-change-part-${id}`,
+      /** button */
+      columnChangePartCopy: (id: string | number) => `column-change-part-${id}-copy`,
       /** input */
       columnChangePassword: 'column-change-password',
       /** p */
+      columnChangeProgress: 'column-change-progress',
+      /** p */
       columnChangeRefused: 'column-change-refused',
+      /** button */
+      columnChangeRun: (id: string | number) => `column-change-run-${id}`,
+      /** button */
+      columnChangeRunAll: 'column-change-run-all',
+      /** p */
+      columnChangeRunError: 'column-change-run-error',
+      /** p */
+      columnChangeRunStatus: 'column-change-run-status',
       /** article */
       columnChangeStep: (value: string | number) => `column-change-step-${value}`,
       /** button */
       columnChangeStepCopy: (value: string | number) => `column-change-step-${value}-copy`,
-      /** section · Steps ( ) */
+      /** section · ( steps) */
       columnChangeSteps: 'column-change-steps',
       /** select */
       columnChangeTable: 'column-change-table',
@@ -3281,7 +3307,7 @@ export const TestIds = {
       sqlSidebarUtilities: 'sql-sidebar-utilities',
       /** data · Backup & Restore */
       utilitiesBackup: 'utilities-backup',
-      /** data · Change Column */
+      /** data · Rename Column */
       utilitiesChangeColumn: 'utilities-change-column',
       /** data · Clone Table */
       utilitiesCloneTable: 'utilities-clone-table',
@@ -4133,6 +4159,12 @@ export type TestId =
   | 'cloud-provider-credentials'
   | 'column-change-batch'
   | 'column-change-column'
+  | `column-change-confirm-${string}`
+  | `column-change-confirm-${string}-cancel`
+  | 'column-change-confirm-all'
+  | 'column-change-confirm-all-cancel'
+  | 'column-change-confirm-lossy'
+  | 'column-change-conversion'
   | 'column-change-copy-all'
   | 'column-change-hint'
   | 'column-change-impact'
@@ -4141,8 +4173,15 @@ export type TestId =
   | 'column-change-new-type'
   | 'column-change-open-editor'
   | 'column-change-panel'
+  | `column-change-part-${string}`
+  | `column-change-part-${string}-copy`
   | 'column-change-password'
+  | 'column-change-progress'
   | 'column-change-refused'
+  | `column-change-run-${string}`
+  | 'column-change-run-all'
+  | 'column-change-run-error'
+  | 'column-change-run-status'
   | `column-change-step-${string}`
   | `column-change-step-${string}-copy`
   | 'column-change-steps'

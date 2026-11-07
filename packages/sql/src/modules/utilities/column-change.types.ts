@@ -44,8 +44,22 @@ export interface ColumnChangeImpact {
   triggers: TriggerInfo[];
   /** Views whose definition mentions the column: a text match, so "may use". */
   views: string[];
+  /** Functions whose definition mentions the table and column. */
+  functions: string[];
+  /** Procedures whose definition mentions the table and column. */
+  procedures: string[];
   /** Why the type change can lose data or fail on some values, when it can. */
   lossy?: string;
+}
+
+/** Add the nullable column, copy rows, then move constraints and switch over. */
+export type ColumnChangePhase = 'add' | 'copy' | 'finish';
+
+export interface ColumnChangeProgressSql {
+  totalSql: string;
+  remainingSql: string;
+  /** One batch UPDATE. The app loops this until remaining is 0, and shows progress. */
+  patchSql: string;
 }
 
 export interface ColumnChangeStep {
@@ -54,10 +68,19 @@ export interface ColumnChangeStep {
   rerunSafe: boolean;
   sql: string;
   note?: string;
+  /** Which of the three parts this step belongs to. A rename-alone is `add`. */
+  phase: ColumnChangePhase;
 }
 
 export type ColumnChangePlan =
-  | { ok: true; impact: ColumnChangeImpact; steps: ColumnChangeStep[]; warnings: string[] }
+  | {
+      ok: true;
+      impact: ColumnChangeImpact;
+      steps: ColumnChangeStep[];
+      warnings: string[];
+      /** Present for a type change: COUNT(*) and rows still to copy. */
+      progress?: ColumnChangeProgressSql;
+    }
   | { ok: false; error: string; impact?: ColumnChangeImpact };
 
 /** What a dialect's step builder is given, once the facade has checked the input. */
@@ -74,6 +97,8 @@ export interface ColumnChangeContext {
   primaryKey: string[];
   indexes: IndexInfo[];
   outboundForeignKeys: ForeignKeyInfo[];
+  /** Table triggers whose definition mentions the column. */
+  triggers: TriggerInfo[];
   batchSize: number;
   typeChanged: boolean;
 }
@@ -83,6 +108,8 @@ export interface ColumnChangeDialect {
   renameSteps(ctx: ColumnChangeContext): ColumnChangeStep[];
   /** Steps for a type change (with or without a rename): new column, copy, switch over. */
   rebuildSteps(ctx: ColumnChangeContext): ColumnChangeStep[];
+  /** COUNT(*) and rows still waiting to copy, for the copy-part progress. */
+  progressSql(ctx: ColumnChangeContext): ColumnChangeProgressSql;
   /** Whether the engine can keep the new column in step with a trigger during the copy. */
   triggers: boolean;
   /**

@@ -164,7 +164,12 @@ export type {
   TableInsightResult,
   TableInsightTarget,
 } from './modules/utilities/table-insight.js';
-export { planColumnChange, lossyConversion, DEFAULT_COLUMN_CHANGE_BATCH } from './modules/utilities/column-change.js';
+export {
+  planColumnChange,
+  lossyConversion,
+  DEFAULT_COLUMN_CHANGE_BATCH,
+  COLUMN_CHANGE_PHASES,
+} from './modules/utilities/column-change.js';
 export { resolveColumnChange } from './modules/utilities/column-change.registry.js';
 export type {
   ColumnChange,
@@ -172,6 +177,8 @@ export type {
   ColumnChangeImpact,
   ColumnChangePlan,
   ColumnChangeStep,
+  ColumnChangePhase,
+  ColumnChangeProgressSql,
   InboundForeignKey,
 } from './modules/utilities/column-change.types.js';
 export {

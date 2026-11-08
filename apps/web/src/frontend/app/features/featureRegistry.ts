@@ -18,7 +18,7 @@
  */
 import type { ComponentType, ElementType } from 'react';
 import { Camera, GitCompareArrows, ShieldCheck, Terminal, Workflow, Wrench } from 'lucide-react';
-import { COMMUNITY_NAV, filterNav, type Permission } from '@foxschema/shared';
+import { COMMUNITY_NAV, filterNav, type NavFeatureFlag, type Permission } from '@foxschema/shared';
 import { HomeView } from '@/app/shell/HomeView';
 import { CompareToolbarBelow, CompareToolbarEnd, CompareToolbarStart } from '@/features/compare/toolbar';
 import { HistoryToolbar } from '@/features/lokee-weave/toolbar';
@@ -115,15 +115,31 @@ export const WORKSPACE_VIEWS: Record<ActiveView, WorkspaceViewDefinition> = {
 };
 
 /**
- * Flags gate nav items, not routes.
+ * Flags gate the nav items a view hangs off, and with them the view.
  *
  * Workflow is held back for 0.3.1: it is a large feature and is not ready to
- * be offered yet, so it is off the rail and out of the command palette. The
- * view and `/api/workflow` are untouched — a direct URL still reaches it, and
- * the engine still answers — so turning this back to `true` is the whole of
- * putting it back.
+ * be offered yet, so it is off the rail and out of the command palette. A view
+ * is reached only through one of those, so with the flag off there is no way
+ * in — and `redirectFor` sends anyone whose last session left them on the view
+ * back to Home, so a stored `activeView` is not a way in either. The view's
+ * code and `/api/workflow` are untouched and the engine still answers, so
+ * turning this back to `true` is the whole of putting it back.
  */
-const NAV_FLAGS = { workflow: false } as const;
+const NAV_FLAGS: Partial<Record<NavFeatureFlag, boolean>> = { workflow: false };
+
+/**
+ * The nav ids a flag currently hides. Read once: NAV_FLAGS is a build-time
+ * constant, and `filterNav`'s rule is the one followed here — a flag nobody
+ * has turned on hides its item.
+ */
+const FLAG_HIDDEN_NAV_IDS = new Set(
+  COMMUNITY_NAV.filter((item) => item.featureFlag && !NAV_FLAGS[item.featureFlag]).map((item) => item.id)
+);
+
+/** Whether a flag has taken the view's way in away. */
+function hiddenByFlag(def: WorkspaceViewDefinition): boolean {
+  return !!def.rail && 'navId' in def.rail && FLAG_HIDDEN_NAV_IDS.has(def.rail.navId);
+}
 
 export interface RailItem {
   view: ActiveView;
@@ -149,7 +165,7 @@ export function railItems(can: Can): RailItem[] {
 /** Where to send someone who is on `view` but may not be: null when they may stay. */
 export function redirectFor(view: ActiveView, can: Can): ActiveView | null {
   const def = WORKSPACE_VIEWS[view];
-  if (!def.allowed || def.allowed(can)) return null;
+  if (!hiddenByFlag(def) && (!def.allowed || def.allowed(can))) return null;
   return def.fallback?.(can) ?? 'home';
 }
 

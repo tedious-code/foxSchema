@@ -137,6 +137,14 @@ describe('redirects', () => {
   });
 
   it('never redirects from views that check access themselves', () => {
-    for (const view of ['home', 'access', 'workflow', 'settings'] as const) expect(redirectFor(view, can())).toBeNull();
+    for (const view of ['home', 'access', 'settings'] as const) expect(redirectFor(view, can())).toBeNull();
+  });
+
+  it('sends anyone home from a view a feature flag has taken away', () => {
+    // Workflow is off the rail and out of the palette for 0.3.1. A session
+    // whose stored `activeView` still says `workflow` must not be the one way
+    // back into it.
+    expect(redirectFor('workflow', can())).toBe('home');
+    expect(redirectFor('workflow', can('workflow.access', 'workflow.design'))).toBe('home');
   });
 });

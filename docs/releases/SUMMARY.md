@@ -8,6 +8,11 @@ Current map of the product: [CODE_MAP.md](../CODE_MAP.md). How to install: [inst
 
 [UNRELEASED.md](UNRELEASED.md)
 
+## 0.3.1
+
+[RELEASE_0.3.1.md](RELEASE_0.3.1.md) — since 0.2.111
+
+- Rename Column: a type change is one ALTER in place by default, Large table mode copies in batches, and every SQL engine is covered.
 - Snapshots (schema history) and Applies (migration runs) are separate rail items. Utils is its own view.
 - Connections, snapshots, secrets, and migration history belong to a workspace. One workspace is active at a time.
 - Every install requires sign-in. `foxschema open` on a personal machine can start with a one-time launch link, then asks you to create an account.

@@ -2,8 +2,6 @@
 
 # Fox Schema
 
-## 0.3.X COMMING SOON, NEED TO DO MORE MANUALLY TEST *
-
 **Compare schemas · generate migrations · run SQL — across 14 SQL dialects.**
 
 Install once, then open the local web UI (`foxschema`) for **Compare**, the
@@ -47,6 +45,18 @@ npm install -g foxschema
 
 Full matrix: **[docs/install.md](docs/install.md)**.
 
+## Update
+
+```bash
+npm install -g foxschema@latest          # npm
+brew update && brew upgrade foxschema    # Homebrew
+docker pull 5nickels/foxschema:latest    # Docker, then recreate the container
+```
+
+A running `foxschema` also tells you when a new version is out, links to
+**What's new**, and on a local install offers **Update now**.
+Release notes: [0.3.1](docs/releases/RELEASE_0.3.1.md) · [all versions](docs/releases/SUMMARY.md).
+
 ## Use the app
 
 ```bash
@@ -64,7 +74,23 @@ foxschema migrate --source a --target b
 foxschema tui
 ```
 
-## SQL Editor (0.2)
+## What's in 0.3
+
+| Area | What you get |
+|------|----------------|
+| **Compare & deploy** | Color-coded schema diff, cross-dialect readiness, an execute gate that reviews a missing foreign key or a narrowing type before it runs, streamed deploy progress |
+| **Snapshots** | Capture a schema version, browse the timeline and graph, compare two versions, revert, or force-migrate a version to another database |
+| **Migrations in Git** | Commit a migration to a repository, pull and push, track what was applied where |
+| **SQL Editor** | Multi-destination run, notebook cells, FoxScript, Data Peek, Safe mode, one transaction where the engine can roll back (below) |
+| **Data compare & migrate** | Compare 2,000 rows in key order between two databases, then apply up to 2,000 changes with a backup snapshot you can restore |
+| **Utilities** | **Rename Column** (in place, or Large table mode with a batched copy, on every SQL engine), Index management, Backup & Restore commands, SQL Tracer, Server insights, Clone table |
+| **Access** | Database accounts, a permission builder that writes GRANT / REVOKE, an inspector of who holds what, an access report |
+| **Workspaces & sign-in** | Personal and team workspaces, invites, Google / Microsoft / GitHub sign-in, admin roles and a role → permission matrix |
+| **Workflow** | Optional designer and engine for scheduled and triggered jobs (below) |
+
+Every feature, where it lives and how it is tested: [docs/FEATURE_MAP.md](docs/FEATURE_MAP.md).
+
+## SQL Editor
 
 A full query workbench next to Schema Sync — not a thin prompt.
 
@@ -81,7 +107,7 @@ A full query workbench next to Schema Sync — not a thin prompt.
 | **Schema explorer** | Insert names, autocomplete, edit table / view source |
 | **Variables & secrets** | `${{name}}`, `@set`, session secrets, code-cell `vars` |
 | **Safe mode** | Confirm writes; bookmarks & samples included |
-| **Access control** | Optional `admin` / `editor` / `viewer` roles when multi-user login is on |
+| **Access control** | Sign-in on every install; `admin` / `editor` / `viewer` roles and per-workspace roles |
 
 Walkthrough: [User guide → SQL Editor](docs/user-guide.md#sql-editor).
 
@@ -133,8 +159,9 @@ Open **http://localhost:3210**. Guide: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 PostgreSQL · CockroachDB · YugabyteDB · MySQL · MariaDB · TiDB · SQL Server ·
 Azure SQL · Oracle · IBM Db2 · SQLite · DuckDB · ClickHouse · Amazon Redshift
 
-MongoDB and Redis appear in the connection list (settings only — no schema
-compare). One product — Docker image includes Db2 on linux/amd64.
+MongoDB and Redis run a SQL subset in the editor (single-table SELECT, INSERT,
+UPDATE, DELETE; Redis keys read as tables) — no schema compare. One product —
+Docker image includes Db2 on linux/amd64.
 
 ## Package notes (npm)
 

@@ -14,7 +14,33 @@ npm install -g foxschema
 foxschema                 # UI → http://localhost:3210
 ```
 
-## SQL Editor (0.2)
+## Update
+
+```bash
+npm install -g foxschema@latest          # npm
+brew update && brew upgrade foxschema    # Homebrew
+docker pull 5nickels/foxschema:latest    # Docker, then recreate the container
+```
+
+A running `foxschema` tells you when a new version is out and offers **Update now**.
+What's new: [0.3.1 release notes](https://github.com/tedious-code/foxschema/blob/main/docs/releases/RELEASE_0.3.1.md).
+
+## What's in 0.3
+
+| | |
+|--|--|
+| Compare & deploy | Schema diff, cross-dialect readiness, a review before a missing FK or a narrowing type runs |
+| Snapshots | Capture schema versions, compare, revert, force-migrate to another database |
+| Migrations in Git | Commit, pull and push migrations; track what was applied |
+| SQL Editor | Multi-destination run, notebook cells, Data Peek, Safe mode, one transaction |
+| Data compare & migrate | 2,000 rows in key order; apply up to 2,000 changes with a restorable backup |
+| Utilities | **Rename Column** on every SQL engine (in place or a batched copy), indexes, backup commands, SQL Tracer |
+| Access | Database accounts, GRANT / REVOKE builder, who-holds-what inspector |
+| Workspaces & sign-in | Team workspaces, invites, Google / Microsoft / GitHub sign-in, roles |
+
+All features: [FEATURE_MAP.md](https://github.com/tedious-code/foxschema/blob/main/docs/FEATURE_MAP.md).
+
+## SQL Editor
 
 Multi-destination queries, notebook-style cells, Data Peek, FoxScript, variables,
 and Safe mode — next to Schema Sync in the same UI.

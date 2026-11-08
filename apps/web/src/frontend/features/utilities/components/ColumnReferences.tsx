@@ -44,11 +44,23 @@ const Highlighted: React.FC<{ line: ColumnReferenceLine }> = ({ line }) => {
   return <>{parts}</>;
 };
 
+/**
+ * How many lines of one object we list.
+ *
+ * A generated view can name a column on hundreds of lines; a reader scrolling
+ * past the two hundredth has long since got the point, and every one of them
+ * is a row React has to build. The rest stay one click away, in the whole
+ * definition, and the count above still says how many there are.
+ */
+const MAX_LINES = 50;
+
 const Dependent: React.FC<{ dependent: ColumnDependent }> = ({ dependent }) => {
   const [open, setOpen] = useState(false);
   const { name, objectType, references, definition } = dependent;
   const renaming = references.some((r) => r.renamed !== undefined);
   const testId = `column-refs-${objectType.toLowerCase()}-${name}`;
+  const shown = references.slice(0, MAX_LINES);
+  const hidden = references.length - shown.length;
 
   return (
     <article className="rounded border border-slate-700/70 bg-slate-900/40" data-testid={testId}>
@@ -72,7 +84,7 @@ const Dependent: React.FC<{ dependent: ColumnDependent }> = ({ dependent }) => {
       </header>
 
       <ul className="divide-y divide-slate-800/70" data-testid={`${testId}-lines`}>
-        {references.map((r) => (
+        {shown.map((r) => (
           <li key={r.line} className="flex gap-2 px-3 py-1 font-mono text-[11px] leading-relaxed">
             <span className="w-8 shrink-0 select-none text-right text-slate-600" aria-hidden>
               {r.line}
@@ -89,6 +101,14 @@ const Dependent: React.FC<{ dependent: ColumnDependent }> = ({ dependent }) => {
             </span>
           </li>
         ))}
+        {hidden > 0 && (
+          <li
+            className="px-3 py-1 text-[11px] text-slate-500"
+            data-testid={`${testId}-more`}
+          >
+            … and {hidden} more {hidden === 1 ? 'line' : 'lines'} — open the whole definition to read them.
+          </li>
+        )}
       </ul>
 
       {open && (

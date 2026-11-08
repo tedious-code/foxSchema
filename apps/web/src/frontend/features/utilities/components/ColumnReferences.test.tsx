@@ -96,6 +96,24 @@ describe('ColumnReferences', () => {
     expect(screen.getByTestId('column-refs-view-v_open_orders-definition').textContent).toBe(view.definition);
   });
 
+  it('stops listing lines at fifty and says how many are left', () => {
+    const many: ColumnDependent = {
+      name: 'v_wide',
+      objectType: 'VIEW',
+      definition: 'x',
+      references: Array.from({ length: 140 }, (_, i) => ({
+        line: i + 1,
+        text: 'status,',
+        matches: [{ start: 0, end: 6 }],
+      })),
+    };
+    render(<ColumnReferences dependents={[many]} column="status" />);
+    expect(screen.getByTestId('column-refs-view-v_wide-lines').querySelectorAll('mark')).toHaveLength(50);
+    expect(screen.getByTestId('column-refs-view-v_wide-more').textContent).toContain('90 more lines');
+    // The count above still reports every line that names the column.
+    expect(screen.getByTestId('column-change-references').textContent).toContain('140 lines');
+  });
+
   it('labels each kind of object', () => {
     render(
       <ColumnReferences

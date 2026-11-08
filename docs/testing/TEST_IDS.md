@@ -1628,6 +1628,7 @@ Every control has a test ID: **1034** buttons, text boxes, selects and textareas
   - `column-refs-{toLowerCase}-{name}-after-{line}` · span
   - `column-refs-{toLowerCase}-{name}-definition` · pre
   - `column-refs-{toLowerCase}-{name}-lines` · ul
+  - `column-refs-{toLowerCase}-{name}-more` · li
   - `column-refs-{toLowerCase}-{name}-toggle` · button
 - **DatabaseAccessModal** · `features/utilities/components/DatabaseAccessModal.tsx`
   - `db-access-all-form` · div

@@ -15,6 +15,7 @@
  */
 import type { ColumnInfo, TableSchema } from '../../interfaces/schema.interface.js';
 import { PROVIDER_SETTINGS } from '../../providers/provider-settings.js';
+import { quoteIdentifierIfNeeded } from '../sql-text/sql-template.js';
 import { resolveColumnChange } from './column-change.registry.js';
 import type {
   ColumnChangeContext,
@@ -73,10 +74,40 @@ const wordMatcher = (word: string) =>
  * a comment counts. That errs towards showing a reader a line they can dismiss
  * rather than hiding one they needed.
  */
+const QUOTE_PAIRS: ReadonlyArray<readonly [string, string]> = [
+  ['"', '"'],
+  ['`', '`'],
+  ['[', ']'],
+];
+
+/**
+ * What one occurrence becomes under the new name.
+ *
+ * A new name that would need quoting — `order status`, a reserved word — cannot
+ * go in bare: the line we show as what the SQL needs to say would not parse,
+ * while the plan's own `ALTER` quotes it. Where the definition already quotes
+ * the old name those quotes stay and only the word inside changes, so the
+ * result is never quoted twice. A plain name is returned untouched, so every
+ * ordinary rename reads exactly as it did.
+ */
+function replacementFor(
+  text: string,
+  start: number,
+  end: number,
+  newName: string,
+  dialect?: string
+): string {
+  const quoted = QUOTE_PAIRS.find(([open, close]) => text[start - 1] === open && text[end] === close);
+  if (quoted) return newName.split(quoted[1]).join(quoted[1] + quoted[1]);
+  return dialect ? quoteIdentifierIfNeeded(newName, dialect) : newName;
+}
+
 export function columnReferenceLines(
   definition: string,
   column: string,
-  newName?: string
+  newName?: string,
+  /** For quoting the new name where it needs it. Left out: inserted as given. */
+  dialect?: string
 ): ColumnReferenceLine[] {
   if (!definition || !column) return [];
   const out: ColumnReferenceLine[] = [];
@@ -92,7 +123,11 @@ export function columnReferenceLines(
     const renamed =
       newName && newName !== column
         ? // Right to left, so an earlier replacement cannot move a later offset.
-          matches.reduceRight((acc, { start, end }) => acc.slice(0, start) + newName + acc.slice(end), text)
+          matches.reduceRight(
+            (acc, { start, end }) =>
+              acc.slice(0, start) + replacementFor(text, start, end, newName, dialect) + acc.slice(end),
+            text
+          )
         : undefined;
     out.push({ line: i + 1, text, matches, ...(renamed === undefined ? {} : { renamed }) });
   }
@@ -239,7 +274,7 @@ function findImpact(input: ColumnChangeInput, column: ColumnInfo, newType: strin
     objName: string,
     definition: string | undefined
   ): ColumnDependent[] => {
-    const references = columnReferenceLines(definition ?? '', name, newName);
+    const references = columnReferenceLines(definition ?? '', name, newName, input.dialect);
     if (references.length === 0) return [];
     return [{ name: objName, objectType, definition: definition ?? '', references }];
   };

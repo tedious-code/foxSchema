@@ -3049,6 +3049,8 @@ export const TestIds = {
       columnRefsDefinition: (toLowerCase: string | number, name: string | number) => `column-refs-${toLowerCase}-${name}-definition`,
       /** ul */
       columnRefsLines: (toLowerCase: string | number, name: string | number) => `column-refs-${toLowerCase}-${name}-lines`,
+      /** li */
+      columnRefsMore: (toLowerCase: string | number, name: string | number) => `column-refs-${toLowerCase}-${name}-more`,
       /** button */
       columnRefsToggle: (toLowerCase: string | number, name: string | number) => `column-refs-${toLowerCase}-${name}-toggle`,
     },
@@ -4207,6 +4209,7 @@ export type TestId =
   | `column-refs-${string}-${string}-after-${string}`
   | `column-refs-${string}-${string}-definition`
   | `column-refs-${string}-${string}-lines`
+  | `column-refs-${string}-${string}-more`
   | `column-refs-${string}-${string}-toggle`
   | 'command-palette'
   | 'command-palette-btn'

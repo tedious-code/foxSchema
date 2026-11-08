@@ -72,4 +72,4 @@ jobs:
       # Needs npm >= 11.5.1, which the npm@11 install above satisfies.
       - name: Publish to npm
         working-directory: apps/cli/npm-pack
-        run: npm publish --access public
+        run: npm publish --access public --loglevel verbose

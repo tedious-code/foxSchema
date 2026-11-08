@@ -3,11 +3,12 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * Utilities → Rename Column: rename a column or change its type the safe way.
- * A type change is three parts — add a nullable column, copy rows in a loop
- * (with progress), then constraints / triggers / description — each with
- * preview SQL to copy, run, or execute all. Lossy type conversions warn
- * and must be acknowledged before Run or Execute all.
+ * Utilities → Rename Column: rename a column or change its type.
+ * A type change is one in-place ALTER by default. Large-table mode turns it
+ * into three parts — add a nullable column, copy rows in a loop (with
+ * progress), then constraints / triggers / description — so a big table stays
+ * writable. Each part has preview SQL to copy, run, or execute all. Lossy type
+ * conversions warn and must be acknowledged before Run or Execute all.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, Copy, Loader2, Play, SquareTerminal } from 'lucide-react';
@@ -15,10 +16,13 @@ import { useSyncStore } from '@/features/compare';
 import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { useUiStore } from '@/platform/uiStore';
 import { executeSql, type SqlStatementResult } from '@/shared/api/sqlApi';
+import { fetchTableInsight } from '@/shared/api/schemaApi';
 import {
   COLUMN_CHANGE_PHASES,
   DEFAULT_COLUMN_CHANGE_BATCH,
+  columnChangeLargeTable,
   planColumnChange,
+  type ColumnChangeMode,
   type ColumnChangePhase,
   type ColumnChangePlan,
   type ColumnChangeProgressSql,
@@ -39,13 +43,17 @@ type RunTarget = ColumnChangePhase | 'all';
 
 const PHASE_ORDER: ColumnChangePhase[] = ['add', 'copy', 'finish'];
 
-function statusFor(phase: ColumnChangePhase): string {
+function statusFor(phase: ColumnChangePhase, mode: ColumnChangeMode): string {
+  if (mode === 'rename') return 'Rename finished.';
+  if (mode === 'direct') return 'Column changed.';
   if (phase === 'add') return 'New column is in place.';
   if (phase === 'copy') return 'Copy finished. Check the mismatch count is 0 before the last part.';
   return 'Constraints, triggers and description are applied.';
 }
 
-function progressFor(phase: ColumnChangePhase): string {
+function progressFor(phase: ColumnChangePhase, mode: ColumnChangeMode): string {
+  if (mode === 'rename') return 'Renaming…';
+  if (mode === 'direct') return 'Changing the column…';
   if (phase === 'add') return 'Adding the new column…';
   if (phase === 'copy') return 'Copying data…';
   return 'Applying constraints, triggers and description…';
@@ -133,6 +141,9 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
   const [newName, setNewName] = useState('');
   const [newType, setNewType] = useState('');
   const [batchSize, setBatchSize] = useState(DEFAULT_COLUMN_CHANGE_BATCH);
+  const [largeTable, setLargeTable] = useState(false);
+  /** The catalog's row estimate and size for the picked table, for the size warning. */
+  const [tableSize, setTableSize] = useState<{ rows: number | null; bytes: number | null } | null>(null);
   const [passwordDraft, setPasswordDraft] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -184,10 +195,31 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
     // Reload when the credential changes, or once its password is given.
   }, [lockedConnectionId, needsPassword, load]);
 
+  // The table's size, for the warning that points at large-table mode. A
+  // catalog estimate, so no COUNT(*) on a big table; unknown when it fails.
+  const password = sessionPasswords[lockedConnectionId];
+  useEffect(() => {
+    setTableSize(null);
+    if (!lockedConnectionId || !tableName || needsPassword) return;
+    let cancelled = false;
+    fetchTableInsight(
+      { connectionId: lockedConnectionId, password: password || undefined },
+      { table: tableName, schema: conn?.schema?.trim() || undefined }
+    )
+      .then((res) => {
+        if (!cancelled) setTableSize({ rows: res.estimatedRows, bytes: res.sizeBytes });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [lockedConnectionId, tableName, needsPassword, password, conn?.schema]);
+
   // A new table or column starts a new change.
   useEffect(() => {
     setNewName('');
     setNewType('');
+    setLargeTable(false);
     setRunError(null);
     setRunStatus(null);
     setConfirmTarget(null);
@@ -209,18 +241,27 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
       tables: all,
       column: column.name,
       change: { newName: newName.trim() || undefined, newType: newType.trim() || undefined },
+      largeTable: largeTable && columnChangeLargeTable(conn.dialect),
       batchSize,
+      estimatedRows: tableSize?.rows,
+      sizeBytes: tableSize?.bytes,
     });
-  }, [conn, table, column, newName, newType, batchSize, all]);
+  }, [conn, table, column, newName, newType, largeTable, batchSize, tableSize, all]);
 
   const script = plan?.ok ? columnChangeScript(plan.steps) : '';
-  const typeChange = Boolean(plan?.ok && plan.progress);
+  const mode: ColumnChangeMode | undefined = plan?.ok ? plan.mode : undefined;
+  // Offered as soon as a type is typed in that is not the column's own.
+  const typeRequested = Boolean(column && newType.trim() && newType.trim().toLowerCase() !== column.type.toLowerCase());
+  const largeTableOffered = typeRequested && Boolean(conn && columnChangeLargeTable(conn.dialect));
   const conversionWarning = plan?.ok ? plan.impact.lossy : undefined;
   const runDisabled =
     Boolean(runningTarget) || needsPassword || Boolean(conversionWarning && !ackLossy);
-  const parts = typeChange
-    ? COLUMN_CHANGE_PHASES
-    : [{ id: 'add' as const, title: 'Rename', blurb: 'Instant catalog rename. Indexes follow; application SQL that names the column does not.' }];
+  const parts =
+    mode === 'copy'
+      ? COLUMN_CHANGE_PHASES
+      : mode === 'direct'
+        ? [{ id: 'add' as const, title: 'Change in place', blurb: 'One ALTER on the column. Fine for small and medium tables.' }]
+        : [{ id: 'add' as const, title: 'Rename', blurb: 'Instant catalog rename. Indexes follow; application SQL that names the column does not.' }];
 
   const runStatements = useCallback(
     async (sql: string): Promise<SqlStatementResult[]> => {
@@ -273,7 +314,7 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
       setConfirmTarget(null);
       try {
         await executePhase(phase, live, true);
-        setRunStatus(statusFor(phase));
+        setRunStatus(statusFor(phase, live.mode));
       } catch (e: unknown) {
         setRunError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -285,7 +326,7 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
 
   const runAll = useCallback(
     async (live: Extract<ColumnChangePlan, { ok: true }>) => {
-      const phases = live.progress ? PHASE_ORDER : (['add'] as ColumnChangePhase[]);
+      const phases = live.mode === 'copy' ? PHASE_ORDER : (['add'] as ColumnChangePhase[]);
       setRunningTarget('all');
       setRunError(null);
       setRunStatus(null);
@@ -293,10 +334,10 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
       try {
         for (let i = 0; i < phases.length; i++) {
           const phase = phases[i]!;
-          setRunStatus(progressFor(phase));
+          setRunStatus(progressFor(phase, live.mode));
           await executePhase(phase, live, i === phases.length - 1);
         }
-        setRunStatus(live.progress ? 'All parts finished.' : 'Rename finished.');
+        setRunStatus(live.mode === 'copy' ? 'All parts finished.' : statusFor('add', live.mode));
       } catch (e: unknown) {
         setRunError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -423,18 +464,40 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
             ))}
           </datalist>
         </label>
-        <label className="block">
-          <span className={sectionLabelCls}>Rows per batch</span>
-          <input
-            data-testid="column-change-batch"
-            type="number"
-            min={1}
-            value={batchSize}
-            onChange={(e) => setBatchSize(Math.max(1, Number(e.target.value) || DEFAULT_COLUMN_CHANGE_BATCH))}
-            className={inputCls}
-          />
-        </label>
+        {largeTableOffered && largeTable && (
+          <label className="block">
+            <span className={sectionLabelCls}>Rows per batch</span>
+            <input
+              data-testid="column-change-batch"
+              type="number"
+              min={1}
+              value={batchSize}
+              onChange={(e) => setBatchSize(Math.max(1, Number(e.target.value) || DEFAULT_COLUMN_CHANGE_BATCH))}
+              className={inputCls}
+            />
+          </label>
+        )}
       </div>
+
+      {largeTableOffered && (
+        <label className="flex items-start gap-2 text-[12px] text-slate-300">
+          <input
+            type="checkbox"
+            data-testid="column-change-large-table"
+            checked={largeTable}
+            onChange={(e) => setLargeTable(e.target.checked)}
+            className="mt-0.5 h-3.5 w-3.5"
+          />
+          <span>
+            <span className="font-bold text-slate-200">Large table mode</span>
+            <span className="text-slate-500">
+              {' '}
+              — add a new column, copy the data in batches, then switch over, so the table stays writable. Off: one
+              ALTER in place, simpler and fine for small and medium tables.
+            </span>
+          </span>
+        </label>
+      )}
 
       {loadError && (
         <p className="text-[12px] text-rose-300" data-testid="column-change-load-error">
@@ -541,7 +604,7 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
           <section className="space-y-3" data-testid="column-change-steps">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className={`${sectionLabelCls} flex-1`}>
-                {typeChange ? 'Three parts' : 'Rename'} ({plan.steps.length} steps)
+                {mode === 'copy' ? 'Three parts' : mode === 'direct' ? 'Change in place' : 'Rename'} ({plan.steps.length} {plan.steps.length === 1 ? 'step' : 'steps'})
               </h2>
               <CopyButton text={script} testId="column-change-copy-all" label="Copy all" />
               {confirmTarget === 'all' ? (

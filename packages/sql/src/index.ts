@@ -171,11 +171,12 @@ export {
   DEFAULT_COLUMN_CHANGE_BATCH,
   COLUMN_CHANGE_PHASES,
 } from './modules/utilities/column-change.js';
-export { resolveColumnChange } from './modules/utilities/column-change.registry.js';
+export { resolveColumnChange, columnChangeLargeTable } from './modules/utilities/column-change.registry.js';
 export type {
   ColumnChange,
   ColumnChangeInput,
   ColumnChangeImpact,
+  ColumnChangeMode,
   ColumnChangePlan,
   ColumnChangeStep,
   ColumnChangePhase,

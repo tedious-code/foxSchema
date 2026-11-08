@@ -652,20 +652,29 @@ saved credential at the top, then a tool:
   statement and is not one transaction — if it stops after rename, recover by
   renaming the archive back. Inbound FKs from other tables still point at the
   archive until you update them.
-- **Rename Column** — rename a column, change its type, or both, the safe way.
+- **Rename Column** — rename a column, change its type, or both.
   Pick a table and column, then a new name and/or type (types you already use
   on this connection are suggested). Fox shows **what it touches** from the
   schema it already loaded (indexes, unique constraints, outbound foreign keys,
   triggers, functions, procedures, and views whose definition *may* mention the
   column — a text match). A **rename alone**
-  is one instant `RENAME COLUMN` (or `sp_rename`). A **type change** is three
-  parts, each with preview SQL you can **Copy** or **Run** here (Safe mode
+  is one instant `RENAME COLUMN` (or `sp_rename`), and lists the lines of each
+  view, trigger, function and procedure that name the column, with the new name.
+  A **type change** is **one ALTER in place** by default — `ALTER COLUMN … TYPE`,
+  MySQL's `MODIFY COLUMN` restating NOT NULL, default, collation and comment, or
+  on SQL Server one transaction that takes the column's indexes, keys and default
+  off and puts them back. Fine for small and medium tables. From about a million
+  rows or 1 GB (the catalog's estimate) Fox warns that it can block writes while
+  it rewrites the table. Tick **Large table mode** to do it in three
+  parts instead, each with preview SQL you can **Copy** or **Run** here (Safe mode
   confirms): **add** a nullable column with no default, **copy** rows in a
   loop of batches with progress (`copied / total`) — Copy SQL is the loop,
   Run still patches one batch at a time — then **constraints, triggers and
   description** (indexes, keys, catalog comment, table triggers rewritten to
   the new name, switch-over, drop the old column). **Execute all** runs the
-  three parts in order against this connection (Safe mode confirms once).
+  steps in order against this connection (Safe mode confirms once). PostgreSQL
+  refuses an in-place type change while a view uses the column: drop the view
+  first and recreate it after.
   **Copy all** and **Open in editor** still send the whole script to a new tab
   against this connection only.
 
@@ -677,12 +686,26 @@ saved credential at the top, then a tool:
   **warning**: acknowledge it before Run or Execute all. The copy still stops
   on the first value that does not convert.
 
-  **Engines:** PostgreSQL, YugabyteDB, CockroachDB, MySQL, MariaDB, TiDB, SQL
-  Server, Azure SQL. The rest — including SQLite (needs a table rebuild),
-  Redshift, Oracle, Db2 — say “not yet” rather than SQL that would fail there.
-  Also refused for now: a primary-key column, a column other tables’ foreign
-  keys point at, an identity column, and a type change on a table with no
-  primary key (the copy batches through it).
+  **Engines:** every SQL engine Fox supports. Large-table mode is offered on
+  PostgreSQL, YugabyteDB, CockroachDB, MySQL, MariaDB, TiDB, SQL Server and
+  Azure SQL; the others change the column in place, within what each engine can do:
+  - **Oracle** — `MODIFY`; it changes a length or precision on a table with
+    data, but another kind of type needs the column empty.
+  - **Db2** — `SET DATA TYPE`, then a `REORG` of the table, which Db2 needs
+    before it takes writes again.
+  - **SQLite** — rename only (SQLite also updates the indexes, views and
+    triggers that name the column). A type change needs a table rebuild, not
+    covered yet.
+  - **DuckDB** — rename and type change, but not while the table has an index:
+    DuckDB will not alter it. Fox names the indexes to drop first.
+  - **Redshift** — rename, and making a VARCHAR longer; no other type change.
+  - **ClickHouse** — rename and `MODIFY COLUMN` (a nullable column stays
+    `Nullable`); not a column in the table's sorting key.
+
+  Fox refuses a change an engine cannot make, with the reason, rather than
+  showing SQL that would fail there. Also refused for now: a primary-key
+  column, a column other tables’ foreign keys point at, an identity column, and
+  in large-table mode a table with no primary key (the copy batches through it).
 - **Backup & Restore** — Fox Schema writes the backup and restore commands
   for this connection. The amber banner says *where* they run, because that is
   what the folder means:

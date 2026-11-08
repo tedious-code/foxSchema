@@ -38,7 +38,7 @@ flowchart LR
   end
   subgraph server["Fox server — packages/server (Fastify)"]
     PLAT["platform<br/>identity · RBAC · workspaces<br/>connections · guards"]
-    FEAT["18 feature modules<br/>159 routes"]
+    FEAT["18 feature modules<br/>163 routes"]
   end
   WFS["Workflow server :8081<br/>apps/workflow-server<br/>+ packages/workflow-engine"]
   META[("Metadata store<br/>SQLite · 28 tables")]
@@ -179,7 +179,7 @@ in its folders and its e2e specs (`apps/e2e/src/tests`).
 |---|---|---|---|---|---|---|---|
 | `utilities.indexes` | Index management — fragmentation (custom probe is one read-only SELECT), batch, rebuild / reorg / optimize SQL (Db2: every index on the table), drop | Utils (rail) | `/api/schema/index-fragmentation`, `-batch` | server `access` (`index-fragmentation.service`); sql `utilities` | `utility.access`, `utility.index.drop` | — | sql 7; e2e `sql-editor-utilities`, `-utilities-dialects` |
 | `utilities.clone` | Clone table | Utils | (editor execute) | web `CloneTableModal` | `utility.access`, `editor.ddl` | — | (utilities e2e) |
-| `utilities.columns` | Rename column — rename or change a type the safe way: what it touches (indexes, constraints, triggers, functions, procedures, views), then three parts (add nullable column, copy loop with progress, constraints / triggers / description) as preview SQL to copy, run, or execute all; lossy conversions (narrowing, text→number, text→boolean) warn and must be acknowledged | Utils | `/api/sql/execute` (optional Run / Execute all) | sql `utilities/column-change` + `providers/*/*.column-change.ts`; web `ColumnChangePanel` | `utility.access`, `editor.dml` | — | sql 87 (+ live PostgreSQL, MySQL, MariaDB, SQL Server, CockroachDB, TiDB, YugabyteDB); web 9 |
+| `utilities.columns` | Rename column — rename, or change a type: what it touches (indexes, constraints, triggers, functions, procedures, views), then one in-place ALTER by default (with a size warning from 1M rows or 1 GB), or in large-table mode three parts (add nullable column, copy loop with progress, constraints / triggers / description), as preview SQL to copy, run, or execute all; lossy conversions (narrowing, text→number, text→boolean) warn and must be acknowledged | Utils | `/api/sql/execute` (optional Run / Execute all) | sql `utilities/column-change` + `providers/*/*.column-change.ts`; web `ColumnChangePanel` | `utility.access`, `editor.dml` | — | sql 147 (+ live PostgreSQL, MySQL, MariaDB, SQL Server, CockroachDB, TiDB, YugabyteDB, Oracle, Db2, SQLite, DuckDB, ClickHouse); web 25 |
 | `utilities.insights` | Server insights, table insight, query files | Utils | `/api/schema/dba-utility`, `/api/schema/table-insight` | server `access` (`dba-utilities.service`) | `utility.access` | — | (utilities e2e) |
 | `utilities.trace` | SQL Tracer — Live (engine sessions, ~1 s) and Fox activity (statements run from Fox on a saved connection); redacted, 15 min / 10,000 statements | Utils | `/api/sql-trace/start`, `/:id/events`, `/:id/stop` | server `sql-trace` (+ `platform/sql-activity`); sql `utilities/sql-trace` | `utility.trace` | — | server 27; web 7; e2e `utilities-sql-tracer` |
 | `utilities.backup` | Backup & Restore — per-engine command builders, server-side SQL backup after confirmation, recorded backups, saved defaults | Utils | `/api/backup-settings` (2) | server `backup`; sql `providers/*/*.backup.ts` | `utility.access` | `backup_settings` | server 2; e2e `backup-restore-ui`, `backup-commands-dialects` |
@@ -579,7 +579,7 @@ Known gaps and open work (2026-11-02, after #575 – #589) — each belongs on t
 | `platform.workspaces` | Workspace ceiling caps by rank; a custom role mapping is not intersected with the account's permissions | improvement |
 | `platform.connections` | A requirepass-only Redis saved without its password is not prompted (the **No password** login method is shipped) | improvement |
 | `platform.system` | Home → Services is status only; start/stop the Workflow engine (`admin.services`) is later | feature |
-| `utilities.columns` | SQLite (table rebuild), Oracle, Db2, Redshift, ClickHouse not in v1; primary-key / inbound-FK / identity columns refused; running the steps from the app is v2 | feature |
+| `utilities.columns` | SQLite type change needs a table rebuild; DuckDB tables with an index are refused (no index columns in the model); Redshift only lengthens a VARCHAR; primary-key / inbound-FK / identity columns refused; large-table mode only on the 8 engines that have it | feature |
 
 ## Planning work
 

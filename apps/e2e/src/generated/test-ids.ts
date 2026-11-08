@@ -2997,6 +2997,8 @@ export const TestIds = {
       columnChangeHint: 'column-change-hint',
       /** section · What it touches */
       columnChangeImpact: 'column-change-impact',
+      /** input */
+      columnChangeLargeTable: 'column-change-large-table',
       /** p */
       columnChangeLoadError: 'column-change-load-error',
       /** input */
@@ -3029,7 +3031,7 @@ export const TestIds = {
       columnChangeStep: (value: string | number) => `column-change-step-${value}`,
       /** button */
       columnChangeStepCopy: (value: string | number) => `column-change-step-${value}-copy`,
-      /** section · ( steps) */
+      /** section · ( ) */
       columnChangeSteps: 'column-change-steps',
       /** select */
       columnChangeTable: 'column-change-table',
@@ -4184,6 +4186,7 @@ export type TestId =
   | 'column-change-copy-all'
   | 'column-change-hint'
   | 'column-change-impact'
+  | 'column-change-large-table'
   | 'column-change-load-error'
   | 'column-change-new-name'
   | 'column-change-new-type'

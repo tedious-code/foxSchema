@@ -12,6 +12,7 @@ import type {
   ColumnChangeDialect,
   ColumnChangeStep,
 } from '../../modules/utilities/column-change.types.js';
+import { sameTypeKind } from '../../modules/utilities/column-type-shape.js';
 
 const lit = (value: string) => value.replace(/'/g, "''");
 const identWord = (name: string) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -101,10 +102,49 @@ function postgresCopyLoop(ctx: ColumnChangeContext, procedural: boolean): string
   ].join('\n');
 }
 
-export function postgresFamilyColumnChange(options: { triggers: boolean }): ColumnChangeDialect {
+export function postgresFamilyColumnChange(options: {
+  triggers: boolean;
+  /**
+   * A session setting the engine wants before a general type change
+   * (CockroachDB keeps most conversions behind an experimental flag).
+   */
+  alterTypeSetting?: string;
+  /** What the engine does to the table during the ALTER, for the step's note. */
+  alterTypeNote?: string;
+}): ColumnChangeDialect {
   return {
     triggers: options.triggers,
     foreignKeyTypesMustMatch: false,
+    viewsBlockTypeChange: true,
+
+    alterTypeSteps: (ctx) => {
+      const col = q(ctx.column.name);
+      // USING only across kinds (text to number), where the engine needs the cast
+      // spelled out. Within a kind it is left off: an explicit USING makes
+      // CockroachDB rewrite the column, which it refuses for an indexed one,
+      // where lengthening a varchar is otherwise a metadata change (found live).
+      const using = sameTypeKind(ctx.column.type, ctx.targetType) ? '' : ` USING ${col}::${ctx.targetType}`;
+      const alter = `ALTER TABLE ${table(ctx)} ALTER COLUMN ${col} TYPE ${ctx.targetType}${using};`;
+      return [
+        {
+          phase: 'add',
+          title: `Change ${ctx.column.name} to ${ctx.targetType}`,
+          rerunSafe: false,
+          sql: options.alterTypeSetting ? `${options.alterTypeSetting}\n${alter}` : alter,
+          note: [
+            options.alterTypeNote ??
+              'One statement, all or nothing: a value that does not convert stops it and changes nothing. ' +
+                'Most changes rewrite the table and block reads and writes while they run; widening a varchar does not.',
+            'Indexes and constraints on the column are rebuilt with it.',
+            ctx.column.defaultValue
+              ? `The default (${ctx.column.defaultValue}) is converted too; if it cannot be, drop it first.`
+              : '',
+          ]
+            .filter(Boolean)
+            .join(' '),
+        },
+      ];
+    },
 
     renameSteps: (ctx) => [
       {

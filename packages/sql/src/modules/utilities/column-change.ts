@@ -17,6 +17,7 @@ import type { ColumnInfo, TableSchema } from '../../interfaces/schema.interface.
 import { PROVIDER_SETTINGS } from '../../providers/provider-settings.js';
 import { quoteIdentifierIfNeeded } from '../sql-text/sql-template.js';
 import { resolveColumnChange } from './column-change.registry.js';
+import { normType, shapeOf } from './column-type-shape.js';
 import type {
   ColumnChangeContext,
   ColumnChangeImpact,
@@ -50,7 +51,6 @@ export const COLUMN_CHANGE_PHASES: Array<{
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 const engineName = (dialect: string) => PROVIDER_SETTINGS[dialect.toLowerCase()]?.label ?? dialect;
 const has = (cols: readonly string[], name: string) => cols.some((c) => same(c, name));
-const normType = (type: string) => type.trim().replace(/\s+/g, ' ').toLowerCase();
 const escapeWord = (word: string) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const wordIn = (text: string, word: string) =>
@@ -151,13 +151,6 @@ export function planColumnChange(input: ColumnChangeInput): ColumnChangePlan {
   if (renamed && input.table.columns.some((c) => c !== column && same(c.name, targetName))) {
     return { ok: false, error: `${input.table.name} already has a column ${targetName}.`, impact };
   }
-  if (impact.inPrimaryKey) {
-    return { ok: false, error: 'Changing a primary key column is not covered yet.', impact };
-  }
-  if (impact.inboundForeignKeys.length > 0) {
-    const from = [...new Set(impact.inboundForeignKeys.map((f) => f.table))].join(', ');
-    return { ok: false, error: `Other tables' foreign keys point at this column (${from}). Changing a referenced column is not covered yet.`, impact };
-  }
 
   const warnings: string[] = [];
   if (impact.views.length > 0) {
@@ -188,19 +181,45 @@ export function planColumnChange(input: ColumnChangeInput): ColumnChangePlan {
     indexes: impact.indexes,
     outboundForeignKeys: impact.outboundForeignKeys,
     triggers: impact.triggers,
+    sortingKey: input.table.orderBy ?? [],
+    tableIndexes: input.table.indices ?? [],
     batchSize: Math.max(1, Math.floor(input.batchSize ?? DEFAULT_COLUMN_CHANGE_BATCH)),
     typeChanged,
   };
 
-  if (!typeChanged) return { ok: true, impact, steps: dialect.renameSteps(ctx), warnings };
-
-  if (column.identity) return { ok: false, error: 'An identity column cannot be copied this way.', impact };
-  if (primaryKey.length === 0) {
-    return { ok: false, error: 'The table needs a primary key: the copy works through it in batches.', impact };
+  // The engine's own reason first: "ClickHouse will not rename a sorting-key
+  // column" says more than the general primary-key refusal below.
+  const refused = dialect.refuse?.(ctx, { renamed, typeChanged });
+  if (refused) return { ok: false, error: refused, impact };
+  if (impact.inPrimaryKey) {
+    return { ok: false, error: 'Changing a primary key column is not covered yet.', impact };
   }
-  for (const name of [ctx.newColumn, ctx.oldColumn]) {
-    if (input.table.columns.some((c) => same(c.name, name))) {
-      return { ok: false, error: `${input.table.name} already has a column ${name}, which this plan needs for a while.`, impact };
+  if (impact.inboundForeignKeys.length > 0) {
+    const from = [...new Set(impact.inboundForeignKeys.map((f) => f.table))].join(', ');
+    return { ok: false, error: `Other tables' foreign keys point at this column (${from}). Changing a referenced column is not covered yet.`, impact };
+  }
+
+  if (!typeChanged) return { ok: true, mode: 'rename', impact, steps: dialect.renameSteps(ctx), warnings };
+
+  const copy = Boolean(input.largeTable);
+  if (copy && !(dialect.rebuildSteps && dialect.progressSql)) {
+    return { ok: false, error: `Large-table mode is not available for ${engineName(input.dialect)}: the change runs in place.`, impact };
+  }
+  if (column.identity) {
+    return {
+      ok: false,
+      error: copy ? 'An identity column cannot be copied this way.' : 'Changing the type of an identity column is not covered yet.',
+      impact,
+    };
+  }
+  if (copy) {
+    if (primaryKey.length === 0) {
+      return { ok: false, error: 'The table needs a primary key: the copy works through it in batches.', impact };
+    }
+    for (const name of [ctx.newColumn, ctx.oldColumn]) {
+      if (input.table.columns.some((c) => same(c.name, name))) {
+        return { ok: false, error: `${input.table.name} already has a column ${name}, which this plan needs for a while.`, impact };
+      }
     }
   }
   if (dialect.foreignKeyTypesMustMatch) {
@@ -219,10 +238,51 @@ export function planColumnChange(input: ColumnChangeInput): ColumnChangePlan {
       }
     }
   }
-  if (!dialect.triggers) {
-    warnings.push('This engine has no triggers here: writes during the copy are caught by running the copy once more before the switch-over.');
+  if (copy && dialect.rebuildSteps && dialect.progressSql) {
+    if (!dialect.triggers) {
+      warnings.push('This engine has no triggers here: writes during the copy are caught by running the copy once more before the switch-over.');
+    }
+    return { ok: true, mode: 'copy', impact, steps: dialect.rebuildSteps(ctx), warnings, progress: dialect.progressSql(ctx) };
   }
-  return { ok: true, impact, steps: dialect.rebuildSteps(ctx), warnings, progress: dialect.progressSql(ctx) };
+
+  if (dialect.viewsBlockTypeChange && impact.views.length > 0) {
+    const at = warnings.findIndex((w) => w.startsWith('Views that may use the column'));
+    warnings.splice(
+      at,
+      1,
+      `${engineName(input.dialect)} refuses to change the type of a column a view uses. ` +
+        `If ${impact.views.join(', ')} ${impact.views.length === 1 ? 'uses' : 'use'} it, drop ${impact.views.length === 1 ? 'it' : 'them'} first and recreate after.`
+    );
+  }
+  const size = largeTableNote(input.table.name, input.estimatedRows, input.sizeBytes);
+  if (size) warnings.push(size);
+  const steps = [...dialect.alterTypeSteps(ctx), ...(renamed ? dialect.renameSteps(ctx) : [])];
+  return { ok: true, mode: 'direct', impact, steps, warnings };
+}
+
+/** From here an in-place type change is worth thinking twice about. */
+export const LARGE_TABLE_ROWS = 1_000_000;
+export const LARGE_TABLE_BYTES = 1024 ** 3;
+
+const roughly = (n: number) =>
+  n >= 1e9 ? `${(n / 1e9).toFixed(1)} billion` : n >= 1e6 ? `${(n / 1e6).toFixed(1)} million` : n.toLocaleString('en-US');
+const roughBytes = (n: number) => (n >= 1024 ** 4 ? `${(n / 1024 ** 4).toFixed(1)} TB` : `${(n / 1024 ** 3).toFixed(1)} GB`);
+
+/** Why an in-place ALTER may hurt on this table, or undefined when it is small or its size is unknown. */
+export function largeTableNote(table: string, rows?: number | null, bytes?: number | null): string | undefined {
+  const manyRows = typeof rows === 'number' && rows >= LARGE_TABLE_ROWS;
+  const manyBytes = typeof bytes === 'number' && bytes >= LARGE_TABLE_BYTES;
+  if (!manyRows && !manyBytes) return undefined;
+  const sized = [
+    typeof rows === 'number' ? `about ${roughly(rows)} rows` : '',
+    typeof bytes === 'number' ? roughBytes(bytes) : '',
+  ]
+    .filter(Boolean)
+    .join(', ');
+  return (
+    `${table} is large (${sized}). An in-place type change can rewrite the whole table and block writes until it ` +
+    'finishes. Turn on large-table mode to copy in batches while the table stays writable.'
+  );
 }
 
 function findImpact(input: ColumnChangeInput, column: ColumnInfo, newType: string | undefined): ColumnChangeImpact {
@@ -269,6 +329,9 @@ function findImpact(input: ColumnChangeInput, column: ColumnInfo, newType: strin
   const functions = matchedFunctions.map((t) => t.name);
   const procedures = matchedProcedures.map((t) => t.name);
   const newName = input.change.newName?.trim();
+  // The lines are for a rename, where stored SQL must say the new name. A type
+  // change alone gets the one-line "may use" warnings and no more.
+  const renaming = Boolean(newName && newName !== name);
   const dependent = (
     objectType: ColumnDependent['objectType'],
     objName: string,
@@ -278,12 +341,14 @@ function findImpact(input: ColumnChangeInput, column: ColumnInfo, newType: strin
     if (references.length === 0) return [];
     return [{ name: objName, objectType, definition: definition ?? '', references }];
   };
-  const dependents: ColumnDependent[] = [
-    ...matchedViews.flatMap((t) => dependent('VIEW', t.name, t.definition)),
-    ...matchedFunctions.flatMap((t) => dependent('FUNCTION', t.name, t.definition)),
-    ...matchedProcedures.flatMap((t) => dependent('PROCEDURE', t.name, t.definition)),
-    ...triggers.flatMap((t) => dependent('TRIGGER', t.name, t.definition)),
-  ];
+  const dependents: ColumnDependent[] = renaming
+    ? [
+        ...matchedViews.flatMap((t) => dependent('VIEW', t.name, t.definition)),
+        ...matchedFunctions.flatMap((t) => dependent('FUNCTION', t.name, t.definition)),
+        ...matchedProcedures.flatMap((t) => dependent('PROCEDURE', t.name, t.definition)),
+        ...triggers.flatMap((t) => dependent('TRIGGER', t.name, t.definition)),
+      ]
+    : [];
 
   return {
     inPrimaryKey,
@@ -297,45 +362,6 @@ function findImpact(input: ColumnChangeInput, column: ColumnInfo, newType: strin
     dependents,
     lossy: newType ? lossyConversion(column.type, newType) : undefined,
   };
-}
-
-interface TypeShape {
-  kind: 'text' | 'int' | 'decimal' | 'float' | 'date' | 'datetime' | 'datetimetz' | 'bool' | 'other';
-  /** Text length, integer width rank, or decimal precision. */
-  size?: number;
-  scale?: number;
-}
-
-const TEXT_TYPES = new Set([
-  'char', 'nchar', 'varchar', 'nvarchar', 'character', 'character varying', 'text', 'ntext',
-  'string', 'clob', 'varchar2', 'nvarchar2', 'tinytext', 'mediumtext', 'longtext',
-]);
-
-const INT_RANK: Record<string, number> = {
-  tinyint: 1, smallint: 2, int2: 2, mediumint: 3, int: 4, integer: 4, int4: 4, serial: 4, bigint: 5, int8: 5, bigserial: 5,
-};
-
-const FLOAT_RANK: Record<string, number> = {
-  real: 1, float4: 1,
-  float: 2, double: 2, 'double precision': 2, float8: 2,
-};
-
-function shapeOf(type: string): TypeShape {
-  const t = normType(type);
-  const base = t.replace(/\(.*$/, '').trim();
-  const args = (t.match(/\(([^)]*)\)/)?.[1] ?? '').split(',').map((a) => a.trim());
-  const num = (v: string | undefined) => (v && /^\d+$/.test(v) ? Number(v) : undefined);
-  if (TEXT_TYPES.has(base)) {
-    return { kind: 'text', size: args[0] === 'max' ? undefined : num(args[0]) };
-  }
-  if (base in INT_RANK) return { kind: 'int', size: INT_RANK[base] };
-  if (/^(decimal|numeric|number|money)$/.test(base)) return { kind: 'decimal', size: num(args[0]), scale: num(args[1]) ?? 0 };
-  if (base in FLOAT_RANK) return { kind: 'float', size: FLOAT_RANK[base] };
-  if (base === 'date') return { kind: 'date' };
-  if (/^(timestamptz|datetimeoffset)$/.test(base) || /with time zone/.test(t)) return { kind: 'datetimetz' };
-  if (/^(timestamp|datetime|datetime2|smalldatetime)/.test(base)) return { kind: 'datetime' };
-  if (/^(bool|boolean|bit)$/.test(base)) return { kind: 'bool' };
-  return { kind: 'other' };
 }
 
 /** Why moving values from `from` to `to` can lose data or fail, or undefined when it should not. */

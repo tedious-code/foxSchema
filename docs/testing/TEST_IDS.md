@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1034** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1035** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1602,6 +1602,7 @@ Every control has a test ID: **1034** buttons, text boxes, selects and textareas
   - `column-change-copy-all` · button in CopyButton
   - `column-change-hint` · p
   - `column-change-impact` · section · What it touches
+  - `column-change-large-table` · input
   - `column-change-load-error` · p
   - `column-change-new-name` · input
   - `column-change-new-type` · input
@@ -1618,7 +1619,7 @@ Every control has a test ID: **1034** buttons, text boxes, selects and textareas
   - `column-change-run-status` · p
   - `column-change-step-{value}` · article
   - `column-change-step-{value}-copy` · button in CopyButton
-  - `column-change-steps` · section · ( steps)
+  - `column-change-steps` · section · ( )
   - `column-change-table` · select
   - `column-change-unlock` · button · Unlock
   - `column-change-warnings` · ul

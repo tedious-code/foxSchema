@@ -167,10 +167,11 @@ export type {
 } from '@foxschema/sql';
 
 // Safe column change: what a rename or type change touches, and its steps as SQL to review.
-export { DEFAULT_COLUMN_CHANGE_BATCH, COLUMN_CHANGE_PHASES, planColumnChange } from '@foxschema/sql';
+export { DEFAULT_COLUMN_CHANGE_BATCH, COLUMN_CHANGE_PHASES, planColumnChange, columnChangeLargeTable } from '@foxschema/sql';
 export type {
   ColumnChange,
   ColumnChangeImpact,
+  ColumnChangeMode,
   ColumnChangePlan,
   ColumnChangeStep,
   ColumnChangePhase,

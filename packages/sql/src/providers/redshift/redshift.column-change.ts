@@ -18,11 +18,17 @@ const VARCHAR_MAX = 65535;
 
 /** The length of a VARCHAR type, or undefined for any other type. */
 export function redshiftVarcharLength(type: string): number | undefined {
-  const m = type.trim().match(/^(?:character\s+varying|varchar|nvarchar|text)\s*(?:\(\s*(\d+|max)\s*\))?$/i);
-  if (!m) return undefined;
+  // Split by hand rather than with one pattern: name, then an optional "(n)".
+  const t = type.trim().toLowerCase().replace(/\s+/g, ' ');
+  const open = t.indexOf('(');
+  const name = (open < 0 ? t : t.slice(0, open)).trim();
+  if (!['character varying', 'varchar', 'nvarchar', 'text'].includes(name)) return undefined;
   // A bare VARCHAR, and TEXT, are VARCHAR(256) on Redshift.
-  if (!m[1]) return 256;
-  return /^max$/i.test(m[1]) ? VARCHAR_MAX : Number(m[1]);
+  if (open < 0) return 256;
+  if (!t.endsWith(')')) return undefined;
+  const arg = t.slice(open + 1, -1).trim();
+  if (arg === 'max') return VARCHAR_MAX;
+  return /^\d+$/.test(arg) ? Number(arg) : undefined;
 }
 
 export const redshiftColumnChange: ColumnChangeDialect = {

@@ -29,6 +29,11 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # npm's Trusted Publisher entry for this workflow names the GitHub
+    # environment `npm-publish`, and npm only accepts the OIDC token from a job
+    # running in it. Without this line npm gives no credentials and `npm publish`
+    # fails with ENEEDAUTH (v0.3.1, 2026-11-08). Renaming either side breaks it.
+    environment: npm-publish
     steps:
       - uses: actions/checkout@v5
         with:
@@ -67,4 +72,4 @@ jobs:
       # Needs npm >= 11.5.1, which the npm@11 install above satisfies.
       - name: Publish to npm
         working-directory: apps/cli/npm-pack
-        run: npm publish --access public
+        run: npm publish --access public --loglevel verbose

@@ -605,7 +605,7 @@
     );
   }
   function renderCoverage() {
-    barChart('chart-routes', 'HTTP routes by feature', '153 routes pinned by http-contract.test.ts', ROUTES, 'Feature');
+    barChart('chart-routes', 'HTTP routes by feature', '163 routes pinned by http-contract.test.ts; the split per feature was counted at 159', ROUTES, 'Feature');
     barChart('chart-tests', 'Unit-test files by package', 'Files named *.test.ts(x), excluding e2e', TESTS, 'Package');
     const g = $('#e2e-groups');
     for (const name of E2E_GROUPS) g.append(h('span', { class: 'tag' }, name));

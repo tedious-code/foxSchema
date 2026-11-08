@@ -50,9 +50,140 @@ function sqlServerCopyLoop(ctx: ColumnChangeContext): string {
   ].join('\n');
 }
 
+/** The DEFAULT constraint's generated name, found by the column, dropped by name. No `;`: it runs inside one batch. */
+function dropDefaultFor(ctx: ColumnChangeContext, column: string): string {
+  const t = table(ctx);
+  return (
+    `DECLARE @df sysname, @sql nvarchar(max) SELECT @df = dc.name FROM sys.default_constraints AS dc ` +
+    `JOIN sys.columns AS c ON c.object_id = dc.parent_object_id AND c.column_id = dc.parent_column_id ` +
+    `WHERE dc.parent_object_id = OBJECT_ID(${lit(schemaOf(ctx), ctx.table)}) AND c.name = ${lit(column)} ` +
+    `IF @df IS NOT NULL BEGIN SET @sql = N'ALTER TABLE ${t.replace(/'/g, "''")} DROP CONSTRAINT ' + QUOTENAME(@df) ` +
+    `EXEC sp_executesql @sql END`
+  );
+}
+
+/** `N'…'` around a string the catalog gives at run time, quotes doubled, as T-SQL text. */
+const runtimeLit = (expr: string) => `N'N''' + REPLACE(${expr}, N'''', N'''''') + N''''`;
+
+/**
+ * Fills @fox_ix with SQL for every index and unique constraint on `on`,
+ * scripted from the catalog when it runs. Fox's own index model has no filter,
+ * included columns or sort order, and recreating from it quietly turned a
+ * filtered unique index into an unfiltered one; the catalog has them all, and
+ * also finds an index that only INCLUDEs the column. Per index:
+ * - `drop_sql` drops it;
+ * - `create_sql` recreates it — on `copy.column` in place of `on`, and named
+ *   with `copy.suffix`, when `copy` is given (the new column of large-table mode);
+ * - `rename_sql` gives `<name>__new` the old name, when that index exists.
+ * An index counts when the column is a key, an included column, or named in
+ * its filter: SQL Server blocks ALTER and sp_rename on a column a filter names.
+ * `filtered` keeps only filtered indexes, or only unfiltered ones.
+ * No `;`: it runs inside one batch.
+ */
+function scriptIndexesFor(
+  ctx: ColumnChangeContext,
+  on: string,
+  copy?: { column: string; suffix: string },
+  filtered?: 'only' | 'none'
+): string[] {
+  const t = table(ctx).replace(/'/g, "''");
+  const swapped = (expr: string) =>
+    copy ? `REPLACE(${expr}, QUOTENAME(${lit(on)}), QUOTENAME(${lit(copy.column)}))` : expr;
+  const colsOf = (included: 0 | 1, withOrder: boolean) =>
+    `SELECT STRING_AGG(${swapped('QUOTENAME(c.name)')}${withOrder ? ` + CASE WHEN ic.is_descending_key = 1 THEN N' DESC' ELSE N'' END` : ''}, N', ') ` +
+    `WITHIN GROUP (ORDER BY ic.key_ordinal, ic.index_column_id) AS cols FROM sys.index_columns AS ic ` +
+    `JOIN sys.columns AS c ON c.object_id = ic.object_id AND c.column_id = ic.column_id ` +
+    `WHERE ic.object_id = i.object_id AND ic.index_id = i.index_id AND ic.is_included_column = ${included}`;
+  const name = copy ? `QUOTENAME(i.name + ${lit(copy.suffix)})` : 'QUOTENAME(i.name)';
+  const newName = `i.name + N'__new'`;
+  const schemaDot = schemaOf(ctx).replace(/'/g, "''") + '.';
+  const tableDot = `${schemaDot}${ctx.table.replace(/'/g, "''")}.`;
+  return [
+    'DECLARE @fox_ix TABLE (n int IDENTITY, drop_sql nvarchar(max), create_sql nvarchar(max), rename_sql nvarchar(max))',
+    'INSERT @fox_ix (drop_sql, create_sql, rename_sql) SELECT',
+    `    CASE WHEN i.is_unique_constraint = 1 THEN N'ALTER TABLE ${t} DROP CONSTRAINT ' + QUOTENAME(i.name)`,
+    `      ELSE N'DROP INDEX ' + QUOTENAME(i.name) + N' ON ${t}' END,`,
+    `    CASE WHEN i.is_unique_constraint = 1`,
+    `      THEN N'ALTER TABLE ${t} ADD CONSTRAINT ' + ${name} + N' UNIQUE ' + i.type_desc + N' (' + k.cols + N')'`,
+    `      ELSE N'CREATE ' + CASE WHEN i.is_unique = 1 THEN N'UNIQUE ' ELSE N'' END + i.type_desc + N' INDEX ' + ${name}`,
+    `        + N' ON ${t} (' + k.cols + N')' + ISNULL(N' INCLUDE (' + inc.cols + N')', N'') + ISNULL(N' WHERE ' + ${swapped('i.filter_definition')}, N'') END,`,
+    `    CASE WHEN NOT EXISTS (SELECT 1 FROM sys.indexes AS x WHERE x.object_id = i.object_id AND x.name = ${newName}) THEN NULL`,
+    `      WHEN i.is_unique_constraint = 1 THEN N'EXEC sp_rename ' + ${runtimeLit(`N'${schemaDot}' + ${newName}`)} + N', ' + ${runtimeLit('i.name')} + N', N''OBJECT'''`,
+    `      ELSE N'EXEC sp_rename ' + ${runtimeLit(`N'${tableDot}' + ${newName}`)} + N', ' + ${runtimeLit('i.name')} + N', N''INDEX''' END`,
+    '  FROM sys.indexes AS i',
+    `  CROSS APPLY (${colsOf(0, true)}) AS k`,
+    `  OUTER APPLY (${colsOf(1, false)}) AS inc`,
+    `  WHERE i.object_id = OBJECT_ID(${lit(schemaOf(ctx), ctx.table)}) AND i.is_primary_key = 0 AND i.type IN (1, 2)` +
+      (filtered === 'only' ? ' AND i.has_filter = 1' : filtered === 'none' ? ' AND i.has_filter = 0' : ''),
+    `    AND (EXISTS (SELECT 1 FROM sys.index_columns AS ic JOIN sys.columns AS c ON c.object_id = ic.object_id AND c.column_id = ic.column_id`,
+    `      WHERE ic.object_id = i.object_id AND ic.index_id = i.index_id AND c.name = ${lit(on)})`,
+    `      OR (i.has_filter = 1 AND CHARINDEX(QUOTENAME(${lit(on)}), i.filter_definition) > 0))`,
+    'DECLARE @fox_n int = 1, @fox_sql nvarchar(max)',
+  ];
+}
+
+/** Runs one column of @fox_ix in order, skipping a NULL. No `;`. */
+const runScripted = (column: 'drop_sql' | 'create_sql' | 'rename_sql') =>
+  `SET @fox_n = 1 WHILE @fox_n <= (SELECT COUNT(*) FROM @fox_ix) BEGIN SELECT @fox_sql = ${column} FROM @fox_ix WHERE n = @fox_n ` +
+  `IF @fox_sql IS NOT NULL EXEC sp_executesql @fox_sql SET @fox_n += 1 END`;
+
+function sqlServerAlterType(ctx: ColumnChangeContext): ColumnChangeStep {
+  const t = table(ctx);
+  const col = q(ctx.column.name);
+  const collate = ctx.column.collation && /char|text/i.test(ctx.targetType) ? ` COLLATE ${ctx.column.collation}` : '';
+  const alter = `ALTER TABLE ${t} ALTER COLUMN ${col} ${ctx.targetType}${collate} ${ctx.column.nullable ? 'NULL' : 'NOT NULL'}`;
+  const parentOf = (fk: ColumnChangeContext['outboundForeignKeys'][number]) =>
+    `${q(fk.referencedSchema || schemaOf(ctx))}.${q(fk.referencedTable)}`;
+  // SQL Server refuses ALTER COLUMN while an index, a key or (for a new base
+  // type) a default sits on the column: take them off, change it, put them back.
+  // Foreign keys off first and on last: one may need an index dropped here.
+  // Indexes are always scripted, even when Fox knows of none here: its model
+  // leaves out an index that only INCLUDEs the column, which blocks the ALTER too.
+  const before = [
+    ...ctx.outboundForeignKeys.map((fk) => `ALTER TABLE ${t} DROP CONSTRAINT ${q(fk.name)}`),
+    ...scriptIndexesFor(ctx, ctx.column.name),
+    runScripted('drop_sql'),
+    ...(ctx.column.defaultValue ? [dropDefaultFor(ctx, ctx.column.name)] : []),
+  ];
+  const after = [
+    ...(ctx.column.defaultValue ? [`ALTER TABLE ${t} ADD DEFAULT ${ctx.column.defaultValue} FOR ${col}`] : []),
+    runScripted('create_sql'),
+    ...ctx.outboundForeignKeys.map(
+      (fk) =>
+        `ALTER TABLE ${t} ADD CONSTRAINT ${q(fk.name)} FOREIGN KEY (${fk.columns.map(q).join(', ')}) ` +
+        `REFERENCES ${parentOf(fk)} (${fk.referencedColumns.map(q).join(', ')})`
+    ),
+  ];
+
+  const note =
+    'Most type changes rewrite every row and block the table while they run; lengthening a varchar does not. ' +
+    'Any index, foreign key or default on the column is dropped first and recreated after, as SQL Server requires, ' +
+    'in one transaction in one batch: a failure, such as a value that does not convert, undoes all of it. The indexes ' +
+    'are scripted from the catalog as it runs, so their filters, included columns and sort order come back; options ' +
+    'such as fill factor and compression do not.';
+  return {
+    phase: 'add',
+    title: `Change ${ctx.column.name} to ${ctx.targetType}`,
+    rerunSafe: false,
+    // One batch, so one statement for the splitter: no `;` until COMMIT.
+    sql: [
+      'SET XACT_ABORT ON',
+      'BEGIN TRANSACTION',
+      ...before.map((s) => `  ${s}`),
+      `  ${alter}`,
+      ...after.map((s) => `  ${s}`),
+      'COMMIT TRANSACTION;',
+    ].join('\n'),
+    note,
+  };
+}
+
 export const sqlServerColumnChange: ColumnChangeDialect = {
   triggers: true,
   foreignKeyTypesMustMatch: true,
+  viewsBlockTypeChange: false,
+
+  alterTypeSteps: (ctx) => [sqlServerAlterType(ctx)],
 
   renameSteps: (ctx) => [
       {
@@ -127,14 +258,15 @@ export const sqlServerColumnChange: ColumnChangeDialect = {
     if (ctx.column.defaultValue && !ctx.typeChanged) {
       constraints.push(`ALTER TABLE ${t} ADD DEFAULT ${ctx.column.defaultValue} FOR ${next};`);
     }
-    for (const idx of ctx.indexes) {
-      const cols = swap(idx.columns, ctx.column.name, ctx.newColumn).map(q).join(', ');
-      constraints.push(
-        idx.constraint
-          ? `ALTER TABLE ${t} ADD CONSTRAINT ${q(`${idx.name}__new`)} UNIQUE (${cols});`
-          : `CREATE ${idx.unique ? 'UNIQUE ' : ''}INDEX ${q(`${idx.name}__new`)} ON ${t} (${cols});`
-      );
-    }
+    // Every unfiltered index on the old column again on the new one, as
+    // `<name>__new`, scripted from the catalog so includes and sort order come
+    // too. Filtered ones move at the switch-over, where the column is renamed.
+    constraints.push(
+      [
+        ...scriptIndexesFor(ctx, ctx.column.name, { column: ctx.newColumn, suffix: '__new' }, 'none'),
+        runScripted('create_sql'),
+      ].join('\n') + ';'
+    );
     for (const fk of ctx.outboundForeignKeys) {
       const cols = swap(fk.columns, ctx.column.name, ctx.newColumn).map(q).join(', ');
       const parent = `${q(fk.referencedSchema || schemaOf(ctx))}.${q(fk.referencedTable)}`;
@@ -162,52 +294,50 @@ export const sqlServerColumnChange: ColumnChangeDialect = {
       // One batch, so one statement: drivers send each statement as its own
       // batch, and SQL Server refuses a batch that ends inside a transaction.
       // XACT_ABORT rolls the whole switch back if any part of it fails.
+      // A filtered index whose filter names the column blocks sp_rename, so
+      // those move here: dropped from the old column, recreated on the new one
+      // under its final name, inside the same transaction.
       sql: [
         'SET XACT_ABORT ON',
         'BEGIN TRANSACTION',
         `  DROP TRIGGER IF EXISTS ${trigger}`,
+        ...scriptIndexesFor(ctx, ctx.column.name, { column: ctx.targetName, suffix: '' }, 'only').map((s) => `  ${s}`),
+        `  ${runScripted('drop_sql')}`,
         `  EXEC sp_rename ${lit(schemaOf(ctx), ctx.table, ctx.column.name)}, ${lit(ctx.oldColumn)}, N'COLUMN'`,
         `  EXEC sp_rename ${lit(schemaOf(ctx), ctx.table, ctx.newColumn)}, ${lit(ctx.targetName)}, N'COLUMN'`,
+        `  ${runScripted('create_sql')}`,
         'COMMIT TRANSACTION;',
       ].join('\n'),
-      note: 'One transaction in one batch: readers see the old column or the new one, never neither, and a failure undoes all of it.',
+      note:
+        'One transaction in one batch: readers see the old column or the new one, never neither, and a failure undoes all of it. ' +
+        'A filtered index on the column moves across here, since SQL Server will not rename a column a filter names; it is ' +
+        'rebuilt inside the transaction.',
     });
 
-    const finish: string[] = [];
-    for (const fk of ctx.outboundForeignKeys) finish.push(`ALTER TABLE ${t} DROP CONSTRAINT ${q(fk.name)};`);
-    for (const idx of ctx.indexes) {
-      finish.push(idx.constraint ? `ALTER TABLE ${t} DROP CONSTRAINT ${q(idx.name)};` : `DROP INDEX ${q(idx.name)} ON ${t};`);
-    }
-    // A DEFAULT constraint has a generated name; find it by the column. One
-    // statement, so the variable lives as long as it is needed.
-    // EXEC() takes only literals and variables, so the statement is built in
-    // @sql first.
-    finish.push(
-      `DECLARE @df sysname, @sql nvarchar(max) SELECT @df = dc.name FROM sys.default_constraints AS dc ` +
-        `JOIN sys.columns AS c ON c.object_id = dc.parent_object_id AND c.column_id = dc.parent_column_id ` +
-        `WHERE dc.parent_object_id = OBJECT_ID(${lit(schemaOf(ctx), ctx.table)}) AND c.name = ${lit(ctx.oldColumn)} ` +
-        `IF @df IS NOT NULL BEGIN SET @sql = N'ALTER TABLE ${t.replace(/'/g, "''")} DROP CONSTRAINT ' + QUOTENAME(@df) ` +
-        `EXEC sp_executesql @sql END;`
-    );
-    finish.push(`ALTER TABLE ${t} DROP COLUMN ${q(ctx.oldColumn)};`);
-    for (const idx of ctx.indexes) {
-      finish.push(
-        idx.constraint
-          ? `EXEC sp_rename ${lit(schemaOf(ctx), `${idx.name}__new`)}, ${lit(idx.name)}, N'OBJECT';`
-          : `EXEC sp_rename ${lit(schemaOf(ctx), ctx.table, `${idx.name}__new`)}, ${lit(idx.name)}, N'INDEX';`
-      );
-    }
-    for (const fk of ctx.outboundForeignKeys) {
-      finish.push(`EXEC sp_rename ${lit(schemaOf(ctx), `${fk.name}__new`)}, ${lit(fk.name)}, N'OBJECT';`);
-    }
+    // One batch in one transaction: @fox_ix lives only inside its batch, and a
+    // failure part way leaves neither column without its indexes. The old
+    // column's indexes are found in the catalog, the ones Fox's model misses too.
+    const finish = [
+      ...ctx.outboundForeignKeys.map((fk) => `ALTER TABLE ${t} DROP CONSTRAINT ${q(fk.name)}`),
+      ...scriptIndexesFor(ctx, ctx.oldColumn),
+      runScripted('drop_sql'),
+      // A DEFAULT constraint has a generated name; find it by the column.
+      dropDefaultFor(ctx, ctx.oldColumn),
+      `ALTER TABLE ${t} DROP COLUMN ${q(ctx.oldColumn)}`,
+      runScripted('rename_sql'),
+      ...ctx.outboundForeignKeys.map(
+        (fk) => `EXEC sp_rename ${lit(schemaOf(ctx), `${fk.name}__new`)}, ${lit(fk.name)}, N'OBJECT'`
+      ),
+    ];
     steps.push({
       phase: 'finish',
       title: `Drop the old column ${ctx.oldColumn}`,
       rerunSafe: false,
-      sql: finish.join('\n'),
+      sql: ['SET XACT_ABORT ON', 'BEGIN TRANSACTION', ...finish.map((s) => `  ${s}`), 'COMMIT TRANSACTION;'].join('\n'),
       note:
         'Only after you have checked the new column and the applications using it. Its indexes, foreign keys and default ' +
-        'are dropped first, as SQL Server requires; the new ones then take their names.',
+        'are dropped first, as SQL Server requires, and the new ones then take their names — in one transaction, so a ' +
+        'failure undoes all of it.',
     });
     const rebuilt = sqlServerRebuildTriggers(ctx);
     if (rebuilt) steps.push(rebuilt);

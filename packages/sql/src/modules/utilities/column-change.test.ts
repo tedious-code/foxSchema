@@ -6,8 +6,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ColumnInfo, TableSchema } from '../../interfaces/schema.interface.js';
 import { splitSqlStatements } from '../sql-text/sql-splitter.js';
-import { columnReferenceLines, lossyConversion, planColumnChange } from './column-change.js';
-import { COLUMN_CHANGE_MAP } from './column-change.registry.js';
+import { columnReferenceLines, largeTableNote, lossyConversion, planColumnChange } from './column-change.js';
+import { COLUMN_CHANGE_MAP, columnChangeLargeTable } from './column-change.registry.js';
 import type { ColumnChangeInput, ColumnChangePlan } from './column-change.types.js';
 
 const col = (name: string, type: string, extra: Partial<ColumnInfo> = {}): ColumnInfo => ({
@@ -71,6 +71,8 @@ const ALL = [customers, products, orders, orderItems, openOrders, statusFn, stat
 
 const plan = (over: Partial<ColumnChangeInput> & Pick<ColumnChangeInput, 'column' | 'change'>): ColumnChangePlan =>
   planColumnChange({ dialect: 'postgres', schema: 'shop', table: orders, tables: ALL, batchSize: 500, ...over });
+/** The same, in large-table mode: new column, batched copy, switch-over. */
+const large = (over: Parameters<typeof plan>[0]): ColumnChangePlan => plan({ largeTable: true, ...over });
 
 const ok = (p: ColumnChangePlan) => {
   if (!p.ok) throw new Error(p.error);
@@ -80,7 +82,7 @@ const sqlOf = (p: ColumnChangePlan, title: RegExp) => ok(p).steps.find((s) => ti
 
 describe('planColumnChange: what it refuses', () => {
   it.each([
-    ['an engine without the plan yet', { dialect: 'oracle', column: 'status', change: { newType: 'text' } }, /not available for Oracle yet/],
+    ['an engine without the plan yet', { dialect: 'mongodb', column: 'status', change: { newType: 'text' } }, /not available for MongoDB yet/],
     ['a column the table does not have', { column: 'nope', change: { newName: 'x' } }, /has no column nope/],
     ['no change', { column: 'status', change: { newName: 'status', newType: 'VARCHAR(20)' } }, /Nothing to change/],
     ['a name already taken', { column: 'status', change: { newName: 'total' } }, /already has a column total/],
@@ -96,9 +98,11 @@ describe('planColumnChange: what it refuses', () => {
     expect(!p.ok && p.error).toMatch(/foreign keys point at this column \(order_items\)/);
   });
 
-  it('refuses a type change on a table without a primary key, but allows a rename there', () => {
-    const typed = planColumnChange({ dialect: 'postgres', table: orderItems, tables: ALL, column: 'sku', change: { newType: 'text' } });
-    expect(!typed.ok && typed.error).toMatch(/needs a primary key/);
+  it('needs a primary key only to copy in batches: a direct change and a rename go ahead without one', () => {
+    const copied = planColumnChange({ dialect: 'postgres', table: orderItems, tables: ALL, column: 'sku', change: { newType: 'text' }, largeTable: true });
+    expect(!copied.ok && copied.error).toMatch(/needs a primary key/);
+    const direct = planColumnChange({ dialect: 'postgres', table: orderItems, tables: ALL, column: 'sku', change: { newType: 'text' } });
+    expect(direct.ok).toBe(true);
     const renamed = planColumnChange({ dialect: 'postgres', table: orderItems, tables: ALL, column: 'sku', change: { newName: 'item_sku' } });
     expect(renamed.ok).toBe(true);
   });
@@ -144,7 +148,7 @@ describe('planColumnChange: a rename alone', () => {
 });
 
 describe('planColumnChange: a type change on PostgreSQL', () => {
-  const p = plan({ column: 'status', change: { newName: 'state', newType: 'varchar(40)' } });
+  const p = large({ column: 'status', change: { newName: 'state', newType: 'varchar(40)' } });
 
   it('lays out add, sync, copy, check, constraints, switch-over, drop and triggers, in that order', () => {
     expect(ok(p).steps.map((s) => s.title)).toEqual([
@@ -223,7 +227,7 @@ describe('planColumnChange: a type change on PostgreSQL', () => {
   });
 
   it('recreates an outbound foreign key on the new column', () => {
-    const fk = plan({ column: 'customer_id', change: { newType: 'bigint' } });
+    const fk = large({ column: 'customer_id', change: { newType: 'bigint' } });
     expect(sqlOf(fk, /constraints/)).toContain(
       'ALTER TABLE "shop"."orders" ADD CONSTRAINT "orders_customer_fk__new" FOREIGN KEY ("customer_id__new") REFERENCES "customers" ("id");'
     );
@@ -231,14 +235,14 @@ describe('planColumnChange: a type change on PostgreSQL', () => {
   });
 
   it('keeps the default when only the name changes through a rebuild, and NOT NULL either way', () => {
-    const same = plan({ column: 'status', change: { newType: 'text' } });
+    const same = large({ column: 'status', change: { newType: 'text' } });
     expect(sqlOf(same, /constraints/)).not.toContain('SET DEFAULT');
   });
 });
 
 describe('planColumnChange: engines without triggers', () => {
   it.each(['cockroachdb', 'tidb'])('%s has no sync step, and says to run the copy again before the switch', (dialect) => {
-    const p = ok(plan({ dialect, column: 'status', change: { newType: 'varchar(40)' } }));
+    const p = ok(large({ dialect, column: 'status', change: { newType: 'varchar(40)' } }));
     expect(p.steps.some((s) => /Keep the new column in step/.test(s.title))).toBe(false);
     expect(p.warnings.join('\n')).toMatch(/no triggers/);
     expect(p.steps.find((s) => /^Copy/.test(s.title))?.note).toMatch(/run it once more just before the switch-over/);
@@ -248,7 +252,7 @@ describe('planColumnChange: engines without triggers', () => {
   });
 
   it('TiDB switches with two RENAME statements: one ALTER cannot rename both columns', () => {
-    const sql = sqlOf(plan({ dialect: 'tidb', column: 'status', change: { newType: 'varchar(40)' } }), /^Switch/);
+    const sql = sqlOf(large({ dialect: 'tidb', column: 'status', change: { newType: 'varchar(40)' } }), /^Switch/);
     expect(sql).toBe(
       [
         'ALTER TABLE `shop`.`orders` RENAME COLUMN `status` TO `status__old`;',
@@ -260,7 +264,7 @@ describe('planColumnChange: engines without triggers', () => {
 });
 
 describe('planColumnChange: MySQL', () => {
-  const p = plan({ dialect: 'mysql', column: 'status', change: { newType: 'varchar(40)' } });
+  const p = large({ dialect: 'mysql', column: 'status', change: { newType: 'varchar(40)' } });
 
   it('copies with a procedure loop around UPDATE … LIMIT, and renames both columns in one ALTER', () => {
     const sql = sqlOf(p, /^Copy/);
@@ -289,13 +293,13 @@ describe('planColumnChange: MySQL', () => {
       ...orders,
       columns: orders.columns.map((c) => (c.name === 'customer_id' ? { ...c, type: 'smallint' } : c)),
     };
-    const fk = plan({ dialect: 'mysql', table: narrow, tables: [customers, narrow], column: 'customer_id', change: { newType: 'integer' } });
+    const fk = large({ dialect: 'mysql', table: narrow, tables: [customers, narrow], column: 'customer_id', change: { newType: 'integer' } });
     expect(sqlOf(fk, /^Drop the old/).split('\n')[0]).toBe('ALTER TABLE `shop`.`orders` DROP FOREIGN KEY `orders_customer_fk`;');
   });
 });
 
 describe('planColumnChange: SQL Server', () => {
-  const p = plan({ dialect: 'sqlserver', column: 'status', change: { newType: 'nvarchar(40)' } });
+  const p = large({ dialect: 'sqlserver', column: 'status', change: { newType: 'nvarchar(40)' } });
 
   it('copies with a WHILE loop around UPDATE TOP, and renames through sp_rename in one batch and one transaction', () => {
     expect(ok(p).progress?.patchSql).toBe(
@@ -305,21 +309,17 @@ describe('planColumnChange: SQL Server', () => {
     expect(copy).toContain('WHILE @fox_n > 0');
     expect(copy).toContain('SET @fox_n = @@ROWCOUNT');
     expect(splitSqlStatements(copy)).toHaveLength(1);
-    expect(sqlOf(p, /^Switch/)).toBe(
-      [
-        'SET XACT_ABORT ON',
-        'BEGIN TRANSACTION',
-        '  DROP TRIGGER IF EXISTS [shop].[fox_sync_orders_status]',
-        "  EXEC sp_rename N'shop.orders.status', N'status__old', N'COLUMN'",
-        "  EXEC sp_rename N'shop.orders.status__new', N'status', N'COLUMN'",
-        'COMMIT TRANSACTION;',
-      ].join('\n')
-    );
+    const lines = sqlOf(p, /^Switch/).split('\n');
+    expect(lines.slice(0, 3)).toEqual(['SET XACT_ABORT ON', 'BEGIN TRANSACTION', '  DROP TRIGGER IF EXISTS [shop].[fox_sync_orders_status]']);
+    expect(lines).toContain("  EXEC sp_rename N'shop.orders.status', N'status__old', N'COLUMN'");
+    expect(lines).toContain("  EXEC sp_rename N'shop.orders.status__new', N'status', N'COLUMN'");
+    expect(lines.at(-1)).toBe('COMMIT TRANSACTION;');
+    expect(splitSqlStatements(sqlOf(p, /^Switch/))).toHaveLength(1);
   });
 
   it('drops the default constraint by looking up its name before dropping the column', () => {
     const sql = sqlOf(p, /^Drop the old/);
-    expect(sql).toMatch(/sys\.default_constraints[\s\S]*SET @sql = N'ALTER TABLE \[shop\]\.\[orders\] DROP CONSTRAINT ' \+ QUOTENAME\(@df\) EXEC sp_executesql @sql END;/);
+    expect(sql).toMatch(/sys\.default_constraints[\s\S]*SET @sql = N'ALTER TABLE \[shop\]\.\[orders\] DROP CONSTRAINT ' \+ QUOTENAME\(@df\) EXEC sp_executesql @sql END\n/);
     expect(sql).not.toMatch(/EXEC\(/);
     expect(sql.indexOf('sys.default_constraints')).toBeLessThan(sql.indexOf('DROP COLUMN [status__old]'));
   });
@@ -358,13 +358,31 @@ describe('planColumnChange: the steps split into the statements meant', () => {
     ['sqlserver', /^Switch/, 1],
     ['mysql', /Keep the new column/, 2],
   ])('%s %s is %i statement(s)', (dialect, title, count) => {
-    const p = plan({ dialect, column: 'status', change: { newType: 'varchar(40)' } });
+    const p = large({ dialect, column: 'status', change: { newType: 'varchar(40)' } });
     expect(splitSqlStatements(sqlOf(p, title))).toHaveLength(count);
   });
 
-  it('SQL Server drop step is one statement per line, the default lookup included', () => {
-    const sql = sqlOf(plan({ dialect: 'sqlserver', column: 'status', change: { newType: 'varchar(40)' } }), /^Drop the old/);
-    expect(splitSqlStatements(sql)).toHaveLength(sql.split('\n').length);
+  it('SQL Server drop step is one batch in one transaction, so its index list lives through it', () => {
+    const sql = sqlOf(large({ dialect: 'sqlserver', column: 'status', change: { newType: 'varchar(40)' } }), /^Drop the old/);
+    expect(splitSqlStatements(sql)).toHaveLength(1);
+    expect(sql.startsWith('SET XACT_ABORT ON\nBEGIN TRANSACTION\n')).toBe(true);
+    expect(sql.endsWith('COMMIT TRANSACTION;')).toBe(true);
+  });
+
+  it('SQL Server large-table mode scripts its indexes from the catalog, on the new column and back', () => {
+    // Recreating from Fox's model lost a filtered index's filter (found live).
+    const p = large({ dialect: 'sqlserver', column: 'status', change: { newType: 'varchar(40)' } });
+    const constraints = sqlOf(p, /^Give the new column/);
+    expect(constraints).toContain("REPLACE(QUOTENAME(c.name), QUOTENAME(N'status'), QUOTENAME(N'status__new'))");
+    expect(constraints).toContain("REPLACE(i.filter_definition, QUOTENAME(N'status'), QUOTENAME(N'status__new'))");
+    expect(constraints).toContain("QUOTENAME(i.name + N'__new')");
+    expect(constraints).toMatch(/WHILE[^\n]*create_sql/);
+    expect(constraints).not.toContain('CREATE INDEX [orders_status_created__new]');
+    const drop = sqlOf(p, /^Drop the old/);
+    expect(drop).toContain("c.name = N'status__old')");
+    const at = (needle: string | RegExp) => (typeof needle === 'string' ? drop.indexOf(needle) : drop.search(needle));
+    expect(at(/WHILE[^\n]*drop_sql/)).toBeLessThan(at('DROP COLUMN [status__old]'));
+    expect(at('DROP COLUMN [status__old]')).toBeLessThan(at(/WHILE[^\n]*rename_sql/));
   });
 });
 
@@ -419,15 +437,16 @@ describe('planColumnChange: unique constraints and filtered indexes', () => {
 describe('planColumnChange: every registered dialect', () => {
   const dialects = Object.keys(COLUMN_CHANGE_MAP);
 
-  it.each(dialects)('%s generates a rename script', (dialect) => {
+  // DuckDB refuses a table with an index, as `orders` has; it has tests of its own.
+  it.each(dialects.filter((d) => d !== 'duckdb'))('%s generates a rename script', (dialect) => {
     const p = ok(plan({ dialect, column: 'status', change: { newName: 'state' } }));
     expect(p.steps).toHaveLength(1);
     expect(p.steps[0]!.sql.trim().length).toBeGreaterThan(10);
     expect(splitSqlStatements(p.steps[0]!.sql).length).toBeGreaterThan(0);
   });
 
-  it.each(dialects)('%s generates a type-change script with add, copy and finish SQL', (dialect) => {
-    const p = ok(plan({ dialect, column: 'status', change: { newType: 'varchar(40)' } }));
+  it.each(dialects.filter(columnChangeLargeTable))('%s generates a type-change script with add, copy and finish SQL', (dialect) => {
+    const p = ok(large({ dialect, column: 'status', change: { newType: 'varchar(40)' } }));
     expect(p.steps.filter((s) => s.phase === 'add').length).toBeGreaterThan(0);
     expect(p.steps.filter((s) => s.phase === 'copy').length).toBeGreaterThan(0);
     expect(p.steps.filter((s) => s.phase === 'finish').length).toBeGreaterThan(0);
@@ -438,14 +457,19 @@ describe('planColumnChange: every registered dialect', () => {
     expect(p.progress?.patchSql).toMatch(/UPDATE/i);
   });
 
-  it.each(['oracle', 'sqlite', 'redshift', 'db2', 'clickhouse', 'duckdb'] as const)(
-    '%s is refused as not yet',
-    (dialect) => {
-      const p = plan({ dialect, column: 'status', change: { newType: 'varchar(40)' } });
-      expect(p.ok).toBe(false);
-      expect(!p.ok && p.error).toMatch(/not available/i);
-    }
-  );
+  it.each(['mongodb', 'redis'] as const)('%s is refused as not yet', (dialect) => {
+    const p = plan({ dialect, column: 'status', change: { newType: 'varchar(40)' } });
+    expect(p.ok).toBe(false);
+    expect(!p.ok && p.error).toMatch(/not available/i);
+  });
+
+  it('offers large-table mode on the engines that have it, and refuses it elsewhere', () => {
+    expect(dialects.filter(columnChangeLargeTable).sort()).toEqual(
+      ['azuresql', 'cockroachdb', 'mariadb', 'mysql', 'postgres', 'sqlserver', 'tidb', 'yugabytedb']
+    );
+    const p = plan({ dialect: 'oracle', column: 'status', change: { newType: 'varchar2(40)' }, largeTable: true });
+    expect(!p.ok && p.error).toMatch(/Large-table mode is not available for Oracle/);
+  });
 });
 
 describe('columnReferenceLines', () => {
@@ -580,9 +604,352 @@ describe('impact.dependents', () => {
     expect(impact.dependents).toEqual([]);
   });
 
-  it('still lists dependents for a type change, with no renamed line', () => {
-    const { impact } = ok(plan({ column: 'status', change: { newType: 'varchar(40)' } }));
-    expect(impact.dependents.length).toBeGreaterThan(0);
-    for (const d of impact.dependents) for (const r of d.references) expect(r.renamed).toBeUndefined();
+  it('lists no lines for a type change alone: the one-line warnings name the objects', () => {
+    for (const largeTable of [false, true]) {
+      const p = ok(plan({ column: 'status', change: { newType: 'varchar(40)' }, largeTable }));
+      expect(p.impact.dependents).toEqual([]);
+      expect(p.impact.functions).toEqual(['orders_status_label']);
+      expect(p.impact.procedures).toEqual(['bump_order_status']);
+      expect(p.warnings.join('\n')).toMatch(/Functions that may use the column: orders_status_label/);
+      expect(p.warnings.join('\n')).toMatch(/Procedures that may use the column: bump_order_status/);
+    }
+  });
+
+  it('lists the lines when a type change renames too', () => {
+    const { impact } = ok(plan({ column: 'status', change: { newName: 'state', newType: 'varchar(40)' } }));
+    expect(impact.dependents.map((d) => d.name)).toContain('orders_status_label');
+    expect(impact.dependents.every((d) => d.references.every((r) => r.renamed !== undefined))).toBe(true);
+  });
+});
+
+describe('planColumnChange: a direct type change (the default)', () => {
+  it('is one in-place step by default, with no copy and no progress', () => {
+    const p = ok(plan({ column: 'status', change: { newType: 'varchar(40)' } }));
+    expect(p.mode).toBe('direct');
+    expect(p.progress).toBeUndefined();
+    expect(p.steps.map((s) => s.phase)).toEqual(['add']);
+    expect(p.steps[0]!.sql).toBe(
+      'ALTER TABLE "shop"."orders" ALTER COLUMN "status" TYPE varchar(40);'
+    );
+    expect(p.steps[0]!.note).toMatch(/default \('new'\) is converted too/);
+  });
+
+  it('spells out USING only when the kind of type changes', () => {
+    // An explicit USING made CockroachDB rewrite an indexed column it would
+    // otherwise only relabel, and refuse (found live).
+    expect(ok(plan({ column: 'total', change: { newType: 'numeric(14,2)' } })).steps[0]!.sql).toBe(
+      'ALTER TABLE "shop"."orders" ALTER COLUMN "total" TYPE numeric(14,2);'
+    );
+    expect(ok(plan({ column: 'customer_id', change: { newType: 'bigint' } })).steps[0]!.sql).toBe(
+      'ALTER TABLE "shop"."orders" ALTER COLUMN "customer_id" TYPE bigint;'
+    );
+    expect(ok(plan({ column: 'status', change: { newType: 'integer' } })).steps[0]!.sql).toBe(
+      'ALTER TABLE "shop"."orders" ALTER COLUMN "status" TYPE integer USING "status"::integer;'
+    );
+    expect(ok(plan({ dialect: 'cockroachdb', column: 'status', change: { newType: 'varchar(40)' } })).steps[0]!.sql).not.toContain('USING');
+  });
+
+  it('names the mode of each kind of change', () => {
+    expect(ok(plan({ column: 'status', change: { newName: 'state' } })).mode).toBe('rename');
+    expect(ok(plan({ column: 'status', change: { newType: 'text' }, largeTable: true })).mode).toBe('copy');
+  });
+
+  it('changes the type, then renames, when both change', () => {
+    const p = ok(plan({ column: 'status', change: { newName: 'state', newType: 'varchar(40)' } }));
+    expect(p.steps.map((s) => s.title)).toEqual(['Change status to varchar(40)', 'Rename status to state']);
+  });
+
+  it('turns on CockroachDB’s general type change first', () => {
+    const sql = ok(plan({ dialect: 'cockroachdb', column: 'status', change: { newType: 'text' } })).steps[0]!.sql;
+    expect(sql.split('\n')[0]).toBe('SET enable_experimental_alter_column_type_general = true;');
+    expect(splitSqlStatements(sql)).toHaveLength(2);
+  });
+
+  it('says PostgreSQL refuses while a view uses the column, in place of the plain view warning', () => {
+    const pg = ok(plan({ column: 'status', change: { newType: 'varchar(40)' } })).warnings.join('\n');
+    expect(pg).toMatch(/PostgreSQL refuses to change the type of a column a view uses\. If v_open_orders uses it, drop it first/);
+    expect(pg).not.toMatch(/Views that may use the column/);
+    // MySQL resolves a view when it is read, so the plain warning stays.
+    const my = ok(plan({ dialect: 'mysql', column: 'status', change: { newType: 'varchar(40)' } })).warnings.join('\n');
+    expect(my).toMatch(/Views that may use the column: v_open_orders/);
+    // Large-table mode keeps its own warnings.
+    expect(ok(large({ column: 'status', change: { newType: 'varchar(40)' } })).warnings.join('\n')).toMatch(/Views that may use/);
+  });
+
+  it('refuses an identity column, and needs no primary key', () => {
+    const ident = table('t', { columns: [col('n', 'integer', { identity: true })] });
+    const p = planColumnChange({ dialect: 'postgres', table: ident, tables: [ident], column: 'n', change: { newType: 'bigint' } });
+    expect(!p.ok && p.error).toMatch(/identity column is not covered yet/);
+  });
+
+  it('still refuses a foreign key whose other side would not match', () => {
+    const p = plan({ dialect: 'mysql', column: 'customer_id', change: { newType: 'bigint' } });
+    expect(!p.ok && p.error).toMatch(/both sides of a foreign key/);
+  });
+});
+
+describe('planColumnChange: the size warning', () => {
+  const sized = (estimatedRows?: number | null, sizeBytes?: number | null, largeTable = false) =>
+    ok(plan({ column: 'status', change: { newType: 'varchar(40)' }, estimatedRows, sizeBytes, largeTable })).warnings.join('\n');
+
+  it('warns on a table of a million rows or a gigabyte, and points at large-table mode', () => {
+    expect(sized(2_500_000, 300 * 1024 ** 2)).toMatch(/orders is large \(about 2\.5 million rows, 0\.3 GB\)\..*large-table mode/);
+    expect(sized(null, 3 * 1024 ** 3)).toMatch(/orders is large \(3\.0 GB\)/);
+  });
+
+  it('says nothing on a small table, an unknown size, or in large-table mode', () => {
+    expect(sized(999_999, 10 * 1024 ** 2)).not.toMatch(/is large/);
+    expect(sized(undefined, undefined)).not.toMatch(/is large/);
+    expect(sized(5_000_000, null, true)).not.toMatch(/is large/);
+  });
+
+  it('largeTableNote reads billions and terabytes', () => {
+    expect(largeTableNote('t', 3_200_000_000, 2 * 1024 ** 4)).toMatch(/about 3\.2 billion rows, 2\.0 TB/);
+    expect(largeTableNote('t', 10, 10)).toBeUndefined();
+  });
+});
+
+describe('planColumnChange: a direct type change on MySQL', () => {
+  const sqlFor = (over: Partial<ColumnChangeInput> = {}) =>
+    ok(plan({ dialect: 'mysql', column: 'status', change: { newType: 'varchar(40)' }, ...over })).steps[0]!.sql;
+
+  it('restates NOT NULL and the default, and keeps the comment read from the catalog', () => {
+    const sql = sqlFor();
+    expect(sql).toContain(
+      "SET @fox_col_sql = CONCAT('ALTER TABLE `shop`.`orders` MODIFY COLUMN `status` varchar(40) NOT NULL DEFAULT ''new'' COMMENT ', QUOTE(IFNULL(@fox_col_comment, '')));"
+    );
+    expect(sql).toContain("COLUMN_NAME = 'status'");
+    expect(splitSqlStatements(sql)).toHaveLength(5);
+  });
+
+  it('restates a collation only on a character type', () => {
+    const collated = table('orders', {
+      columns: [col('id', 'int', { primaryKey: true }), col('code', 'varchar(10)', { collation: 'utf8mb4_bin' })],
+      primaryKey: { columns: ['id'] },
+    });
+    const sqlOf2 = (newType: string) =>
+      ok(planColumnChange({ dialect: 'mysql', table: collated, tables: [collated], column: 'code', change: { newType } })).steps[0]!.sql;
+    expect(sqlOf2('varchar(20)')).toContain('varchar(20) NULL COLLATE utf8mb4_bin COMMENT');
+    expect(sqlOf2('int')).toContain('MODIFY COLUMN `code` int NULL COMMENT');
+  });
+
+  it('still keeps the comment on the new column in large-table mode', () => {
+    const sql = ok(large({ dialect: 'mysql', column: 'status', change: { newType: 'varchar(40)' } })).steps.map((s) => s.sql).join('\n');
+    expect(sql).toContain("CONCAT('ALTER TABLE `shop`.`orders` MODIFY COLUMN `status__new` varchar(40) NULL COMMENT ', QUOTE(");
+  });
+});
+
+describe('planColumnChange: a direct type change on SQL Server', () => {
+  const stepSql = (over: Partial<ColumnChangeInput> & Pick<ColumnChangeInput, 'column' | 'change'>) =>
+    ok(plan({ dialect: 'sqlserver', ...over })).steps[0]!.sql;
+  const lines = (sql: string) => sql.split('\n').map((l) => l.trim());
+
+  it('is one batch in one transaction, so a failure undoes the drops too', () => {
+    const sql = stepSql({ column: 'total', change: { newType: 'decimal(14,2)' } });
+    expect(lines(sql)[0]).toBe('SET XACT_ABORT ON');
+    expect(lines(sql)[1]).toBe('BEGIN TRANSACTION');
+    expect(lines(sql).at(-1)).toBe('COMMIT TRANSACTION;');
+    expect(lines(sql)).toContain('ALTER TABLE [shop].[orders] ALTER COLUMN [total] decimal(14,2) NULL');
+    // One statement, so drivers send it as one batch and the transaction holds.
+    expect(splitSqlStatements(sql)).toHaveLength(1);
+  });
+
+  it('scripts the indexes from the catalog as it runs, filters, includes and sort order with them', () => {
+    // Fox's index model has no filter or included columns: recreating from it
+    // turned a filtered unique index into an unfiltered one (found live).
+    const sql = stepSql({ column: 'total', change: { newType: 'decimal(14,2)' } });
+    expect(sql).toContain('DECLARE @fox_ix TABLE');
+    expect(sql).toContain("ISNULL(N' WHERE ' + i.filter_definition, N'')");
+    expect(sql).toContain("ISNULL(N' INCLUDE (' + inc.cols + N')', N'')");
+    expect(sql).toContain("CASE WHEN ic.is_descending_key = 1 THEN N' DESC'");
+    // Any index naming the column, key or included: an INCLUDE-only one blocks the ALTER too.
+    expect(sql).toMatch(/AND \(EXISTS \(SELECT 1 FROM sys\.index_columns AS ic[\s\S]*c\.name = N'total'\)/);
+  });
+
+  it('drops the indexes, then the default, changes the column, and puts them back in reverse', () => {
+    const all = lines(stepSql({ column: 'status', change: { newType: 'nvarchar(40)' } }));
+    const at = (re: RegExp) => all.findIndex((l) => re.test(l));
+    const dropIx = at(/^SET @fox_n = 1 WHILE .* drop_sql/);
+    const dropDefault = at(/^DECLARE @df sysname.*c\.name = N'status'/);
+    const alter = at(/^ALTER TABLE \[shop\]\.\[orders\] ALTER COLUMN \[status\] nvarchar\(40\) NOT NULL$/);
+    const addDefault = at(/^ALTER TABLE \[shop\]\.\[orders\] ADD DEFAULT 'new' FOR \[status\]$/);
+    const createIx = at(/^SET @fox_n = 1 WHILE .* create_sql/);
+    expect([dropIx, dropDefault, alter, addDefault, createIx].every((i) => i > 0)).toBe(true);
+    expect(dropIx < dropDefault && dropDefault < alter && alter < addDefault && addDefault < createIx).toBe(true);
+  });
+
+  it('drops a foreign key first and adds it back last', () => {
+    const t = table('orders', {
+      columns: [col('id', 'int', { primaryKey: true }), col('cid', 'int')],
+      primaryKey: { columns: ['id'] },
+      foreignKeys: [{ name: 'fk_cid', columns: ['cid'], referencedTable: 'customers', referencedColumns: ['id'] }],
+    });
+    const parent = table('customers', { columns: [col('id', 'bigint', { primaryKey: true })] });
+    const all = lines(
+      ok(
+        planColumnChange({ dialect: 'sqlserver', schema: 'dbo', table: t, tables: [t, parent], column: 'cid', change: { newType: 'bigint' } })
+      ).steps[0]!.sql
+    );
+    expect(all[2]).toBe('ALTER TABLE [dbo].[orders] DROP CONSTRAINT [fk_cid]');
+    expect(all.at(-2)).toBe(
+      'ALTER TABLE [dbo].[orders] ADD CONSTRAINT [fk_cid] FOREIGN KEY ([cid]) REFERENCES [dbo].[customers] ([id])'
+    );
+  });
+
+  it('restates a collation on a character type', () => {
+    const t = table('orders', {
+      columns: [col('id', 'int', { primaryKey: true }), col('code', 'varchar(10)', { collation: 'Latin1_General_BIN2' })],
+      primaryKey: { columns: ['id'] },
+    });
+    const sql = ok(planColumnChange({ dialect: 'sqlserver', table: t, tables: [t], column: 'code', change: { newType: 'varchar(20)' } })).steps[0]!.sql;
+    expect(sql).toContain('ALTER COLUMN [code] varchar(20) COLLATE Latin1_General_BIN2 NULL');
+  });
+});
+
+describe('planColumnChange: every registered dialect, direct', () => {
+  // SQLite has no in-place type change; its refusal has a test of its own.
+  it.each(Object.keys(COLUMN_CHANGE_MAP).filter((d) => d !== 'sqlite' && d !== 'duckdb'))('%s changes a type in place, in SQL that splits', (dialect) => {
+    const p = ok(plan({ dialect, column: 'status', change: { newType: 'varchar(40)' } }));
+    expect(p.mode).toBe('direct');
+    expect(p.steps.every((s) => s.phase === 'add')).toBe(true);
+    for (const step of p.steps) expect(splitSqlStatements(step.sql).length, `${dialect} ${step.title}`).toBeGreaterThan(0);
+  });
+});
+
+describe('planColumnChange: SQL Server filtered indexes in large-table mode', () => {
+  // SQL Server will not rename a column a filter names (found live): the
+  // switch-over failed with "one or more objects access this column".
+  const p = large({ dialect: 'sqlserver', column: 'status', change: { newName: 'state', newType: 'varchar(40)' } });
+
+  it('copies only unfiltered indexes ahead of the switch-over', () => {
+    expect(sqlOf(p, /^Give the new column/)).toContain('AND i.has_filter = 0');
+  });
+
+  it('moves the filtered ones inside the switch-over: dropped before the renames, rebuilt on the new name after', () => {
+    const sql = sqlOf(p, /^Switch/);
+    expect(sql).toContain('AND i.has_filter = 1');
+    expect(sql).toContain("REPLACE(i.filter_definition, QUOTENAME(N'status'), QUOTENAME(N'state'))");
+    const dropAt = sql.search(/WHILE[^\n]*drop_sql/);
+    const renameAt = sql.indexOf("EXEC sp_rename N'shop.orders.status', N'status__old', N'COLUMN'");
+    const createAt = sql.search(/WHILE[^\n]*create_sql/);
+    expect(dropAt).toBeGreaterThan(0);
+    expect(dropAt < renameAt && renameAt < createAt).toBe(true);
+    expect(splitSqlStatements(sql)).toHaveLength(1);
+  });
+
+  it('counts an index whose filter names the column even when it does not index it', () => {
+    expect(sqlOf(p, /^Switch/)).toContain("OR (i.has_filter = 1 AND CHARINDEX(QUOTENAME(N'status'), i.filter_definition) > 0)");
+    const direct = ok(plan({ dialect: 'sqlserver', column: 'total', change: { newType: 'decimal(14,2)' } })).steps[0]!.sql;
+    expect(direct).toContain("CHARINDEX(QUOTENAME(N'total'), i.filter_definition) > 0");
+  });
+});
+
+describe('planColumnChange: engines that change in place only', () => {
+  const step = (dialect: string, change: { newName?: string; newType?: string }, column = 'status', schema = 'shop') =>
+    ok(plan({ dialect, schema, column, change })).steps;
+
+  it('Oracle renames, and MODIFYs the type without restating NOT NULL', () => {
+    expect(step('oracle', { newName: 'state' }).map((s) => s.sql)).toEqual([
+      'ALTER TABLE "SHOP"."orders" RENAME COLUMN "status" TO "state";',
+    ]);
+    const typed = step('oracle', { newType: 'VARCHAR2(40)' });
+    expect(typed.map((s) => s.sql)).toEqual(['ALTER TABLE "SHOP"."orders" MODIFY ("status" VARCHAR2(40));']);
+    expect(typed[0]!.note).toMatch(/ORA-01439/);
+  });
+
+  it('Db2 sets the data type, then reorganises the table through ADMIN_CMD', () => {
+    expect(step('db2', { newType: 'VARCHAR(40)' }).map((s) => s.sql)).toEqual([
+      'ALTER TABLE "SHOP"."orders" ALTER COLUMN "status" SET DATA TYPE VARCHAR(40);',
+      `CALL SYSPROC.ADMIN_CMD('REORG TABLE "SHOP"."orders"');`,
+    ]);
+    expect(step('db2', { newName: 'state' })[0]!.sql).toBe('ALTER TABLE "SHOP"."orders" RENAME COLUMN "status" TO "state";');
+  });
+
+  it('SQLite renames, and refuses a type change with the reason', () => {
+    expect(step('sqlite', { newName: 'state' })[0]!.sql).toBe('ALTER TABLE "orders" RENAME COLUMN "status" TO "state";');
+    const p = plan({ dialect: 'sqlite', column: 'status', change: { newType: 'TEXT' } });
+    expect(!p.ok && p.error).toMatch(/SQLite cannot change a column’s type in place/);
+    // Renaming and retyping at once is refused whole, not half done.
+    expect(plan({ dialect: 'sqlite', column: 'status', change: { newName: 'state', newType: 'TEXT' } }).ok).toBe(false);
+  });
+
+  describe('DuckDB', () => {
+    const plain = table('orders', {
+      columns: [col('id', 'INTEGER', { primaryKey: true }), col('status', 'VARCHAR'), col('note', 'VARCHAR')],
+      primaryKey: { columns: ['id'] },
+    });
+    const duck = (t: TableSchema, change: { newName?: string; newType?: string }) =>
+      planColumnChange({ dialect: 'duckdb', schema: 'main', table: t, tables: [t], column: 'status', change });
+
+    it('changes the type in place with a USING cast, and renames', () => {
+      expect(ok(duck(plain, { newType: 'VARCHAR(40)' })).steps[0]!.sql).toBe(
+        'ALTER TABLE "main"."orders" ALTER COLUMN "status" TYPE VARCHAR(40) USING CAST("status" AS VARCHAR(40));'
+      );
+      expect(ok(duck(plain, { newName: 'state' })).steps[0]!.sql).toBe('ALTER TABLE "main"."orders" RENAME COLUMN "status" TO "state";');
+    });
+
+    it('refuses any change while the table has an index, on any column, naming it', () => {
+      // DuckDB: "Cannot alter entry … because there are entries that depend on it" (found live).
+      const indexed = { ...plain, indices: [{ name: 'orders_note_idx', columns: [], unique: false }] };
+      for (const change of [{ newName: 'state' }, { newType: 'VARCHAR(40)' }]) {
+        const p = duck(indexed, change);
+        expect(!p.ok && p.error).toMatch(/DuckDB will not change a column of orders while the table has an index \(orders_note_idx\)/);
+      }
+    });
+  });
+
+  it('Redshift lengthens a VARCHAR and refuses every other type change', () => {
+    expect(step('redshift', { newType: 'varchar(40)' })[0]!.sql).toBe(
+      'ALTER TABLE "shop"."orders" ALTER COLUMN "status" TYPE varchar(40);'
+    );
+    expect(step('redshift', { newType: 'varchar(max)' })).toHaveLength(1);
+    for (const newType of ['varchar(10)', 'integer', 'char(40)']) {
+      const p = plan({ dialect: 'redshift', column: 'status', change: { newType } });
+      expect(!p.ok && p.error, newType).toMatch(/only to make a VARCHAR longer/);
+    }
+    expect(step('redshift', { newName: 'state' })[0]!.sql).toBe('ALTER TABLE "shop"."orders" RENAME COLUMN "status" TO "state";');
+  });
+
+  describe('ClickHouse', () => {
+    const events = table('events', {
+      columns: [
+        col('id', 'UInt64', { nullable: false }),
+        col('ts', 'DateTime', { nullable: false }),
+        col('note', 'String', { nullable: true }),
+        col('qty', 'Int32', { nullable: false }),
+      ],
+      orderBy: ['ts', 'cityHash64(id)'],
+    });
+    const ch = (column: string, change: { newName?: string; newType?: string }) =>
+      planColumnChange({ dialect: 'clickhouse', schema: 'analytics', table: events, tables: [events], column, change });
+
+    it('modifies the type, keeping a nullable column Nullable', () => {
+      const p = ok(ch('note', { newType: 'LowCardinality(String)' }));
+      // Nullable goes inside LowCardinality, or every NULL fails to convert.
+      expect(p.steps[0]!.sql).toBe('ALTER TABLE `analytics`.`events` MODIFY COLUMN `note` LowCardinality(Nullable(String));');
+      expect(ok(ch('note', { newType: 'FixedString(8)' })).steps[0]!.sql).toBe(
+        'ALTER TABLE `analytics`.`events` MODIFY COLUMN `note` Nullable(FixedString(8));'
+      );
+      expect(ok(ch('qty', { newType: 'Int64' })).steps[0]!.sql).toBe('ALTER TABLE `analytics`.`events` MODIFY COLUMN `qty` Int64;');
+      expect(ok(ch('qty', { newName: 'quantity' })).steps[0]!.sql).toBe(
+        'ALTER TABLE `analytics`.`events` RENAME COLUMN `qty` TO `quantity`;'
+      );
+    });
+
+    it('refuses a column in the sorting key, by name or inside an expression, with its own reason', () => {
+      for (const p of [ch('ts', { newName: 'at' }), ch('id', { newType: 'UInt32' })]) {
+        expect(!p.ok && p.error).toMatch(/sorting key \(ORDER BY \/ PRIMARY KEY\), and ClickHouse will not rename it/);
+      }
+      // Even when Fox also marks it as the primary key: the engine's reason wins.
+      const keyed = { ...events, primaryKey: { columns: ['ts'] } };
+      const p = planColumnChange({ dialect: 'clickhouse', table: keyed, tables: [keyed], column: 'ts', change: { newName: 'at' } });
+      expect(!p.ok && p.error).toMatch(/ClickHouse will not rename it/);
+    });
+
+    it('reads ClickHouse types for the data-loss check', () => {
+      expect(ok(ch('qty', { newType: 'Int16' })).impact.lossy).toMatch(/Narrowing Int32 to Int16/);
+      expect(lossyConversion('Nullable(String)', 'Nullable(Int64)')).toMatch(/text \(Nullable\(String\)\) to a number/);
+      expect(lossyConversion('Int32', 'Int64')).toBeUndefined();
+    });
   });
 });

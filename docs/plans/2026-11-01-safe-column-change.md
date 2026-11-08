@@ -143,3 +143,115 @@ Live runs (seeded `demo_a.orders`, 11 rows, batches of 3), every step through
 | SQL Server | `status` nvarchar(20) → nvarchar(40), renamed `state` (NOT NULL, DEFAULT constraint, index) | All 7 steps, as above |
 
 The Utilities → Change Column screen shipped in #589.
+
+## Direct by default, copy as large-table mode (2026-11-08)
+
+The add-copy-switch plan is right for a big, busy table and too much for most.
+A type change is now **one in-place ALTER by default**; the copy plan above is
+**large-table mode**, a checkbox shown once a new type is typed in. Its batch
+size field only appears with it. A rename alone is unchanged.
+
+- **Direct steps per engine** (`alterTypeSteps` on each `ColumnChangeDialect`):
+  - PostgreSQL / YugabyteDB: `ALTER COLUMN … TYPE … USING col::type`. NOT NULL,
+    the default, the comment and indexes stay with the column. PostgreSQL
+    refuses while a view uses the column (`viewsBlockTypeChange`), so the plain
+    "views may use" warning becomes "drop it first and recreate after".
+  - CockroachDB: the same, after `SET enable_experimental_alter_column_type_general = true`.
+  - MySQL / MariaDB / TiDB: `MODIFY COLUMN`, which drops whatever it does not
+    restate, so it restates NOT NULL, the default and a character collation,
+    and keeps the comment by reading it from `information_schema` in a
+    prepared statement (the same trick the copy path uses for the new column).
+  - SQL Server / Azure SQL: `ALTER COLUMN` refuses while an index, a foreign
+    key or a default sits on the column, so the step is one batch in one
+    transaction: drop them, alter, put them back. The indexes are **scripted
+    from the catalog as it runs**: Fox's index model has no filter, included
+    columns or sort order, and recreating from it turned a filtered unique
+    index into an unfiltered one in the live run. The catalog script also finds
+    an index that only INCLUDEs the column, which the model misses and which
+    blocks the ALTER too. Fill factor, compression and partitioning are not
+    carried over.
+- **Kept:** the data-loss check (the lossy warning and its acknowledgement)
+  and the foreign-key-types check. **New:** a size warning from the catalog's
+  row estimate and size (`fetchTableInsight`): from 1 million rows or 1 GB,
+  the plan warns that the ALTER can rewrite the table and block writes, and
+  points at large-table mode. Unknown size, no warning.
+- **Only large-table mode** needs a primary key and free `__new` / `__old`
+  names. An identity column is still refused in both modes.
+- **A type change alone lists no line-by-line references.** Views, triggers,
+  functions and procedures that may use the column keep their one-line
+  warnings; the detailed lines (`impact.dependents`) are for a rename, where
+  stored SQL must say the new name.
+
+Live runs (2026-11-08), every step through Fox's own reader and splitter:
+
+| Engine | Change | Result |
+|---|---|---|
+| PostgreSQL 16 | `status` varchar(20) → varchar(40), `qty` int → bigint, `pid` int → bigint (foreign key) | One ALTER each; NOT NULL, default and comment kept. A view on the column made the ALTER fail, as the warning says |
+| MySQL 8 | `status` varchar(20) utf8mb4_bin → varchar(40), `qty` int → bigint | NOT NULL, default, collation and both comments kept |
+| SQL Server 2022 | `status` (default, DESC index with INCLUDE), `qty` (filtered unique index, included elsewhere), `note`, `extra` (only INCLUDEd) | All four changed; every index back with its sort order, includes and filter. `note` varchar → int with a value `'hi'` failed and rolled back whole, indexes intact |
+
+**Large-table mode on SQL Server, fixed the same day.** It too recreated
+indexes from the model (losing filters), and its switch-over could never pass a
+filtered index: **SQL Server will not `sp_rename` a column a filter names**
+("one or more objects access this column"), whether the column is indexed or
+only in the `WHERE`. Now the constraints step copies only unfiltered indexes,
+scripted from the catalog, as `<name>__new` on the new column. The switch-over
+batch moves the filtered ones: it drops them, renames both columns, and
+rebuilds them on the new column with the filter rewritten, all in one
+transaction. The drop step is one batch too: it drops the old column's
+indexes from the catalog, drops the column, and gives the `__new` ones their
+names back. An index counts when the column is a key, an INCLUDE or in its
+filter (`CHARINDEX(QUOTENAME(col), filter_definition)`), in both modes. Live,
+SQL Server 2022, with a DESC index with INCLUDE, a filtered unique index, a
+filter-only index (`ON (id) WHERE qty > 0`) and an INCLUDE-only column: all
+four changes ran in both modes, and every index came back under its own name,
+filter and options intact. A plain rename alone still hits the `sp_rename`
+rule; that belongs with the rename rewrite work.
+
+## Every SQL engine (2026-11-08)
+
+Rename Column now covers all 14 SQL dialects. The six added do the change in
+place only; large-table mode stays with the eight that have it, and the screen
+hides it elsewhere (`columnChangeLargeTable`). A dialect can refuse a change it
+cannot make, with its reason, before any SQL is shown (`refuse` on
+`ColumnChangeDialect`).
+
+| Engine | Rename | Type change |
+|---|---|---|
+| Oracle | `RENAME COLUMN` | `MODIFY (col type)`, no NULL clause (restating NOT NULL is ORA-01442). Lengths and precision only on a table with data (ORA-01439 across kinds, ORA-01441 below the longest value) |
+| Db2 | `RENAME COLUMN` | `SET DATA TYPE`, then `CALL SYSPROC.ADMIN_CMD('REORG TABLE …')`. Without it the next write fails with SQL0668N reason 7 (checked live) |
+| SQLite | `RENAME COLUMN`; SQLite rewrites the index, view and trigger that name it (checked live) | Refused: it needs a table rebuild, not covered yet |
+| DuckDB | `RENAME COLUMN` | `ALTER COLUMN … TYPE … USING CAST(…)`. Both refused while the table has **any** index: DuckDB will not alter it ("entries that depend on it"), and Fox's DuckDB index model has no columns to rebuild one from. A primary key does not count |
+| Redshift | `RENAME COLUMN` | Only lengthening a VARCHAR (`ALTER COLUMN … TYPE varchar(n)`); anything else refused with the reason |
+| ClickHouse | `RENAME COLUMN` | `MODIFY COLUMN`; a nullable column stays `Nullable(…)`, inside `LowCardinality(…)` when that is asked for. A sorting-key column is refused for both, with ClickHouse's reason ahead of the general primary-key one |
+
+Also from the live runs: the PostgreSQL family now writes `USING col::type`
+only when the kind of type changes (text to number). An explicit `USING` made
+CockroachDB rewrite an indexed column it would otherwise only relabel, and it
+refuses to rewrite one that is part of an index. The type-kind reading moved
+to `column-type-shape.ts`, and it now reads ClickHouse's `Int16`–`Int256`,
+`Float32/64` and its `Nullable(…)` / `LowCardinality(…)` wrappers for the
+data-loss check.
+
+Live runs, direct mode, through Fox's own reader, planner, splitter and drivers:
+
+| Engine | Result |
+|---|---|
+| SQLite (file) | Rename ran; the index, view and trigger were rewritten to the new name and kept working; a type change was refused |
+| DuckDB (file) | Two type changes and a rename ran, NOT NULL and defaults kept. With an index on the table, all three refused with the reason |
+| ClickHouse 24.8 | `Int32` → `Int64`, `LowCardinality(Nullable(String))`, a rename: defaults and comments kept. The sorting-key column refused |
+| Oracle 23 Free | Two `MODIFY`s and a rename, NOT NULL, default and comment kept; the index valid, the view marked invalid until next use |
+| Db2 | Three `SET DATA TYPE` + `REORG` and a rename; writes and the view work after. A `SET DATA TYPE` without the REORG left the table reorg-pending |
+| CockroachDB | Lengthened an indexed varchar in place (after the `USING` fix) and a rename |
+| MariaDB 11, TiDB 8.5 | `MODIFY` kept the collation, NOT NULL, default and comments; a rename |
+
+**Not run live:** Redshift (the local container is plain PostgreSQL, which
+proves nothing about Redshift) and YugabyteDB (its container never answered a
+query: the stale-masters problem in RUNNING_E2E.md, fixed by recreating its
+volume).
+
+Oracle, again after the volume was recreated (the old one carried timezone
+file v45, which the current image does not ship, so every `DROP` failed with
+ORA-01804): the same run passed and cleaned up after itself, and on a scratch
+table shortening below the longest value failed with ORA-01441 and a NUMBER to
+VARCHAR2 change with data with ORA-01439, as the step's note says.

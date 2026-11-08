@@ -8,8 +8,19 @@ vi.mock('@/shared/api/sqlApi', () => ({
   executeSql: (...args: unknown[]) => executeSql(...args),
 }));
 
+const fetchTableInsight = vi.hoisted(() => vi.fn());
+vi.mock('@/shared/api/schemaApi', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  fetchTableInsight: (...args: unknown[]) => fetchTableInsight(...args),
+}));
+
 vi.mock('@/features/compare', () => {
-  const state = { connections: [{ id: 'pg', name: 'Shop', dialect: 'postgres', schema: 'shop', hasPassword: true }] };
+  const state = {
+    connections: [
+      { id: 'pg', name: 'Shop', dialect: 'postgres', schema: 'shop', hasPassword: true },
+      { id: 'ora', name: 'Ledger', dialect: 'oracle', schema: 'shop', hasPassword: true },
+    ],
+  };
   const useSyncStore = (sel: (s: typeof state) => unknown) => sel(state);
   useSyncStore.getState = () => state;
   return { useSyncStore };
@@ -45,8 +56,13 @@ const pick = (testId: string, value: string) => fireEvent.change(screen.getByTes
 describe('ColumnChangePanel', () => {
   beforeEach(() => {
     executeSql.mockReset();
+    fetchTableInsight.mockReset();
+    fetchTableInsight.mockResolvedValue({ estimatedRows: 120, sizeBytes: 16384 });
     useSqlEditorStore.setState({
-      schemaCache: { pg: { status: 'ready', tables: [orders, statusFn] } },
+      schemaCache: {
+        pg: { status: 'ready', tables: [orders, statusFn] },
+        ora: { status: 'ready', tables: [orders] },
+      },
       ensureSchema: async () => undefined,
       ensureConnectionSelected: () => undefined,
     } as never);
@@ -59,6 +75,7 @@ describe('ColumnChangePanel', () => {
     pick('column-change-column', 'status');
     expect(screen.getByTestId('column-change-hint')).toBeTruthy();
     pick('column-change-new-type', 'varchar(40)');
+    fireEvent.click(screen.getByTestId('column-change-large-table'));
 
     expect(screen.getByTestId('column-change-impact').textContent).toContain('orders_status_idx');
     expect(screen.getByTestId('column-change-impact').textContent).toContain('orders_status_label');
@@ -110,6 +127,7 @@ describe('ColumnChangePanel', () => {
     pick('column-change-table', 'orders');
     pick('column-change-column', 'status');
     pick('column-change-new-type', 'varchar(40)');
+    fireEvent.click(screen.getByTestId('column-change-large-table'));
     fireEvent.click(screen.getByTestId('column-change-run-add'));
     await waitFor(() => expect(executeSql).toHaveBeenCalled());
     expect(executeSql.mock.calls[0]![0]).toMatchObject({ connectionId: 'pg' });
@@ -133,6 +151,7 @@ describe('ColumnChangePanel', () => {
     pick('column-change-table', 'orders');
     pick('column-change-column', 'status');
     pick('column-change-new-type', 'varchar(40)');
+    fireEvent.click(screen.getByTestId('column-change-large-table'));
     expect(screen.getByTestId('column-change-step-3').textContent).toContain('DO $fox_copy$');
     fireEvent.click(screen.getByTestId('column-change-run-copy'));
     await waitFor(() => expect(screen.getByTestId('column-change-progress').textContent).toMatch(/10/));
@@ -194,6 +213,7 @@ describe('ColumnChangePanel', () => {
     pick('column-change-table', 'orders');
     pick('column-change-column', 'status');
     pick('column-change-new-type', 'varchar(40)');
+    fireEvent.click(screen.getByTestId('column-change-large-table'));
     fireEvent.click(screen.getByTestId('column-change-run-all'));
     await waitFor(() => expect(screen.getByTestId('column-change-run-status').textContent).toMatch(/All parts finished/));
     const batches = executeSql.mock.calls.map((c) => (c[1] as string[]).join('\n'));
@@ -206,5 +226,87 @@ describe('ColumnChangePanel', () => {
     const dropAt = batches.findIndex((s) => s.includes('DROP COLUMN "status__old"'));
     expect(addAt).toBeGreaterThanOrEqual(0);
     expect(dropAt).toBeGreaterThan(addAt);
+  });
+
+  describe('a type change in place (the default)', () => {
+    const typeIn = (type: string) => {
+      render(<ColumnChangePanel lockedConnectionId="pg" />);
+      pick('column-change-table', 'orders');
+      pick('column-change-column', 'status');
+      pick('column-change-new-type', type);
+    };
+
+    it('is one ALTER, with no copy part and no batch size until large-table mode is on', () => {
+      typeIn('varchar(40)');
+      expect(screen.getByTestId('column-change-steps').textContent).toContain('Change in place (1 step)');
+      expect(screen.getByTestId('column-change-step-1').textContent).toContain(
+        'ALTER TABLE "shop"."orders" ALTER COLUMN "status" TYPE varchar(40);'
+      );
+      expect(screen.queryByTestId('column-change-part-copy')).toBeNull();
+      expect(screen.queryByTestId('column-change-batch')).toBeNull();
+      expect((screen.getByTestId('column-change-large-table') as HTMLInputElement).checked).toBe(false);
+
+      fireEvent.click(screen.getByTestId('column-change-large-table'));
+      expect(screen.getByTestId('column-change-part-copy')).toBeTruthy();
+      expect(screen.getByTestId('column-change-batch')).toBeTruthy();
+    });
+
+    it('offers large-table mode only for a type change', () => {
+      render(<ColumnChangePanel lockedConnectionId="pg" />);
+      pick('column-change-table', 'orders');
+      pick('column-change-column', 'status');
+      pick('column-change-new-name', 'state');
+      expect(screen.queryByTestId('column-change-large-table')).toBeNull();
+    });
+
+    it('shows no line-by-line references for a type change, only the one-line warnings', () => {
+      typeIn('varchar(40)');
+      expect(screen.queryByTestId('column-change-references')).toBeNull();
+      expect(screen.getByTestId('column-change-warnings').textContent).toContain(
+        'Functions that may use the column: orders_status_label'
+      );
+    });
+
+    it('warns on a large table, from the catalog estimate, and not in large-table mode', async () => {
+      fetchTableInsight.mockResolvedValue({ estimatedRows: 4_000_000, sizeBytes: 2 * 1024 ** 3 });
+      typeIn('varchar(40)');
+      await waitFor(() =>
+        expect(screen.getByTestId('column-change-warnings').textContent).toMatch(
+          /orders is large \(about 4\.0 million rows, 2\.0 GB\)/
+        )
+      );
+      expect(fetchTableInsight.mock.calls[0]).toEqual([{ connectionId: 'pg', password: undefined }, { table: 'orders', schema: 'shop' }]);
+      fireEvent.click(screen.getByTestId('column-change-large-table'));
+      expect(screen.getByTestId('column-change-warnings').textContent).not.toMatch(/is large/);
+    });
+
+    it('says nothing about size when the estimate cannot be read', async () => {
+      fetchTableInsight.mockRejectedValue(new Error('no stats'));
+      typeIn('varchar(40)');
+      await waitFor(() => expect(fetchTableInsight).toHaveBeenCalled());
+      expect(screen.getByTestId('column-change-warnings').textContent).not.toMatch(/is large/);
+    });
+
+    it('runs the ALTER against this connection and says the column changed', async () => {
+      useSqlEditorStore.setState({ safeMode: false } as never);
+      executeSql.mockResolvedValue({ results: [{ ok: true, columns: [], rows: [], rowCount: 0, truncated: false, durationMs: 1 }] });
+      typeIn('varchar(40)');
+      fireEvent.click(screen.getByTestId('column-change-run-all'));
+      await waitFor(() => expect(screen.getByTestId('column-change-run-status').textContent).toBe('Column changed.'));
+      expect(executeSql).toHaveBeenCalledTimes(1);
+      expect((executeSql.mock.calls[0]![1] as string[])[0]).toContain('ALTER COLUMN "status" TYPE varchar(40)');
+    });
+  });
+
+  it('changes the type in place on an engine without large-table mode, and does not offer it', () => {
+    render(<ColumnChangePanel lockedConnectionId="ora" />);
+    pick('column-change-table', 'orders');
+    pick('column-change-column', 'status');
+    pick('column-change-new-type', 'VARCHAR2(40)');
+    expect(screen.getByTestId('column-change-step-1').textContent).toContain(
+      'ALTER TABLE "SHOP"."orders" MODIFY ("status" VARCHAR2(40));'
+    );
+    expect(screen.queryByTestId('column-change-large-table')).toBeNull();
+    expect(screen.queryByTestId('column-change-batch')).toBeNull();
   });
 });

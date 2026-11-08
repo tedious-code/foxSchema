@@ -1,7 +1,8 @@
-export { DEFAULT_COLUMN_CHANGE_BATCH, COLUMN_CHANGE_PHASES, planColumnChange } from '@foxschema/ui-shared';
+export { DEFAULT_COLUMN_CHANGE_BATCH, COLUMN_CHANGE_PHASES, planColumnChange, columnChangeLargeTable } from '@foxschema/ui-shared';
 export type {
   ColumnChange,
   ColumnChangeImpact,
+  ColumnChangeMode,
   ColumnChangePlan,
   ColumnChangeStep,
   ColumnChangePhase,

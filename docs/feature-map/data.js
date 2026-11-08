@@ -1,5 +1,5 @@
 // Reference data: the inventory of what Fox Schema ships, measured from the
-// codebase on main 66575674 (2026-11-02). Mirrors docs/FEATURE_MAP.md.
+// codebase on main f39dca3ee1 (2026-11-08). Mirrors docs/FEATURE_MAP.md.
 // Work items are not here: they live in the page's shared store.
 const AREAS = [
   { id: 'platform', name: 'Platform' },
@@ -115,9 +115,9 @@ const FEATURES = [
     ui: 'Utils', api: 'through /api/sql/execute', code: 'web CloneTableModal', perms: 'utility.access, editor.ddl',
     tables: '—', tests: 'utilities e2e' },
   { id: 'utilities.columns', area: 'utilities', name: 'Rename column',
-    subs: ['Rename in place', 'Add nullable column', 'Copy loop with progress', 'Constraints, triggers, functions, procedures', 'What it touches', 'Lossy conversions', 'Copy SQL, Run, or Execute all'],
+    subs: ['Rename in place', 'Change type in place', 'Large table mode', 'Table size warning', 'All 14 SQL engines', 'Add nullable column', 'Copy loop with progress', 'Constraints, triggers, functions, procedures', 'What it touches', 'Lossy conversions', 'Copy SQL, Run, or Execute all'],
     ui: 'Utils', api: 'through /api/sql/execute', code: 'sql utilities/column-change, providers/*/*.column-change · web ColumnChangePanel', perms: 'utility.access, editor.dml',
-    tables: '—', tests: 'sql 87 · web 9 · live: PostgreSQL, MySQL, MariaDB, SQL Server, CockroachDB, TiDB, YugabyteDB' },
+    tables: '—', tests: 'sql 147 · web 25 · live: PostgreSQL, MySQL, MariaDB, SQL Server, CockroachDB, TiDB, YugabyteDB, Oracle, Db2, SQLite, DuckDB, ClickHouse' },
   { id: 'utilities.insights', area: 'utilities', name: 'Server insights',
     subs: ['Server insights', 'Table insight', 'Query files'],
     ui: 'Utils', api: '/api/schema/dba-utility, /api/schema/table-insight',
@@ -200,7 +200,7 @@ const ENGINES = {
   ],
 };
 
-// Routes per feature, from the 159 pinned in http-contract.test.ts.
+// Routes per feature: 163 pinned in http-contract.test.ts; this split was last counted at 159 (2026-11-02).
 const ROUTES = [
   ['platform.auth', 22], ['platform.workspaces', 21], ['platform.admin', 20], ['schema.git', 15],
   ['schema.snapshots', 11], ['editor.files', 11], ['platform.secrets', 9], ['platform.connections', 8],
@@ -210,8 +210,8 @@ const ROUTES = [
 
 // Unit-test files per package.
 const TESTS = [
-  ['apps/web', 180], ['packages/server', 107], ['packages/workflow-engine', 87], ['packages/sql', 87],
-  ['apps/cli', 25], ['packages/db', 26], ['apps/workflow-server', 19], ['packages/shared', 13],
+  ['apps/web', 189], ['packages/server', 111], ['packages/workflow-engine', 87], ['packages/sql', 89],
+  ['apps/cli', 25], ['packages/db', 28], ['apps/workflow-server', 19], ['packages/shared', 14],
   ['packages/workflow-contract', 1], ['packages/ui-shared', 1],
 ];
 

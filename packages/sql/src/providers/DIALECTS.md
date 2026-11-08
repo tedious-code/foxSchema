@@ -98,6 +98,7 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
 - Provider: `timestamp without/with time zone`, `character varying`, `bytea` mapping.
 
 ### SQL Server / Azure SQL (`sqlserver.sql-dialect.ts`; azure re-exports it)
+- **`sp_rename` and `ALTER COLUMN` are refused for a column a filtered index names** in its `WHERE` ("one or more objects access this column"), indexed or not. Fox's SQL Server index model has no filters; Rename Column scripts such indexes from `sys.indexes` when it runs.
 - `modifyColumnStatements` = `ALTER COLUMN`, must re-state nullability + `IDENTITY(1,1)`.
 - `dropIndexStatement` ⇒ `DROP INDEX name ON table`.
 - `dropTriggerStatement` ⇒ `DROP TRIGGER IF EXISTS schema.name`.
@@ -139,6 +140,7 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
 - `dropForeignKeyStatement` ⇒ `ALTER TABLE t DROP FOREIGN KEY name` (no `IF EXISTS`).
 
 ### SQLite (`sqlite.sql-dialect.ts`)
+- `RENAME COLUMN` (3.25+) rewrites the indexes, views and triggers that name the column itself (Rename Column relies on this, checked live).
 - No `ALTER COLUMN` for type/nullability, no `ALTER` default, no `DROP PRIMARY KEY`
   ⇒ those hooks emit `-- review:` comments (table must be recreated), never invalid SQL.
 - `dropIndexStatement` / `dropTriggerStatement` ⇒ `IF EXISTS`, bare name (global namespace).
@@ -150,6 +152,7 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
 - `IDENTITY(seed,step)` on the column. `dropIndex/Trigger` Postgres-style with `IF EXISTS`.
 
 ### ClickHouse (`clickhouse.sql-dialect.ts`)
+- A sorting-key column cannot be renamed or retyped. `MODIFY COLUMN` keeps the default and comment; a nullable column must stay `Nullable(T)` — `LowCardinality(Nullable(T))` for dictionary encoding — or its NULLs fail to convert.
 - `nullableTypeWrapper` ⇒ `Nullable(T)`; generator skips `NULL`/`NOT NULL` keywords.
 - **No table-level `PRIMARY KEY` constraint.** ClickHouse only allows `CHECK` /
   `ASSUME` inside the column list; `CONSTRAINT PRIMARY_KEY PRIMARY KEY (id)` is
@@ -177,6 +180,7 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
   Transaction checkbox off and disabled.
 
 ### Wire-compatible variants — CockroachDB / YugabyteDB / TiDB
+- **CockroachDB `ALTER COLUMN … TYPE`:** an explicit `USING` forces a column rewrite, and a rewrite is refused for a column in an index ("not supported for columns that are part of an index"). Without `USING`, lengthening a string is a metadata change. General conversions need `SET enable_experimental_alter_column_type_general = true`.
 - **CockroachDB** (`cockroachDb/`) and **YugabyteDB** (`yugabyteDb/`) are PostgreSQL
   wire/catalog compatible: their `.sql-dialect.ts` **re-exports `postgresSqlDialect`**,
   their provider **subclasses `PostgresProvider`** (only `provider` id differs), and
@@ -189,6 +193,7 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
   or a standalone `.sql-dialect.ts` only when a real divergence surfaces.
 
 ### DuckDB (`duckDb/duckdb.sql-dialect.ts`, full provider)
+- **Any index on a table blocks every `ALTER` on it** — a rename of an unrelated column included ("Cannot alter entry … entries that depend on it"). A primary key does not. `duckdb_indexes()` is read without its columns, so an index cannot be rebuilt from the model; Rename Column refuses and names the indexes.
 - Embedded (file path connection, like SQLite) but schema-aware with Postgres-
   flavored SQL. Introspects via `information_schema` + `duckdb_constraints()` /
   `duckdb_indexes()` / `duckdb_views()` / `duckdb_sequences()` / `duckdb_types()`.

@@ -61,6 +61,20 @@ export function mysqlFamilyColumnChange(options: { triggers: boolean; atomicSwit
   return {
     triggers: options.triggers,
     foreignKeyTypesMustMatch: true,
+    viewsBlockTypeChange: false,
+
+    alterTypeSteps: (ctx) => [
+      {
+        phase: 'add',
+        title: `Change ${ctx.column.name} to ${ctx.targetType}`,
+        rerunSafe: true,
+        sql: mysqlModifyKeepingComment(ctx, ctx.column.name, mysqlRestated(ctx)),
+        note:
+          'MODIFY restates the whole column, so its NOT NULL, default, collation and comment are carried over. ' +
+          'Most type changes copy the table and block writes while they run; lengthening a varchar is often instant. ' +
+          'Run with strict SQL mode (the default) so a value that does not fit stops it instead of being cut or stored as 0.',
+      },
+    ],
 
     renameSteps: (ctx) => [
       {
@@ -211,18 +225,36 @@ export function mysqlFamilyColumnChange(options: { triggers: boolean; atomicSwit
 const mysqlLit = (value: string) => value.replace(/'/g, "''");
 const mysqlWord = (name: string) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-function mysqlCopyComment(ctx: ColumnChangeContext): string {
+/**
+ * `MODIFY COLUMN <target> <definition> COMMENT <the column's comment>`, with the
+ * comment read from the catalog when it runs. A MODIFY drops what it does not
+ * restate, and the comment is not in the schema Fox holds.
+ */
+function mysqlModifyKeepingComment(ctx: ColumnChangeContext, target: string, definition: string): string {
   const schema = ctx.schema || '';
   const schemaPred = schema
     ? `TABLE_SCHEMA = '${mysqlLit(schema)}'`
     : 'TABLE_SCHEMA = DATABASE()';
+  const head = mysqlLit(`ALTER TABLE ${table(ctx)} MODIFY COLUMN ${q(target)} ${definition} COMMENT `);
   return [
     `SET @fox_col_comment = (SELECT COLUMN_COMMENT FROM information_schema.COLUMNS WHERE ${schemaPred} AND TABLE_NAME = '${mysqlLit(ctx.table)}' AND COLUMN_NAME = '${mysqlLit(ctx.column.name)}');`,
-    `SET @fox_col_sql = CONCAT('ALTER TABLE ${table(ctx)} MODIFY COLUMN ${q(ctx.newColumn)} ${ctx.targetType.replace(/'/g, "''")} NULL COMMENT ', QUOTE(IFNULL(@fox_col_comment, '')));`,
+    `SET @fox_col_sql = CONCAT('${head}', QUOTE(IFNULL(@fox_col_comment, '')));`,
     'PREPARE fox_col_stmt FROM @fox_col_sql;',
     'EXECUTE fox_col_stmt;',
     'DEALLOCATE PREPARE fox_col_stmt;',
   ].join('\n');
+}
+
+function mysqlCopyComment(ctx: ColumnChangeContext): string {
+  return mysqlModifyKeepingComment(ctx, ctx.newColumn, `${ctx.targetType} NULL`);
+}
+
+/** The column as MODIFY must restate it under the new type: nullability, default and collation. */
+function mysqlRestated(ctx: ColumnChangeContext): string {
+  const parts = [ctx.targetType, ctx.column.nullable ? 'NULL' : 'NOT NULL'];
+  if (ctx.column.defaultValue) parts.push(`DEFAULT ${ctx.column.defaultValue}`);
+  if (ctx.column.collation && /char|text/i.test(ctx.targetType)) parts.push(`COLLATE ${ctx.column.collation}`);
+  return parts.join(' ');
 }
 
 function mysqlRebuildTriggers(ctx: ColumnChangeContext): ColumnChangeStep | undefined {

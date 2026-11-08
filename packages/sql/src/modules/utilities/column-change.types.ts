@@ -23,9 +23,25 @@ export interface ColumnChangeInput {
   tables: TableSchema[];
   column: string;
   change: ColumnChange;
-  /** Rows per copy batch. Default 10,000. */
+  /**
+   * Large-table mode: change the type through a new column, a batched copy and
+   * a switch-over, so the table stays writable. Off by default: one in-place
+   * ALTER is simpler, and fine for small and medium tables.
+   */
+  largeTable?: boolean;
+  /** Rows per copy batch, in large-table mode. Default 10,000. */
   batchSize?: number;
+  /** The catalog's row estimate, for the size warning. Unknown when left out. */
+  estimatedRows?: number | null;
+  /** Table plus indexes in bytes, as the catalog reports it, for the size warning. */
+  sizeBytes?: number | null;
 }
+
+/**
+ * How the change is made: a rename alone in place, a type change by one
+ * in-place ALTER, or a type change through a new column and a copy.
+ */
+export type ColumnChangeMode = 'rename' | 'direct' | 'copy';
 
 export interface InboundForeignKey {
   table: string;
@@ -80,7 +96,8 @@ export interface ColumnChangeImpact {
    * The same views, functions, procedures and triggers, with the lines that
    * name the column. The name lists above stay as they are — the warnings and
    * the summary read them — and this carries what a reader needs to act.
-   * Empty for an object whose definition the catalog did not give us.
+   * Empty for an object whose definition the catalog did not give us, and
+   * empty unless the column is renamed: a type change alone needs no lines.
    */
   dependents: ColumnDependent[];
   /** Why the type change can lose data or fail on some values, when it can. */
@@ -110,10 +127,11 @@ export interface ColumnChangeStep {
 export type ColumnChangePlan =
   | {
       ok: true;
+      mode: ColumnChangeMode;
       impact: ColumnChangeImpact;
       steps: ColumnChangeStep[];
       warnings: string[];
-      /** Present for a type change: COUNT(*) and rows still to copy. */
+      /** Present in large-table mode: COUNT(*) and rows still to copy. */
       progress?: ColumnChangeProgressSql;
     }
   | { ok: false; error: string; impact?: ColumnChangeImpact };
@@ -134,6 +152,13 @@ export interface ColumnChangeContext {
   outboundForeignKeys: ForeignKeyInfo[];
   /** Table triggers whose definition mentions the column. */
   triggers: TriggerInfo[];
+  /**
+   * The table's sorting key (ClickHouse ORDER BY), as names or the engine's own
+   * expressions. Empty elsewhere. An engine may refuse to touch a column in it.
+   */
+  sortingKey: string[];
+  /** Every index on the table, not only those on the column (DuckDB will not alter a table that has one). */
+  tableIndexes: IndexInfo[];
   batchSize: number;
   typeChanged: boolean;
 }
@@ -141,10 +166,25 @@ export interface ColumnChangeContext {
 export interface ColumnChangeDialect {
   /** Steps for a rename alone: the engine renames in place, instantly. */
   renameSteps(ctx: ColumnChangeContext): ColumnChangeStep[];
-  /** Steps for a type change (with or without a rename): new column, copy, switch over. */
-  rebuildSteps(ctx: ColumnChangeContext): ColumnChangeStep[];
-  /** COUNT(*) and rows still waiting to copy, for the copy-part progress. */
-  progressSql(ctx: ColumnChangeContext): ColumnChangeProgressSql;
+  /**
+   * Steps for a type change in place: one ALTER, plus whatever the engine needs
+   * around it (SQL Server drops and recreates the indexes, keys and default on
+   * the column). A rename with it is added after, from `renameSteps`.
+   */
+  alterTypeSteps(ctx: ColumnChangeContext): ColumnChangeStep[];
+  /**
+   * Steps for a type change in large-table mode: new column, copy, switch over.
+   * Absent where the engine has no such mode here; the screen then hides it.
+   */
+  rebuildSteps?(ctx: ColumnChangeContext): ColumnChangeStep[];
+  /** COUNT(*) and rows still waiting to copy, for the copy-part progress. With `rebuildSteps`. */
+  progressSql?(ctx: ColumnChangeContext): ColumnChangeProgressSql;
+  /**
+   * Why the engine cannot make this change, or undefined when it can: SQLite
+   * has no in-place type change, Redshift only lengthens a VARCHAR, ClickHouse
+   * will not touch a sorting-key column. Asked once the change is known.
+   */
+  refuse?(ctx: ColumnChangeContext, change: { renamed: boolean; typeChanged: boolean }): string | undefined;
   /** Whether the engine can keep the new column in step with a trigger during the copy. */
   triggers: boolean;
   /**
@@ -152,4 +192,9 @@ export interface ColumnChangeDialect {
    * Server). PostgreSQL only needs comparable types, so int8 may reference int4.
    */
   foreignKeyTypesMustMatch: boolean;
+  /**
+   * Whether the engine refuses an in-place type change on a column a view uses
+   * (PostgreSQL and its family), so the view must be dropped and recreated.
+   */
+  viewsBlockTypeChange: boolean;
 }

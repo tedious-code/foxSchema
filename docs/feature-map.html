@@ -238,17 +238,17 @@ td.no { color: var(--muted); }
   <div class="wrap">
     <div class="titlerow">
       <h1>Fox <span>Feature Map</span></h1>
-      <div class="stamp">Measured on <code>main</code> · <code>b12bcd5607</code> · 2026-10-31 · mirrors <code>docs/FEATURE_MAP.md</code></div>
+      <div class="stamp">Measured on <code>main</code> · <code>f39dca3ee1</code> · 2026-11-08, with Rename Column from <code>feat/column-change-direct-alter</code> · mirrors <code>docs/FEATURE_MAP.md</code></div>
     </div>
     <ul class="stats" aria-label="Inventory">
       <li><b>35</b> features</li>
-      <li><b>158</b> HTTP routes</li>
+      <li><b>163</b> HTTP routes</li>
       <li><b>18</b> server modules</li>
       <li><b>14</b> web features</li>
       <li><b>16</b> engines</li>
       <li><b>28</b> metadata tables</li>
-      <li><b>57</b> e2e specs</li>
-      <li><b>~550</b> unit-test files</li>
+      <li><b>58</b> e2e specs</li>
+      <li><b>~560</b> unit-test files</li>
     </ul>
     <nav class="tabs" role="tablist" aria-label="Views">
       <button role="tab" id="tab-plan" data-tab="plan" aria-selected="true">Plan</button>
@@ -307,7 +307,7 @@ td.no { color: var(--muted); }
   end
   subgraph server["Fox server — packages/server (Fastify)"]
     PLAT["platform&lt;br/&gt;identity · RBAC · workspaces&lt;br/&gt;connections · guards"]
-    FEAT["18 feature modules&lt;br/&gt;159 routes"]
+    FEAT["18 feature modules&lt;br/&gt;163 routes"]
   end
   WFS["Workflow server :8081&lt;br/&gt;apps/workflow-server&lt;br/&gt;+ packages/workflow-engine"]
   META[("Metadata store&lt;br/&gt;SQLite · 28 tables")]
@@ -653,7 +653,7 @@ td.no { color: var(--muted); }
       </div>
       <div class="section">
         <h3>End-to-end suites</h3>
-        <p class="lede">57 Playwright specs in 35 groups, run with <code>npm run test:e2e:all</code>. Dialect suites need their Docker container and a fresh seed.</p>
+        <p class="lede">58 Playwright specs in 35 groups, run with <code>npm run test:e2e:all</code>. Dialect suites need their Docker container and a fresh seed.</p>
         <div class="areas" id="e2e-groups"></div>
       </div>
     </section>
@@ -666,7 +666,7 @@ td.no { color: var(--muted); }
 
 <script>
 // Reference data: the inventory of what Fox Schema ships, measured from the
-// codebase on main 66575674 (2026-11-02). Mirrors docs/FEATURE_MAP.md.
+// codebase on main f39dca3ee1 (2026-11-08). Mirrors docs/FEATURE_MAP.md.
 // Work items are not here: they live in the page's shared store.
 const AREAS = [
   { id: 'platform', name: 'Platform' },
@@ -782,9 +782,9 @@ const FEATURES = [
     ui: 'Utils', api: 'through /api/sql/execute', code: 'web CloneTableModal', perms: 'utility.access, editor.ddl',
     tables: '—', tests: 'utilities e2e' },
   { id: 'utilities.columns', area: 'utilities', name: 'Rename column',
-    subs: ['Rename in place', 'Add nullable column', 'Copy loop with progress', 'Constraints, triggers, functions, procedures', 'What it touches', 'Lossy conversions', 'Copy SQL, Run, or Execute all'],
+    subs: ['Rename in place', 'Change type in place', 'Large table mode', 'Table size warning', 'All 14 SQL engines', 'Add nullable column', 'Copy loop with progress', 'Constraints, triggers, functions, procedures', 'What it touches', 'Lossy conversions', 'Copy SQL, Run, or Execute all'],
     ui: 'Utils', api: 'through /api/sql/execute', code: 'sql utilities/column-change, providers/*/*.column-change · web ColumnChangePanel', perms: 'utility.access, editor.dml',
-    tables: '—', tests: 'sql 87 · web 9 · live: PostgreSQL, MySQL, MariaDB, SQL Server, CockroachDB, TiDB, YugabyteDB' },
+    tables: '—', tests: 'sql 147 · web 25 · live: PostgreSQL, MySQL, MariaDB, SQL Server, CockroachDB, TiDB, YugabyteDB, Oracle, Db2, SQLite, DuckDB, ClickHouse' },
   { id: 'utilities.insights', area: 'utilities', name: 'Server insights',
     subs: ['Server insights', 'Table insight', 'Query files'],
     ui: 'Utils', api: '/api/schema/dba-utility, /api/schema/table-insight',
@@ -867,7 +867,7 @@ const ENGINES = {
   ],
 };
 
-// Routes per feature, from the 159 pinned in http-contract.test.ts.
+// Routes per feature: 163 pinned in http-contract.test.ts; this split was last counted at 159 (2026-11-02).
 const ROUTES = [
   ['platform.auth', 22], ['platform.workspaces', 21], ['platform.admin', 20], ['schema.git', 15],
   ['schema.snapshots', 11], ['editor.files', 11], ['platform.secrets', 9], ['platform.connections', 8],
@@ -877,8 +877,8 @@ const ROUTES = [
 
 // Unit-test files per package.
 const TESTS = [
-  ['apps/web', 180], ['packages/server', 107], ['packages/workflow-engine', 87], ['packages/sql', 87],
-  ['apps/cli', 25], ['packages/db', 26], ['apps/workflow-server', 19], ['packages/shared', 13],
+  ['apps/web', 189], ['packages/server', 111], ['packages/workflow-engine', 87], ['packages/sql', 89],
+  ['apps/cli', 25], ['packages/db', 28], ['apps/workflow-server', 19], ['packages/shared', 14],
   ['packages/workflow-contract', 1], ['packages/ui-shared', 1],
 ];
 
@@ -1548,7 +1548,7 @@ for (const [id, name, dir, e2e, watch] of DIALECTS) {
     );
   }
   function renderCoverage() {
-    barChart('chart-routes', 'HTTP routes by feature', '153 routes pinned by http-contract.test.ts', ROUTES, 'Feature');
+    barChart('chart-routes', 'HTTP routes by feature', '163 routes pinned by http-contract.test.ts; the split per feature was counted at 159', ROUTES, 'Feature');
     barChart('chart-tests', 'Unit-test files by package', 'Files named *.test.ts(x), excluding e2e', TESTS, 'Package');
     const g = $('#e2e-groups');
     for (const name of E2E_GROUPS) g.append(h('span', { class: 'tag' }, name));

@@ -16,7 +16,9 @@ apps/e2e
 
 # Development-only infra (the 6 test databases + their seed assets).
 docker
-scripts
+# scripts/ stays in the context (272 KB): packages/shared tests import
+# scripts/bundle, scripts/feature-map and scripts/test-ids, and the web build's
+# typecheck fails without them (TS2307). The runtime stage never copies it.
 
 # VCS / CI / editor / local env.
 .git

@@ -6,4 +6,6 @@ export type {
   ColumnChangeStep,
   ColumnChangePhase,
   ColumnChangeProgressSql,
+  ColumnDependent,
+  ColumnReferenceLine,
 } from '@foxschema/ui-shared';

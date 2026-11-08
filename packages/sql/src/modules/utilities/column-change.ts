@@ -22,6 +22,8 @@ import type {
   ColumnChangeInput,
   ColumnChangePhase,
   ColumnChangePlan,
+  ColumnDependent,
+  ColumnReferenceLine,
 } from './column-change.types.js';
 
 export const DEFAULT_COLUMN_CHANGE_BATCH = 10_000;
@@ -48,8 +50,54 @@ const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 const engineName = (dialect: string) => PROVIDER_SETTINGS[dialect.toLowerCase()]?.label ?? dialect;
 const has = (cols: readonly string[], name: string) => cols.some((c) => same(c, name));
 const normType = (type: string) => type.trim().replace(/\s+/g, ' ').toLowerCase();
+const escapeWord = (word: string) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const wordIn = (text: string, word: string) =>
-  new RegExp(`(^|[^A-Za-z0-9_])${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^A-Za-z0-9_]|$)`, 'i').test(text);
+  new RegExp(`(^|[^A-Za-z0-9_])${escapeWord(word)}([^A-Za-z0-9_]|$)`, 'i').test(text);
+
+/**
+ * Every whole-word occurrence of `word`, as a fresh matcher.
+ *
+ * Lookarounds rather than the boundary groups `wordIn` uses: a consuming group
+ * would swallow the character between two adjacent occurrences and report one
+ * of them, and these offsets are what the UI highlights.
+ */
+const wordMatcher = (word: string) =>
+  new RegExp(`(?<![A-Za-z0-9_])${escapeWord(word)}(?![A-Za-z0-9_])`, 'gi');
+
+/**
+ * The lines of `definition` that name `column`, with where on each line it sits
+ * and, when renaming, the line as it would read afterwards.
+ *
+ * A text match, like the rest of this impact: a name inside a string literal or
+ * a comment counts. That errs towards showing a reader a line they can dismiss
+ * rather than hiding one they needed.
+ */
+export function columnReferenceLines(
+  definition: string,
+  column: string,
+  newName?: string
+): ColumnReferenceLine[] {
+  if (!definition || !column) return [];
+  const out: ColumnReferenceLine[] = [];
+  const lines = definition.split(/\r\n|\r|\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const text = lines[i]!.replace(/\s+$/, '');
+    const matcher = wordMatcher(column);
+    const matches: Array<{ start: number; end: number }> = [];
+    for (let m = matcher.exec(text); m !== null; m = matcher.exec(text)) {
+      matches.push({ start: m.index, end: m.index + m[0].length });
+    }
+    if (matches.length === 0) continue;
+    const renamed =
+      newName && newName !== column
+        ? // Right to left, so an earlier replacement cannot move a later offset.
+          matches.reduceRight((acc, { start, end }) => acc.slice(0, start) + newName + acc.slice(end), text)
+        : undefined;
+    out.push({ line: i + 1, text, matches, ...(renamed === undefined ? {} : { renamed }) });
+  }
+  return out;
+}
 
 export function planColumnChange(input: ColumnChangeInput): ColumnChangePlan {
   const dialect = resolveColumnChange(input.dialect);
@@ -159,16 +207,18 @@ function findImpact(input: ColumnChangeInput, column: ColumnInfo, newType: strin
         )
         .map((foreignKey) => ({ table: t.name, foreignKey }))
     );
-  const namedIn = (objectType: TableSchema['objectType']) =>
-    input.tables
-      .filter(
-        (t) =>
-          t.objectType === objectType &&
-          t.definition &&
-          wordIn(t.definition, table.name) &&
-          wordIn(t.definition, name)
-      )
-      .map((t) => t.name);
+  // One filter feeds both the name lists and `dependents`, so they cannot drift.
+  const matchingIn = (objectType: TableSchema['objectType']) =>
+    input.tables.filter(
+      (t) =>
+        t.objectType === objectType &&
+        t.definition &&
+        wordIn(t.definition, table.name) &&
+        wordIn(t.definition, name)
+    );
+  const matchedViews = matchingIn('VIEW');
+  const matchedFunctions = matchingIn('FUNCTION');
+  const matchedProcedures = matchingIn('PROCEDURE');
   const indexes = (table.indices ?? []).filter(
     (i) => has(i.columns, name) || (i.filter ? wordIn(i.filter, name) : false)
   );
@@ -180,9 +230,26 @@ function findImpact(input: ColumnChangeInput, column: ColumnInfo, newType: strin
     ...onTable,
     ...extraTriggers.filter((t) => !onTable.some((x) => same(x.name, t.name))),
   ];
-  const views = namedIn('VIEW');
-  const functions = namedIn('FUNCTION');
-  const procedures = namedIn('PROCEDURE');
+  const views = matchedViews.map((t) => t.name);
+  const functions = matchedFunctions.map((t) => t.name);
+  const procedures = matchedProcedures.map((t) => t.name);
+  const newName = input.change.newName?.trim();
+  const dependent = (
+    objectType: ColumnDependent['objectType'],
+    objName: string,
+    definition: string | undefined
+  ): ColumnDependent[] => {
+    const references = columnReferenceLines(definition ?? '', name, newName);
+    if (references.length === 0) return [];
+    return [{ name: objName, objectType, definition: definition ?? '', references }];
+  };
+  const dependents: ColumnDependent[] = [
+    ...matchedViews.flatMap((t) => dependent('VIEW', t.name, t.definition)),
+    ...matchedFunctions.flatMap((t) => dependent('FUNCTION', t.name, t.definition)),
+    ...matchedProcedures.flatMap((t) => dependent('PROCEDURE', t.name, t.definition)),
+    ...triggers.flatMap((t) => dependent('TRIGGER', t.name, t.definition)),
+  ];
+
   return {
     inPrimaryKey,
     indexes,
@@ -192,6 +259,7 @@ function findImpact(input: ColumnChangeInput, column: ColumnInfo, newType: strin
     views,
     functions,
     procedures,
+    dependents,
     lossy: newType ? lossyConversion(column.type, newType) : undefined,
   };
 }

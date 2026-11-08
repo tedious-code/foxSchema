@@ -165,6 +165,7 @@ export type {
   TableInsightTarget,
 } from './modules/utilities/table-insight.js';
 export {
+  columnReferenceLines,
   planColumnChange,
   lossyConversion,
   DEFAULT_COLUMN_CHANGE_BATCH,
@@ -179,6 +180,8 @@ export type {
   ColumnChangeStep,
   ColumnChangePhase,
   ColumnChangeProgressSql,
+  ColumnDependent,
+  ColumnReferenceLine,
   InboundForeignKey,
 } from './modules/utilities/column-change.types.js';
 export {

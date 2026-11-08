@@ -3038,6 +3038,20 @@ export const TestIds = {
       /** ul */
       columnChangeWarnings: 'column-change-warnings',
     },
+    ColumnReferences: {
+      /** section · Where is named — in */
+      columnChangeReferences: 'column-change-references',
+      /** article */
+      columnRefs: (toLowerCase: string | number, name: string | number) => `column-refs-${toLowerCase}-${name}`,
+      /** span */
+      columnRefsAfter: (toLowerCase: string | number, name: string | number, line: string | number) => `column-refs-${toLowerCase}-${name}-after-${line}`,
+      /** pre */
+      columnRefsDefinition: (toLowerCase: string | number, name: string | number) => `column-refs-${toLowerCase}-${name}-definition`,
+      /** ul */
+      columnRefsLines: (toLowerCase: string | number, name: string | number) => `column-refs-${toLowerCase}-${name}-lines`,
+      /** button */
+      columnRefsToggle: (toLowerCase: string | number, name: string | number) => `column-refs-${toLowerCase}-${name}-toggle`,
+    },
     DatabaseAccessModal: {
       /** div */
       dbAccessAllForm: 'db-access-all-form',
@@ -4177,6 +4191,7 @@ export type TestId =
   | `column-change-part-${string}-copy`
   | 'column-change-password'
   | 'column-change-progress'
+  | 'column-change-references'
   | 'column-change-refused'
   | `column-change-run-${string}`
   | 'column-change-run-all'
@@ -4188,6 +4203,11 @@ export type TestId =
   | 'column-change-table'
   | 'column-change-unlock'
   | 'column-change-warnings'
+  | `column-refs-${string}-${string}`
+  | `column-refs-${string}-${string}-after-${string}`
+  | `column-refs-${string}-${string}-definition`
+  | `column-refs-${string}-${string}-lines`
+  | `column-refs-${string}-${string}-toggle`
   | 'command-palette'
   | 'command-palette-btn'
   | 'command-palette-input'

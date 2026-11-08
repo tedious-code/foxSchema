@@ -32,6 +32,34 @@ export interface InboundForeignKey {
   foreignKey: ForeignKeyInfo;
 }
 
+/**
+ * One line of a dependent object's definition that names the column.
+ *
+ * The engine renames a column; it does not rewrite the SQL inside a view or a
+ * routine that reads it. Naming the object is not enough to act on — somebody
+ * then has to find the lines — so the lines come with it.
+ */
+export interface ColumnReferenceLine {
+  /** 1-based, the way an editor numbers it. */
+  line: number;
+  /** The line as written, without its trailing whitespace. */
+  text: string;
+  /** Where the name sits in `text`, as [start, end) pairs, for highlighting. */
+  matches: Array<{ start: number; end: number }>;
+  /** `text` with every match replaced by the new name. Absent unless renaming. */
+  renamed?: string;
+}
+
+/** A view, routine or trigger whose definition names the column. */
+export interface ColumnDependent {
+  name: string;
+  objectType: 'VIEW' | 'FUNCTION' | 'PROCEDURE' | 'TRIGGER';
+  /** The definition as the catalog gave it, for a read-only editor. */
+  definition: string;
+  /** The lines that name the column, in the order they appear. */
+  references: ColumnReferenceLine[];
+}
+
 /** What the change touches, from the schema Fox already reads. */
 export interface ColumnChangeImpact {
   inPrimaryKey: boolean;
@@ -48,6 +76,13 @@ export interface ColumnChangeImpact {
   functions: string[];
   /** Procedures whose definition mentions the table and column. */
   procedures: string[];
+  /**
+   * The same views, functions, procedures and triggers, with the lines that
+   * name the column. The name lists above stay as they are — the warnings and
+   * the summary read them — and this carries what a reader needs to act.
+   * Empty for an object whose definition the catalog did not give us.
+   */
+  dependents: ColumnDependent[];
   /** Why the type change can lose data or fail on some values, when it can. */
   lossy?: string;
 }

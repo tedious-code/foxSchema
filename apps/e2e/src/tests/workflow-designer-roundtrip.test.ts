@@ -18,6 +18,7 @@ import { buildDriver, clickWhen, quitDriver, waitFor } from '../helpers/driver.j
 import { byTestId } from '../helpers/test-ids.js';
 import { AppPage } from '../pages/AppPage.js';
 import { WorkflowPage } from '../pages/WorkflowPage.js';
+import { WORKFLOW_ON_RAIL } from '../helpers/features.js';
 
 const ENGINE = 'http://127.0.0.1:8081/api';
 const ID = 'e2e-designer-carry';
@@ -80,7 +81,8 @@ afterAll(async () => {
   }
 });
 
-describe('workflow designer round trip', () => {
+// Workflow is off the rail for 0.3.1, so the view cannot be opened; see WORKFLOW_ON_RAIL.
+describe.skipIf(!WORKFLOW_ON_RAIL)('workflow designer round trip', () => {
   it('keeps every field it does not edit through a load and a save', async (ctx) => {
     if (!engineUp) ctx.skip();
     await new AppPage(driver).open();

@@ -27,6 +27,7 @@ import {
 import { splitSqlStatements } from '@/shared/lib/sql-splitter';
 import { needsSessionPassword } from '@/shared/lib/provider-settings';
 import { sectionLabelCls } from '@/shared/components/surfaces';
+import { ColumnReferences } from './ColumnReferences';
 import type { TableSchema } from '@/shared/lib/types';
 
 interface Props {
@@ -501,6 +502,8 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
                 0 && <li className="text-slate-500">No index, key, view, trigger, function or procedure uses it.</li>}
             </ul>
           </section>
+
+          <ColumnReferences dependents={plan.impact.dependents} column={columnName} />
 
           {conversionWarning && (
             <div

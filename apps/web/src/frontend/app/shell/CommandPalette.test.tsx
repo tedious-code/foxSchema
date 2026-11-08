@@ -95,7 +95,8 @@ describe('CommandPalette', () => {
     const ids = screen
       .getAllByTestId(/^command-palette-item-ws-/)
       .map((el) => el.getAttribute('data-testid')!.replace('command-palette-item-', ''));
-    expect(ids).toEqual(['ws-home', 'ws-sync', 'ws-sqlEditor', 'ws-utilities', 'ws-access', 'ws-workflow', 'ws-snapshots', 'ws-settings']);
+    // No 'ws-workflow': held back for 0.3.1 (NAV_FLAGS.workflow === false).
+    expect(ids).toEqual(['ws-home', 'ws-sync', 'ws-sqlEditor', 'ws-utilities', 'ws-access', 'ws-snapshots', 'ws-settings']);
     expect(screen.getByTestId('command-palette-item-ws-sqlEditor').textContent).toContain('SQL Editor');
     expect(screen.getByTestId('command-palette-item-ws-utilities').textContent).toContain('Utilities');
   });

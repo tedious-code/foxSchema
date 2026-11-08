@@ -175,6 +175,8 @@ export type {
   ColumnChangeStep,
   ColumnChangePhase,
   ColumnChangeProgressSql,
+  ColumnDependent,
+  ColumnReferenceLine,
 } from '@foxschema/sql';
 
 // SQL Tracer: shapes and bounds (the server redacts; the screen only shows).

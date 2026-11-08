@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ColumnInfo, TableSchema } from '../../interfaces/schema.interface.js';
 import { splitSqlStatements } from '../sql-text/sql-splitter.js';
-import { lossyConversion, planColumnChange } from './column-change.js';
+import { columnReferenceLines, lossyConversion, planColumnChange } from './column-change.js';
 import { COLUMN_CHANGE_MAP } from './column-change.registry.js';
 import type { ColumnChangeInput, ColumnChangePlan } from './column-change.types.js';
 
@@ -446,4 +446,143 @@ describe('planColumnChange: every registered dialect', () => {
       expect(!p.ok && p.error).toMatch(/not available/i);
     }
   );
+});
+
+describe('columnReferenceLines', () => {
+  const def = [
+    'CREATE VIEW v_open_orders AS',
+    'SELECT o.id, o.status, c.name',
+    'FROM orders o',
+    "WHERE o.status = 'open'   -- status matters",
+    '  AND o.statuses IS NULL',
+  ].join('\n');
+
+  it('gives the 1-based line, the text, and where the name sits', () => {
+    const refs = columnReferenceLines(def, 'status');
+    expect(refs.map((r) => r.line)).toEqual([2, 4]);
+    expect(refs[0]!.text).toBe('SELECT o.id, o.status, c.name');
+    expect(refs[0]!.matches).toEqual([{ start: 15, end: 21 }]);
+    // Every occurrence on the line, so highlighting does not miss one.
+    expect(refs[1]!.matches).toEqual([
+      { start: 8, end: 14 },
+      { start: 29, end: 35 },
+    ]);
+  });
+
+  it('matches whole words only', () => {
+    // `statuses` and `status_id` are different columns.
+    const refs = columnReferenceLines('SELECT statuses, status_id, status FROM t', 'status');
+    expect(refs).toHaveLength(1);
+    expect(refs[0]!.matches).toEqual([{ start: 28, end: 34 }]);
+  });
+
+  it('shows the line as it would read after the rename', () => {
+    const refs = columnReferenceLines(def, 'status', 'order_status');
+    expect(refs[0]!.renamed).toBe('SELECT o.id, o.order_status, c.name');
+    // Two matches on one line, both replaced, offsets still correct.
+    expect(refs[1]!.renamed).toBe("WHERE o.order_status = 'open'   -- order_status matters");
+  });
+
+  it('leaves `renamed` off when the name is not changing', () => {
+    expect(columnReferenceLines(def, 'status')[0]!.renamed).toBeUndefined();
+    expect(columnReferenceLines(def, 'status', 'status')[0]!.renamed).toBeUndefined();
+  });
+
+  it('handles CRLF, a missing definition and a name that needs escaping', () => {
+    expect(columnReferenceLines('SELECT a\r\nFROM t WHERE a = 1', 'a').map((r) => r.line)).toEqual([1, 2]);
+    expect(columnReferenceLines('', 'status')).toEqual([]);
+    expect(columnReferenceLines('SELECT x FROM t', '')).toEqual([]);
+    // A regex metacharacter in a column name must not become a pattern.
+    expect(columnReferenceLines('SELECT "a.b" FROM t', 'a.b')).toHaveLength(1);
+    expect(columnReferenceLines('SELECT axb FROM t', 'a.b')).toEqual([]);
+  });
+
+  it('trims trailing whitespace but keeps indentation', () => {
+    const refs = columnReferenceLines('  SELECT status   ', 'status');
+    expect(refs[0]!.text).toBe('  SELECT status');
+  });
+
+  it('quotes a new name that needs it, the way the dialect does', () => {
+    // The plan's own ALTER quotes `order status`; the line we show has to too,
+    // or it is invalid SQL presented as what the view needs to say.
+    expect(columnReferenceLines('SELECT status FROM t', 'status', 'order status', 'postgres')[0]!.renamed).toBe(
+      'SELECT "order status" FROM t'
+    );
+    expect(columnReferenceLines('SELECT status FROM t', 'status', 'order status', 'mysql')[0]!.renamed).toBe(
+      'SELECT `order status` FROM t'
+    );
+    expect(columnReferenceLines('SELECT status FROM t', 'status', 'order status', 'mssql')[0]!.renamed).toBe(
+      'SELECT [order status] FROM t'
+    );
+  });
+
+  it('leaves an ordinary rename exactly as it reads', () => {
+    // A plain name needs no quotes in any dialect, so nothing moves.
+    for (const dialect of ['postgres', 'mysql', 'mssql', 'oracle']) {
+      expect(columnReferenceLines('SELECT status FROM t', 'status', 'order_status', dialect)[0]!.renamed).toBe(
+        'SELECT order_status FROM t'
+      );
+    }
+  });
+
+  it('does not quote twice where the definition already quotes the name', () => {
+    const quoted = (definition: string, dialect: string) =>
+      columnReferenceLines(definition, 'status', 'order status', dialect)[0]!.renamed;
+    expect(quoted('SELECT "status" FROM t', 'postgres')).toBe('SELECT "order status" FROM t');
+    expect(quoted('SELECT `status` FROM t', 'mysql')).toBe('SELECT `order status` FROM t');
+    expect(quoted('SELECT [status] FROM t', 'mssql')).toBe('SELECT [order status] FROM t');
+    // The quote character the definition used, inside the new name, is escaped.
+    expect(columnReferenceLines('SELECT "status" FROM t', 'status', 'or"der', 'postgres')[0]!.renamed).toBe(
+      'SELECT "or""der" FROM t'
+    );
+  });
+});
+
+describe('impact.dependents', () => {
+  it('carries the referencing lines for each view, routine and trigger', () => {
+    const { impact } = ok(plan({ column: 'status', change: { newName: 'order_status' } }));
+    const byName = new Map(impact.dependents.map((d) => [d.name, d]));
+
+    // Same objects the name lists report, so the two cannot drift.
+    expect([...byName.keys()].sort()).toEqual(
+      [...impact.views, ...impact.functions, ...impact.procedures, ...impact.triggers.map((t) => t.name)].sort()
+    );
+
+    const view = byName.get('v_open_orders')!;
+    expect(view.objectType).toBe('VIEW');
+    expect(view.definition).toContain('FROM orders');
+    expect(view.references.length).toBeGreaterThan(0);
+    for (const r of view.references) {
+      expect(r.text.toLowerCase()).toContain('status');
+      expect(r.renamed).toContain('order_status');
+    }
+
+    const trigger = byName.get('orders_audit')!;
+    expect(trigger.objectType).toBe('TRIGGER');
+    expect(trigger.references[0]!.renamed).toContain('NEW.order_status');
+  });
+
+  it('quotes the new name in the dependent lines the way the plan does', () => {
+    for (const [dialect, expected] of [
+      ['postgres', 'SELECT id, "order status" FROM orders WHERE "order status" <> \'done\''],
+      ['mysql', 'SELECT id, `order status` FROM orders WHERE `order status` <> \'done\''],
+    ] as const) {
+      const { impact, steps } = ok(plan({ dialect, column: 'status', change: { newName: 'order status' } }));
+      const view = impact.dependents.find((d) => d.name === 'v_open_orders')!;
+      expect(view.references[0]!.renamed).toBe(expected);
+      // The same quoting the engine's own rename step uses.
+      expect(steps[0]!.sql).toContain(expected.includes('`') ? '`order status`' : '"order status"');
+    }
+  });
+
+  it('is empty when nothing depends on the column', () => {
+    const { impact } = ok(plan({ column: 'total', change: { newName: 'order_total' } }));
+    expect(impact.dependents).toEqual([]);
+  });
+
+  it('still lists dependents for a type change, with no renamed line', () => {
+    const { impact } = ok(plan({ column: 'status', change: { newType: 'varchar(40)' } }));
+    expect(impact.dependents.length).toBeGreaterThan(0);
+    for (const d of impact.dependents) for (const r of d.references) expect(r.renamed).toBeUndefined();
+  });
 });

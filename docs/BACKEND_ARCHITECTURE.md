@@ -142,6 +142,14 @@ Every query emits one structured line: `component`, `operation`, `engine`,
 are the user's data. `target` is `host:port/database` — never the connection
 string, which carries the password.
 
+**Driver-load errors shown in the UI do not include install paths.**
+`packages/db/src/cores/driver-loader.ts` (`driverLoadReason`,
+`redactInstallPaths`) strips Node's Require stack and absolute
+`node_modules` paths from a missing-driver or ENOENT / dlopen message. The
+browser sees the package-relative file (`@clickhouse/client/dist/index.js`)
+or the filename, never `/Users/…/foxSchema/node_modules/…`. Action responses
+for install / update / remove also omit `cwd` and raw npm output.
+
 **Failures are logged at `debug`, not `error`** — the Fastify error boundary
 logs the failure once. Logging at each layer turns one failure into four lines.
 

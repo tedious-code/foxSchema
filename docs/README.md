@@ -74,7 +74,7 @@ Finished or in-progress design notes. Do not treat them as the map of the code. 
 | Feature review test plan | [plans/2026-10-06-review-features-test-plan.md](plans/2026-10-06-review-features-test-plan.md) |
 | Feature and dialect test plan, and its first results | [plans/2026-10-25-feature-and-dialect-test-plan.md](plans/2026-10-25-feature-and-dialect-test-plan.md), [plans/2026-10-26-feature-and-dialect-test-results.md](plans/2026-10-26-feature-and-dialect-test-results.md) |
 | Service status on Home (status shipped; start/stop later) | [plans/2026-11-01-service-status.md](plans/2026-11-01-service-status.md) |
-| Safe column change: plan and SQL for review (planner + Utils screen shipped) | [plans/2026-11-01-safe-column-change.md](plans/2026-11-01-safe-column-change.md) |
+| Safe column change: plan and SQL for review (planner, Utils screen, in-place default, all 14 SQL engines) | [plans/2026-11-01-safe-column-change.md](plans/2026-11-01-safe-column-change.md) |
 
 ## Releases
 

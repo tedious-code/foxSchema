@@ -42,6 +42,14 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
   (`isBareIdentifier`), which is why ordinary names are emitted exactly as before.
   `ident()` is idempotent, so pre-quoting a name before handing it to a dialect hook
   is safe — that is how ADD COLUMN and CREATE INDEX are fixed for all 14 at once.
+  Matching the delimiters alone is **not** enough to treat a name as already
+  quoted: a hostile catalog name that *looks* wrapped (`"a"); DROP TABLE t; --"`)
+  is sent through the dialect quoter, not emitted verbatim
+  (`isWellFormedQuotedIdentifier`). Line breaks in a name are flattened to
+  spaces (`flattenIdentifier`) — they cannot be escaped inside quotes and they
+  end a `--` review note, leaving the rest of the name as a statement. Dialect
+  hooks that write their own `-- review:` notes should not put a raw catalog
+  name into a comment; `keepCommentCommented` is the backstop.
 - **Column names in a diff**: `ColumnDiff.name` is the uppercased match key, exactly
   like `tableName`. Use `source?.name ?? target?.name` for DDL, or you rename the
   user's `new col` to `NEW COL`.
@@ -164,6 +172,12 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
   When the logical PK is a prefix of a longer `orderBy`, ClickHouse also gets
   `PRIMARY KEY id` on the engine clause (not inside the column list). A captured
   `engine` (e.g. `ReplacingMergeTree`) is used as-is; no key → `ORDER BY tuple()`.
+  **ORDER BY / PRIMARY KEY identifiers are quoted** (`ident`) unless they came
+  from `system.tables.sorting_key` (`orderByFromCatalog: true`) — that value is
+  already valid SQL (expressions, `tuple()`, a name ClickHouse quoted itself)
+  and must stay verbatim. An unmarked key is a column name from
+  `system.columns.is_in_sorting_key` and must not reach the ENGINE clause raw
+  (a name containing `)` would close the clause and append DDL).
 - Changing PK / ENGINE / ORDER BY in place is impossible — `dropPrimaryKeyStatements`,
   `addPrimaryKeyStatements`, and `engineChangeStatements` emit `-- review:` to
   recreate the table, never `ALTER TABLE … ADD PRIMARY KEY`.
@@ -225,6 +239,11 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
    backup is ever run (from the panel, after confirmation); add `history` when
    the engine records its backups, so the panel can list them and restore one.
    Restores are never run. Commands must not contain a password.
+   Rename Column: `<name>.column-change.ts` in
+   `modules/utilities/column-change.registry.ts`. Implement `alterTypeSteps`
+   (in-place default) and, if the engine can, `rebuildSteps` + `progressSql`
+   (large-table mode). A change it cannot make is `refuse`, not SQL that
+   fails there. Omit the engine to answer "not yet".
 5. Say how the engine lexes SQL in `modules/sql-text/sql-readings.ts`: its
    comments, quotes, escapes and name characters, and every reading a server
    setting can switch it to. The permission gate classifies each statement

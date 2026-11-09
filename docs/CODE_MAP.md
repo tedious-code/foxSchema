@@ -97,13 +97,13 @@ modules/     One folder per domain, named to match the frontend feature
 | Folder | What it covers |
 |---|---|
 | `dialect` | The `SqlDialect` contract, the registry, type mapping, capability flags |
-| `sql-text` | Shared tokenizer (`sql-tokens.ts`), per-dialect readings (`sql-readings.ts`), statement splitting, and SQL templating. Classifiers (`sqlStatementCategories`, …) take the destination dialect and ask every way it can lex the text. Code fences that reach the database are `--` comments. |
+| `sql-text` | Shared tokenizer (`sql-tokens.ts`), per-dialect readings (`sql-readings.ts`), statement splitting, and SQL templating. Classifiers (`sqlStatementCategories`, …) take the destination dialect and ask every way it can lex the text. Code fences that reach the database are `--` comments. CREATE / ALTER FUNCTION, PROCEDURE and TRIGGER bodies stay one statement (inner `;` do not split). |
 | `schema-diff` | Comparing two schemas, and browsing one. `normalizeDefinitionText` is shared with Lokee |
 | `migrations` | Generating DDL, ordering drops, validating a plan |
 | `lokee-weave` | Content-addressed schema versioning and revert |
 | `sql-editor` | FoxScript parsing, code cells, SELECT aliasing, the fail-closed SQL subset Redis and MongoDB run (`sql-subset.ts`) |
 | `access` | Permission intent, effective access, GRANT/REVOKE and account DDL (facades; emitters live in `providers/<dialect>`) |
-| `utilities` | DBA queries: server insights, index fragmentation (`isSafeIndexFragmentationCustomSql`: one read-only SELECT; Db2 defrag is `providers/db2/db2.index-fragmentation.ts`), backup/restore command builders, SQL Tracer, safe column change (`planColumnChange` in `column-change.ts`; per-family SQL in `providers/<d>/*.column-change.ts`, registered in `column-change.registry.ts` — engines not listed answer "not yet") |
+| `utilities` | DBA queries: server insights, index fragmentation (`isSafeIndexFragmentationCustomSql`: one read-only SELECT; Db2 defrag is `providers/db2/db2.index-fragmentation.ts`), backup/restore command builders, SQL Tracer, safe column change (`planColumnChange` in `column-change.ts`; per-engine SQL in `providers/<d>/*.column-change.ts`, registered in `column-change.registry.ts` — all 14 SQL engines; omit one to answer "not yet"). A type change is `alterTypeSteps` in place by default; large-table mode is `rebuildSteps` + `progressSql` (`columnChangeLargeTable`). |
 
 `dialect` and `sql-text` are the foundations: the other folders build on
 them, never the reverse.
@@ -207,8 +207,11 @@ app/         The application shell and settings screens. Home's Services card
   features/    The view registry: `featureRegistry.ts` (each view's rail
                button, who may see it, where
                someone goes who may not, what it adds to the top toolbar,
-               and its lazy entry). App.tsx, the toolbar, the activity rail
-               and prefetch all read it.
+               and its lazy entry). `NAV_FLAGS.workflow` is `false` in 0.3.1:
+               Workflow is off the rail and the command palette, and a stored
+               `activeView` for it is sent Home (`redirectFor`). The view and
+               `/api/workflow` stay; set the flag `true` to put it back.
+               App.tsx, the toolbar, the activity rail and prefetch all read it.
 features/    One folder per business domain. The files at its root are its
              public API; its folders (components/, state/, lib/, api/) are
              internal.
@@ -291,7 +294,7 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | Calling an API endpoint | use `api` from `@/shared/api/client` — never `fetch` directly |
 | SQL for permissions or accounts | `packages/sql/src/modules/access/` (facade) + `packages/sql/src/providers/<dialect>/*.user-sql.ts` / `*.access-sql.ts`. Db2 OS-user docker steps: `buildDb2OsUserInstructions`. |
 | Backup / restore commands for an engine | `packages/sql/src/providers/<dialect>/*.backup.ts` registered in `modules/utilities/backup.registry.ts`. Saved folder/format defaults: `packages/server/src/features/backup/`. |
-| Safe column-change SQL for an engine | `packages/sql/src/providers/<dialect>/*.column-change.ts` registered in `modules/utilities/column-change.registry.ts`. The facade (`planColumnChange`) finds impact, blockers, and lossy type-conversion warnings; omit the engine to answer "not yet" rather than guessed SQL. The panel is `apps/web/.../ColumnChangePanel.tsx`; Run / Execute all go through `POST /api/sql/execute`. |
+| Safe column-change SQL for an engine | `packages/sql/src/providers/<dialect>/*.column-change.ts` registered in `modules/utilities/column-change.registry.ts`. The facade (`planColumnChange`) finds impact, blockers, and lossy type-conversion warnings; omit the engine to answer "not yet" rather than guessed SQL. Implement `alterTypeSteps` (in-place default) and optionally `rebuildSteps` + `progressSql` (large-table mode). A change the engine cannot make is `refuse`. The panel is `apps/web/.../ColumnChangePanel.tsx`; Run / Execute all go through `POST /api/sql/execute`. |
 | Home Services / engine reachability | `packages/server/src/features/system/service-status.ts` (`GET /api/system/services`). Types in `packages/shared/src/service-status.ts`. The card is `apps/web/.../app/shell/ServiceStatusCard.tsx`. |
 | Home Drivers inventory | `packages/server/src/features/system/drivers.service.ts` (`GET /api/system/drivers`, install/update/remove). Types in `packages/shared/src/driver-inventory.ts`. The card is `apps/web/.../app/shell/DriverInventoryCard.tsx`. |
 | A dialect capability the app must branch on | `packages/sql/src/modules/capabilities/` (`dialect-features.ts`) and `packages/sql/src/modules/dialect/` |

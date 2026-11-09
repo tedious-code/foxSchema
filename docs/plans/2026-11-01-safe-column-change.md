@@ -1,14 +1,17 @@
 # Safe column change: plan and SQL for review
 
-> **Shipped 2026-11-02:** the planner (#588) and Utilities → **Change Column**
-> (#589). Living docs: [user-guide.md](../user-guide.md#utilities),
+> **Shipped.** Planner (#588), Utilities → **Rename Column** (#589), Run /
+> Execute all (#595), in-place type change as the default (#600), and all 14
+> SQL engines (2026-11-08). Living docs: [user-guide.md](../user-guide.md#utilities),
 > [FEATURE_MAP.md](../FEATURE_MAP.md) (`utilities.columns`),
-> [CODE_MAP.md](../CODE_MAP.md). The “Next: the screen” line at the bottom is
-> done. Running the steps from the app is still v2.
+> [CODE_MAP.md](../CODE_MAP.md), [ARCHITECTURE.md](../ARCHITECTURE.md).
+> The “Fox runs nothing” / “engines in v1” lines below are history; the
+> current behaviour is **Direct by default** and **Every SQL engine**.
 
-Board card: `safe-column-change`, new feature id `utilities.columns`. Decided
+Board card: `safe-column-change`, feature id `utilities.columns`. Decided
 on 2026-11-01: v1 shows what a change touches and generates the SQL to
-review, copy or open in the editor. Fox runs nothing itself in v1.
+review, copy or open in the editor. Run / Execute all and in-place type
+change shipped afterwards; this page keeps the original plan for history.
 
 ## Why
 

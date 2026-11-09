@@ -77,12 +77,25 @@ stored, so nothing expires or leaks, and account 2FA does not block CI the way
 it blocks a granular token.
 
 Registered once on npmjs.com (package `foxschema` → Trusted Publisher →
-repository `tedious-code/foxschema`, workflow `npm-publish.yml`). The entry
-pins the workflow **filename** — renaming `npm-publish.yml` breaks publishing
-until the entry is updated. `ship-release.yml` publishes the same package and
-needs its own entry.
+repository `tedious-code/foxschema`, workflow `npm-publish.yml`, GitHub
+environment **`npm-publish`**). The job must run in that environment
+(`environment: npm-publish` in the workflow): npm only accepts the OIDC token
+from it. Without that line `npm publish` fails with `ENEEDAUTH` (v0.3.1,
+2026-11-08). The entry pins the workflow **filename** and that environment
+name — renaming either breaks publishing until the Trusted Publisher entry is
+updated. `ship-release.yml` publishes the same package and needs its own
+entry.
 
-Requires npm >= 11.5.1; the workflows install npm 11 before publishing.
+Requires npm >= 11.5.1; the workflows install npm 11 before publishing. The
+publish step uses `--loglevel verbose` so a refused OIDC exchange says why.
+
+### Docker build context
+
+`.dockerignore` **keeps `scripts/`** in the image build context.
+`packages/shared` tests import `scripts/bundle`, `scripts/feature-map` and
+`scripts/test-ids`, so excluding the folder fails the web build's typecheck
+inside the image (`TS2307`) and the Docker release never ships. The runtime
+stage does not copy `scripts/`. Do not add `scripts` to `.dockerignore`.
 
 ### Secrets
 

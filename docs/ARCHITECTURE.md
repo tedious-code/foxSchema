@@ -9,8 +9,8 @@ Database schema **diff & migration** tool. Compare a source schema against a tar
 generate dialect-native migration SQL, and deploy it. Fourteen SQL dialects:
 Postgres (and CockroachDB / YugabyteDB / Redshift), MySQL (and MariaDB / TiDB),
 SQL Server / Azure SQL, Oracle, Db2, SQLite, DuckDB, ClickHouse. MongoDB and Redis
-carry connection settings only. Distributions: **CLI** (`foxschema` via npm/Homebrew)
-and **Docker** (single amd64 image with Db2).
+run a fail-closed SQL subset in the editor (no schema compare). Distributions:
+**CLI** (`foxschema` via npm/Homebrew) and **Docker** (single amd64 image with Db2).
 
 ## Commands
 
@@ -277,13 +277,21 @@ per-dialect gotchas live in `packages/sql/src/providers/DIALECTS.md` (tracked).
 Safe column change is a sibling registry, not a `SqlDialect` hook:
 `planColumnChange` (`modules/utilities/column-change.ts`) finds impact and
 blockers from the schema Fox already loaded; each family writes steps in
-`providers/<d>/*.column-change.ts` (`column-change.registry.ts`). Engines not
-listed answer "not yet" rather than SQL that would fail there. The Utils panel
-computes the plan in the browser (`@foxschema/ui-shared`); Fox runs none of it.
-A rename alone is in-place; a type change adds, copies in batches, switches
-over, and drops last. PostgreSQL / YugabyteDB / CockroachDB, MySQL / MariaDB /
-TiDB, and SQL Server / Azure SQL are in v1. SQLite needs a table rebuild;
-Redshift's `ALTER TABLE` cannot express the steps.
+`providers/<d>/*.column-change.ts` (`column-change.registry.ts`). All 14 SQL
+engines are registered. Redis and MongoDB have no column-change entry; omit an
+engine to answer "not yet" rather than SQL that would fail there. The Utils
+panel (`ColumnChangePanel`) computes the plan in the browser
+(`@foxschema/ui-shared`). **Copy** / **Open in editor** send the script;
+**Run** and **Execute all** go through `POST /api/sql/execute` (Safe mode
+confirms). A rename alone is in-place (`RENAME COLUMN` / `sp_rename`). A type
+change is **one ALTER in place** by default (`alterTypeSteps`); tick
+**Large table mode** for the add / batched-copy / switch-over path
+(`rebuildSteps` + `progressSql`) on PostgreSQL, YugabyteDB, CockroachDB,
+MySQL, MariaDB, TiDB, SQL Server and Azure SQL. The other six engines change
+the column in place only, and refuse a change they cannot make (SQLite type
+change, DuckDB while the table has an index, Redshift except lengthening a
+VARCHAR, ClickHouse sorting-key columns). `columnChangeLargeTable()` hides
+the checkbox where that path does not exist.
 
 Version-aware DDL: `SchemaProvider.detectVersion?()` → stored in Zustand as
 `targetServerVersion` → flows into `SchemaMapping` → dialect drop hooks use it. Oracle pre-23c
@@ -396,6 +404,12 @@ Constraints:
   fence in text that does reach the database is two `--` lines around SQL, and
   the SQL is priced like any other (`-- @node\nDROP TABLE t\n-- @end` needs
   `editor.ddl`).
+- **Routine DDL stays one statement.** `CREATE`/`ALTER` `FUNCTION`|
+  `PROCEDURE`|`TRIGGER` (and an anonymous `BEGIN … END`) keep inner `;` in
+  one editor cell. Qualification is read from the token stream: a `--` review
+  note that ends with `.` must not make the next `CREATE` look like
+  `s.begin` and split the trigger body. A split body is then `terminated` so
+  Run does not drag the next statement into it.
 - Adding a dialect: say how it lexes in `sql-readings.ts` (see
   `packages/sql/src/providers/DIALECTS.md` step 5). Missing there is safe but
   slow (every reading of every dialect).
@@ -406,7 +420,7 @@ Constraints:
 2. Register in `provider-settings.ts`, `adapter-registry.ts`, `provider-registry.ts`, `modules/dialect/registry.ts`
    (and `modules/access/user-sql.registry.ts` / `modules/access/access-sql.registry.ts` when the engine has account or GRANT SQL).
    Backup/restore commands: `<d>.backup.ts` in `modules/utilities/backup.registry.ts`. A `history` query, where the engine records its backups, lets the panel list them; a server-side SQL backup can be run from the panel, a restore never is.
-   Safe column change: `<d>.column-change.ts` in `modules/utilities/column-change.registry.ts`. Omit the engine to answer "not yet"; do not guess SQL. SQLite is a table rebuild (later); Redshift is not in v1.
+   Safe column change: `<d>.column-change.ts` in `modules/utilities/column-change.registry.ts`. Omit the engine to answer "not yet"; do not guess SQL. Implement `alterTypeSteps` (in-place) and, if the engine can, `rebuildSteps` + `progressSql` (large-table mode). A change the engine cannot make belongs on `refuse`, not as SQL that fails there. SQLite still has no type-change path (table rebuild).
 3. Add the dialect name to the `Dialect` union **and** the `DIALECTS` array in
    `packages/sql/src/providers/provider-settings.ts` (`dialect-registry.test.ts`
    fails until they match `PROVIDER_SETTINGS`). Nothing in `apps/web` needs

@@ -1,5 +1,5 @@
 // Reference data: the inventory of what Fox Schema ships, measured from the
-// codebase on main f39dca3ee1 (2026-11-08). Mirrors docs/FEATURE_MAP.md.
+// codebase on main d7ae1cf2 (2026-11-09). Mirrors docs/FEATURE_MAP.md.
 // Work items are not here: they live in the page's shared store.
 const AREAS = [
   { id: 'platform', name: 'Platform' },
@@ -28,9 +28,9 @@ const FEATURES = [
     code: 'server workspaces, platform/workspaces · web workspaces', perms: 'workspace.members, workspace.settings, workspace.create',
     tables: 'workspaces, workspace_members, workspace_invites, workspace_scripts', tests: 'server 5 · web 3 · e2e workspaces, workspaces-sharing-limits' },
   { id: 'platform.connections', area: 'platform', name: 'Connections & drivers',
-    subs: ['Credential manager', 'Connection form: password, Windows, LDAP, No password (Redis / MongoDB)', 'SSL and pool', 'SQLite / DuckDB file picker', 'Schema list', 'Connection test', 'Driver check and Install driver', 'Cloud provider credentials'],
-    ui: 'Creds (rail), connection modal', api: '/api/connections (4), /api/connection/test, /api/db/test, /api/driver (2)',
-    code: 'server connections, platform/connections, internal/driver-install · web connections', perms: 'workspace role; admin.drivers to install',
+    subs: ['Credential manager', 'Connection form: password, Windows, LDAP, No password (Redis / MongoDB)', 'SSL and pool', 'SQLite / DuckDB file picker', 'Schema list', 'Connection test', 'Driver check and Install driver', 'Home Drivers inventory: list, version check, update, remove', 'Cloud provider credentials'],
+    ui: 'Creds (rail), connection modal, Home', api: '/api/connections (4), /api/connection/test, /api/db/test, /api/driver (2), /api/system/drivers (4)',
+    code: 'server connections, system (drivers.service), platform/connections, internal/driver-install · web connections, app/shell/DriverInventoryCard', perms: 'workspace role; admin.drivers to install, update, or remove',
     tables: 'connections, cloud_provider_credentials', tests: 'server 1 · web 1' },
   { id: 'platform.secrets', area: 'platform', name: 'App secrets',
     subs: ['Vault entries', 'Cloud secret providers', 'Resolve a secret'],
@@ -38,9 +38,9 @@ const FEATURES = [
     code: 'server admin (app-secrets mount)', perms: 'secrets.view, create, edit, delete',
     tables: 'app_secrets, cloud_provider_credentials', tests: 'none dedicated' },
   { id: 'platform.system', area: 'platform', name: 'Shell, health & updates',
-    subs: ['Activity rail and top toolbar', 'Command palette', 'Home', 'Services card: API, Web UI, Workflow engine status (no start/stop yet)', 'Backend-offline banner', 'Activity', 'App info and config', 'Update check and apply', 'Email and update settings', 'Send feedback'],
-    ui: 'App shell, Prefs, Home', api: '/api/health, /api/config, /api/app-info, /api/activity, /api/updates (2), /api/system/services',
-    code: 'server system (service-status) · web app/shell (ServiceStatusCard), app/settings, feedback', perms: '—',
+    subs: ['Activity rail and top toolbar', 'Command palette', 'Home', 'Services card: API, Web UI, Workflow engine status (no start/stop yet)', 'Drivers card: installed packages, version check, install / update / remove', 'Workflow rail held back in 0.3.1 (NAV_FLAGS.workflow)', 'Backend-offline banner', 'Activity', 'App info and config', 'Update check and apply', 'Email and update settings', 'Send feedback'],
+    ui: 'App shell, Prefs, Home', api: '/api/health, /api/config, /api/app-info, /api/activity, /api/updates (2), /api/system/services, /api/system/drivers (4)',
+    code: 'server system (service-status, drivers.service) · web app/shell (ServiceStatusCard, DriverInventoryCard), app/features/featureRegistry, app/settings, feedback', perms: 'admin.drivers to change drivers',
     tables: 'app_settings', tests: 'server 2 · web 3 · e2e smoke, lazy-loading, send-feedback, auto-error-catch' },
 
   { id: 'schema.compare', area: 'schema', name: 'Compare & deploy',
@@ -159,7 +159,7 @@ const FEATURES = [
 
   { id: 'workflow.designer', area: 'workflow', name: 'Designer',
     subs: ['Workflows list', 'Canvas: pipes and edges', 'Palette', 'Inspector', 'Triggers', 'SQL, script, HTTP and delimited editors', 'Dependencies'],
-    ui: 'Workflow (rail)', api: 'engine proxy under /api/workflow',
+    ui: 'Workflow (rail, held back in 0.3.1)', api: 'engine proxy under /api/workflow',
     code: 'web workflow · workflow-engine definitions', perms: 'workflow.access, workflow.design',
     tables: "engine's own store", tests: 'web 12 · e2e workflow-designer-roundtrip' },
   { id: 'workflow.pipes', area: 'workflow', name: 'Pipes',
@@ -200,7 +200,7 @@ const ENGINES = {
   ],
 };
 
-// Routes per feature: 163 pinned in http-contract.test.ts; this split was last counted at 159 (2026-11-02).
+// Routes per feature: 163 pinned in http-contract.test.ts (remeasured 2026-11-09).
 const ROUTES = [
   ['platform.auth', 22], ['platform.workspaces', 21], ['platform.admin', 20], ['schema.git', 15],
   ['schema.snapshots', 11], ['editor.files', 11], ['platform.secrets', 9], ['platform.connections', 8],

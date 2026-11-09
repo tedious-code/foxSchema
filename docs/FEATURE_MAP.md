@@ -12,11 +12,11 @@ an interactive page (open it in a browser), and
 [the test and fix plan](plans/2026-10-25-feature-and-dialect-test-plan.md) sets
 the order every feature and dialect is tested in.
 
-Measured on `main` at `66575674` (2026-11-02): 35 features, 18 server
-feature modules, 159 HTTP routes (pinned by
+Measured on `main` at `d7ae1cf2` (2026-11-09): 35 features, 18 server
+feature modules, 163 HTTP routes (pinned by
 `packages/server/src/api/http-contract.test.ts`), 14 frontend features,
 16 database engines, 28 metadata tables (31 migrations), 58 e2e specs in 35
-groups, ~550 unit-test files. Re-measure with the commands in
+groups, ~532 unit-test files. Re-measure with the commands in
 [Keeping this page true](#keeping-this-page-true).
 
 - [System](#system)
@@ -149,7 +149,7 @@ in its folders and its e2e specs (`apps/e2e/src/tests`).
 | `platform.workspaces` | Workspaces — rail button and menu, create, switch, archive, restore, settings, members and workspace roles (a personal workspace lends no more than its account holds), invites (accept / decline, 14 days), public discover / join, shared workspace scripts | Rail button under the Fox mark | `/api/workspaces` (20) | server `workspaces`, `platform/workspaces`; web `workspaces` | `workspace.members`, `workspace.settings`, `workspace.create` | `workspaces`, `workspace_members`, `workspace_invites`, `workspace_scripts` | server 5, web 3; e2e `workspaces`, `workspaces-sharing-limits` |
 | `platform.connections` | Connections & drivers — credential manager, connection form (password / Windows / LDAP / No password on Redis and MongoDB, SSL, pool, SQLite / DuckDB file picker), schema list, connection test, driver check and Install driver, Home Drivers inventory (list / version check / update / remove), cloud provider credentials | Creds (rail), connection modal, Home | `/api/connections` (4), `/api/connection/test`, `/api/db/test`, `/api/driver` (2), `/api/system/drivers` (4) | server `connections`, `system` (`drivers.service.ts`), `platform/connections`, `internal/driver-install`; web `connections`, `app/shell/DriverInventoryCard` | per workspace role; `admin.drivers` to install, update, or remove | `connections`, `cloud_provider_credentials` | server 1, web 1 |
 | `platform.secrets` | App secrets — vault entries, cloud secret providers, resolving a secret | Creds → secrets, editor Secrets panel | `/api/app-secrets` (9) | server `admin` (app-secrets mount) | `secrets.view/create/edit/delete` | `app_secrets`, `cloud_provider_credentials` | — |
-| `platform.system` | Shell, health, updates — activity rail, top toolbar, command palette, home, **Services** card (API / Web UI / Workflow engine status; no start/stop yet), **Drivers** card (installed packages, version check, install / update / remove), backend-offline banner, activity, app info, config, update check / apply, email and update settings, send feedback | App shell, Prefs, Home | `/api/health`, `/api/config`, `/api/app-info`, `/api/activity`, `/api/updates` (2), `/api/system/services`, `/api/system/drivers` (4) | server `system` (`service-status.ts`, `drivers.service.ts`); web `app/shell` (`ServiceStatusCard`, `DriverInventoryCard`), `app/settings`, `feedback` | `admin.drivers` to change drivers | `app_settings` | server 2, web 3; e2e `smoke`, `lazy-loading`, `send-feedback`, `auto-error-catch` |
+| `platform.system` | Shell, health, updates — activity rail, top toolbar, command palette, home, **Services** card (API / Web UI / Workflow engine status; no start/stop yet), **Drivers** card (installed packages, version check, install / update / remove), backend-offline banner, activity, app info, config, update check / apply, email and update settings, send feedback. **Workflow** is off the rail and the command palette in 0.3.1 (`NAV_FLAGS.workflow` in `featureRegistry.ts`; a stored last-view is sent Home) | App shell, Prefs, Home | `/api/health`, `/api/config`, `/api/app-info`, `/api/activity`, `/api/updates` (2), `/api/system/services`, `/api/system/drivers` (4) | server `system` (`service-status.ts`, `drivers.service.ts`); web `app/shell` (`ServiceStatusCard`, `DriverInventoryCard`), `app/features/featureRegistry.ts`, `app/settings`, `feedback` | `admin.drivers` to change drivers | `app_settings` | server 2, web 3; e2e `smoke`, `lazy-loading`, `send-feedback`, `auto-error-catch` |
 
 ### Schema
 
@@ -193,7 +193,7 @@ in its folders and its e2e specs (`apps/e2e/src/tests`).
 
 | ID | Feature and sub-features | UI | API | Code | Perms | Tables | Tests |
 |---|---|---|---|---|---|---|---|
-| `workflow.designer` | Designer — workflows list, canvas (pipes and edges), palette, inspector, triggers, SQL / script / HTTP / delimited editors, dependencies | Workflow (rail) | engine proxy under `/api/workflow` | web `workflow`; `packages/workflow-engine/src/definitions.ts` | `workflow.access`, `workflow.design` | engine's own store | web 12; e2e `workflow-designer-roundtrip` |
+| `workflow.designer` | Designer — workflows list, canvas (pipes and edges), palette, inspector, triggers, SQL / script / HTTP / delimited editors, dependencies. Off the rail in 0.3.1 (`NAV_FLAGS.workflow`); the view and proxy stay | Workflow (rail, held back) | engine proxy under `/api/workflow` | web `workflow`; `packages/workflow-engine/src/definitions.ts` | `workflow.access`, `workflow.design` | engine's own store | web 12; e2e `workflow-designer-roundtrip` |
 | `workflow.pipes` | Pipes — db (SQL on every dialect, Postgres / MySQL sources), http (request, multi-http, transform, sink, cookies), notify (email, SMS, SMTP), control (loop, split, merge, goto, human gate, sub-workflow), utility (CSV, delimited, JSON, script, text, transforms, verify, files), trigger | Designer palette | (engine) | `packages/workflow-engine/src/pipes/*` | `workflow.design` | — | workflow-engine 87 |
 | `workflow.runs` | Runs — execution panel, cancel a live run, answer a human gate, variables, credentials | Workflow | engine proxy | web `RunsPanel`, `ExecutionPanel`, `VariablesPanel`, `CredentialsPanel` | `workflow.run` | engine's own store | (workflow tests) |
 | `workflow.engine` | Engine control plane — settings and health, saved-connection grants, internal resolve / engine-config routes (token-guarded) | Workflow → Engine | `/api/workflow` (5), `/api/workflow-internal` (2) | server `workflow`; `apps/workflow-server`; `packages/workflow-contract` | `workflow.admin` | `workflow_settings`, `workflow_connection_grants` | server 6, workflow-server 19; e2e `workflow-smoke` |
@@ -560,15 +560,15 @@ that value matches the ObjectId a SELECT showed.
 
 | Layer | Where | Count |
 |---|---|---|
-| Unit — dialect knowledge | `packages/sql` | 86 files (access 13, lokee-weave 15, sql-text 9, migrations 7, utilities 7, sql-editor 7, schema-diff 5, …) |
-| Unit — drivers | `packages/db` | 26 (live `*.it.test.ts` behind `FOX_IT_DB=1`) |
-| Unit — server | `packages/server` | 104 |
-| Unit — web | `apps/web` | 179 (sql-editor 59, lokee-weave 14, access 12, workflow 12, …) |
+| Unit — dialect knowledge | `packages/sql` | 89 files (access 13, lokee-weave 15, sql-text 9, migrations 7, utilities 9, sql-editor 7, schema-diff 5, …) |
+| Unit — drivers | `packages/db` | 28 (live `*.it.test.ts` behind `FOX_IT_DB=1`) |
+| Unit — server | `packages/server` | 111 |
+| Unit — web | `apps/web` | 189 (sql-editor 65, lokee-weave 14, access 13, workflow 12, …) |
 | Unit — workflow | `packages/workflow-engine`, `apps/workflow-server` | 87 + 19 |
-| Unit — CLI | `apps/cli` | 14 |
+| Unit — CLI | `apps/cli` | 25 |
 | E2E (Playwright) | `apps/e2e/src/tests` | 58 spec files (`npm run test:e2e:all`) |
 
-Known gaps and open work (2026-11-02, after #575 – #589) — each belongs on the planning board:
+Known gaps and open work (2026-11-09, after 0.3.1) — each belongs on the planning board:
 
 | Feature | Gap | Kind |
 |---|---|---|
@@ -579,6 +579,7 @@ Known gaps and open work (2026-11-02, after #575 – #589) — each belongs on t
 | `platform.workspaces` | Workspace ceiling caps by rank; a custom role mapping is not intersected with the account's permissions | improvement |
 | `platform.connections` | A requirepass-only Redis saved without its password is not prompted (the **No password** login method is shipped) | improvement |
 | `platform.system` | Home → Services is status only; start/stop the Workflow engine (`admin.services`) is later | feature |
+| `workflow.designer` | Rail item and command-palette entry held back in 0.3.1 (`NAV_FLAGS.workflow === false`); turn the flag on to restore | feature |
 | `utilities.columns` | SQLite type change needs a table rebuild; DuckDB tables with an index are refused (no index columns in the model); Redshift only lengthens a VARCHAR; primary-key / inbound-FK / identity columns refused; large-table mode only on the 8 engines that have it | feature |
 
 ## Planning work

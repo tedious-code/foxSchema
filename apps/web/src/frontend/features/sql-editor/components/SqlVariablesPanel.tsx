@@ -3,8 +3,10 @@ import { Download, Eye, Plus, Trash2, Upload } from 'lucide-react';
 import {
   expandSqlLiteral,
   isSecretUnset,
+  variableRefText,
   type SqlVariable,
 } from '@/shared/lib/sql-variables';
+import { insertVariableRef } from '@/features/sql-editor/lib/sqlEditorBridge';
 import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { useSyncStore } from '@/features/compare';
 import { useAuthStore } from '@/platform/authStore';
@@ -301,8 +303,8 @@ export const SqlVariablesPanel: React.FC = () => {
       {variables.length === 0 && !adding ? (
         <p className="text-[14px] font-medium text-slate-500 leading-snug">
           Add a scalar, use <code className="text-slate-400">-- @set</code>, or save from
-          results. Refs: <code className="text-slate-400">${'{{name}}'}</code> /{' '}
-          <code className="text-slate-400">${'{{name.col}}'}</code>.
+          results. Insert puts <code className="text-slate-400">{variableRefText('name')}</code> at the
+          cursor (secrets stay masked in results).
         </p>
       ) : (
         <ul className="flex flex-col gap-0.5 overflow-y-auto min-h-0 flex-1 pr-0.5">
@@ -410,6 +412,15 @@ export const SqlVariablesPanel: React.FC = () => {
                       )}
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    data-testid={`sql-variable-insert-${v.name}`}
+                    title={`Insert ${variableRefText(v.name)} at cursor`}
+                    onClick={() => insertVariableRef(v.name)}
+                    className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold text-cyan-200 bg-cyan-950/60 border border-cyan-600/50 hover:bg-cyan-900/70 transition mt-0.5"
+                  >
+                    Insert
+                  </button>
                   {canDelete && (
                     <button
                       type="button"

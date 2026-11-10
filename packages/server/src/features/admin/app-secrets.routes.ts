@@ -12,6 +12,11 @@ import { isCloudSecretSource } from '../../internal/cloud-secrets';
 import type { AuthedRequest } from '../../platform/http/types';
 import { requirePermissions } from '../../platform/authorization/rbac.guard';
 import { sendError, sendThrown } from '../../platform/http/respond';
+import { SignInSettings } from '../../platform/identity/sign-in-settings.service';
+import {
+  GcpOAuthService,
+  readGcpOAuthStateCookie,
+} from './gcp-oauth.service';
 
 function parseSecretBody(body: unknown): Partial<AppSecretInput> {
   const b = (body ?? {}) as Record<string, unknown>;
@@ -38,10 +43,23 @@ function parseSecretBody(body: unknown): Partial<AppSecretInput> {
   };
 }
 
+function queryString(req: AppRequest, key: string): string {
+  const value = req.query[key];
+  return typeof value === 'string' ? value : '';
+}
+
+async function frontendRedirect(res: FastifyReply, query: Record<string, string>): Promise<void> {
+  const { url } = await new SignInSettings().publicUrl();
+  const base = url.replace(/\/$/, '') || '';
+  const params = new URLSearchParams(query);
+  res.redirect(`${base || ''}/?${params.toString()}`);
+}
+
 /** CRUD + resolve for the signed-in user's App Secrets vault + named cloud credentials. */
 export function createAppSecretsRoutes(
   store: AppSecretsStore,
-  providers = new CloudProviderCredentialsStore()
+  providers = new CloudProviderCredentialsStore(),
+  gcpOAuth = new GcpOAuthService(providers)
 ): Router {
   const router = Router();
 
@@ -52,6 +70,51 @@ export function createAppSecretsRoutes(
   router.get('/providers', requirePermissions('secrets.view'), async (req: AuthedRequest, res: FastifyReply) => {
     res.send({ providers: await providers.list(scopeOf(req)!) });
   });
+
+  router.get(
+    '/providers/gcp/oauth/start',
+    requirePermissions('secrets.create'),
+    async (req: AuthedRequest, res: FastifyReply) => {
+      try {
+        const started = await gcpOAuth.beginConnect(req, scopeOf(req)!, queryString(req, 'name'));
+        gcpOAuth.setStateCookie(res, started.cookie);
+        res.redirect(started.url);
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : 'Failed to start Google Cloud connect';
+        const status = /not configured|Invalid credential name|own Google OAuth/i.test(msg) ? 400 : 500;
+        if (status === 400) {
+          sendError(res, 'invalid_input', msg);
+          return;
+        }
+        sendThrown(res, error, msg);
+      }
+    }
+  );
+
+  router.get(
+    '/providers/gcp/oauth/callback',
+    requirePermissions('secrets.create'),
+    async (req: AuthedRequest, res: FastifyReply) => {
+      try {
+        const googleError = queryString(req, 'error');
+        if (googleError) {
+          throw new Error('Google Cloud connect was cancelled or refused.');
+        }
+        await gcpOAuth.completeConnect(req, scopeOf(req)!, {
+          code: queryString(req, 'code'),
+          state: queryString(req, 'state'),
+          cookie: readGcpOAuthStateCookie(req),
+        });
+        gcpOAuth.clearStateCookie(res);
+        await frontendRedirect(res, { gcp_oauth: 'connected' });
+      } catch (error: unknown) {
+        gcpOAuth.clearStateCookie(res);
+        const message =
+          error instanceof Error ? error.message : 'Google Cloud connect failed';
+        await frontendRedirect(res, { gcp_oauth: 'error', gcp_oauth_error: message });
+      }
+    }
+  );
 
   router.post('/providers', requirePermissions('secrets.create'), async (req: AuthedRequest, res: FastifyReply) => {
     const body = (req.body ?? {}) as {
@@ -104,13 +167,102 @@ export function createAppSecretsRoutes(
   });
 
   router.delete('/providers/:id', requirePermissions('secrets.delete'), async (req: AuthedRequest, res: FastifyReply) => {
-    const removed = await providers.remove(scopeOf(req)!, String(req.params.id));
+    const removed = await gcpOAuth.disconnect(scopeOf(req)!, String(req.params.id));
     if (!removed) {
-      sendError(res, 'not_found', 'Secret not found');
+      sendError(res, 'not_found', 'Cloud credential not found');
       return;
     }
     res.send({ ok: true });
   });
+
+  router.post(
+    '/providers/:id/gcp/disconnect',
+    requirePermissions('secrets.delete'),
+    async (req: AuthedRequest, res: FastifyReply) => {
+      const removed = await gcpOAuth.disconnect(scopeOf(req)!, String(req.params.id));
+      if (!removed) {
+        sendError(res, 'not_found', 'Cloud credential not found');
+        return;
+      }
+      res.send({ ok: true });
+    }
+  );
+
+  router.get(
+    '/providers/:id/gcp/projects',
+    requirePermissions('secrets.view'),
+    async (req: AuthedRequest, res: FastifyReply) => {
+      try {
+        res.send({ projects: await gcpOAuth.listProjects(scopeOf(req)!, String(req.params.id)) });
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : 'Failed to list GCP projects';
+        if (/not found/i.test(msg)) {
+          sendError(res, 'not_found', msg);
+          return;
+        }
+        if (/not Google Cloud|required|not configured/i.test(msg)) {
+          sendError(res, 'invalid_input', msg);
+          return;
+        }
+        sendThrown(res, error, msg);
+      }
+    }
+  );
+
+  router.get(
+    '/providers/:id/gcp/secrets',
+    requirePermissions('secrets.view'),
+    async (req: AuthedRequest, res: FastifyReply) => {
+      try {
+        res.send({
+          secrets: await gcpOAuth.listSecrets(
+            scopeOf(req)!,
+            String(req.params.id),
+            queryString(req, 'project')
+          ),
+        });
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : 'Failed to list GCP secrets';
+        if (/not found/i.test(msg)) {
+          sendError(res, 'not_found', msg);
+          return;
+        }
+        if (/not Google Cloud|required|not configured/i.test(msg)) {
+          sendError(res, 'invalid_input', msg);
+          return;
+        }
+        sendThrown(res, error, msg);
+      }
+    }
+  );
+
+  router.get(
+    '/providers/:id/gcp/secrets/:secretId/versions',
+    requirePermissions('secrets.view'),
+    async (req: AuthedRequest, res: FastifyReply) => {
+      try {
+        res.send({
+          versions: await gcpOAuth.listVersions(
+            scopeOf(req)!,
+            String(req.params.id),
+            String(req.params.secretId ?? ''),
+            queryString(req, 'project')
+          ),
+        });
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : 'Failed to list GCP secret versions';
+        if (/not found/i.test(msg)) {
+          sendError(res, 'not_found', msg);
+          return;
+        }
+        if (/not Google Cloud|required|not configured/i.test(msg)) {
+          sendError(res, 'invalid_input', msg);
+          return;
+        }
+        sendThrown(res, error, msg);
+      }
+    }
+  );
 
   router.post('/', requirePermissions('secrets.create'), async (req: AuthedRequest, res: FastifyReply) => {
     const input = parseSecretBody(req.body);

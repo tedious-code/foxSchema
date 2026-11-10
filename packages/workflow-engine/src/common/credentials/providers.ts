@@ -12,6 +12,11 @@ import {
   foxSchemaEndpoint,
   type ResolvedWorkflowConnection,
 } from '@foxschema/workflow-contract';
+import {
+  mintGcpAccessToken,
+  normalizeGcpSecretResource,
+  parseGcpServiceAccountJson,
+} from './gcp-service-account.js';
 
 /** Where credential secret material is resolved from at run time. */
 export const credentialSourceSchema = z.enum([
@@ -39,6 +44,8 @@ export type StoredSecretPayload = {
   projectId?: string;
   secretId?: string;
   version?: string;
+  /** Legacy IAM key JSON (encrypted). Prefer metadata identity / WIF on the host. */
+  serviceAccountJson?: string;
   /** AWS Secrets Manager */
   region?: string;
   versionId?: string;
@@ -116,16 +123,27 @@ export function buildStoredSecret(
   }
 
   if (source === 'gcp') {
-    const projectId = str('projectId');
     const secretId = str('secretId');
-    if (!projectId || !secretId) {
-      throw new Error('GCP credentials require projectId and secretId');
+    if (!secretId) {
+      throw new Error('GCP credentials require secretId');
+    }
+    const serviceAccountJson = str('serviceAccountJson');
+    const projectId =
+      str('projectId') ||
+      (serviceAccountJson && !gcpJsonIsExternalAccount(serviceAccountJson)
+        ? parseGcpServiceAccountJson(serviceAccountJson).project_id
+        : undefined);
+    if (!projectId && !secretId.startsWith('projects/')) {
+      throw new Error(
+        'GCP credentials require projectId and secretId (set projectId when using Workload Identity Federation)',
+      );
     }
     return {
       source: 'gcp',
-      projectId,
+      ...(projectId ? { projectId } : {}),
       secretId,
       version: str('version') ?? 'latest',
+      ...(serviceAccountJson ? { serviceAccountJson } : {}),
       format,
       valueKey: str('valueKey'),
     };
@@ -270,19 +288,49 @@ function resolveEnvSecret(
   return out;
 }
 
+function gcpJsonIsExternalAccount(raw: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(raw.trim());
+    return (
+      !!parsed &&
+      typeof parsed === 'object' &&
+      !Array.isArray(parsed) &&
+      (parsed as { type?: string }).type === 'external_account'
+    );
+  } catch {
+    return false;
+  }
+}
+
+function gcpServiceAccountJson(
+  payload: StoredSecretPayload,
+  env: NodeJS.ProcessEnv,
+): string | undefined {
+  return (
+    payload.serviceAccountJson?.trim() ||
+    env.GOOGLE_SERVICE_ACCOUNT_JSON ||
+    env.GCP_SERVICE_ACCOUNT_JSON ||
+    undefined
+  );
+}
+
 async function resolveGcpSecret(
   payload: StoredSecretPayload,
   env: NodeJS.ProcessEnv,
   fetchImpl: typeof fetch,
 ): Promise<Record<string, unknown>> {
-  const projectId = payload.projectId;
   const secretId = payload.secretId;
-  if (!projectId || !secretId) {
-    throw new Error('GCP secret reference is incomplete (projectId, secretId)');
+  if (!secretId) {
+    throw new Error('GCP secret reference is incomplete (secretId)');
   }
-  const version = payload.version || 'latest';
-  const resource = `projects/${projectId}/secrets/${secretId}/versions/${version}`;
-  const token = await getGcpAccessToken(env, fetchImpl);
+  const json = gcpServiceAccountJson(payload, env);
+  const projectId =
+    payload.projectId ||
+    (json && !gcpJsonIsExternalAccount(json)
+      ? parseGcpServiceAccountJson(json).project_id
+      : undefined);
+  const resource = normalizeGcpSecretResource(secretId, projectId, payload.version);
+  const token = await getGcpAccessToken(json, env, fetchImpl);
   const response = await fetchImpl(
     `https://secretmanager.googleapis.com/v1/${resource}:access`,
     { headers: { Authorization: `Bearer ${token}` } },
@@ -304,13 +352,17 @@ async function resolveGcpSecret(
 }
 
 async function getGcpAccessToken(
+  json: string | undefined,
   env: NodeJS.ProcessEnv,
   fetchImpl: typeof fetch,
 ): Promise<string> {
   const fromEnv = env.GOOGLE_ACCESS_TOKEN || env.GCP_ACCESS_TOKEN;
   if (fromEnv) return fromEnv;
+  if (json && !gcpJsonIsExternalAccount(json)) {
+    return mintGcpAccessToken(parseGcpServiceAccountJson(json), fetchImpl);
+  }
 
-  // GCE / Cloud Run / GKE metadata server.
+  // GCE / Cloud Run / GKE metadata server (attached identity — no downloaded key).
   try {
     const response = await fetchImpl(
       'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',
@@ -325,7 +377,7 @@ async function getGcpAccessToken(
   }
 
   throw new Error(
-    'GCP credentials need GOOGLE_ACCESS_TOKEN (or run on GCP with a metadata identity)',
+    'GCP credentials need Workload Identity Federation (GOOGLE_APPLICATION_CREDENTIALS), GOOGLE_ACCESS_TOKEN, or a GCP metadata identity. Do not download a service account key.',
   );
 }
 

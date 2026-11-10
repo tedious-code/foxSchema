@@ -13,6 +13,7 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import {
   insertAtCursor,
+  insertVariableRef,
   setSqlInsertFallback,
   setSqlInsertHandler,
 } from './sqlEditorBridge';
@@ -53,5 +54,15 @@ describe('insertAtCursor', () => {
     // flows into the same tab buffer the fallback writes to.
     expect(pane).toHaveBeenCalledTimes(1);
     expect(fallback).not.toHaveBeenCalled();
+  });
+});
+
+describe('insertVariableRef', () => {
+  it('inserts the ${{name}} snippet, never a resolved value', () => {
+    const pane = vi.fn();
+    setSqlInsertHandler(pane);
+    expect(insertVariableRef('apiToken')).toBe(true);
+    expect(pane).toHaveBeenCalledWith('${{apiToken}}');
+    expect(JSON.stringify(pane.mock.calls)).not.toMatch(/secret|shh|value/i);
   });
 });

@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1035** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1047** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -644,16 +644,17 @@ Every control has a test ID: **1035** buttons, text boxes, selects and textareas
 ## connections
 
 - **CloudProviderCredentialsSection** · `features/connections/components/CloudProviderCredentialsSection.tsx`
-  - `cloud-cred-add` · button · Add cloud credential
+  - `cloud-cred-add` · button · Add AWS, Azure, or WIF
   - `cloud-cred-cancel` · button · Cancel
   - `cloud-cred-card-{id}` · div
   - `cloud-cred-close-form` · button
   - `cloud-cred-edit-{id}` · button · Edit
   - `cloud-cred-field-{key}` · textarea
   - `cloud-cred-form` · div
+  - `cloud-cred-gcp-connect` · button
   - `cloud-cred-name` · input · Name (e.g. Prod AWS)
   - `cloud-cred-provider-select` · select
-  - `cloud-cred-remove-{id}` · button · Remove
+  - `cloud-cred-remove-{id}` · button
   - `cloud-cred-save` · button · Save
   - `cloud-cred-status-{id}` · button · Updated
   - `cloud-provider-credentials` · div
@@ -1357,10 +1358,20 @@ Every control has a test ID: **1035** buttons, text boxes, selects and textareas
 - **SqlSecretsPanel** · `features/sql-editor/components/SqlSecretsPanel.tsx`
   - `sql-secret-{name}` · li
   - `sql-secret-add` · button · Add secret
+  - `sql-secret-add-cloud-cred` · div
   - `sql-secret-cancel` · button · Cancel
+  - `sql-secret-cloud-cred-field-{key}` · textarea
+  - `sql-secret-cloud-cred-name` · input · Credential name (e.g. Google Cloud)
+  - `sql-secret-cloud-cred-provider` · select
+  - `sql-secret-cloud-cred-save` · button
   - `sql-secret-cloud-id` · input
   - `sql-secret-delete-secret-{id}` · button · Delete secret
   - `sql-secret-fetch` · button
+  - `sql-secret-gcp-connect` · button · Connect Google Cloud
+  - `sql-secret-gcp-project` · select
+  - `sql-secret-gcp-secret` · select
+  - `sql-secret-gcp-version` · select
+  - `sql-secret-insert-{name}` · button · Insert
   - `sql-secret-mode` · select · Fetch from cloud Manual (enter secret key)
   - `sql-secret-name` · input · variable name (e.g. apiToken)
   - `sql-secret-provider` · select
@@ -1387,6 +1398,7 @@ Every control has a test ID: **1035** buttons, text boxes, selects and textareas
   - `sql-variable-import` · button · Import variables from JSON
   - `sql-variable-import-file` · input
   - `sql-variable-input-{id}` · input
+  - `sql-variable-insert-{name}` · button · Insert
   - `sql-variable-name-input` · input · name
   - `sql-variable-overrides-{name}` · button · …
   - `sql-variable-preview-table-{name}` · button · Preview table

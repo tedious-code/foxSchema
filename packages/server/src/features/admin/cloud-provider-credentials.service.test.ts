@@ -53,7 +53,14 @@ describe('CloudProviderCredentialsStore', () => {
 
   it('allows multiple named credentials and removes by id', async () => {
     await store.create(alice, 'GCP Dev', 'gcp', {
-      serviceAccountJson: JSON.stringify({ type: 'service_account', project_id: 'p' }),
+      serviceAccountJson: JSON.stringify({
+        type: 'external_account',
+        audience: '//iam.googleapis.com/projects/1/locations/global/workloadIdentityPools/p/providers/x',
+        subject_token_type: 'urn:ietf:params:oauth:token-type:jwt',
+        token_url: 'https://sts.googleapis.com/v1/token',
+        credential_source: { file: '/var/run/secrets/token' },
+      }),
+      projectId: 'p',
     });
     await store.create(alice, 'GCP Staging', 'gcp', {
       accessToken: 'ya29.token',
@@ -65,5 +72,50 @@ describe('CloudProviderCredentialsStore', () => {
     expect(gcp).toBeTruthy();
     expect(await store.remove(alice, gcp!.id)).toBe(true);
     expect(await store.getDecryptedById(alice, gcp!.id)).toBeNull();
+  });
+
+  it('stores a Workload Identity Federation config and refuses a downloaded service-account key', async () => {
+    const saved = await store.create(alice, 'GCP WIF', 'gcp', {
+      serviceAccountJson: JSON.stringify({
+        type: 'external_account',
+        audience: '//iam.googleapis.com/projects/1/locations/global/workloadIdentityPools/p/providers/x',
+        subject_token_type: 'urn:ietf:params:oauth:token-type:jwt',
+        token_url: 'https://sts.googleapis.com/v1/token',
+        credential_source: { file: '/var/run/secrets/token' },
+      }),
+      projectId: 'fox-prod',
+    });
+    expect(saved.auth).toBe('wif');
+    const decrypted = await store.getDecryptedById(alice, saved.id);
+    expect(decrypted?.credentials).toMatchObject({ projectId: 'fox-prod' });
+    expect(JSON.stringify(saved)).not.toContain('private_key');
+
+    await expect(
+      store.create(alice, 'GCP Key', 'gcp', {
+        serviceAccountJson: JSON.stringify({
+          type: 'service_account',
+          project_id: 'p',
+          client_email: 'sa@p.iam.gserviceaccount.com',
+          private_key: '-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n',
+        }),
+      })
+    ).rejects.toThrow(/security risk/);
+  });
+
+  it('stores GCP OAuth refresh tokens encrypted and never returns them', async () => {
+    const saved = await store.create(alice, 'GCP OAuth', 'gcp', {
+      auth: 'oauth',
+      refreshToken: '1//oauth-refresh',
+      email: 'dev@example.com',
+    });
+    expect(saved).toMatchObject({ auth: 'oauth', email: 'dev@example.com' });
+    expect(JSON.stringify(saved)).not.toContain('1//oauth-refresh');
+    const listed = await store.list(alice);
+    expect(JSON.stringify(listed)).not.toContain('1//oauth-refresh');
+    const decrypted = await store.getDecryptedById(alice, saved.id);
+    expect(decrypted?.credentials).toMatchObject({
+      auth: 'oauth',
+      refreshToken: '1//oauth-refresh',
+    });
   });
 });

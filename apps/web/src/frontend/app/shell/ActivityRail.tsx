@@ -30,7 +30,11 @@ export function ActivityRail(): React.ReactElement | null {
   const activeView = useUiStore((s) => s.activeView);
   const setActiveView = useUiStore((s) => s.setActiveView);
   const can = useAuthStore((s) => s.can);
-  const [showCredentials, setShowCredentials] = useState(false);
+  const [showCredentials, setShowCredentials] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).has('gcp_oauth')
+  );
   const [showApplies, setShowApplies] = useState(false);
 
   // Subscribed so the rail re-renders when permissions change: `can` itself is

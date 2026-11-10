@@ -91,7 +91,7 @@ function compareOpCsvLabel(op: AlignRowOp): string {
 
 interface Props {
   runs: CredentialRun[];
-  /** The statements the run executed, for grid labels ("Query 1 · SELECT …"). */
+  /** Display SQL for grid labels (secret interpolations already masked). */
   statements: string[];
   /** 0-based source cell indices aligned with `statements` (for Out [n]). */
   statementIndices?: number[];
@@ -2209,6 +2209,10 @@ const ResultsPanelView: React.FC<Props> = ({
   onPage,
   pageState,
 }) => {
+  // Engine SQL for peek / compare / edit. Must stay above the empty-runs return.
+  const pageSqlByConnection = useSqlEditorStore(
+    (s) => s.resultsByTab[s.activeTabId]?.pageSqlByConnection
+  );
   const outNumber = (i: number) => (statementIndices?.[i] ?? i) + 1;
   const outTestId = (i: number) => statementIndices?.[i] ?? i;
   if (runs.length === 0) {
@@ -2226,6 +2230,10 @@ const ResultsPanelView: React.FC<Props> = ({
       </div>
     );
   }
+
+  // Labels use `statements` (secrets already masked). Peek/compare use page SQL.
+  const statementSqlFor = (connectionId: string, index: number): string | undefined =>
+    pageSqlByConnection?.[connectionId]?.[index] || statements[index];
 
   const warningBanner =
     warnings && warnings.length > 0 ? (
@@ -2283,7 +2291,7 @@ const ResultsPanelView: React.FC<Props> = ({
               connectionId: run.connectionId,
               dialect: run.dialect,
               statementIndex: i,
-              statementSql: statements[i],
+              statementSql: statementSqlFor(run.connectionId, i),
             });
           }
           return (
@@ -2324,7 +2332,7 @@ const ResultsPanelView: React.FC<Props> = ({
                 connectionId: run.connectionId,
                 dialect: run.dialect,
                 statementIndex: i,
-                statementSql: statements[i],
+                statementSql: statementSqlFor(run.connectionId, i),
               }))
             : [];
 

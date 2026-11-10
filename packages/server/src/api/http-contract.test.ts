@@ -36,6 +36,9 @@ import type { FastifyInstance } from 'fastify';
 // Its own metadata DB. It used to fall through to the developer's dev
 // database and write preferences and signup state into it.
 process.env.APP_DB_PATH = ':memory:';
+// Connect Google Cloud start is 400 when this install has no Google OAuth app.
+delete process.env.SSO_GOOGLE_CLIENT_ID;
+delete process.env.SSO_GOOGLE_CLIENT_SECRET;
 import { isApiErrorBody } from '@foxschema/shared';
 
 interface RouteExpectation {
@@ -83,6 +86,12 @@ const ROUTES: RouteExpectation[] = [
   { method: 'POST', path: '/api/app-secrets/providers', status: 400 },
   { method: 'DELETE', path: '/api/app-secrets/providers/:id', status: 404 },
   { method: 'PUT', path: '/api/app-secrets/providers/:id', status: 404 },
+  { method: 'GET', path: '/api/app-secrets/providers/gcp/oauth/start', status: 400 },
+  { method: 'GET', path: '/api/app-secrets/providers/gcp/oauth/callback', status: 302 },
+  { method: 'POST', path: '/api/app-secrets/providers/:id/gcp/disconnect', status: 404 },
+  { method: 'GET', path: '/api/app-secrets/providers/:id/gcp/projects', status: 404 },
+  { method: 'GET', path: '/api/app-secrets/providers/:id/gcp/secrets', status: 404 },
+  { method: 'GET', path: '/api/app-secrets/providers/:id/gcp/secrets/:secretId/versions', status: 404 },
   { method: 'POST', path: '/api/app-secrets/resolve', status: 200 },
   { method: 'POST', path: '/api/auth/login', status: 401 },
   { method: 'POST', path: '/api/auth/logout', status: 200 },

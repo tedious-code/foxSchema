@@ -3,6 +3,8 @@ import { Cloud, Pencil, Plus, Trash2, X } from 'lucide-react';
 import {
   createCloudProviderCredential,
   deleteCloudProviderCredential,
+  disconnectGcpCloudProvider,
+  gcpOAuthStartUrl,
   listCloudProviders,
   updateCloudProviderCredential,
   type CloudProviderCredentialSummary,
@@ -29,6 +31,7 @@ export const CloudProviderCredentialsSection: React.FC = () => {
   const [provider, setProvider] = useState<CloudSecretProviderId>('aws');
   const [fields, setFields] = useState<Record<string, string>>({});
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -40,6 +43,23 @@ export const CloudProviderCredentialsSection: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get('gcp_oauth');
+    if (!result) return;
+    if (result === 'connected' || result === 'ok') {
+      setNote('Connected Google Cloud. Pick this credential in SQL Editor → Secrets.');
+    } else if (result === 'error') {
+      setError(params.get('gcp_oauth_error') || 'Google Cloud connect failed');
+    }
+    params.delete('gcp_oauth');
+    params.delete('gcp_oauth_error');
+    params.delete('message');
+    const qs = params.toString();
+    window.history.replaceState({}, '', `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`);
     void refresh();
   }, [refresh]);
 
@@ -107,8 +127,13 @@ export const CloudProviderCredentialsSection: React.FC = () => {
     setDeleting(item.id);
     setError(null);
     try {
-      await deleteCloudProviderCredential(item.id);
-      setNote(`Removed “${item.name}”`);
+      if (item.provider === 'gcp' && item.auth === 'oauth') {
+        await disconnectGcpCloudProvider(item.id);
+        setNote(`Disconnected “${item.name}”`);
+      } else {
+        await deleteCloudProviderCredential(item.id);
+        setNote(`Removed “${item.name}”`);
+      }
       if (editingId === item.id) closeForm();
       await refresh();
     } catch (err: unknown) {
@@ -118,11 +143,18 @@ export const CloudProviderCredentialsSection: React.FC = () => {
     }
   };
 
+  const onConnectGoogleCloud = () => {
+    setConnecting(true);
+    setError(null);
+    window.location.assign(gcpOAuthStartUrl(name.trim() || 'Google Cloud'));
+  };
+
   return (
     <div className="space-y-3" data-testid="cloud-provider-credentials">
       <p className="text-xs text-slate-400 leading-snug">
-        Name each cloud credential like a database connection. Link it to AWS, GCP, or Azure
-        Secrets Manager, then pick it in SQL Editor → Secrets and Fetch a key.
+        Connect Google Cloud in the browser (no downloaded keys). Machines can use Workload
+        Identity Federation instead of a service-account key. Then pick the credential in SQL
+        Editor → Secrets and Fetch.
       </p>
 
       {error && <p className="text-xs text-rose-400 font-medium break-words">{error}</p>}
@@ -165,7 +197,15 @@ export const CloudProviderCredentialsSection: React.FC = () => {
                       <p className="text-sm font-semibold text-slate-100 truncate leading-tight">
                         {item.name}
                       </p>
-                      <p className="text-xs text-slate-500 mt-0.5">{settings.description}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {item.auth === 'oauth'
+                          ? item.email
+                            ? `Google Cloud · ${item.email}`
+                            : 'Google Cloud · connected'
+                          : item.auth === 'wif'
+                            ? 'Workload Identity Federation'
+                            : settings.description}
+                      </p>
                       <p className="text-[11px] text-slate-600 mt-0.5">
                         Updated {new Date(item.updatedAt).toLocaleString()}
                       </p>
@@ -182,7 +222,7 @@ export const CloudProviderCredentialsSection: React.FC = () => {
                     </button>
                     <button data-testid={`cloud-cred-remove-${item.id}`}
                       type="button"
-                      title="Remove"
+                      title={item.auth === 'oauth' ? 'Disconnect' : 'Remove'}
                       disabled={deleting === item.id}
                       onClick={() => void onClear(item)}
                       className="p-2 text-slate-500 hover:text-rose-300 hover:bg-rose-950/30 rounded-lg transition disabled:opacity-50"
@@ -296,14 +336,25 @@ export const CloudProviderCredentialsSection: React.FC = () => {
       )}
 
       {!formOpen && (
-        <button
-          type="button"
-          data-testid="cloud-cred-add"
-          onClick={openAdd}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold accent-grad on-accent-fg rounded-lg transition cursor-pointer"
-        >
-          <Plus className="w-4 h-4" /> Add cloud credential
-        </button>
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            data-testid="cloud-cred-gcp-connect"
+            disabled={connecting}
+            onClick={onConnectGoogleCloud}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold accent-grad on-accent-fg rounded-lg transition cursor-pointer disabled:opacity-50"
+          >
+            {connecting ? 'Redirecting…' : 'Connect Google Cloud'}
+          </button>
+          <button
+            type="button"
+            data-testid="cloud-cred-add"
+            onClick={openAdd}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-bold text-slate-300 border border-slate-700 hover:border-slate-500 rounded-lg transition cursor-pointer"
+          >
+            <Plus className="w-4 h-4" /> Add AWS, Azure, or WIF
+          </button>
+        </div>
       )}
     </div>
   );

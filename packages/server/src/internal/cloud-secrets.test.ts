@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   assertAzureVaultUrl,
   allowHostCloudCredentials,
+  assertGcpJsonAllowedForStore,
+  classifyGcpCredentialJson,
+  GCP_AVOID_SA_KEYS,
+  isGcpOAuthCredentials,
+  normalizeGcpSecretResource,
   parseCloudRef,
+  parseGcpServiceAccountJson,
   serializeCloudRef,
 } from './cloud-secrets';
 
@@ -39,6 +45,60 @@ describe('assertAzureVaultUrl', () => {
     expect(() => assertAzureVaultUrl('https://user:pass@myvault.vault.azure.net/')).toThrow(
       /credentials/
     );
+  });
+});
+
+const saKeyJson = JSON.stringify({
+  type: 'service_account',
+  project_id: 'demo-proj',
+  client_email: 'sa@demo-proj.iam.gserviceaccount.com',
+  private_key: '-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n',
+});
+
+const wifJson = JSON.stringify({
+  type: 'external_account',
+  audience: '//iam.googleapis.com/projects/1/locations/global/workloadIdentityPools/p/providers/x',
+  subject_token_type: 'urn:ietf:params:oauth:token-type:jwt',
+  token_url: 'https://sts.googleapis.com/v1/token',
+  credential_source: { file: '/var/run/secrets/token' },
+});
+
+describe('GCP service-account JSON and secret names', () => {
+  it('parses an IAM service-account key and rejects other JSON', () => {
+    expect(parseGcpServiceAccountJson(saKeyJson)).toMatchObject({
+      project_id: 'demo-proj',
+      client_email: 'sa@demo-proj.iam.gserviceaccount.com',
+    });
+    expect(() => parseGcpServiceAccountJson('{"type":"authorized_user"}')).toThrow(
+      /service_account/
+    );
+    expect(() => parseGcpServiceAccountJson('{')).toThrow(/valid JSON/);
+  });
+
+  it('classifies Workload Identity Federation config and refuses storing a downloaded key', () => {
+    expect(classifyGcpCredentialJson(wifJson)).toMatchObject({ kind: 'wif' });
+    expect(assertGcpJsonAllowedForStore(wifJson)).toEqual({ kind: 'wif' });
+    expect(classifyGcpCredentialJson(saKeyJson).kind).toBe('service_account');
+    expect(() => assertGcpJsonAllowedForStore(saKeyJson)).toThrow(GCP_AVOID_SA_KEYS);
+    expect(() => classifyGcpCredentialJson('{"type":"authorized_user"}')).toThrow(
+      /security risk|external_account/
+    );
+  });
+
+  it('expands a short secret name and keeps a full resource path', () => {
+    expect(normalizeGcpSecretResource('api-token', 'demo-proj')).toBe(
+      'projects/demo-proj/secrets/api-token/versions/latest'
+    );
+    expect(
+      normalizeGcpSecretResource('projects/demo-proj/secrets/api-token', undefined, '3')
+    ).toBe('projects/demo-proj/secrets/api-token/versions/3');
+    expect(() => normalizeGcpSecretResource('api-token')).toThrow(/project id/);
+  });
+
+  it('treats a refresh token as OAuth credentials, not a JSON key', () => {
+    expect(isGcpOAuthCredentials({ auth: 'oauth', refreshToken: '1//x' })).toBe(true);
+    expect(isGcpOAuthCredentials({ serviceAccountJson: '{}' })).toBe(false);
+    expect(isGcpOAuthCredentials({ accessToken: 'ya29.x' })).toBe(false);
   });
 });
 

@@ -21,12 +21,15 @@ export type AppSecretSummary = {
   updatedAt: string;
 };
 
-/** Named cloud credential (Credentials → Cloud providers). */
+/** Named cloud credential (Credentials → Cloud providers). Never includes tokens. */
 export type CloudProviderCredentialSummary = {
   id: string;
   name: string;
   provider: CloudSecretProviderId;
   updatedAt: string;
+  auth?: 'oauth' | 'wif';
+  email?: string;
+  projectId?: string;
 };
 
 export type AwsProviderCredentials = {
@@ -37,9 +40,15 @@ export type AwsProviderCredentials = {
 };
 
 export type GcpProviderCredentials = {
+  auth?: 'oauth' | 'wif';
   serviceAccountJson?: string;
   accessToken?: string;
+  projectId?: string;
 };
+
+export type GcpProjectSummary = { id: string; name: string };
+export type GcpSecretSummary = { id: string; name: string };
+export type GcpSecretVersionSummary = { id: string; name: string; state: string };
 
 export type AzureProviderCredentials = {
   tenantId: string;
@@ -108,4 +117,47 @@ export async function updateCloudProviderCredential(
 
 export async function deleteCloudProviderCredential(id: string): Promise<void> {
   await api.delete<{ ok: boolean }>(`/app-secrets/providers/${encodeURIComponent(id)}`);
+}
+
+export function gcpOAuthStartUrl(name?: string): string {
+  const path = `${getApiBase()}/app-secrets/providers/gcp/oauth/start`;
+  const trimmed = name?.trim();
+  return trimmed ? `${path}?name=${encodeURIComponent(trimmed)}` : path;
+}
+
+export async function disconnectGcpCloudProvider(id: string): Promise<void> {
+  await api.post<{ ok: boolean }>(
+    `/app-secrets/providers/${encodeURIComponent(id)}/gcp/disconnect`,
+    {}
+  );
+}
+
+export async function listGcpProjects(credentialId: string): Promise<GcpProjectSummary[]> {
+  const data = await api.get<{ projects: GcpProjectSummary[] }>(
+    `/app-secrets/providers/${encodeURIComponent(credentialId)}/gcp/projects`
+  );
+  return data.projects ?? [];
+}
+
+export async function listGcpSecrets(
+  credentialId: string,
+  project: string
+): Promise<GcpSecretSummary[]> {
+  const data = await api.get<{ secrets: GcpSecretSummary[] }>(
+    `/app-secrets/providers/${encodeURIComponent(credentialId)}/gcp/secrets`,
+    { query: { project } }
+  );
+  return data.secrets ?? [];
+}
+
+export async function listGcpSecretVersions(
+  credentialId: string,
+  secretId: string,
+  project: string
+): Promise<GcpSecretVersionSummary[]> {
+  const data = await api.get<{ versions: GcpSecretVersionSummary[] }>(
+    `/app-secrets/providers/${encodeURIComponent(credentialId)}/gcp/secrets/${encodeURIComponent(secretId)}/versions`,
+    { query: { project } }
+  );
+  return data.versions ?? [];
 }

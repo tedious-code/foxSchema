@@ -10,7 +10,10 @@ import type {
   CloudSecretSource,
   GcpProviderCredentials,
 } from '../../internal/cloud-secrets';
-import { isCloudSecretSource } from '../../internal/cloud-secrets';
+import {
+  assertGcpJsonAllowedForStore,
+  isCloudSecretSource,
+} from '../../internal/cloud-secrets';
 
 export type {
   AwsProviderCredentials,
@@ -25,6 +28,10 @@ export type CloudProviderCredentialSummary = {
   name: string;
   provider: CloudSecretSource;
   updatedAt: string;
+  /** `oauth` = Connect Google Cloud; `wif` = Workload Identity Federation config. */
+  auth?: 'oauth' | 'wif';
+  email?: string;
+  projectId?: string;
 };
 
 interface CredRow {
@@ -59,21 +66,32 @@ function validateCredentials(
   }
   if (provider === 'gcp') {
     const c = creds as GcpProviderCredentials;
+    const refresh = c.refreshToken?.trim();
+    const isOauth = c.auth === 'oauth' || !!refresh;
+    if (isOauth) {
+      if (!refresh) {
+        throw new Error('GCP OAuth credentials require a refreshToken');
+      }
+      return {
+        auth: 'oauth' as const,
+        refreshToken: refresh,
+        ...(c.email?.trim() ? { email: c.email.trim().toLowerCase() } : {}),
+        ...(c.projectId?.trim() ? { projectId: c.projectId.trim() } : {}),
+      };
+    }
     const json = c.serviceAccountJson?.trim();
     const token = c.accessToken?.trim();
     if (!json && !token) {
-      throw new Error('GCP credentials require serviceAccountJson or accessToken');
+      throw new Error(
+        'GCP credentials require Connect Google Cloud, a Workload Identity Federation config, or accessToken'
+      );
     }
-    if (json) {
-      try {
-        JSON.parse(json);
-      } catch {
-        throw new Error('GCP serviceAccountJson must be valid JSON');
-      }
-    }
+    if (json) assertGcpJsonAllowedForStore(json);
+    const projectId = c.projectId?.trim();
     return {
       ...(json ? { serviceAccountJson: json } : {}),
       ...(token ? { accessToken: token } : {}),
+      ...(projectId ? { projectId } : {}),
     };
   }
   const c = creds as AzureProviderCredentials;
@@ -87,12 +105,39 @@ function validateCredentials(
   };
 }
 
+function publicGcpFields(encryptedConfig: string): Pick<
+  CloudProviderCredentialSummary,
+  'auth' | 'email' | 'projectId'
+> {
+  try {
+    const creds = JSON.parse(decryptSecret(encryptedConfig)) as GcpProviderCredentials;
+    const oauth = creds.auth === 'oauth' || !!creds.refreshToken;
+    let wif = false;
+    if (!oauth && creds.serviceAccountJson?.trim()) {
+      try {
+        const parsed = JSON.parse(creds.serviceAccountJson) as { type?: string };
+        wif = parsed.type === 'external_account';
+      } catch {
+        wif = false;
+      }
+    }
+    return {
+      ...(oauth ? { auth: 'oauth' as const } : wif ? { auth: 'wif' as const } : {}),
+      ...(oauth && creds.email?.trim() ? { email: creds.email.trim() } : {}),
+      ...(creds.projectId?.trim() ? { projectId: creds.projectId.trim() } : {}),
+    };
+  } catch {
+    return {};
+  }
+}
+
 function toSummary(row: CredRow): CloudProviderCredentialSummary {
   return {
     id: row.id,
     name: row.name,
     provider: row.provider as CloudSecretSource,
     updatedAt: row.updated_at,
+    ...(row.provider === 'gcp' ? publicGcpFields(row.encrypted_config) : {}),
   };
 }
 
@@ -195,7 +240,13 @@ export class CloudProviderCredentialsStore {
     } catch (err: unknown) {
       rethrowUniqueViolation(err, `A cloud credential named "${trimmed}" already exists`);
     }
-    return { id, name: trimmed, provider, updatedAt };
+    return toSummary({
+      id,
+      name: trimmed,
+      provider,
+      encrypted_config: encrypted,
+      updated_at: updatedAt,
+    });
   }
 
   async update(
@@ -241,12 +292,13 @@ export class CloudProviderCredentialsStore {
     } catch (err: unknown) {
       rethrowUniqueViolation(err, `A cloud credential named "${nextName}" already exists`);
     }
-    return {
+    return toSummary({
       id,
       name: nextName,
       provider: existing.provider,
-      updatedAt,
-    };
+      encrypted_config: encrypted,
+      updated_at: updatedAt,
+    });
   }
 
   async remove(scope: WorkspaceScope, id: string): Promise<boolean> {

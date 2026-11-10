@@ -4,15 +4,18 @@ import { getStore } from '../../database/store';
 import { encryptSecret, decryptSecret } from '../../platform/crypto/crypto';
 import {
   assertAzureVaultUrl,
+  isGcpOAuthCredentials,
   parseCloudRef,
   resolveCloudSecret,
   serializeCloudRef,
   type CloudSecretRef,
   type CloudSecretSource,
+  type GcpProviderCredentials,
 } from '../../internal/cloud-secrets';
 import { rethrowUniqueViolation } from '../../platform/db/db-errors';
 import { CloudProviderCredentialsStore } from './cloud-provider-credentials.service';
 import type { CloudProviderCredentials } from '../../internal/cloud-secrets';
+import { GcpOAuthService } from './gcp-oauth.service';
 import { errorMessage } from '@foxschema/sql';
 
 export type AppSecretSource = 'local' | CloudSecretSource;
@@ -69,6 +72,7 @@ function toSummary(row: AppSecretRow): AppSecretSummary {
  */
 export class AppSecretsStore {
   private readonly providers = new CloudProviderCredentialsStore();
+  private readonly gcpOAuth = new GcpOAuthService(this.providers);
   async list(scope: WorkspaceScope): Promise<AppSecretSummary[]> {
     const store = await getStore();
     const rows = await store.all<AppSecretRow>(
@@ -280,7 +284,12 @@ export class AppSecretsStore {
             errors[row.name] = `Unknown source: ${row.source}`;
             return;
           }
-          const providerCreds = await credsFor(row.source, ref.credentialId);
+          let providerCreds = await credsFor(row.source, ref.credentialId);
+          if (row.source === 'gcp' && isGcpOAuthCredentials(providerCreds as GcpProviderCredentials | undefined)) {
+            providerCreds = await this.gcpOAuth.ensureGcpAccessToken(
+              providerCreds as GcpProviderCredentials
+            );
+          }
           secrets[row.name] = await resolveCloudSecret(row.source, ref, providerCreds);
         } catch (err: unknown) {
           errors[row.name] = errorMessage(err);

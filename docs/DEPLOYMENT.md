@@ -456,6 +456,30 @@ explicitly set `ALLOW_HOST_CLOUD_CREDENTIALS=true` (not recommended on shared se
 Azure `vaultUrl` values must be HTTPS `*.vault.azure.net` (or known sovereign-cloud vault
 hostnames).
 
+**Google Cloud Secret Manager (OAuth):** Connect Google Cloud uses this install’s
+Google OAuth client (the same client id/secret as Access control → Sign-in →
+Google, via `SSO_GOOGLE_CLIENT_ID` / `SSO_GOOGLE_CLIENT_SECRET` or the admin
+screen). Add this authorized redirect URI on that Google Cloud OAuth app:
+
+```
+{APP_PUBLIC_URL}/api/app-secrets/providers/gcp/oauth/callback
+```
+
+That is separate from the sign-in callback (`/api/auth/sso/google/callback`).
+The Fox sign-in service cannot grant Secret Manager. The Google user still needs
+IAM `secretmanager.secretAccessor` (and `secretmanager.viewer` to list) on the
+chosen secrets. Do not download a service-account JSON key. For CI / headless,
+use **Workload Identity Federation** (`external_account` client config on the
+named credential, or `GOOGLE_APPLICATION_CREDENTIALS` on the host) or the
+instance’s attached identity (GCE / Cloud Run / GKE). Existing stored keys still
+resolve until replaced.
+
+**Workflow GCP secrets:** prefer the engine’s GCE/Cloud Run/GKE metadata identity
+or `GOOGLE_ACCESS_TOKEN`. For other hosts, point `GOOGLE_APPLICATION_CREDENTIALS`
+at a Workload Identity Federation client config — do not paste a downloaded
+key. A legacy `GOOGLE_SERVICE_ACCOUNT_JSON` / `GCP_SERVICE_ACCOUNT_JSON` still
+mints a token if present. The JSON never returns to the browser.
+
 **Always terminate TLS** (via your reverse proxy or platform) for any internet-facing
 deployment — Fox Schema handles database credentials.
 

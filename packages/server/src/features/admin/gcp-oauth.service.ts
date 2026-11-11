@@ -102,11 +102,40 @@ export class GcpOAuthService {
     clearCookie(res, GCP_OAUTH_STATE_COOKIE, { path: GCP_OAUTH_STATE_PATH });
   }
 
+  /**
+   * Refuses a connect that would land on a credential the caller may not
+   * replace. Connecting under a name already in use overwrites what is stored
+   * there, so it is an edit: only an existing Google Cloud connection may be
+   * replaced (a reconnect), and only by someone who may edit secrets. Without
+   * this, adding rights were enough to swap the workspace's Google identity —
+   * and every connect defaults to the same name.
+   */
+  private async assertNameFree(
+    scope: WorkspaceScope,
+    name: string,
+    mayReplace: boolean
+  ): Promise<CloudProviderCredentialSummary | undefined> {
+    const existing = (await this.providers.list(scope)).find((c) => c.name === name);
+    if (!existing) return undefined;
+    if (existing.provider !== 'gcp' || existing.auth !== 'oauth') {
+      throw new Error(
+        `A cloud credential named "${name}" already exists and is not a Google Cloud connection. Choose another name.`
+      );
+    }
+    if (!mayReplace) {
+      throw new Error(
+        `"${name}" is already connected to Google Cloud. Reconnecting it needs permission to edit secrets — or choose another name.`
+      );
+    }
+    return existing;
+  }
+
   /** Authorize URL plus the value to store in the state cookie. */
   async beginConnect(
     req: AppRequest,
     scope: WorkspaceScope,
-    nameRaw?: string
+    nameRaw?: string,
+    opts: { mayReplace?: boolean } = {}
   ): Promise<{ url: string; cookie: string }> {
     const client = await this.googleClient();
     if (!client) throw new Error(GOOGLE_NOT_CONFIGURED);
@@ -114,6 +143,9 @@ export class GcpOAuthService {
     if (!isValidCloudCredentialName(name)) {
       throw new Error('Invalid credential name — use letters, digits, spaces, ._- (1–64 chars)');
     }
+    // Before the trip to Google, not only after it: a refusal on the way back
+    // would cost the user a consent screen for nothing.
+    await this.assertNameFree(scope, name, opts.mayReplace === true);
     const state = newToken();
     const pkce = newPkce();
     const payload = Buffer.from(
@@ -134,7 +166,7 @@ export class GcpOAuthService {
   async completeConnect(
     req: AppRequest,
     scope: WorkspaceScope,
-    input: { code: string; state: string; cookie: string | undefined }
+    input: { code: string; state: string; cookie: string | undefined; mayReplace?: boolean }
   ): Promise<CloudProviderCredentialSummary> {
     const client = await this.googleClient();
     if (!client) throw new Error(GOOGLE_NOT_CONFIGURED);
@@ -149,19 +181,38 @@ export class GcpOAuthService {
       throw new Error('Invalid or expired Google Cloud connect state. Start Connect Google Cloud again.');
     }
     const payload = decodeStatePayload(payloadRaw);
+    // The redirect back from Google is a plain navigation, so this request
+    // acts in whichever workspace the account has selected *now*. If that
+    // changed since the connect began (another tab, during the consent
+    // screen), storing here would put this person's Google grant in a
+    // workspace they did not choose — one whose other members could then use
+    // it. Checked before the code is exchanged, so nothing is spent.
+    if (!payload.workspaceId || payload.workspaceId !== scope.workspaceId) {
+      throw new Error(
+        'The selected workspace changed while connecting Google Cloud. Start Connect Google Cloud again in the workspace you want.'
+      );
+    }
+    const mayReplace = input.mayReplace === true;
+    await this.assertNameFree(scope, (payload.name || GCP_OAUTH_DEFAULT_NAME).trim(), mayReplace);
     const tokens = await exchangeGcpAuthCode({
       client,
       code: input.code,
       redirectUri: await this.redirectUri(req),
       codeVerifier: verifier,
     });
-    return this.storeOAuthCredential(scope, payload.name, tokens);
+    return this.storeOAuthCredential(scope, payload.name, tokens, { mayReplace });
   }
 
+  /**
+   * Stores the refresh token under `nameRaw`. A name already in use is
+   * replaced only when it is a Google Cloud connection and `mayReplace` is
+   * set (see `assertNameFree`); otherwise this throws and stores nothing.
+   */
   async storeOAuthCredential(
     scope: WorkspaceScope,
     nameRaw: string,
-    tokens: { refreshToken: string; email?: string }
+    tokens: { refreshToken: string; email?: string },
+    opts: { mayReplace?: boolean } = {}
   ): Promise<CloudProviderCredentialSummary> {
     const name = (nameRaw || GCP_OAUTH_DEFAULT_NAME).trim();
     const credentials: GcpProviderCredentials = {
@@ -169,17 +220,11 @@ export class GcpOAuthService {
       refreshToken: tokens.refreshToken,
       ...(tokens.email ? { email: tokens.email } : {}),
     };
-    try {
-      return await this.providers.create(scope, name, 'gcp', credentials);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : '';
-      if (!/already exists/i.test(message)) throw err;
-      const existing = (await this.providers.list(scope)).find((c) => c.name === name);
-      if (!existing || existing.provider !== 'gcp') throw err;
-      const updated = await this.providers.update(scope, existing.id, { credentials });
-      if (!updated) throw err;
-      return updated;
-    }
+    const existing = await this.assertNameFree(scope, name, opts.mayReplace === true);
+    if (!existing) return this.providers.create(scope, name, 'gcp', credentials);
+    const updated = await this.providers.update(scope, existing.id, { credentials });
+    if (!updated) throw new Error('Cloud credential not found');
+    return updated;
   }
 
   async ensureGcpAccessToken(creds: GcpProviderCredentials): Promise<GcpProviderCredentials> {

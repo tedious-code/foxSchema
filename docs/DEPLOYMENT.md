@@ -125,6 +125,8 @@ docker compose -f docker-compose.app.yml up -d
 | `APP_VERSION` | from `package.json` | Running version compared against the feed. The CLI sets this from the installed npm package. |
 | `FOXSCHEMA_SELF_UPDATE` | `true` via CLI open | When `true`, UI can run `npm install -g foxschema@latest`. Off in Docker / set `false` to require a manual terminal upgrade. |
 | `ALLOW_HOST_CLOUD_CREDENTIALS` | off | When `true`, cloud secret resolve may use the host IAM/ADC chain without saved user credentials. **Keep off** on multi-user hosts. |
+| `FOX_GCP_WIF_TOKEN_FILES` | none | Comma-separated absolute paths a **pasted** Workload Identity Federation config may read its subject token from (e.g. a projected Kubernetes token). Unset: no pasted config may read a file. |
+| `FOX_GCP_WIF_TOKEN_URLS` | none | Comma-separated URLs (exact match) a pasted Workload Identity Federation config may fetch its subject token from. Unset: no pasted config may fetch one. |
 | `LISTEN_HOST` | `0.0.0.0` with `NODE_ENV=production`, else `127.0.0.1` | Address the server listens on. Outside production, a network address is refused at startup unless `FOX_INSECURE_DEV=1`. |
 | `FOX_INSECURE_DEV` | off | `1` lets a development server (no `NODE_ENV=production`) listen on a network address. Such a server encrypts saved credentials with a development key when `APP_ENCRYPTION_KEY` is unset and sends its session cookie without the Secure flag, so use it only on a network you trust. |
 | `FOX_SESSION_IDLE_HOURS` | `8` | A session unused this long ends, whatever its 7-day expiry. `0` turns the idle limit off. People can also end their other sessions from the profile menu (**Sign out other sessions**). |
@@ -473,6 +475,22 @@ use **Workload Identity Federation** (`external_account` client config on the
 named credential, or `GOOGLE_APPLICATION_CREDENTIALS` on the host) or the
 instance’s attached identity (GCE / Cloud Run / GKE). Existing stored keys still
 resolve until replaced.
+
+A Workload Identity Federation config pasted into Fox is input from a user, and
+it names a file or URL for the server to read and an endpoint to send it to. Fox
+therefore accepts one only when its `token_url` is Google’s
+(`https://sts.googleapis.com/v1/token`; any impersonation URL must be
+`iamcredentials.googleapis.com`), and its `credential_source` is a file listed in
+`FOX_GCP_WIF_TOKEN_FILES` or a URL listed in `FOX_GCP_WIF_TOKEN_URLS`. Executable,
+AWS and certificate sources are refused in a pasted config: use
+`GOOGLE_APPLICATION_CREDENTIALS` on the host for those. The check runs when the
+config is saved and again each time it is used.
+
+Connecting under a name that is already a Google Cloud connection reconnects it,
+and needs **Edit secrets**; a name used by any other credential is refused. The
+connection is stored in the workspace selected when you clicked Connect: if
+another workspace is selected by the time Google returns, nothing is stored and
+you start again.
 
 **Workflow GCP secrets:** prefer the engine’s GCE/Cloud Run/GKE metadata identity
 or `GOOGLE_ACCESS_TOKEN`. For other hosts, point `GOOGLE_APPLICATION_CREDENTIALS`

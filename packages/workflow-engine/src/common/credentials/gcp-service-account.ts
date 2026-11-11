@@ -6,8 +6,12 @@
  * Mint a GCP access token from an IAM service-account JSON key (JWT bearer).
  * The workflow engine has no @google-cloud SDK; this is the same grant the
  * Secret Manager REST API expects.
+ *
+ * No static Node import: `providers.ts` imports this file, and the browser
+ * loads `providers.ts` through `@foxschema/workflow-engine/definitions`
+ * (`definitions-purity.test.ts`). `node:crypto` is loaded where it signs, as
+ * the AWS signer in `providers.ts` does.
  */
-import { createSign } from 'node:crypto';
 
 export type GcpServiceAccountKey = {
   project_id?: string;
@@ -120,6 +124,7 @@ export async function mintGcpAccessToken(
     }),
   );
   const unsigned = `${header}.${claims}`;
+  const { createSign } = await import('node:crypto');
   const sign = createSign('RSA-SHA256');
   sign.update(unsigned);
   sign.end();

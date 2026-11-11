@@ -33,3 +33,10 @@ Identity Federation `external_account` client config (no private key), or
 use the host identity (ADC / GCE metadata, including WIF via
 `GOOGLE_APPLICATION_CREDENTIALS`). Existing stored keys still resolve until
 you replace them. AWS and Azure fetch are unchanged.
+
+A pasted Workload Identity Federation config is checked before it is saved and
+before each use: its endpoints must be Google’s, and its token may come only
+from a file or URL listed in `FOX_GCP_WIF_TOKEN_FILES` / `FOX_GCP_WIF_TOKEN_URLS`
+on the server. Nothing is listed by default. Connecting under a name already in
+use reconnects that Google Cloud connection and needs **Edit secrets**; it never
+replaces another kind of credential.

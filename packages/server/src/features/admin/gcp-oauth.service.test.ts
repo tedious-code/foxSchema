@@ -183,6 +183,107 @@ describe('GcpOAuthService', () => {
   });
 });
 
+describe('GcpOAuthService: a connect never replaces what its caller may not edit', () => {
+  const stored = async (scope: WorkspaceScope, id: string) =>
+    (await providers.getDecryptedById(scope, id))?.credentials as GcpProviderCredentials;
+
+  it('refuses a name already connected unless the caller may edit secrets, then reconnects in place', async () => {
+    const first = await gcpOAuth.storeOAuthCredential(alice, 'Shared GCP', {
+      refreshToken: '1//first-owner',
+      email: 'first@example.com',
+    });
+    // The default: adding rights only. Every connect defaults to one name, so
+    // without this a second person's click swapped the workspace's identity.
+    await expect(
+      gcpOAuth.storeOAuthCredential(alice, 'Shared GCP', { refreshToken: '1//intruder' })
+    ).rejects.toThrow(/already connected to Google Cloud.*permission to edit secrets/);
+    expect((await stored(alice, first.id)).refreshToken).toBe('1//first-owner');
+
+    const again = await gcpOAuth.storeOAuthCredential(
+      alice,
+      'Shared GCP',
+      { refreshToken: '1//reconnected', email: 'first@example.com' },
+      { mayReplace: true }
+    );
+    // Same row, so secrets that point at it keep working.
+    expect(again.id).toBe(first.id);
+    expect((await stored(alice, first.id)).refreshToken).toBe('1//reconnected');
+  });
+
+  it('never replaces a credential that is not a Google Cloud connection, edit rights or not', async () => {
+    const token = await providers.create(alice, 'Token GCP', 'gcp', { accessToken: 'ya29.static' });
+    const aws = await providers.create(alice, 'Team AWS', 'aws', {
+      accessKeyId: 'AKIAEXAMPLE',
+      secretAccessKey: 'secret',
+    });
+    for (const name of ['Token GCP', 'Team AWS']) {
+      await expect(
+        gcpOAuth.storeOAuthCredential(alice, name, { refreshToken: '1//intruder' }, { mayReplace: true })
+      ).rejects.toThrow(/already exists and is not a Google Cloud connection/);
+    }
+    expect((await stored(alice, token.id)).accessToken).toBe('ya29.static');
+    expect((await stored(alice, token.id)).refreshToken).toBeUndefined();
+    expect((await providers.getDecryptedById(alice, aws.id))?.provider).toBe('aws');
+  });
+
+  it('refuses at the start and at the callback, before anything is asked of Google', async () => {
+    process.env.SSO_GOOGLE_CLIENT_ID = 'client.apps.googleusercontent.com';
+    process.env.SSO_GOOGLE_CLIENT_SECRET = 'oauth-secret';
+    const req = { protocol: 'http', host: '127.0.0.1:3210', query: {} } as AppRequest;
+    const fetchFn = vi.fn(async () => jsonResponse({ access_token: 'ya29.x', refresh_token: '1//intruder' }));
+    vi.stubGlobal('fetch', fetchFn);
+
+    // Begun while the name was free; taken by someone else before the callback.
+    const started = await gcpOAuth.beginConnect(req, alice, 'Raced GCP');
+    const owner = await gcpOAuth.storeOAuthCredential(alice, 'Raced GCP', { refreshToken: '1//owner' });
+    await expect(
+      gcpOAuth.completeConnect(req, alice, {
+        code: 'code-1',
+        state: started.cookie.split('.')[0]!,
+        cookie: started.cookie,
+      })
+    ).rejects.toThrow(/already connected to Google Cloud/);
+    await expect(gcpOAuth.beginConnect(req, alice, 'Raced GCP')).rejects.toThrow(/already connected/);
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect((await stored(alice, owner.id)).refreshToken).toBe('1//owner');
+
+    await expect(gcpOAuth.beginConnect(req, alice, 'Raced GCP', { mayReplace: true })).resolves.toMatchObject({
+      url: expect.stringContaining('accounts.google.com'),
+    });
+  });
+});
+
+describe('GcpOAuthService: the grant is stored only in the workspace the connect began in', () => {
+  it('refuses the callback when another workspace is selected by then, and spends nothing', async () => {
+    process.env.SSO_GOOGLE_CLIENT_ID = 'client.apps.googleusercontent.com';
+    process.env.SSO_GOOGLE_CLIENT_SECRET = 'oauth-secret';
+    const req = { protocol: 'http', host: '127.0.0.1:3210', query: {} } as AppRequest;
+    const fetchFn = vi.fn(async () => jsonResponse({ access_token: 'ya29.x', refresh_token: '1//personal-grant' }));
+    vi.stubGlobal('fetch', fetchFn);
+
+    const started = await gcpOAuth.beginConnect(req, alice, 'Moved GCP');
+    const [state, verifier] = started.cookie.split('.');
+    // The same person, acting in another workspace when Google sends them back.
+    const elsewhere: WorkspaceScope = { userId: alice.userId, workspaceId: bob.workspaceId };
+    await expect(
+      gcpOAuth.completeConnect(req, elsewhere, { code: 'code-1', state: state!, cookie: started.cookie })
+    ).rejects.toThrow(/selected workspace changed while connecting/);
+    // A state cookie with no readable workspace is no proof of where it began.
+    await expect(
+      gcpOAuth.completeConnect(req, alice, { code: 'code-1', state: state!, cookie: `${state}.${verifier}.` })
+    ).rejects.toThrow(/selected workspace changed while connecting/);
+
+    expect(fetchFn).not.toHaveBeenCalled();
+    for (const scope of [alice, bob, elsewhere]) {
+      expect((await providers.list(scope)).some((c) => c.name === 'Moved GCP')).toBe(false);
+    }
+
+    // Unchanged workspace: it completes.
+    const saved = await gcpOAuth.completeConnect(req, alice, { code: 'code-1', state: state!, cookie: started.cookie });
+    expect(saved).toMatchObject({ name: 'Moved GCP', auth: 'oauth' });
+  });
+});
+
 describe('AppSecretsStore cloud refs with GCP OAuth', () => {
   it('resolves a cloud ref through the refreshed token and does not write encrypted_value', async () => {
     process.env.SSO_GOOGLE_CLIENT_ID = 'client.apps.googleusercontent.com';

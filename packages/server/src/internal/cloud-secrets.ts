@@ -3,6 +3,7 @@
  * Prefer stored per-user provider credentials. Host default chains are only
  * allowed in single-user mode (or when ALLOW_HOST_CLOUD_CREDENTIALS=true).
  */
+import { assertSafeGcpWifConfig } from './gcp-wif-config';
 
 export type CloudSecretSource = 'aws' | 'gcp' | 'azure';
 
@@ -112,10 +113,9 @@ export function classifyGcpCredentialJson(raw: string): GcpCredentialJson {
     if (!jsonString(obj, 'audience').trim() || !jsonString(obj, 'token_url').trim()) {
       throw new Error('Workload Identity Federation config needs audience and token_url');
     }
-    const source = obj.credential_source;
-    if (!source || typeof source !== 'object' || Array.isArray(source)) {
-      throw new Error('Workload Identity Federation config needs credential_source');
-    }
+    // A pasted config tells the server which file to read and where to send
+    // it: only Google's endpoints, and only a token source this install lists.
+    assertSafeGcpWifConfig(obj);
     return { kind: 'wif', config: obj };
   }
   if (type === 'service_account' || (jsonString(obj, 'client_email') && jsonString(obj, 'private_key'))) {
@@ -362,6 +362,9 @@ async function readGcpAccessToken(client: GcpAccessTokenClient): Promise<string 
 
 /** Mint a short-lived token from a WIF `external_account` client config. */
 export async function mintGcpWifAccessToken(config: Record<string, unknown>): Promise<string> {
+  // Checked here as well as on save: this is where the library acts on the
+  // config, and a row saved before the allow-list changed must not slip by.
+  assertSafeGcpWifConfig(config);
   try {
     const { IdentityPoolClient, GoogleAuth } = await import('google-auth-library');
     const token =

@@ -12,6 +12,7 @@ import { isCloudSecretSource } from '../../internal/cloud-secrets';
 import type { AuthedRequest } from '../../platform/http/types';
 import { requirePermissions } from '../../platform/authorization/rbac.guard';
 import { sendError, sendThrown } from '../../platform/http/respond';
+import { actorOf } from '../../platform/http/actor-of';
 import { SignInSettings } from '../../platform/identity/sign-in-settings.service';
 import {
   GcpOAuthService,
@@ -76,11 +77,19 @@ export function createAppSecretsRoutes(
     requirePermissions('secrets.create'),
     async (req: AuthedRequest, res: FastifyReply) => {
       try {
-        const started = await gcpOAuth.beginConnect(req, scopeOf(req)!, queryString(req, 'name'));
+        const started = await gcpOAuth.beginConnect(req, scopeOf(req)!, queryString(req, 'name'), {
+          mayReplace: actorOf(req).can('secrets.edit'),
+        });
         gcpOAuth.setStateCookie(res, started.cookie);
         res.redirect(started.url);
       } catch (error: unknown) {
         const msg = error instanceof Error ? error.message : 'Failed to start Google Cloud connect';
+        // This route is a page navigation, so a name already in use goes back
+        // to the app with its reason, the way the callback reports a failure.
+        if (/already (exists|connected)/i.test(msg)) {
+          await frontendRedirect(res, { gcp_oauth: 'error', gcp_oauth_error: msg });
+          return;
+        }
         const status = /not configured|Invalid credential name|own Google OAuth/i.test(msg) ? 400 : 500;
         if (status === 400) {
           sendError(res, 'invalid_input', msg);
@@ -104,6 +113,8 @@ export function createAppSecretsRoutes(
           code: queryString(req, 'code'),
           state: queryString(req, 'state'),
           cookie: readGcpOAuthStateCookie(req),
+          // Landing on a name in use replaces what is stored there: an edit.
+          mayReplace: actorOf(req).can('secrets.edit'),
         });
         gcpOAuth.clearStateCookie(res);
         await frontendRedirect(res, { gcp_oauth: 'connected' });

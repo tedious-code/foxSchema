@@ -18,7 +18,7 @@ describe('GCP service-account helper', () => {
         type: 'service_account',
         project_id: 'demo-proj',
         client_email: 'sa@demo-proj.iam.gserviceaccount.com',
-        private_key: '-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n',
+        private_key: '-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n', // gitleaks:allow (fake key: the body is 'abc')
       }),
     );
     expect(key.project_id).toBe('demo-proj');

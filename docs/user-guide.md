@@ -515,9 +515,14 @@ Tips:
   own Google OAuth app asks for Secret Manager access; FoxSchema stores only a
   **refresh token** (encrypted) and never shows it again. Then pick the
   credential, project, secret, and version and **Fetch**. Do not download a
-  service-account JSON key. For machines, paste a **Workload Identity Federation**
+  service-account JSON key. Connecting under a name that is already connected
+  reconnects it (this needs **Edit secrets**); a name used by another kind of
+  credential is refused. For machines, paste a **Workload Identity Federation**
   client config (`type: "external_account"`) or use the host identity (GCE / Cloud
-  Run / GKE metadata, or `GOOGLE_APPLICATION_CREDENTIALS`). Add AWS or Azure keys
+  Run / GKE metadata, or `GOOGLE_APPLICATION_CREDENTIALS`). A pasted config must
+  use Google’s own token endpoint, and may read its token only from a file or URL
+  the person running the install has listed (`FOX_GCP_WIF_TOKEN_FILES`,
+  `FOX_GCP_WIF_TOKEN_URLS`, see [DEPLOYMENT.md](DEPLOYMENT.md)). Add AWS or Azure keys
   the same way (e.g. “Prod AWS”), or **manually** enter a secret key. Cloud secrets
   are registered as **Variables** with the secret flag — the UI shows **••••** only;
   retrieved values stay in the session and are not copied into the vault.

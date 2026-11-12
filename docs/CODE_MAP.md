@@ -306,7 +306,8 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 ## Checks to run
 
 ```bash
-cd apps/web && npx tsc --noEmit     # typecheck (covers packages too)
+npm run verify                      # all of the below and CI's security checks, as CI runs them
+npm run typecheck                   # web, e2e and cli projects; apps/web alone misses some errors
 npx vitest run                      # all tests, from the repository root
 npx eslint .
 npm run build -w @foxschema/web     # the bundler catches what tsc cannot

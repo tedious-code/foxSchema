@@ -253,6 +253,30 @@ describe('GcpOAuthService: a connect never replaces what its caller may not edit
   });
 });
 
+describe('GcpOAuthService.connectAtSignIn', () => {
+  const stored = async (scope: WorkspaceScope, id: string) =>
+    (await providers.getDecryptedById(scope, id))?.credentials as GcpProviderCredentials;
+
+  it('saves "Google Cloud" when the name is free, and never replaces what is there', async () => {
+    const carol = await scopeFor(await auth.createUser('carol-gcp-signin@example.com', 'correct-horse-9', 'viewer'));
+    expect(await gcpOAuth.connectAtSignIn(carol, { refreshToken: '1//at-sign-in', email: 'carol@example.com' })).toBe('connected');
+    const saved = (await providers.list(carol)).find((c) => c.name === 'Google Cloud')!;
+    expect(saved).toMatchObject({ provider: 'gcp', auth: 'oauth' });
+    expect((await stored(carol, saved.id)).refreshToken).toBe('1//at-sign-in');
+
+    // A later grant (another Google account, say) leaves the connection alone.
+    expect(await gcpOAuth.connectAtSignIn(carol, { refreshToken: '1//later' })).toBe('kept');
+    expect((await stored(carol, saved.id)).refreshToken).toBe('1//at-sign-in');
+  });
+
+  it('leaves another kind of credential called "Google Cloud" as it is', async () => {
+    const dan = await scopeFor(await auth.createUser('dan-gcp-signin@example.com', 'correct-horse-9', 'viewer'));
+    await providers.create(dan, 'Google Cloud', 'aws', { accessKeyId: 'AKIAEXAMPLE', secretAccessKey: 'x', region: 'us-east-1' });
+    expect(await gcpOAuth.connectAtSignIn(dan, { refreshToken: '1//r' })).toBe('kept');
+    expect((await providers.list(dan)).map((c) => [c.name, c.provider])).toEqual([['Google Cloud', 'aws']]);
+  });
+});
+
 describe('GcpOAuthService: the grant is stored only in the workspace the connect began in', () => {
   it('refuses the callback when another workspace is selected by then, and spends nothing', async () => {
     process.env.SSO_GOOGLE_CLIENT_ID = 'client.apps.googleusercontent.com';

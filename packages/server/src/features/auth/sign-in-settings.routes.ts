@@ -105,6 +105,21 @@ export function createSignInSettingsRoutes(
     }
   });
 
+  /** Whether Google sign-in also connects Google Cloud for secrets. */
+  router.put('/google-cloud', guard, async (req: AuthedRequest, res: FastifyReply) => {
+    const { enabled } = (req.body ?? {}) as { enabled?: unknown };
+    if (typeof enabled !== 'boolean') {
+      sendError(res, 'invalid_input', 'enabled must be true or false.');
+      return;
+    }
+    try {
+      await settings.setGoogleCloudAtSignIn(enabled);
+      res.send({ ok: true });
+    } catch (error: unknown) {
+      fail(res, error);
+    }
+  });
+
   router.put('/public-url', guard, async (req: AuthedRequest, res: FastifyReply) => {
     const { url } = (req.body ?? {}) as { url?: unknown };
     try {

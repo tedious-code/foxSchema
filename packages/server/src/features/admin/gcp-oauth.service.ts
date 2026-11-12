@@ -227,6 +227,22 @@ export class GcpOAuthService {
     return updated;
   }
 
+  /**
+   * The Google Cloud access a Google sign-in brought (an admin turned that
+   * on), saved as "Google Cloud" in the person's personal workspace. Only
+   * when that name is free: a connection the person made themselves, or any
+   * other credential of that name, is left as it is.
+   */
+  async connectAtSignIn(
+    scope: WorkspaceScope,
+    tokens: { refreshToken: string; email?: string }
+  ): Promise<'connected' | 'kept'> {
+    const taken = (await this.providers.list(scope)).some((c) => c.name === GCP_OAUTH_DEFAULT_NAME);
+    if (taken) return 'kept';
+    await this.storeOAuthCredential(scope, GCP_OAUTH_DEFAULT_NAME, tokens);
+    return 'connected';
+  }
+
   async ensureGcpAccessToken(creds: GcpProviderCredentials): Promise<GcpProviderCredentials> {
     if (isGcpOAuthCredentials(creds) && creds.refreshToken?.trim()) {
       const client = await this.googleClient();

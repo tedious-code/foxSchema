@@ -90,6 +90,8 @@ export interface SignInSettingsSummary {
   providers: SsoProviderSummary[];
   mail: MailSummary;
   broker: BrokerSummary;
+  /** Whether Google sign-in also connects Google Cloud for secrets. */
+  googleCloud: { enabled: boolean; source: SettingSource | null };
 }
 
 interface StoredProvider {
@@ -112,6 +114,7 @@ const MAIL_KEY = 'auth.mail';
 const PUBLIC_URL_KEY = 'auth.public_url';
 const BROKER_KEY = 'auth.broker';
 const BROKER_ADMINS_KEY = 'auth.broker.admins';
+const GOOGLE_CLOUD_KEY = 'auth.sso.google.cloud';
 const SECURITIES: SmtpSecurity[] = ['tls', 'starttls', 'none'];
 
 function env(name: string | undefined): string {
@@ -348,6 +351,28 @@ export class SignInSettings {
     await this.settings.set(BROKER_ADMINS_KEY, allowed ? 'on' : 'off');
   }
 
+  /**
+   * Whether signing in with this install's own Google app also asks for
+   * read-only Google Cloud access and, the first time someone grants it,
+   * saves a "Google Cloud" connection in their personal workspace. Off by
+   * default: it puts a Google Cloud consent in front of everyone who signs in
+   * with Google. SSO_GOOGLE_CONNECT_GCP=on|off sets it on the server.
+   */
+  async googleCloudAtSignIn(): Promise<{ enabled: boolean; source: SettingSource | null }> {
+    const fromEnv = env('SSO_GOOGLE_CONNECT_GCP').toLowerCase();
+    if (fromEnv === 'on' || fromEnv === 'true') return { enabled: true, source: 'env' };
+    if (fromEnv === 'off' || fromEnv === 'false') return { enabled: false, source: 'env' };
+    const stored = await this.settings.get(GOOGLE_CLOUD_KEY);
+    return { enabled: stored === 'on', source: stored ? 'app' : null };
+  }
+
+  async setGoogleCloudAtSignIn(enabled: boolean): Promise<void> {
+    if (env('SSO_GOOGLE_CONNECT_GCP')) {
+      throw new Error('Connecting Google Cloud at sign-in is set by SSO_GOOGLE_CONNECT_GCP on the server.');
+    }
+    await this.settings.set(GOOGLE_CLOUD_KEY, enabled ? 'on' : 'off');
+  }
+
   async summary(): Promise<SignInSettingsSummary> {
     const { url, source } = await this.publicUrl();
     const providers = await Promise.all(
@@ -387,6 +412,7 @@ export class SignInSettings {
       providers,
       mail,
       broker: { ...broker, url: brokerUrl(), admins: admins.allowed, adminsSource: admins.source },
+      googleCloud: await this.googleCloudAtSignIn(),
     };
   }
 }

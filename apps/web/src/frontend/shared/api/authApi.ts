@@ -285,6 +285,8 @@ export interface SignInSettingsState {
   broker: { enabled: boolean; source: SettingSource | null; url: string; admins: boolean; adminsSource: SettingSource | null };
   /** Demo mode: a banner on every page and `hint` on the sign-in page. */
   demo: { on: boolean; hint: string };
+  /** Whether Google sign-in also connects Google Cloud for secrets. */
+  googleCloud: { enabled: boolean; source: SettingSource | null };
 }
 
 export async function apiSignInSettings(): Promise<SignInSettingsState> {
@@ -335,6 +337,11 @@ export async function apiSendTestEmail(to: string): Promise<void> {
 
 export async function apiSetSignInService(enabled: boolean): Promise<void> {
   await api.put('/admin/sign-in/broker', { enabled }, EMPTY_OK);
+}
+
+/** Whether Google sign-in also asks for Google Cloud access and saves a connection. */
+export async function apiSetGoogleCloudAtSignIn(enabled: boolean): Promise<void> {
+  await api.put('/admin/sign-in/google-cloud', { enabled }, EMPTY_OK);
 }
 
 /** Whether admin accounts may sign in through the Fox sign-in service. */

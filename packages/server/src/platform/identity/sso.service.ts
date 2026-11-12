@@ -27,6 +27,13 @@ import type { SsoProviderConfig } from './sign-in-settings.service';
 
 export type { SsoProviderConfig, SsoProviderId } from './sign-in-settings.service';
 
+/**
+ * Read-only Google Cloud access, asked for at Google sign-in when an admin
+ * turns that on. The same scope Connect Google Cloud asks for
+ * (`GCP_CLOUD_READONLY_SCOPE` in internal/gcp-oauth.ts; a test keeps them equal).
+ */
+export const GOOGLE_CLOUD_SCOPE = 'https://www.googleapis.com/auth/cloud-platform.read-only';
+
 /** The tenant personal Microsoft accounts (outlook.com, hotmail.com…) sign in from. */
 export const MICROSOFT_CONSUMER_TENANT = '9188040d-6c67-4c5b-b112-36a304b66dad';
 const MULTI_TENANT = new Set(['common', 'organizations', 'consumers']);
@@ -87,19 +94,33 @@ export function newPkce(): { verifier: string; challenge: string } {
   return { verifier, challenge };
 }
 
-export function authorizeUrl(p: SsoProviderConfig, redirect: string, state: string, challenge: string): string {
+/**
+ * `googleCloud`: Google only — also ask for read-only Google Cloud access,
+ * offline, so the first grant returns a refresh token. Google sends one only
+ * the first time the person grants the scope to this app; later sign-ins
+ * skip the consent screen and send none.
+ */
+export function authorizeUrl(
+  p: SsoProviderConfig,
+  redirect: string,
+  state: string,
+  challenge: string,
+  opts: { googleCloud?: boolean } = {}
+): string {
   const e = endpoints(p);
+  const googleCloud = p.id === 'google' && opts.googleCloud === true;
   const params = new URLSearchParams({
     client_id: p.clientId,
     redirect_uri: redirect,
     response_type: 'code',
-    scope: e.scope,
+    scope: googleCloud ? `${e.scope} ${GOOGLE_CLOUD_SCOPE}` : e.scope,
     state,
     code_challenge: challenge,
     code_challenge_method: 'S256',
   });
   if (p.id === 'google') {
-    params.set('access_type', 'online');
+    params.set('access_type', googleCloud ? 'offline' : 'online');
+    if (googleCloud) params.set('include_granted_scopes', 'true');
     params.set('prompt', 'select_account');
   }
   if (p.id === 'microsoft') params.set('prompt', 'select_account');
@@ -144,6 +165,16 @@ export function microsoftEmailTrusted(claims: JsonRecord, configuredTenant: stri
 
 const UNVERIFIED = 'The provider did not confirm that this email address is yours.';
 
+export interface SignInResult {
+  /** The verified email, lower case. */
+  email: string;
+  /**
+   * Google only, and only when the person granted read-only Google Cloud
+   * access and Google returned a refresh token for it (the first grant).
+   */
+  googleCloud?: { refreshToken: string };
+}
+
 /** Exchange the auth code for tokens, then return the verified email. */
 export async function fetchVerifiedEmail(
   p: SsoProviderConfig,
@@ -151,6 +182,16 @@ export async function fetchVerifiedEmail(
   redirect: string,
   codeVerifier: string
 ): Promise<string> {
+  return (await exchangeSignInCode(p, code, redirect, codeVerifier)).email;
+}
+
+/** Exchange the auth code for tokens: the verified email, and a Google Cloud grant if one came with it. */
+export async function exchangeSignInCode(
+  p: SsoProviderConfig,
+  code: string,
+  redirect: string,
+  codeVerifier: string
+): Promise<SignInResult> {
   const e = endpoints(p);
   const tokenRes = await fetch(e.token, {
     method: 'POST',
@@ -194,5 +235,12 @@ export async function fetchVerifiedEmail(
   }
 
   if (!email || !email.includes('@')) throw new Error('The provider did not return an email address.');
-  return email.trim().toLowerCase();
+
+  // Google lets a person untick a scope on the consent screen: keep the
+  // refresh token only when the cloud scope is among those granted.
+  const granted = typeof tok.scope === 'string' ? tok.scope.split(/\s+/) : [];
+  const refreshToken = typeof tok.refresh_token === 'string' ? tok.refresh_token : '';
+  const googleCloud =
+    p.id === 'google' && refreshToken && granted.includes(GOOGLE_CLOUD_SCOPE) ? { refreshToken } : undefined;
+  return { email: email.trim().toLowerCase(), ...(googleCloud ? { googleCloud } : {}) };
 }

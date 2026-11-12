@@ -5,7 +5,8 @@ import { Router } from '../../platform/http/router';
 import { AuthModule } from '../../platform/identity/auth.service';
 import { newToken } from '../../platform/crypto/crypto';
 import { readCookie, setSessionCookie } from '../../platform/identity/auth.guard';
-import { authorizeUrl, fetchVerifiedEmail, newPkce, redirectUri } from '../../platform/identity/sso.service';
+import { authorizeUrl, exchangeSignInCode, newPkce, redirectUri } from '../../platform/identity/sso.service';
+import type { AuthUser } from '../../platform/identity/auth.service';
 import { SignInSettings } from '../../platform/identity/sign-in-settings.service';
 import { SsoBroker } from '../../platform/identity/sso-broker';
 import { sendError } from '../../platform/http/respond';
@@ -44,12 +45,26 @@ export function brokerErrorMessage(error: string): string {
 /** The callback path segment for sign-ins through the Fox sign-in service. */
 export const BROKER_CALLBACK = 'broker';
 
+/**
+ * Saves the Google Cloud access a Google sign-in brought, for `user`. Given by
+ * the auth feature's composition (the store lives with the secrets feature).
+ */
+export type ConnectGoogleCloudAtSignIn = (
+  user: AuthUser,
+  grant: { refreshToken: string; email: string }
+) => Promise<void>;
+
 /** SSO (OAuth2/OIDC) routes — mounted at /api/auth/sso. */
 export function createSsoRoutes(
   auth: AuthModule,
   settings = new SignInSettings(),
-  broker = new SsoBroker()
+  broker = new SsoBroker(),
+  connectGoogleCloud?: ConnectGoogleCloudAtSignIn
 ): Router {
+  /** Asked for only with this install's own Google app, and only when an admin turned it on. */
+  const googleCloudAtSignIn = async (providerId: string) =>
+    providerId === 'google' && !!connectGoogleCloud && (await settings.googleCloudAtSignIn()).enabled;
+
   const router = Router();
   const secure = process.env.NODE_ENV === 'production';
   const stateCookie = (res: FastifyReply, value: string) =>
@@ -107,7 +122,8 @@ export function createSsoRoutes(
     const pkce = newPkce();
     stateCookie(res, `${state}.${pkce.verifier}`);
     const { url } = await settings.publicUrl();
-    res.redirect(authorizeUrl(provider, redirectUri(req, provider.id, url), state, pkce.challenge));
+    const googleCloud = await googleCloudAtSignIn(provider.id);
+    res.redirect(authorizeUrl(provider, redirectUri(req, provider.id, url), state, pkce.challenge, { googleCloud }));
   });
 
   // The Fox sign-in service redirects back here with ?assertion&state.
@@ -152,8 +168,17 @@ export function createSsoRoutes(
       }
 
       const { url } = await settings.publicUrl();
-      const email = await fetchVerifiedEmail(provider, code, redirectUri(req, provider.id, url), verifier);
-      const { token } = await auth.loginWithEmail(email);
+      const signIn = await exchangeSignInCode(provider, code, redirectUri(req, provider.id, url), verifier);
+      const { user, token } = await auth.loginWithEmail(signIn.email);
+      if (signIn.googleCloud && connectGoogleCloud && (await googleCloudAtSignIn(provider.id))) {
+        // The sign-in stands whatever happens here: the person can still
+        // connect from Credentials → Cloud providers.
+        try {
+          await connectGoogleCloud(user, { refreshToken: signIn.googleCloud.refreshToken, email: signIn.email });
+        } catch (error: unknown) {
+          req.log.warn({ reason: error instanceof Error ? error.message : 'unknown' }, 'Google Cloud was not connected at sign-in');
+        }
+      }
       setSessionCookie(res, token);
       res.redirect('/');
     } catch (error: unknown) {

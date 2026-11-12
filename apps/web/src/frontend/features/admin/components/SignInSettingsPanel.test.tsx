@@ -16,6 +16,7 @@ const apiSaveMailSettings = vi.fn();
 const apiSetSignInService = vi.fn();
 const apiSetSignInServiceAdmins = vi.fn();
 const apiSaveDemoMode = vi.fn();
+const apiSetGoogleCloudAtSignIn = vi.fn();
 
 vi.mock('@/shared/api/authApi', () => ({
   apiSignInSettings: (...a: unknown[]) => apiSignInSettings(...a),
@@ -28,6 +29,7 @@ vi.mock('@/shared/api/authApi', () => ({
   apiSetSignInService: (...a: unknown[]) => apiSetSignInService(...a),
   apiSetSignInServiceAdmins: (...a: unknown[]) => apiSetSignInServiceAdmins(...a),
   apiSaveDemoMode: (...a: unknown[]) => apiSaveDemoMode(...a),
+  apiSetGoogleCloudAtSignIn: (...a: unknown[]) => apiSetGoogleCloudAtSignIn(...a),
 }));
 
 import { SignInSettingsPanel } from './SignInSettingsPanel';
@@ -58,9 +60,11 @@ beforeEach(() => {
     mail: { configured: false, source: null, host: '', port: 587, security: 'starttls', username: '', hasPassword: false, from: '' },
     broker: { enabled: false, source: null, url: 'https://foxschema.com/wp-json/foxschema/v1/sso', admins: true, adminsSource: null },
     demo: { on: false, hint: '' },
+    googleCloud: { enabled: false, source: null },
   });
   apiSetSignInService.mockReset().mockResolvedValue(undefined);
   apiSaveDemoMode.mockReset().mockResolvedValue(undefined);
+  apiSetGoogleCloudAtSignIn.mockReset().mockResolvedValue(undefined);
 });
 
 describe('sign-in settings', () => {
@@ -126,6 +130,36 @@ describe('sign-in settings', () => {
 });
 
 describe('SignInSettingsPanel · demo mode', () => {
+  it('turns on connecting Google Cloud at Google sign-in from the Google card, saying what it does', async () => {
+    render(<SignInSettingsPanel />);
+    const google = await screen.findByTestId('sign-in-provider-google');
+    const section = screen.getByTestId('sign-in-google-cloud');
+    expect(google.contains(section)).toBe(true);
+    expect(screen.queryByTestId('sign-in-provider-github')!.contains(section)).toBe(false);
+    expect(section.textContent).toMatch(/personal workspace/);
+    expect(section.textContent).toMatch(/never replaced/);
+    // This install has its own Google app here, so no note about needing one.
+    expect(section.textContent).not.toMatch(/Needs this install/);
+    const toggle = screen.getByTestId('sign-in-google-cloud-toggle') as HTMLInputElement;
+    expect(toggle.checked).toBe(false);
+    fireEvent.click(toggle);
+    await waitFor(() => expect(apiSetGoogleCloudAtSignIn).toHaveBeenCalledWith(true));
+  });
+
+  it('shows the Google Cloud setting read-only when the server sets it', async () => {
+    apiSignInSettings.mockResolvedValue({
+      ...(await apiSignInSettings()),
+      providers: [provider('google', 'Google')],
+      googleCloud: { enabled: true, source: 'env' },
+    });
+    render(<SignInSettingsPanel />);
+    const section = await screen.findByTestId('sign-in-google-cloud');
+    expect(screen.queryByTestId('sign-in-google-cloud-toggle')).toBeNull();
+    expect(section.textContent).toMatch(/on \(SSO_GOOGLE_CONNECT_GCP\)/);
+    // No Google app of its own yet: the Fox sign-in service cannot grant Google Cloud.
+    expect(section.textContent).toMatch(/Needs this install’s own Google app/);
+  });
+
   it('turns demo mode on, and saves the sign-in hint on its own', async () => {
     render(<SignInSettingsPanel />);
     const toggle = (await screen.findByTestId('sign-in-demo-toggle')) as HTMLInputElement;

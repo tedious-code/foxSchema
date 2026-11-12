@@ -673,6 +673,10 @@ export const TestIds = {
       signInDemoSave: 'sign-in-demo-save',
       /** input */
       signInDemoToggle: 'sign-in-demo-toggle',
+      /** div */
+      signInGoogleCloud: 'sign-in-google-cloud',
+      /** input */
+      signInGoogleCloudToggle: 'sign-in-google-cloud-toggle',
       /** section · Email for invites and password resets */
       signInMail: 'sign-in-mail',
       /** input · Fox <fox@example.com> */
@@ -4873,6 +4877,8 @@ export type TestId =
   | 'sign-in-demo-hint'
   | 'sign-in-demo-save'
   | 'sign-in-demo-toggle'
+  | 'sign-in-google-cloud'
+  | 'sign-in-google-cloud-toggle'
   | 'sign-in-mail'
   | 'sign-in-mail-from'
   | 'sign-in-mail-host'

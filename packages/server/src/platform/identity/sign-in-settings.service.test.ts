@@ -22,6 +22,7 @@ const ENV_KEYS = [
   'SMTP_FROM',
   'APP_PUBLIC_URL',
   'SSO_REDIRECT_BASE',
+  'SSO_GOOGLE_CONNECT_GCP',
 ];
 const saved: Record<string, string | undefined> = {};
 const settings = new SignInSettings();
@@ -116,5 +117,24 @@ describe('public URL', () => {
     expect(await settings.publicUrl()).toEqual({ url: 'https://screen.example.com', source: 'app' });
     process.env.APP_PUBLIC_URL = 'https://env.example.com/';
     expect(await settings.publicUrl()).toEqual({ url: 'https://env.example.com', source: 'env' });
+  });
+});
+
+describe('Google Cloud at Google sign-in', () => {
+  it('is off until an admin turns it on, and shows in the summary', async () => {
+    expect(await settings.googleCloudAtSignIn()).toEqual({ enabled: false, source: null });
+    await settings.setGoogleCloudAtSignIn(true);
+    expect(await settings.googleCloudAtSignIn()).toEqual({ enabled: true, source: 'app' });
+    expect((await settings.summary()).googleCloud).toEqual({ enabled: true, source: 'app' });
+    await settings.setGoogleCloudAtSignIn(false);
+    expect(await settings.googleCloudAtSignIn()).toEqual({ enabled: false, source: 'app' });
+  });
+
+  it('follows SSO_GOOGLE_CONNECT_GCP when set, and then cannot be changed here', async () => {
+    process.env.SSO_GOOGLE_CONNECT_GCP = 'on';
+    expect(await settings.googleCloudAtSignIn()).toEqual({ enabled: true, source: 'env' });
+    await expect(settings.setGoogleCloudAtSignIn(false)).rejects.toThrow(/SSO_GOOGLE_CONNECT_GCP/);
+    process.env.SSO_GOOGLE_CONNECT_GCP = 'off';
+    expect(await settings.googleCloudAtSignIn()).toEqual({ enabled: false, source: 'env' });
   });
 });

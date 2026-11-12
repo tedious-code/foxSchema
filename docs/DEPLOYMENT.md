@@ -131,6 +131,7 @@ docker compose -f docker-compose.app.yml up -d
 | `FOX_INSECURE_DEV` | off | `1` lets a development server (no `NODE_ENV=production`) listen on a network address. Such a server encrypts saved credentials with a development key when `APP_ENCRYPTION_KEY` is unset and sends its session cookie without the Secure flag, so use it only on a network you trust. |
 | `FOX_SESSION_IDLE_HOURS` | `8` | A session unused this long ends, whatever its 7-day expiry. `0` turns the idle limit off. People can also end their other sessions from the profile menu (**Sign out other sessions**). |
 | `SSO_*` | — | OAuth for Google / Microsoft / GitHub (see below). Can also be set under Access control → Sign-in. |
+| `SSO_GOOGLE_CONNECT_GCP` | off | `on`: signing in with this install's own Google app also asks for read-only Google Cloud access and, on the first grant, saves a **Google Cloud** connection in the person's personal workspace (see **Google Cloud Secret Manager (OAuth)** below). Also a switch on the Google card under Access control → Sign-in. |
 | `APP_PUBLIC_URL` | — | The URL people reach Fox at (`https://fox.example.com`). Invite and reset emails link here; SSO callbacks use it. `SSO_REDIRECT_BASE` is read as a fallback. Can also be set on the Sign-in screen. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | — | Relay for invite and password-reset emails. `SMTP_SECURITY` is `tls` (465), `starttls` (587, default) or `none`. Needs at least `SMTP_HOST` and `SMTP_FROM`. See [Email for invites and resets](#email-for-invites-and-resets). |
 | `FOX_SSO_BROKER` | off | `on` lets people sign in with Google / GitHub **through the Fox sign-in service** on foxschema.com, with no OAuth app of your own (also a switch under Access control → Sign-in). See [Fox sign-in service](#fox-sign-in-service). |
@@ -485,6 +486,18 @@ therefore accepts one only when its `token_url` is Google’s
 AWS and certificate sources are refused in a pasted config: use
 `GOOGLE_APPLICATION_CREDENTIALS` on the host for those. The check runs when the
 config is saved and again each time it is used.
+
+**Connect at Google sign-in (optional).** With `SSO_GOOGLE_CONNECT_GCP=on`, or
+**Also connect Google Cloud for secrets** on the Google card under Access
+control → Sign-in, signing in with Google asks for the same read-only scope.
+Google shows that consent once; that first grant returns a refresh token, and
+Fox saves it as **Google Cloud** in the person's personal workspace. No second
+redirect URI is needed: it comes back through the sign-in callback. A name
+already in use there is never replaced, a grant the person turns down on
+Google's screen saves nothing, and the sign-in succeeds either way. Google
+sends no refresh token on later sign-ins, so someone who deletes that
+connection reconnects with **Connect Google Cloud**. It needs this install's
+own Google app: the Fox sign-in service cannot grant Google Cloud access.
 
 Connecting under a name that is already a Google Cloud connection reconnects it,
 and needs **Edit secrets**; a name used by any other credential is refused. The

@@ -22,6 +22,7 @@ import {
   apiSavePublicUrl,
   apiSaveSsoProvider,
   apiSendTestEmail,
+  apiSetGoogleCloudAtSignIn,
   apiSetSignInService,
   apiSetSignInServiceAdmins,
   apiSignInSettings,
@@ -147,7 +148,9 @@ export const SignInSettingsPanel: React.FC = () => {
       <section className="space-y-2">
         <h3 className="text-xs font-bold text-slate-200">Sign in with…</h3>
         {state.providers.map((p) => (
-          <ProviderCard key={p.id} provider={p} run={run} />
+          <ProviderCard key={p.id} provider={p} run={run}>
+            {p.id === 'google' && <GoogleCloudAtSignIn state={state} configured={p.configured} run={run} />}
+          </ProviderCard>
         ))}
       </section>
 
@@ -322,7 +325,63 @@ const PublicUrlSection: React.FC<{ state: SignInSettingsState; run: Run }> = ({ 
   );
 };
 
-const ProviderCard: React.FC<{ provider: SsoProviderSettings; run: Run }> = ({ provider: p, run }) => {
+/**
+ * Google sign-in that also connects Google Cloud for secrets: one consent,
+ * then a "Google Cloud" connection in the person's personal workspace.
+ */
+const GoogleCloudAtSignIn: React.FC<{ state: SignInSettingsState; configured: boolean; run: Run }> = ({
+  state,
+  configured,
+  run,
+}) => {
+  const { enabled, source, dedicatedClient } = state.googleCloud;
+  const locked = source === 'env';
+  return (
+    <div data-testid="sign-in-google-cloud" className="space-y-1 border-t border-slate-800 pt-2">
+      {locked ? (
+        <p className="text-[11px] text-slate-500">
+          Google Cloud at sign-in is {enabled ? 'on' : 'off'} (SSO_GOOGLE_CONNECT_GCP).
+        </p>
+      ) : (
+        <label className="inline-flex items-center gap-2 text-xs text-slate-200 cursor-pointer">
+          <input
+            type="checkbox"
+            data-testid="sign-in-google-cloud-toggle"
+            checked={enabled}
+            onChange={(e) =>
+              void run(
+                () => apiSetGoogleCloudAtSignIn(e.target.checked),
+                e.target.checked
+                  ? 'Google sign-in now also connects Google Cloud.'
+                  : 'Google sign-in no longer asks for Google Cloud access.'
+              )
+            }
+          />
+          Also connect Google Cloud for secrets
+        </label>
+      )}
+      <p className="text-[11px] text-slate-500 leading-snug">
+        Signing in with Google also asks for read-only Google Cloud access. The first time someone grants it,
+        Fox saves a <b className="text-slate-300">Google Cloud</b> connection in their personal workspace for
+        fetching secrets. One they already have is never replaced, and turning the access down on Google’s
+        screen still signs them in.
+        {!configured && ' Needs this install’s own Google app above: the Fox sign-in service cannot grant it.'}
+      </p>
+      {dedicatedClient && (
+        <p data-testid="sign-in-google-cloud-dedicated" className="text-[11px] text-amber-300 leading-snug">
+          Not in effect: Google Cloud has its own OAuth client on this server (GCP_OAUTH_CLIENT_ID), and access
+          granted at sign-in would not work with it. People connect with Connect Google Cloud instead.
+        </p>
+      )}
+    </div>
+  );
+};
+
+const ProviderCard: React.FC<{ provider: SsoProviderSettings; run: Run; children?: React.ReactNode }> = ({
+  provider: p,
+  run,
+  children,
+}) => {
   const [clientId, setClientId] = useState(p.clientId);
   const [secret, setSecret] = useState('');
   const [tenant, setTenant] = useState(p.tenant ?? '');
@@ -408,6 +467,7 @@ const ProviderCard: React.FC<{ provider: SsoProviderSettings; run: Run }> = ({ p
           )}
         </div>
       )}
+      {children}
     </div>
   );
 };

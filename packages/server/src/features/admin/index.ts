@@ -9,6 +9,9 @@ import { createAdminRoutes } from './admin.routes';
 import { createAppSecretsRoutes } from './app-secrets.routes';
 import { AppSecretsStore } from './app-secrets.service';
 
+/** For the auth feature: Google sign-in can save a Google Cloud connection. */
+export { GcpOAuthService } from './gcp-oauth.service';
+
 export const adminFeature: ServerFeatureModule = {
   id: 'admin',
   mounts: [

@@ -3,6 +3,18 @@
 Notes for the next release. At ship time, rename this file to that version's
 `RELEASE_<version>.md` and use it as the GitHub Release body.
 
+## Google sign-in can connect Google Cloud
+
+An admin can turn on **Also connect Google Cloud for secrets** on the Google
+card under Access control → Sign-in (or `SSO_GOOGLE_CONNECT_GCP=on`). Signing
+in with Google then also asks for read-only Google Cloud access, and the first
+grant saves a **Google Cloud** connection in the person's personal workspace,
+ready for **Secrets → Fetch**. Off by default. A connection already there is
+never replaced, turning the access down still signs you in, and it needs the
+install's own Google app (the Fox sign-in service cannot grant it). With a
+dedicated Google Cloud client (`GCP_OAUTH_CLIENT_ID`) it stays off, because the
+token would not refresh with that client.
+
 ## Interpolate Variables and Secrets into SQL
 
 **Insert** on a Variables or Secrets row puts `${{name}}` at the editor cursor.

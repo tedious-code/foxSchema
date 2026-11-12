@@ -11,8 +11,10 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  GOOGLE_CLOUD_SCOPE,
   MICROSOFT_CONSUMER_TENANT,
   authorizeUrl,
+  exchangeSignInCode,
   fetchVerifiedEmail,
   idTokenClaims,
   microsoftEmailTrusted,
@@ -20,6 +22,7 @@ import {
 } from './sso.service';
 import type { SsoProviderConfig } from './sign-in-settings.service';
 import { createHash } from 'node:crypto';
+import { GCP_CLOUD_READONLY_SCOPE } from '../../internal/gcp-oauth';
 
 const provider = (id: SsoProviderConfig['id'], tenant?: string): SsoProviderConfig => ({
   id,
@@ -71,6 +74,46 @@ describe('Google', () => {
 
     stubFetch({ access_token: 't' }, { json: { email: 'ann@example.com', email_verified: false } });
     await expect(fetchVerifiedEmail(provider('google'), 'c', 'r', 'v')).rejects.toThrow(/did not confirm/);
+  });
+});
+
+describe('Google Cloud at sign-in', () => {
+  it('asks for read-only cloud access, offline, only when asked and only for Google', () => {
+    const plain = new URL(authorizeUrl(provider('google'), 'https://fox.test/cb', 'st', 'ch'));
+    expect(plain.searchParams.get('scope')).toBe('openid email profile');
+    expect(plain.searchParams.get('access_type')).toBe('online');
+    expect(plain.searchParams.has('include_granted_scopes')).toBe(false);
+
+    const cloud = new URL(authorizeUrl(provider('google'), 'https://fox.test/cb', 'st', 'ch', { googleCloud: true }));
+    expect(cloud.searchParams.get('scope')).toBe(`openid email profile ${GOOGLE_CLOUD_SCOPE}`);
+    expect(cloud.searchParams.get('access_type')).toBe('offline');
+    expect(cloud.searchParams.get('include_granted_scopes')).toBe('true');
+    // Not forced on every sign-in: Google shows consent once, for the new scope.
+    expect(cloud.searchParams.get('prompt')).toBe('select_account');
+
+    const github = new URL(authorizeUrl(provider('github'), 'https://fox.test/cb', 'st', 'ch', { googleCloud: true }));
+    expect(github.searchParams.get('scope')).toBe('read:user user:email');
+  });
+
+  it('asks for the same scope Connect Google Cloud does', () => {
+    expect(GOOGLE_CLOUD_SCOPE).toBe(GCP_CLOUD_READONLY_SCOPE);
+  });
+
+  it('keeps the refresh token only when the cloud scope was granted', async () => {
+    const profile = { json: { email: 'ann@example.com', email_verified: true } };
+    stubFetch({ access_token: 't', refresh_token: '1//r', scope: `openid email ${GOOGLE_CLOUD_SCOPE}` }, profile);
+    await expect(exchangeSignInCode(provider('google'), 'c', 'r', 'v')).resolves.toEqual({
+      email: 'ann@example.com',
+      googleCloud: { refreshToken: '1//r' },
+    });
+
+    // Unticked on Google's screen: a refresh token for sign-in scopes alone is no use here.
+    stubFetch({ access_token: 't', refresh_token: '1//r', scope: 'openid email' }, profile);
+    await expect(exchangeSignInCode(provider('google'), 'c', 'r', 'v')).resolves.toEqual({ email: 'ann@example.com' });
+
+    // Granted before: Google sends no refresh token on later sign-ins.
+    stubFetch({ access_token: 't', scope: `openid email ${GOOGLE_CLOUD_SCOPE}` }, profile);
+    await expect(exchangeSignInCode(provider('google'), 'c', 'r', 'v')).resolves.toEqual({ email: 'ann@example.com' });
   });
 });
 

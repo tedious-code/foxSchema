@@ -373,7 +373,12 @@ export async function mintGcpWifAccessToken(config: Record<string, unknown>): Pr
           credentials: config,
           scopes: ['https://www.googleapis.com/auth/cloud-platform'],
         }).getClient()
-      )) ?? (await readGcpAccessToken(new IdentityPoolClient(config)));
+      )) ??
+      // The shape was checked by assertSafeGcpWifConfig above; the library's
+      // options type cannot be named from a plain record without this cast.
+      (await readGcpAccessToken(
+        new IdentityPoolClient(config as unknown as ConstructorParameters<typeof IdentityPoolClient>[0])
+      ));
     if (token) return token;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

@@ -517,7 +517,10 @@ Tips:
   credential, project, secret, and version and **Fetch**. Do not download a
   service-account JSON key. Connecting under a name that is already connected
   reconnects it (this needs **Edit secrets**); a name used by another kind of
-  credential is refused. For machines, paste a **Workload Identity Federation**
+  credential is refused. If an admin turned on **Also connect Google Cloud for
+  secrets** (Access control → Sign-in → Google), signing in with Google asks for
+  that access too, and the first time you grant it Fox saves **Google Cloud** in
+  your personal workspace — no separate Connect. For machines, paste a **Workload Identity Federation**
   client config (`type: "external_account"`) or use the host identity (GCE / Cloud
   Run / GKE metadata, or `GOOGLE_APPLICATION_CREDENTIALS`). A pasted config must
   use Google’s own token endpoint, and may read its token only from a file or URL

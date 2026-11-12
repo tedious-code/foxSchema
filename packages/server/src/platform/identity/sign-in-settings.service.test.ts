@@ -22,6 +22,9 @@ const ENV_KEYS = [
   'SMTP_FROM',
   'APP_PUBLIC_URL',
   'SSO_REDIRECT_BASE',
+  'SSO_GOOGLE_CONNECT_GCP',
+  'GCP_OAUTH_CLIENT_ID',
+  'GCP_OAUTH_CLIENT_SECRET',
 ];
 const saved: Record<string, string | undefined> = {};
 const settings = new SignInSettings();
@@ -116,5 +119,31 @@ describe('public URL', () => {
     expect(await settings.publicUrl()).toEqual({ url: 'https://screen.example.com', source: 'app' });
     process.env.APP_PUBLIC_URL = 'https://env.example.com/';
     expect(await settings.publicUrl()).toEqual({ url: 'https://env.example.com', source: 'env' });
+  });
+});
+
+describe('Google Cloud at Google sign-in', () => {
+  it('is off until an admin turns it on, and shows in the summary', async () => {
+    expect(await settings.googleCloudAtSignIn()).toEqual({ enabled: false, source: null, dedicatedClient: false });
+    await settings.setGoogleCloudAtSignIn(true);
+    expect(await settings.googleCloudAtSignIn()).toEqual({ enabled: true, source: 'app', dedicatedClient: false });
+    expect((await settings.summary()).googleCloud).toEqual({ enabled: true, source: 'app', dedicatedClient: false });
+    await settings.setGoogleCloudAtSignIn(false);
+    expect(await settings.googleCloudAtSignIn()).toEqual({ enabled: false, source: 'app', dedicatedClient: false });
+  });
+
+  it('says when Google Cloud has a client of its own (GCP_OAUTH_CLIENT_ID and _SECRET)', async () => {
+    process.env.GCP_OAUTH_CLIENT_ID = 'gcp.apps.googleusercontent.com';
+    expect((await settings.googleCloudAtSignIn()).dedicatedClient).toBe(false);
+    process.env.GCP_OAUTH_CLIENT_SECRET = 'gcp-secret';
+    expect((await settings.googleCloudAtSignIn()).dedicatedClient).toBe(true);
+  });
+
+  it('follows SSO_GOOGLE_CONNECT_GCP when set, and then cannot be changed here', async () => {
+    process.env.SSO_GOOGLE_CONNECT_GCP = 'on';
+    expect(await settings.googleCloudAtSignIn()).toMatchObject({ enabled: true, source: 'env' });
+    await expect(settings.setGoogleCloudAtSignIn(false)).rejects.toThrow(/SSO_GOOGLE_CONNECT_GCP/);
+    process.env.SSO_GOOGLE_CONNECT_GCP = 'off';
+    expect(await settings.googleCloudAtSignIn()).toMatchObject({ enabled: false, source: 'env' });
   });
 });

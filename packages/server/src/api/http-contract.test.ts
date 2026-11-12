@@ -62,6 +62,7 @@ const ROUTES: RouteExpectation[] = [
   { method: 'GET', path: '/api/admin/sign-in', status: 200 },
   { method: 'PUT', path: '/api/admin/sign-in/demo', status: 200 },
   { method: 'PUT', path: '/api/admin/sign-in/broker', status: 400 },
+  { method: 'PUT', path: '/api/admin/sign-in/google-cloud', status: 400 },
   { method: 'DELETE', path: '/api/admin/sign-in/mail', status: 200 },
   { method: 'PUT', path: '/api/admin/sign-in/mail', status: 400 },
   { method: 'POST', path: '/api/admin/sign-in/mail/test', status: 400 },

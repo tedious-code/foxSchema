@@ -84,12 +84,25 @@ export interface BrokerSummary {
   adminsSource: SettingSource | null;
 }
 
+export interface GoogleCloudAtSignIn {
+  enabled: boolean;
+  source: SettingSource | null;
+  /**
+   * GCP_OAUTH_CLIENT_ID / _SECRET are set: Google Cloud has a client of its
+   * own, and a token the sign-in client was granted would not refresh with
+   * it. Sign-in then never asks for Google Cloud, whatever `enabled` says.
+   */
+  dedicatedClient: boolean;
+}
+
 export interface SignInSettingsSummary {
   publicUrl: string;
   publicUrlSource: SettingSource | null;
   providers: SsoProviderSummary[];
   mail: MailSummary;
   broker: BrokerSummary;
+  /** Whether Google sign-in also connects Google Cloud for secrets. */
+  googleCloud: GoogleCloudAtSignIn;
 }
 
 interface StoredProvider {
@@ -112,6 +125,7 @@ const MAIL_KEY = 'auth.mail';
 const PUBLIC_URL_KEY = 'auth.public_url';
 const BROKER_KEY = 'auth.broker';
 const BROKER_ADMINS_KEY = 'auth.broker.admins';
+const GOOGLE_CLOUD_KEY = 'auth.sso.google.cloud';
 const SECURITIES: SmtpSecurity[] = ['tls', 'starttls', 'none'];
 
 function env(name: string | undefined): string {
@@ -348,6 +362,30 @@ export class SignInSettings {
     await this.settings.set(BROKER_ADMINS_KEY, allowed ? 'on' : 'off');
   }
 
+  /**
+   * Whether signing in with this install's own Google app also asks for
+   * read-only Google Cloud access and, the first time someone grants it,
+   * saves a "Google Cloud" connection in their personal workspace. Off by
+   * default: it puts a Google Cloud consent in front of everyone who signs in
+   * with Google. SSO_GOOGLE_CONNECT_GCP=on|off sets it on the server.
+   */
+  async googleCloudAtSignIn(): Promise<GoogleCloudAtSignIn> {
+    // The same pair internal/gcp-oauth.ts prefers over the sign-in client.
+    const dedicatedClient = !!(env('GCP_OAUTH_CLIENT_ID') && env('GCP_OAUTH_CLIENT_SECRET'));
+    const fromEnv = env('SSO_GOOGLE_CONNECT_GCP').toLowerCase();
+    if (fromEnv === 'on' || fromEnv === 'true') return { enabled: true, source: 'env', dedicatedClient };
+    if (fromEnv === 'off' || fromEnv === 'false') return { enabled: false, source: 'env', dedicatedClient };
+    const stored = await this.settings.get(GOOGLE_CLOUD_KEY);
+    return { enabled: stored === 'on', source: stored ? 'app' : null, dedicatedClient };
+  }
+
+  async setGoogleCloudAtSignIn(enabled: boolean): Promise<void> {
+    if (env('SSO_GOOGLE_CONNECT_GCP')) {
+      throw new Error('Connecting Google Cloud at sign-in is set by SSO_GOOGLE_CONNECT_GCP on the server.');
+    }
+    await this.settings.set(GOOGLE_CLOUD_KEY, enabled ? 'on' : 'off');
+  }
+
   async summary(): Promise<SignInSettingsSummary> {
     const { url, source } = await this.publicUrl();
     const providers = await Promise.all(
@@ -387,6 +425,7 @@ export class SignInSettings {
       providers,
       mail,
       broker: { ...broker, url: brokerUrl(), admins: admins.allowed, adminsSource: admins.source },
+      googleCloud: await this.googleCloudAtSignIn(),
     };
   }
 }

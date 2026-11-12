@@ -25,8 +25,14 @@ npm run dev                          # sign-in required; first open runs setup
 npm run dev:auth                     # multi-user auth mode
 npm run dev:with-workflow            # plus workflow-server on :8081
 
-# Typecheck — primary correctness gate
-cd apps/web && npx tsc --noEmit
+# The gate: what CI runs on a pull request, run here. Passing here means passing there.
+npm run verify                         # every step; a failed one prints its output
+npm run verify -- --only=typecheck,unit
+npm run verify -- --list               # the steps, and the CI commands each covers
+
+# Typecheck alone — all three projects, as CI does. apps/web alone misses
+# errors only the cli project sees (one reached main that way).
+npm run typecheck
 
 # Tests — run from repo root (covers packages/* and apps/web/**/*.test.ts)
 npx vitest run                       # all tests
@@ -437,4 +443,4 @@ Constraints:
 6. Say how the engine lexes SQL in `modules/sql-text/sql-readings.ts` (comments,
    quotes, escapes, and every reading a server setting can switch). A dialect
    missing there gets every reading of every dialect.
-7. `npx vitest run` + `cd apps/web && npx tsc --noEmit`
+7. `npm run verify`

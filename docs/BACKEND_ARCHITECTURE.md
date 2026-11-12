@@ -317,4 +317,4 @@ engines and still missed this.
 | Pool guard | `packages/db/src/cores/pool-error-guard.ts` |
 | Logger interface | `packages/db/src/cores/logger.ts` |
 
-Gates: `cd apps/web && npx tsc --noEmit`, then `npx vitest run` from the root.
+Gates: `npm run verify` — what CI runs on a pull request (typecheck of all three projects, tests, lint, build, audit, scans).

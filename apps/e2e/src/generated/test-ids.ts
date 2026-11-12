@@ -2457,8 +2457,6 @@ export const TestIds = {
       sqlSafeMode: 'sql-safe-mode',
       /** button · Create table — opens blueprint to add columns */
       sqlSchemaNewTable: 'sql-schema-new-table',
-      /** button · Re-fetch cloud secrets into Variables */
-      sqlSecretsRefresh: 'sql-secrets-refresh',
       /** aside */
       sqlSidebar: 'sql-sidebar',
       /** div */
@@ -2541,60 +2539,6 @@ export const TestIds = {
       sqlSchemaGroupToggle: (type: string | number) => `sql-schema-group-toggle-${type}`,
       /** p */
       sqlSchemaMissing: 'sql-schema-missing',
-    },
-    SqlSecretsPanel: {
-      /** li */
-      sqlSecret: (name: string | number) => `sql-secret-${name}`,
-      /** button · Add secret */
-      sqlSecretAdd: 'sql-secret-add',
-      /** div */
-      sqlSecretAddCloudCred: 'sql-secret-add-cloud-cred',
-      /** button · Cancel */
-      sqlSecretCancel: 'sql-secret-cancel',
-      /** textarea */
-      sqlSecretCloudCredField: (key: string | number) => `sql-secret-cloud-cred-field-${key}`,
-      /** input · Credential name (e.g. Google Cloud) */
-      sqlSecretCloudCredName: 'sql-secret-cloud-cred-name',
-      /** select */
-      sqlSecretCloudCredProvider: 'sql-secret-cloud-cred-provider',
-      /** button */
-      sqlSecretCloudCredSave: 'sql-secret-cloud-cred-save',
-      /** input */
-      sqlSecretCloudId: 'sql-secret-cloud-id',
-      /** button · Delete secret */
-      sqlSecretDeleteSecret: (id: string | number) => `sql-secret-delete-secret-${id}`,
-      /** button */
-      sqlSecretFetch: 'sql-secret-fetch',
-      /** button · Connect Google Cloud */
-      sqlSecretGcpConnect: 'sql-secret-gcp-connect',
-      /** select */
-      sqlSecretGcpProject: 'sql-secret-gcp-project',
-      /** select */
-      sqlSecretGcpSecret: 'sql-secret-gcp-secret',
-      /** select */
-      sqlSecretGcpVersion: 'sql-secret-gcp-version',
-      /** button · Insert */
-      sqlSecretInsert: (name: string | number) => `sql-secret-insert-${name}`,
-      /** select · Fetch from cloud Manual (enter secret key) */
-      sqlSecretMode: 'sql-secret-mode',
-      /** input · variable name (e.g. apiToken) */
-      sqlSecretName: 'sql-secret-name',
-      /** select */
-      sqlSecretProvider: 'sql-secret-provider',
-      /** input · region (optional) */
-      sqlSecretRegion: 'sql-secret-region',
-      /** button · Add */
-      sqlSecretSave: 'sql-secret-save',
-      /** input · secret value (won’t be shown again) */
-      sqlSecretValue: 'sql-secret-value',
-      /** input · https://….vault.azure.net */
-      sqlSecretVaultUrl: 'sql-secret-vault-url',
-      /** input · version (optional) */
-      sqlSecretVersion: 'sql-secret-version',
-      /** div */
-      sqlSecrets: 'sql-secrets',
-      /** p */
-      sqlSecretsError: 'sql-secrets-error',
     },
     SqlSidebarSection: {
       /** div */
@@ -5159,33 +5103,6 @@ export type TestId =
   | 'sql-schema-tree-include-all'
   | 'sql-schema-tree-search'
   | 'sql-schema-tree-type-all'
-  | `sql-secret-${string}`
-  | 'sql-secret-add'
-  | 'sql-secret-add-cloud-cred'
-  | 'sql-secret-cancel'
-  | `sql-secret-cloud-cred-field-${string}`
-  | 'sql-secret-cloud-cred-name'
-  | 'sql-secret-cloud-cred-provider'
-  | 'sql-secret-cloud-cred-save'
-  | 'sql-secret-cloud-id'
-  | `sql-secret-delete-secret-${string}`
-  | 'sql-secret-fetch'
-  | 'sql-secret-gcp-connect'
-  | 'sql-secret-gcp-project'
-  | 'sql-secret-gcp-secret'
-  | 'sql-secret-gcp-version'
-  | `sql-secret-insert-${string}`
-  | 'sql-secret-mode'
-  | 'sql-secret-name'
-  | 'sql-secret-provider'
-  | 'sql-secret-region'
-  | 'sql-secret-save'
-  | 'sql-secret-value'
-  | 'sql-secret-vault-url'
-  | 'sql-secret-version'
-  | 'sql-secrets'
-  | 'sql-secrets-error'
-  | 'sql-secrets-refresh'
   | 'sql-select-all-star'
   | 'sql-select-close'
   | `sql-select-col-${string}`

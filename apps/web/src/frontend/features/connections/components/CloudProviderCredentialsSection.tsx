@@ -19,7 +19,7 @@ import {
 
 /**
  * Named cloud credentials (like DB connections) — each links to a secrets backend.
- * Secrets panel picks one from a dropdown to Fetch keys.
+ * The SQL editor no longer fetches secrets with them; they are kept and managed here.
  */
 export const CloudProviderCredentialsSection: React.FC = () => {
   const [items, setItems] = useState<CloudProviderCredentialSummary[]>([]);
@@ -51,7 +51,7 @@ export const CloudProviderCredentialsSection: React.FC = () => {
     const result = params.get('gcp_oauth');
     if (!result) return;
     if (result === 'connected' || result === 'ok') {
-      setNote('Connected Google Cloud. Pick this credential in SQL Editor → Secrets.');
+      setNote('Connected Google Cloud.');
     } else if (result === 'error') {
       setError(params.get('gcp_oauth_error') || 'Google Cloud connect failed');
     }
@@ -153,8 +153,7 @@ export const CloudProviderCredentialsSection: React.FC = () => {
     <div className="space-y-3" data-testid="cloud-provider-credentials">
       <p className="text-xs text-slate-400 leading-snug">
         Connect Google Cloud in the browser (no downloaded keys). Machines can use Workload
-        Identity Federation instead of a service-account key. Then pick the credential in SQL
-        Editor → Secrets and Fetch.
+        Identity Federation instead of a service-account key.
       </p>
 
       {error && <p className="text-xs text-rose-400 font-medium break-words">{error}</p>}

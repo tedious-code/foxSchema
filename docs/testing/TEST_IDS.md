@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1048** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1024** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1316,7 +1316,6 @@ Every control has a test ID: **1048** buttons, text boxes, selects and textareas
   - `sql-runs-drawer-btn` · button · Recent runs
   - `sql-safe-mode` · input
   - `sql-schema-new-table` · button · Create table — opens blueprint to add columns
-  - `sql-secrets-refresh` · button · Re-fetch cloud secrets into Variables
   - `sql-sidebar` · aside
   - `sql-sidebar-{id}` · div
   - `sql-sidebar-collapse` · button · Hide sidebar
@@ -1358,33 +1357,6 @@ Every control has a test ID: **1048** buttons, text boxes, selects and textareas
   - `sql-schema-group-{type}` · div
   - `sql-schema-group-toggle-{type}` · button · ( )
   - `sql-schema-missing` · p
-- **SqlSecretsPanel** · `features/sql-editor/components/SqlSecretsPanel.tsx`
-  - `sql-secret-{name}` · li
-  - `sql-secret-add` · button · Add secret
-  - `sql-secret-add-cloud-cred` · div
-  - `sql-secret-cancel` · button · Cancel
-  - `sql-secret-cloud-cred-field-{key}` · textarea
-  - `sql-secret-cloud-cred-name` · input · Credential name (e.g. Google Cloud)
-  - `sql-secret-cloud-cred-provider` · select
-  - `sql-secret-cloud-cred-save` · button
-  - `sql-secret-cloud-id` · input
-  - `sql-secret-delete-secret-{id}` · button · Delete secret
-  - `sql-secret-fetch` · button
-  - `sql-secret-gcp-connect` · button · Connect Google Cloud
-  - `sql-secret-gcp-project` · select
-  - `sql-secret-gcp-secret` · select
-  - `sql-secret-gcp-version` · select
-  - `sql-secret-insert-{name}` · button · Insert
-  - `sql-secret-mode` · select · Fetch from cloud Manual (enter secret key)
-  - `sql-secret-name` · input · variable name (e.g. apiToken)
-  - `sql-secret-provider` · select
-  - `sql-secret-region` · input · region (optional)
-  - `sql-secret-save` · button · Add
-  - `sql-secret-value` · input · secret value (won’t be shown again)
-  - `sql-secret-vault-url` · input · https://….vault.azure.net
-  - `sql-secret-version` · input · version (optional)
-  - `sql-secrets` · div
-  - `sql-secrets-error` · p
 - **SqlSidebarSection** · `features/sql-editor/components/SqlSidebarSection.tsx`
   - `sql-sidebar-{id}` · div
   - `sql-sidebar-drag-{id}` · div · Drag to reorder section

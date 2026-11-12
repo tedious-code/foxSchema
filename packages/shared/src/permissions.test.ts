@@ -36,7 +36,7 @@ describe('role ladder', () => {
         p !== 'editor.run';
       if (writes) expect(demo.has(p), p).toBe(false);
     }
-    for (const p of ['workflow.access', 'git.view', 'utility.access', 'secrets.view', 'editor.sidebar.secrets'] as const) {
+    for (const p of ['workflow.access', 'git.view', 'utility.access', 'secrets.view'] as const) {
       expect(demo.has(p), p).toBe(false);
     }
   });

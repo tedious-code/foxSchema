@@ -471,7 +471,7 @@ Tips:
 - **Bookmarks** — save reusable snippets from the sidebar. Opening a ★ Sample
   keeps the Destinations you already had checked.
 - **Variables** — named values reused as `${{name}}` or `${{name.col}}` (table
-  column → list). **Insert** on a Variables or Secrets row puts that ref at the
+  column → list). **Insert** on a Variables row puts that ref at the
   editor cursor (the value is never pasted). Add them in the **Variables** sidebar; right-click a result
   **cell** (scalar), **column header** (list), or **# / empty grid** (table); or
   use leading comments so Run captures automatically — put `-- @set`
@@ -509,12 +509,13 @@ Tips:
   tokens, etc.). `-- @node` cells send those values to the FoxSchema server worker
   under the same trust model as Node cells generally.
 
-  **App Secrets vault** — use the **Secrets** sidebar to **Fetch** a key via a
-  **named cloud credential**. For Google Cloud, click **Connect Google Cloud**
-  (Credentials → Cloud providers, or the Secrets empty state): this install’s
+  **App Secrets vault** — the SQL editor no longer has a **Secrets** section, and
+  **Run** substitutes only this session's **Variables** (mark one **Secret** to
+  mask it). Saved App Secrets are not merged into a run. **Named cloud
+  credentials** stay under Credentials → Cloud providers. For Google Cloud,
+  click **Connect Google Cloud** (Credentials → Cloud providers): this install’s
   own Google OAuth app asks for Secret Manager access; FoxSchema stores only a
-  **refresh token** (encrypted) and never shows it again. Then pick the
-  credential, project, secret, and version and **Fetch**. Do not download a
+  **refresh token** (encrypted) and never shows it again. Do not download a
   service-account JSON key. Connecting under a name that is already connected
   reconnects it (this needs **Edit secrets**); a name used by another kind of
   credential is refused. If an admin turned on **Also connect Google Cloud for
@@ -536,9 +537,7 @@ Tips:
   `@aws-sdk/client-secrets-manager`, `@google-cloud/secret-manager`,
   `@azure/keyvault-secrets` + `@azure/identity`.
 
-  Vault secrets also merge into `vars` / `${{name}}` for that Run. A session Variable
-  with the **same name wins** over a vault-only entry. Multi-user hosts should treat
-  vault + cloud credentials as high privilege.
+  Multi-user hosts should treat cloud credentials as high privilege.
 
   **Per connection** — scalars and lists can override the global value per saved
   destination (expand **Per connection…** in the sidebar). Multi-destination runs

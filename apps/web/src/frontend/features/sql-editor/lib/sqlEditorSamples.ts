@@ -362,15 +362,14 @@ return [{
   {
     id: 'sample-js-api-bearer-secret',
     title: '★ Sample · JS API Bearer from secret',
-    sql: `-- Add Variables → apiToken (check Secret) and set a session value, or create
--- an App Secret named apiToken (Secrets sidebar). Then Run.
+    sql: `-- Add Variables → apiToken (check Secret) and set a session value. Then Run.
 
 -- @js
 const token = vars.apiToken?.value;
 if (token === undefined || token === null || String(token).length === 0) {
   return [{
     ok: false,
-    hint: 'Set secret variable or App Secret named apiToken, then re-run',
+    hint: 'Set a secret variable named apiToken, then re-run',
   }];
 }
 

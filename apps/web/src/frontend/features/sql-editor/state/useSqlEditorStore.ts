@@ -27,8 +27,6 @@ import {
 import { seekFromLastRow, tableForOrderBy } from '@/features/sql-editor/lib/resultSeek';
 import { dialectFeatureReason, supportsDialectFeature } from '@/shared/lib/dialect-features';
 import type { SavedConnectionSummary } from '@/shared/api/authApi';
-import { resolveAppSecrets } from '@/shared/api/appSecretsApi';
-import { useAuthStore } from '@/platform/authStore';
 import { loadSchema } from '@/shared/api/schemaApi';
 import {
   collectMultiTableWriteWarnings,
@@ -67,7 +65,6 @@ function sessionPasswordFor(
 ): string | undefined {
   return getSessionPassword(connectionId) || map[connectionId] || undefined;
 }
-import { mergeVaultSecretsIntoVariables } from '@/features/sql-editor/lib/mergeVaultSecrets';
 import {
   applySetDirectives,
   exportVariables,
@@ -1226,24 +1223,10 @@ export const useSqlEditorStore = create<SqlEditorState>()(
             };
           });
 
-        // Vault secrets (local + cloud) merge into vars for this Run; session Variables win on name clash.
-        // Only for an account that may read them: asking without `secrets.view`
-        // is refused every time, and a viewer (or a demo visitor) then saw
-        // "App Secrets unavailable" under every query it ran.
-        let runVariables = get().variables;
-        if (useAuthStore.getState().can('secrets.view')) {
-          try {
-            const vault = await resolveAppSecrets();
-            for (const [name, msg] of Object.entries(vault.errors)) {
-              appendWarning(`Secret "${name}": ${msg}`);
-            }
-            runVariables = mergeVaultSecretsIntoVariables(get().variables, vault.secrets);
-          } catch (err: unknown) {
-            appendWarning(
-              `App Secrets unavailable: ${err instanceof Error ? err.message : String(err)}`
-            );
-          }
-        }
+        // A run substitutes this session's Variables only. Saved App Secrets
+        // (local and cloud) are no longer merged in: the Secrets panel left the
+        // SQL editor, so nothing here adds, shows or removes them.
+        const runVariables = get().variables;
 
         const ranDisplay: string[] = [];
         const ranIndexDisplay: number[] = [];

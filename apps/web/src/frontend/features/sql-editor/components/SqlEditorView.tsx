@@ -13,7 +13,6 @@ import {
   Network,
   Shield,
   Braces,
-  KeyRound,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
@@ -37,7 +36,6 @@ import { ResultsPanel } from './ResultsPanel';
 import { DataPeekPanel } from './DataPeekPanel';
 import { SqlBookmarksPanel } from './SqlBookmarksPanel';
 import { SqlVariablesPanel } from './SqlVariablesPanel';
-import { SqlSecretsPanel, type SqlSecretsPanelHandle } from './SqlSecretsPanel';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import {
   SqlSchemaExplorer,
@@ -105,9 +103,7 @@ export const SqlEditorView: React.FC = () => {
   const canEditorDestinations = useAuthStore((s) => s.can('editor.sidebar.destinations'));
   const canEditorBookmarks = useAuthStore((s) => s.can('editor.sidebar.bookmarks'));
   const canEditorVariables = useAuthStore((s) => s.can('editor.sidebar.variables'));
-  const canEditorSecrets = useAuthStore((s) => s.can('editor.sidebar.secrets'));
   const canEditorSchema = useAuthStore((s) => s.can('editor.sidebar.schema'));
-  const canSecretsView = useAuthStore((s) => s.can('secrets.view'));
   const canVariablesRead = useAuthStore((s) => s.can('editor.variables.read'));
 
   const connections = useSyncStore((s) => s.connections);
@@ -173,21 +169,10 @@ export const SqlEditorView: React.FC = () => {
   const prevDestCount = useRef(liveSelectedIds.length);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState<number | null>(null);
-  const secretsPanelRef = useRef<SqlSecretsPanelHandle>(null);
   const schemaExplorerRef = useRef<SqlSchemaExplorerHandle>(null);
   /** Whether the browsed connection has tables to create (not Redis or MongoDB). */
   const [explorerCanCreateTable, setExplorerCanCreateTable] = useState(true);
-  const [secretsRefreshing, setSecretsRefreshing] = useState(false);
   const [runsOpen, setRunsOpen] = useState(false);
-
-  const onSecretsRefresh = useCallback(async () => {
-    setSecretsRefreshing(true);
-    try {
-      await secretsPanelRef.current?.refresh();
-    } finally {
-      setSecretsRefreshing(false);
-    }
-  }, []);
 
   useEffect(() => {
     try {
@@ -474,39 +459,8 @@ export const SqlEditorView: React.FC = () => {
               <SqlVariablesPanel />
             </SqlSidebarSection>
           );
+        // Secrets left the SQL editor; the id stays so a saved section order still loads.
         case 'vault':
-          if (!canEditorSecrets || !canSecretsView) return null;
-          return (
-            <SqlSidebarSection
-              railPanel
-              id="vault"
-              title="Secrets"
-              icon={<KeyRound className="text-[#d97706]" strokeWidth={SQL_ICON_STROKE} />}
-              open={sidebarOpen.vault}
-              onToggle={() => selectSidebar('vault')}
-              height={sectionHeights.vault}
-              onResizeHeight={(h) => setSectionHeight('vault', h)}
-              actions={
-                <button
-                  type="button"
-                  data-testid="sql-secrets-refresh"
-                  title="Re-fetch cloud secrets into Variables"
-                  disabled={secretsRefreshing}
-                  onClick={() => void onSecretsRefresh()}
-                  className="flex items-center gap-0.5 text-[12px] font-bold text-[#0284c7] hover:text-[#0369a1] transition disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <RefreshCw
-                    className={`w-3.5 h-3.5 text-[#0284c7] ${secretsRefreshing ? 'animate-spin' : ''}`}
-                    strokeWidth={SQL_ICON_STROKE}
-                  />
-                  Refresh
-                </button>
-              }
-              {...drag}
-            >
-              <SqlSecretsPanel ref={secretsPanelRef} />
-            </SqlSidebarSection>
-          );
         case 'utilities':
         case 'files':
           return null;
@@ -552,8 +506,6 @@ export const SqlEditorView: React.FC = () => {
       canEditorVariables,
       canVariablesRead,
       explorerCanCreateTable,
-      canEditorSecrets,
-      canSecretsView,
       canEditorSchema,
       sidebarOpen,
       selectSidebar,
@@ -561,8 +513,6 @@ export const SqlEditorView: React.FC = () => {
       setSectionHeight,
       tab.sql,
       saveBookmark,
-      secretsRefreshing,
-      onSecretsRefresh,
       sidebarDragProps,
     ]
   );
@@ -596,12 +546,6 @@ export const SqlEditorView: React.FC = () => {
       title: 'Variables',
       visible: canEditorVariables && canVariablesRead,
       icon: <Braces className="text-[#7c3aed]" strokeWidth={SQL_ICON_STROKE} />,
-    },
-    {
-      id: 'vault',
-      title: 'Secrets',
-      visible: canEditorSecrets && canSecretsView,
-      icon: <KeyRound className="text-[#d97706]" strokeWidth={SQL_ICON_STROKE} />,
     },
   ];
   const orderedRail = sectionOrder

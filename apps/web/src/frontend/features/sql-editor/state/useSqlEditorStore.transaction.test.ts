@@ -19,9 +19,6 @@ const runCodeCell = vi.hoisted(() =>
 vi.mock('@/shared/api/sqlApi', () => ({
   executeSql: (...args: unknown[]) => executeSql(...args),
 }));
-vi.mock('@/shared/api/appSecretsApi', () => ({
-  resolveAppSecrets: async () => ({ secrets: {}, errors: {} }),
-}));
 vi.mock('@/features/sql-editor/lib/codeCellRunner', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/features/sql-editor/lib/codeCellRunner')>();
   return { ...actual, runCodeCell };

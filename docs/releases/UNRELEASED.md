@@ -3,13 +3,21 @@
 Notes for the next release. At ship time, rename this file to that version's
 `RELEASE_<version>.md` and use it as the GitHub Release body.
 
+## Removed: Secrets in the SQL editor
+
+The SQL editor's **Secrets** section is gone, and **Run** no longer merges saved
+App Secrets into a run: it substitutes this session's **Variables** only (mark
+one **Secret** to mask it). Saved secrets stay in the database, and cloud
+credentials stay under Credentials → Cloud providers. The
+`editor.sidebar.secrets` permission went with the section.
+
 ## Google sign-in can connect Google Cloud
 
 An admin can turn on **Also connect Google Cloud for secrets** on the Google
 card under Access control → Sign-in (or `SSO_GOOGLE_CONNECT_GCP=on`). Signing
 in with Google then also asks for read-only Google Cloud access, and the first
 grant saves a **Google Cloud** connection in the person's personal workspace,
-ready for **Secrets → Fetch**. Off by default. A connection already there is
+ready for use. Off by default. A connection already there is
 never replaced, turning the access down still signs you in, and it needs the
 install's own Google app (the Fox sign-in service cannot grant it). With a
 dedicated Google Cloud client (`GCP_OAUTH_CLIENT_ID`) it stays off, because the
@@ -17,7 +25,7 @@ token would not refresh with that client.
 
 ## Interpolate Variables and Secrets into SQL
 
-**Insert** on a Variables or Secrets row puts `${{name}}` at the editor cursor.
+**Insert** on a Variables row puts `${{name}}` at the editor cursor.
 Run still substitutes the real value into the SQL sent to the engine. Secret
 payloads stay out of **Out [n]** labels, copy-with-values, and **Recent**
 (those keep `${{name}}` or `(secret)`). Public variables still fill in Recent
@@ -25,12 +33,9 @@ and labels as before.
 
 ## Google Cloud secrets: Connect Google Cloud (OAuth)
 
-**Connect Google Cloud** on Credentials → Cloud providers (or SQL Editor →
-Secrets) opens this install’s own Google OAuth client — PKCE, offline access,
+**Connect Google Cloud** on Credentials → Cloud providers opens this install’s own Google OAuth client — PKCE, offline access,
 `cloud-platform.read-only`. Only the **refresh token** is stored, encrypted, on
-the named credential. Fetch lists projects / secrets / versions so you pick
-instead of typing a resource name; the value is injected into session Variables
-and is never written to `app_secrets.encrypted_value`. Disconnect revokes at
+the named credential. Disconnect revokes at
 Google, then deletes the credential.
 
 Register the callback

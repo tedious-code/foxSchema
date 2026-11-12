@@ -1,6 +1,6 @@
 {
   "name": "@foxschema/db",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "The FoxSchema Node runtime: database drivers, pooling, and migration execution. Re-exports @foxschema/sql for the dialect layer.",
   "type": "module",
   "license": "Apache-2.0",

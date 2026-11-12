@@ -614,7 +614,7 @@ export class SqlGeneratorModule {
     } else if (obj.objectType === 'SEQUENCE') {
       statements.push(dialect?.dropSequenceStatement?.(name, ver) ?? `DROP SEQUENCE IF EXISTS ${name};`);
     } else if (obj.objectType === 'TYPE') {
-      statements.push(`DROP TYPE IF EXISTS ${name};`);
+      statements.push(dialect?.dropTypeStatement?.(name, obj.targetTable, true) ?? `DROP TYPE IF EXISTS ${name};`);
     } else if (obj.objectType === 'ROLE') {
       statements.push(`DROP ROLE IF EXISTS ${this.bareName(obj.tableName)};`);
     }
@@ -1098,7 +1098,8 @@ export class SqlGeneratorModule {
       const alterSql = alter + `;`;
       statements.push(dialect.wrapAlterSequence?.(tableName, alterSql) ?? alterSql);
     } else if (obj.objectType === 'TYPE' && obj.sourceTable) {
-      statements.push(`DROP TYPE ${tableName};`);
+      // The kind being dropped is the one in the target; it may differ from the new one.
+      statements.push(dialect.dropTypeStatement?.(tableName, obj.targetTable ?? obj.sourceTable, false) ?? `DROP TYPE ${tableName};`);
       statements.push(this.renderCreateType({ ...obj.sourceTable, name: tableName }, dialect));
     } else if (obj.objectType === 'MQT' && obj.sourceTable?.definition && dialect.createMaterializedViewStatement) {
       // Materialized views can't be altered in place when their backing query

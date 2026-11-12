@@ -772,10 +772,20 @@ describe('planColumnChange: a direct type change on SQL Server', () => {
     const dropIx = at(/^SET @fox_n = 1 WHILE .* drop_sql/);
     const dropDefault = at(/^DECLARE @df sysname.*c\.name = N'status'/);
     const alter = at(/^ALTER TABLE \[shop\]\.\[orders\] ALTER COLUMN \[status\] nvarchar\(40\) NOT NULL$/);
-    const addDefault = at(/^ALTER TABLE \[shop\]\.\[orders\] ADD DEFAULT 'new' FOR \[status\]$/);
+    const addDefault = at(/^IF @df IS NULL OR @df_sys = 1 ALTER TABLE \[shop\]\.\[orders\] ADD DEFAULT 'new' FOR \[status\] ELSE/);
     const createIx = at(/^SET @fox_n = 1 WHILE .* create_sql/);
     expect([dropIx, dropDefault, alter, addDefault, createIx].every((i) => i > 0)).toBe(true);
     expect(dropIx < dropDefault && dropDefault < alter && alter < addDefault && addDefault < createIx).toBe(true);
+  });
+
+  it('puts a default someone named back under its name, quotes doubled for the dynamic SQL', () => {
+    const all = lines(stepSql({ column: 'status', change: { newType: 'nvarchar(40)' } }));
+    expect(all.find((l) => l.startsWith('DECLARE @df '))).toMatch(/SELECT @df = dc\.name, @df_sys = dc\.is_system_named FROM/);
+    expect(all.find((l) => l.startsWith('IF @df IS NULL'))).toBe(
+      "IF @df IS NULL OR @df_sys = 1 ALTER TABLE [shop].[orders] ADD DEFAULT 'new' FOR [status] " +
+        "ELSE BEGIN SET @sql = N'ALTER TABLE [shop].[orders] ADD CONSTRAINT ' + QUOTENAME(@df) + N' DEFAULT ''new'' FOR [status]' " +
+        'EXEC sp_executesql @sql END'
+    );
   });
 
   it('drops a foreign key first and adds it back last', () => {

@@ -15,11 +15,22 @@ export interface TypeAttributeInfo {
   type: string;
 }
 
+/** The rules a PostgreSQL DOMAIN adds to its base type. */
+export interface DomainRules {
+  notNull?: boolean;
+  /** The default expression as the catalog stores it. */
+  default?: string;
+  /** Named CHECK constraints, `expression` as `CHECK (…)`, in name order. */
+  checks?: Array<{ name: string; expression: string }>;
+}
+
 export interface UserTypeInfo {
   /** Underlying built-in type a DISTINCT/user-defined type maps to. */
   sourceType?: string;
   metaType?: string;
   attributes?: TypeAttributeInfo[];
+  /** A PostgreSQL domain's own rules; compared, and written back by CREATE DOMAIN. */
+  domain?: DomainRules;
 }
 
 export interface PrimaryKeyInfo {
@@ -205,4 +216,4 @@ export interface DbView { name: string; schema: string; definition: string; colu
 export interface DbTrigger { name: string; schema: string; tableName: string; event: string; timing: string; definition: string; }
 export interface DbProcedure { name: string; schema: string; routineType: string; specificName?: string; definition?: string; functionType?: string; parameters?: RoutineParameter[]; }
 export interface DbSequence { name: string; schema: string; dataType?: string; startValue?: string; increment?: string; minValue?: string; maxValue?: string; cycle?: boolean; cache?: number; }
-export interface DbUserType { name: string; schema: string; sourceType?: string; metaType?: string; attributes?: { name: string; type: string }[]; }
+export interface DbUserType { name: string; schema: string; sourceType?: string; metaType?: string; attributes?: { name: string; type: string }[]; domain?: DomainRules; }

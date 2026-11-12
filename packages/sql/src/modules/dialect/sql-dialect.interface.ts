@@ -381,6 +381,13 @@ export interface SqlDialect {
   createTypeStatement?(schema: TableSchema): string | null;
 
   /**
+   * DROP statement for a user-defined type. `type` is the catalog entry when
+   * known, so a dialect can tell kinds apart (PostgreSQL drops a domain with
+   * DROP DOMAIN and refuses DROP TYPE on one). Defaults to `DROP TYPE [IF EXISTS] name;`.
+   */
+  dropTypeStatement?(name: string, type: TableSchema | undefined, ifExists: boolean): string;
+
+  /**
    * The `ALTER SEQUENCE` clause that re-aligns the sequence's next value, returned with
    * a leading space (e.g. ` RESTART WITH 1000`). Defaults to ` RESTART WITH <start>`.
    * Oracle overrides this (different syntax / not supported pre-18c) to return '' so no

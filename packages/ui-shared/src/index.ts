@@ -180,6 +180,10 @@ export type {
   ColumnReferenceLine,
 } from '@foxschema/sql';
 
+// Drop Type: what a user-defined type is used by, and the steps that drop it.
+export { planTypeDrop, userTypesOf, dialectSupportsTypeDrop } from '@foxschema/sql';
+export type { TypeColumnUse, TypeDropImpact, TypeDropPlan, UserTypeKind } from '@foxschema/sql';
+
 // SQL Tracer: shapes and bounds (the server redacts; the screen only shows).
 export { TRACE_MAX_EVENTS, TRACE_MAX_MS } from '@foxschema/sql';
 export type { TraceEvent, TraceMode } from '@foxschema/sql';

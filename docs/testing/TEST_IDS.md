@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1048** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1058** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1776,6 +1776,31 @@ Every control has a test ID: **1048** buttons, text boxes, selects and textareas
   - `sql-tracer-status` · div
   - `sql-tracer-stop` · button · Stop
   - `sql-tracer-unlock` · button · Unlock
+- **TypeDropPanel** · `features/utilities/components/TypeDropPanel.tsx`
+  - `{testId}` · button · passed in by the parent
+  - `type-drop-confirm-all` · button · Confirm: drop
+  - `type-drop-confirm-all-cancel` · button · Cancel
+  - `type-drop-copy-all` · button in CopyButton
+  - `type-drop-hint` · p
+  - `type-drop-impact` · section · —
+  - `type-drop-keep-check` · input
+  - `type-drop-load-error` · p
+  - `type-drop-open-editor` · button · Open in editor
+  - `type-drop-panel` · div
+  - `type-drop-password` · input
+  - `type-drop-refused` · p
+  - `type-drop-replacement` · input
+  - `type-drop-run-all` · button
+  - `type-drop-run-error` · p
+  - `type-drop-run-status` · p
+  - `type-drop-step-{value}` · article
+  - `type-drop-step-{value}-copy` · button in CopyButton
+  - `type-drop-steps` · section
+  - `type-drop-type` · select
+  - `type-drop-unlock` · button · Unlock
+  - `type-drop-unsupported` · p
+  - `type-drop-values` · p
+  - `type-drop-warnings` · ul
 - **UtilitiesView** · `features/utilities/components/UtilitiesView.tsx`
   - `{t.testId}` · button · passed in by the parent
   - `db-access-modal` · div
@@ -1787,6 +1812,7 @@ Every control has a test ID: **1048** buttons, text boxes, selects and textareas
   - `utilities-connection` · select
   - `utilities-connection-pool` · data · Connection Pool
   - `utilities-database-access` · data · DB users & grants
+  - `utilities-drop-type` · data · Drop Type
   - `utilities-index-management` · data · Index Management
   - `utilities-object-sizes` · data · Table & Index Size
   - `utilities-query-files` · data · Query files

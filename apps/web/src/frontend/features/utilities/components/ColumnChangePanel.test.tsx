@@ -226,6 +226,12 @@ describe('ColumnChangePanel', () => {
     const dropAt = batches.findIndex((s) => s.includes('DROP COLUMN "status__old"'));
     expect(addAt).toBeGreaterThanOrEqual(0);
     expect(dropAt).toBeGreaterThan(addAt);
+    // The switch-over is BEGIN … COMMIT: it runs as the server's transaction, so a
+    // failure rolls back instead of leaving a pooled connection mid-transaction.
+    const switchOver = executeSql.mock.calls.find((c) => (c[1] as string[]).join('\n').includes('RENAME COLUMN'))!;
+    expect(switchOver[1] as string[]).not.toContain('BEGIN;');
+    expect(switchOver[1] as string[]).not.toContain('COMMIT;');
+    expect(switchOver[5]).toEqual({ stopOnError: true, transaction: true });
   });
 
   describe('a type change in place (the default)', () => {

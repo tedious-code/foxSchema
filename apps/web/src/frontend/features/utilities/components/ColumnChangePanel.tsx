@@ -32,6 +32,7 @@ import { splitSqlStatements } from '@/shared/lib/sql-splitter';
 import { needsSessionPassword } from '@/shared/lib/provider-settings';
 import { sectionLabelCls } from '@/shared/components/surfaces';
 import { ColumnReferences } from './ColumnReferences';
+import { stepStatements } from '../lib/stepTransaction';
 import type { TableSchema } from '@/shared/lib/types';
 
 interface Props {
@@ -265,7 +266,7 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
 
   const runStatements = useCallback(
     async (sql: string): Promise<SqlStatementResult[]> => {
-      const statements = statementsOf(sql);
+      const { statements, transaction } = stepStatements(statementsOf(sql));
       if (statements.length === 0) return [];
       const { results } = await executeSql(
         {
@@ -277,7 +278,7 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
         undefined,
         undefined,
         undefined,
-        { stopOnError: true }
+        { stopOnError: true, transaction }
       );
       const failed = results.find((row) => !row.ok);
       if (failed && !failed.ok) throw new Error(failed.error);

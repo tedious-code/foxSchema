@@ -324,7 +324,7 @@ export function dbSchemaToTableSchemas(dbSchema: DbSchema): TableSchema[] {
         name: u.name,
         objectType: 'TYPE',
         columns: [], indices: [], foreignKeys: [],
-        userType: { sourceType: u.sourceType, metaType: u.metaType, attributes: u.attributes },
+        userType: { sourceType: u.sourceType, metaType: u.metaType, attributes: u.attributes, ...(u.domain ? { domain: u.domain } : {}) },
       });
     }
   }

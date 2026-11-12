@@ -39,7 +39,11 @@ class PostgresAdapter implements DriverAdapter {
       });
       return guardPoolErrors(pool, 'postgres');
     });
-    // pg clients reset transaction state on release, so pooling is safe for migrations too
+    // pg's pool does NOT reset a client on release: one released inside a
+    // transaction (a `BEGIN;` sent as SQL whose COMMIT never ran) stays in it,
+    // and the next queries on it fail with "current transaction is aborted".
+    // Use beginTransaction / rollbackTransaction (sql-execute's `transaction`
+    // option) rather than BEGIN and COMMIT as statements.
     // The pool's guard covers idle connections; a checked-out client emits
     // `'error'` on itself, and an unhandled one takes the process down.
     return guardClientErrors(await pool.connect(), 'postgres');

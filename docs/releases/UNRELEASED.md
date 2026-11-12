@@ -3,6 +3,33 @@
 Notes for the next release. At ship time, rename this file to that version's
 `RELEASE_<version>.md` and use it as the GitHub Release body.
 
+## Utilities → Drop Type
+
+Drop a user-defined type (enum, domain, alias type). Fox lists what uses it —
+columns, other types, and views, functions, procedures and triggers that may
+name it — then writes the steps: move each column onto a built-in type (the
+values stay; for an enum, optionally a check constraint keeps the allowed
+values), then drop the type. Never `CASCADE`. Copy, open in the editor, or
+execute them here. PostgreSQL, YugabyteDB, CockroachDB, SQL Server, Azure SQL
+and DuckDB; on Oracle and Db2, and for a PostgreSQL composite type, a type no
+column uses.
+
+**PostgreSQL composite types are read.** `CREATE TYPE … AS (…)` types now
+appear with their fields in the schema tree, Compare and migration scripts
+(PostgreSQL, YugabyteDB, CockroachDB).
+
+**PostgreSQL domains in Compare and migration scripts.** A domain was
+scripted as `CREATE TYPE email AS varchar(120)`, which PostgreSQL rejects,
+and dropped with `DROP TYPE`, which it also rejects. It is now
+`CREATE DOMAIN` with its `DEFAULT`, `NOT NULL` and named `CHECK`s, and
+`DROP DOMAIN`. Those rules are read from the catalog, so Compare also shows a
+domain whose rules differ between two databases.
+
+**Rename Column on SQL Server keeps a named default's name.** A type change
+takes the column's default off and puts it back; a default someone named
+(`CONSTRAINT df_orders_phone DEFAULT …`) came back with a name SQL Server
+made up. It now keeps its name.
+
 ## Google sign-in can connect Google Cloud
 
 An admin can turn on **Also connect Google Cloud for secrets** on the Google

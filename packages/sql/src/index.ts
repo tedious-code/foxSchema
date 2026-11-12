@@ -172,6 +172,15 @@ export {
   COLUMN_CHANGE_PHASES,
 } from './modules/utilities/column-change.js';
 export { resolveColumnChange, columnChangeLargeTable } from './modules/utilities/column-change.registry.js';
+export { planTypeDrop, userTypesOf } from './modules/utilities/type-drop.js';
+export { resolveTypeDrop, dialectSupportsTypeDrop } from './modules/utilities/type-drop.registry.js';
+export type {
+  TypeColumnUse,
+  TypeDropImpact,
+  TypeDropInput,
+  TypeDropPlan,
+  UserTypeKind,
+} from './modules/utilities/type-drop.types.js';
 export type {
   ColumnChange,
   ColumnChangeInput,

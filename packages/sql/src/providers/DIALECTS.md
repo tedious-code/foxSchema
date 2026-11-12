@@ -27,6 +27,8 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
 | `engineChangeStatements` | none | ENGINE / ORDER BY changed and cannot ALTER in place (ClickHouse) |
 | `quoteIdentifier` | ANSI `"name"`, embedded `"` doubled | engine uses another wrapper — MySQL/MariaDB/TiDB backticks, SQL Server/Azure brackets |
 | `roleMemberStatement` | `GRANT role TO member;` / `REVOKE role FROM member;` | engine does not take the standard form — Db2 names the member kind, SQL Server uses `ALTER ROLE … ADD MEMBER` |
+| `createTypeStatement` | DB2-style `CREATE TYPE … AS (…) MODE DB2SQL` / `AS base WITH COMPARISONS` | engine has its own type syntax (PostgreSQL ENUM / composite / DOMAIN, SQL Server alias) |
+| `dropTypeStatement` | `DROP TYPE [IF EXISTS] name;` | engine drops some kinds with another statement (PostgreSQL `DROP DOMAIN`) |
 | `postColumnChangeStatements` | none | table needs maintenance after column changes before its keys/indexes are rebuilt (DB2 `REORG`) |
 
 ## Cross-cutting invariants (generator-level, not per dialect)
@@ -104,6 +106,11 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
 - `dropIndexStatement` / `dropTriggerStatement` use `IF EXISTS` (+ `ON table` for
   triggers). `DROP CONSTRAINT IF EXISTS` fallback is correct — no FK override needed.
 - Provider: `timestamp without/with time zone`, `character varying`, `bytea` mapping.
+- Types: ENUM (`E`), composite (`O`, standalone `CREATE TYPE … AS (…)` only — a
+  table's own row type is not one) and DOMAIN (`D`). A domain is `CREATE DOMAIN`
+  with its `DEFAULT`, `NOT NULL` and named `CHECK`s (`userType.domain`), and is
+  dropped with `DROP DOMAIN` — PostgreSQL refuses `CREATE TYPE x AS base` and
+  `DROP TYPE` on a domain.
 
 ### SQL Server / Azure SQL (`sqlserver.sql-dialect.ts`; azure re-exports it)
 - **`sp_rename` and `ALTER COLUMN` are refused for a column a filtered index names** in its `WHERE` ("one or more objects access this column"), indexed or not. Fox's SQL Server index model has no filters; Rename Column scripts such indexes from `sys.indexes` when it runs.

@@ -299,6 +299,15 @@ change, DuckDB while the table has an index, Redshift except lengthening a
 VARCHAR, ClickHouse sorting-key columns). `columnChangeLargeTable()` hides
 the checkbox where that path does not exist.
 
+Drop Type is another sibling registry: `planTypeDrop`
+(`modules/utilities/type-drop.ts`) finds the columns, types and dependents of
+a user-defined type; each engine's `providers/<d>/*.type-drop.ts`
+(`type-drop.registry.ts`) writes the steps that move a column onto a built-in
+type and the `DROP` itself — never `CASCADE`. SQL Server and DuckDB move the
+column through `planColumnChange`. Registered: the PostgreSQL family, SQL
+Server, Azure SQL, DuckDB, Oracle and Db2 (the last two drop a type no column
+uses). The Utils panel is `TypeDropPanel`.
+
 Version-aware DDL: `SchemaProvider.detectVersion?()` → stored in Zustand as
 `targetServerVersion` → flows into `SchemaMapping` → dialect drop hooks use it. Oracle pre-23c
 uses PL/SQL exception blocks; DB2 (all versions) uses SQL PL `CONTINUE HANDLER FOR SQLSTATE '42704'`.

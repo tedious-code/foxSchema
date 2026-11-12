@@ -14,6 +14,7 @@ import {
   Activity,
   ArrowRightLeft,
   Copy,
+  Shapes,
   Cpu,
   Database,
   DatabaseBackup,
@@ -36,6 +37,7 @@ import { FileQueryModal } from './FileQueryModal';
 import { IndexManagementModal } from './IndexManagementModal';
 import { ServerInsightsModal, type ServerInsightsTab } from './ServerInsightsModal';
 import { SqlTracerPanel } from './SqlTracerPanel';
+import { TypeDropPanel } from './TypeDropPanel';
 import { useAuthStore } from '@/platform/authStore';
 import { sectionLabelCls } from '@/shared/components/surfaces';
 import { connectionOptionLabel } from '@/shared/lib/dialectLabel';
@@ -46,6 +48,7 @@ export type UtilityTool =
   | 'dbAccess'
   | 'clone'
   | 'columns'
+  | 'types'
   | 'files'
   | 'pool'
   | 'sessions'
@@ -97,6 +100,14 @@ const TOOLS: {
     group: 'Maintenance',
     blurb: 'Rename a column or change its type the safe way: what it touches (constraints, triggers, functions, procedures), then the steps as SQL to review.',
     icon: ArrowRightLeft,
+  },
+  {
+    id: 'types',
+    testId: 'utilities-drop-type',
+    label: 'Drop Type',
+    group: 'Maintenance',
+    blurb: 'Drop a user-defined type: what uses it, then steps that move its columns to a built-in type and drop it. Never CASCADE.',
+    icon: Shapes,
   },
   {
     id: 'pool',
@@ -328,6 +339,7 @@ export const UtilitiesView: React.FC = () => {
             />
           )}
           {tool === 'columns' && <ColumnChangePanel key={lockedId} lockedConnectionId={lockedId} />}
+          {tool === 'types' && <TypeDropPanel key={lockedId} lockedConnectionId={lockedId} />}
           {insights && (
             <ServerInsightsModal
               open

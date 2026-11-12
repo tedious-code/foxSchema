@@ -76,6 +76,82 @@ describe('SqlGeneratorModule.generateObjectDdl', () => {
     expect(ss).not.toContain('MODE DB2SQL');
   });
 
+  it('renders a PostgreSQL domain as CREATE DOMAIN with its default, NOT NULL and named checks', () => {
+    const email = tableSchema({
+      name: 'email',
+      objectType: 'TYPE',
+      userType: {
+        metaType: 'D',
+        sourceType: 'character varying(120)',
+        domain: {
+          notNull: true,
+          default: "'a@b.c'::character varying",
+          checks: [{ name: 'email_check', expression: "CHECK (((VALUE)::text ~~ '%@%'::text))" }],
+        },
+      },
+    });
+    expect(gen.generateObjectDdl(email, 'postgres')).toBe(
+      [
+        'CREATE DOMAIN email AS character varying(120)',
+        "  DEFAULT 'a@b.c'::character varying",
+        '  NOT NULL',
+        `  CONSTRAINT "email_check" CHECK (((VALUE)::text ~~ '%@%'::text));`,
+      ].join('\n')
+    );
+    // No rules: the base type alone. Never CREATE TYPE … AS base, which PostgreSQL rejects.
+    const plain = tableSchema({ name: 'qty', objectType: 'TYPE', userType: { metaType: 'D', sourceType: 'integer' } });
+    expect(gen.generateObjectDdl(plain, 'postgres')).toBe('CREATE DOMAIN qty AS integer;');
+    const mood = tableSchema({ name: 'mood', objectType: 'TYPE', userType: { metaType: 'E', attributes: [{ name: 'ok', type: '' }] } });
+    expect(gen.generateObjectDdl(mood, 'postgres')).toBe("CREATE TYPE mood AS ENUM ('ok');");
+  });
+
+  it('drops a PostgreSQL domain with DROP DOMAIN, and recreates a changed one the same way', () => {
+    const domain = (check: string) =>
+      tableSchema({
+        name: 'email',
+        objectType: 'TYPE',
+        userType: { metaType: 'D', sourceType: 'text', domain: { checks: [{ name: 'email_check', expression: check }] } },
+      });
+    const removed = gen
+      .generateMigrationPlan(
+        [{ tableName: 'EMAIL', objectType: 'TYPE', status: 'REMOVED', columnDiffs: [], indexDiffs: [], foreignKeyDiffs: [], targetTable: domain("CHECK ((VALUE ~~ '%@%'::text))") }],
+        'postgres'
+      )
+      .flatMap((s) => s.statements);
+    expect(removed.join('\n')).toMatch(/DROP DOMAIN IF EXISTS .*email/);
+    expect(removed.join('\n')).not.toMatch(/DROP TYPE/);
+
+    const modified = gen
+      .generateMigrationPlan(
+        [
+          {
+            tableName: 'EMAIL',
+            objectType: 'TYPE',
+            status: 'MODIFIED',
+            columnDiffs: [],
+            indexDiffs: [],
+            foreignKeyDiffs: [],
+            sourceTable: domain("CHECK ((VALUE ~~ '%@%.%'::text))"),
+            targetTable: domain("CHECK ((VALUE ~~ '%@%'::text))"),
+          },
+        ],
+        'postgres'
+      )
+      .flatMap((s) => s.statements)
+      .join('\n');
+    expect(modified).toMatch(/DROP DOMAIN .*email;/);
+    expect(modified).toMatch(/CREATE DOMAIN .*email AS text\n  CONSTRAINT "email_check" CHECK \(\(VALUE ~~ '%@%\.%'::text\)\);/);
+    // Other engines keep DROP TYPE.
+    const db2 = gen
+      .generateMigrationPlan(
+        [{ tableName: 'EMAIL', objectType: 'TYPE', status: 'REMOVED', columnDiffs: [], indexDiffs: [], foreignKeyDiffs: [], targetTable: domain('x') }],
+        'db2'
+      )
+      .flatMap((s) => s.statements)
+      .join('\n');
+    expect(db2).toMatch(/DROP TYPE/);
+  });
+
   it('renders MariaDB CREATE SEQUENCE with single-token NOCYCLE/NOCACHE', () => {
     const t = tableSchema({ name: 'PLAIN_SEQ', objectType: 'SEQUENCE', sequence: { start: '1', increment: '1', cycle: false, cache: 0 } });
     const ddl = gen.generateObjectDdl(t, 'mariadb');

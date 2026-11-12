@@ -50,16 +50,32 @@ function sqlServerCopyLoop(ctx: ColumnChangeContext): string {
   ].join('\n');
 }
 
-/** The DEFAULT constraint's generated name, found by the column, dropped by name. No `;`: it runs inside one batch. */
+/**
+ * The DEFAULT constraint's name, found by the column, dropped by name. Keeps
+ * the name in @df and whether SQL Server made it up in @df_sys, for
+ * `addDefaultFor`. No `;`: it runs inside one batch.
+ */
 function dropDefaultFor(ctx: ColumnChangeContext, column: string): string {
   const t = table(ctx);
   return (
-    `DECLARE @df sysname, @sql nvarchar(max) SELECT @df = dc.name FROM sys.default_constraints AS dc ` +
+    `DECLARE @df sysname, @df_sys bit, @sql nvarchar(max) SELECT @df = dc.name, @df_sys = dc.is_system_named FROM sys.default_constraints AS dc ` +
     `JOIN sys.columns AS c ON c.object_id = dc.parent_object_id AND c.column_id = dc.parent_column_id ` +
     `WHERE dc.parent_object_id = OBJECT_ID(${lit(schemaOf(ctx), ctx.table)}) AND c.name = ${lit(column)} ` +
     `IF @df IS NOT NULL BEGIN SET @sql = N'ALTER TABLE ${t.replace(/'/g, "''")} DROP CONSTRAINT ' + QUOTENAME(@df) ` +
     `EXEC sp_executesql @sql END`
   );
+}
+
+/**
+ * The default back on the column, after `dropDefaultFor` in the same batch.
+ * A name someone gave it comes back with it (scripts and schema compares refer
+ * to it); a name SQL Server made up is left for SQL Server to make up again.
+ */
+function addDefaultFor(ctx: ColumnChangeContext, column: string, value: string): string {
+  const t = table(ctx);
+  const add = `ALTER TABLE ${t} ADD DEFAULT ${value} FOR ${q(column)}`;
+  const named = `N'ALTER TABLE ${t.replace(/'/g, "''")} ADD CONSTRAINT ' + QUOTENAME(@df) + N' DEFAULT ${value.replace(/'/g, "''")} FOR ${q(column).replace(/'/g, "''")}'`;
+  return `IF @df IS NULL OR @df_sys = 1 ${add} ELSE BEGIN SET @sql = ${named} EXEC sp_executesql @sql END`;
 }
 
 /** `N'…'` around a string the catalog gives at run time, quotes doubled, as T-SQL text. */
@@ -146,7 +162,7 @@ function sqlServerAlterType(ctx: ColumnChangeContext): ColumnChangeStep {
     ...(ctx.column.defaultValue ? [dropDefaultFor(ctx, ctx.column.name)] : []),
   ];
   const after = [
-    ...(ctx.column.defaultValue ? [`ALTER TABLE ${t} ADD DEFAULT ${ctx.column.defaultValue} FOR ${col}`] : []),
+    ...(ctx.column.defaultValue ? [addDefaultFor(ctx, ctx.column.name, ctx.column.defaultValue)] : []),
     runScripted('create_sql'),
     ...ctx.outboundForeignKeys.map(
       (fk) =>

@@ -42,8 +42,10 @@ interface PgViewRaw { view_name: string; definition: string; }
 interface PgTriggerRaw { trigger_name: string; table_name: string; tgtype: number; definition: string; }
 interface PgRoutineRaw { name: string; kind: string; returns_set: boolean; definition: string | null; args: string; }
 interface PgSequenceRaw { name: string; data_type: string; start_value: string; increment: string; min_value: string; max_value: string; cycle: boolean; cache_size: string; }
-interface PgTypeRaw { name: string; typtype: string; source_type: string | null; }
+interface PgTypeRaw { name: string; typtype: string; source_type: string | null; not_null: boolean | null; default_value: string | null; }
+interface PgDomainCheckRaw { type_name: string; name: string; expression: string; }
 interface PgEnumRaw { type_name: string; label: string; }
+interface PgCompositeFieldRaw { type_name: string; name: string; type: string; }
 
 export class PostgresProvider implements SchemaProvider {
   readonly provider: string = 'postgres'; // widened to string so wire-compatible variants (CockroachDB, YugabyteDB) can subclass and override
@@ -162,6 +164,8 @@ export class PostgresProvider implements SchemaProvider {
         rawSequences,
         rawTypes,
         rawEnums,
+        rawCompositeFields,
+        rawDomainChecks,
       ] = await Promise.all([
         exec<PgTableRaw>(
           `SELECT c.relname AS table_name, c.relkind, t.spcname AS tablespace,
@@ -301,9 +305,14 @@ export class PostgresProvider implements SchemaProvider {
         ),
         exec<PgTypeRaw>(
           `SELECT t.typname AS name, t.typtype AS typtype,
-                  CASE WHEN t.typtype = 'd' THEN format_type(t.typbasetype, t.typtypmod) END AS source_type
+                  CASE WHEN t.typtype = 'd' THEN format_type(t.typbasetype, t.typtypmod) END AS source_type,
+                  CASE WHEN t.typtype = 'd' THEN t.typnotnull END AS not_null,
+                  CASE WHEN t.typtype = 'd' THEN t.typdefault END AS default_value
            FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
-           WHERE n.nspname = $1 AND t.typtype IN ('e','d')
+           WHERE n.nspname = $1
+             AND (t.typtype IN ('e','d')
+               -- A composite made with CREATE TYPE … AS (…); every table has a row type too, which is not one.
+               OR (t.typtype = 'c' AND EXISTS (SELECT 1 FROM pg_class c WHERE c.oid = t.typrelid AND c.relkind = 'c')))
            ORDER BY t.typname`,
           [schemaName]
         ),
@@ -314,6 +323,25 @@ export class PostgresProvider implements SchemaProvider {
            JOIN pg_namespace n ON n.oid = t.typnamespace
            WHERE n.nspname = $1
            ORDER BY e.enumsortorder`,
+          [schemaName]
+        ),
+        exec<PgCompositeFieldRaw>(
+          `SELECT t.typname AS type_name, a.attname AS name, format_type(a.atttypid, a.atttypmod) AS type
+           FROM pg_type t
+           JOIN pg_namespace n ON n.oid = t.typnamespace
+           JOIN pg_class c ON c.oid = t.typrelid AND c.relkind = 'c'
+           JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+           WHERE n.nspname = $1 AND t.typtype = 'c'
+           ORDER BY t.typname, a.attnum`,
+          [schemaName]
+        ),
+        exec<PgDomainCheckRaw>(
+          `SELECT t.typname AS type_name, c.conname AS name, pg_get_constraintdef(c.oid) AS expression
+           FROM pg_constraint c
+           JOIN pg_type t ON t.oid = c.contypid
+           JOIN pg_namespace n ON n.oid = t.typnamespace
+           WHERE n.nspname = $1 AND t.typtype = 'd' AND c.contype = 'c'
+           ORDER BY t.typname, c.conname`,
           [schemaName]
         ),
       ]);
@@ -487,20 +515,48 @@ export class PostgresProvider implements SchemaProvider {
         });
       }
 
-      // 11. User types (enums + domains)
+      // 11. User types (enums, domains, composites)
       const enumLabels = new Map<string, string[]>();
       for (const e of rawEnums) {
         const labels = enumLabels.get(e.type_name) ?? [];
         labels.push(e.label);
         enumLabels.set(e.type_name, labels);
       }
+      const compositeFields = new Map<string, Array<{ name: string; type: string }>>();
+      for (const f of rawCompositeFields) {
+        const fields = compositeFields.get(f.type_name) ?? [];
+        fields.push({ name: f.name, type: f.type });
+        compositeFields.set(f.type_name, fields);
+      }
+      const domainChecks = new Map<string, Array<{ name: string; expression: string }>>();
+      for (const c of rawDomainChecks) {
+        const checks = domainChecks.get(c.type_name) ?? [];
+        checks.push({ name: c.name, expression: c.expression });
+        domainChecks.set(c.type_name, checks);
+      }
       for (const t of rawTypes) {
+        const checks = domainChecks.get(t.name);
+        const domain =
+          t.typtype === 'd' && (t.not_null || t.default_value != null || checks)
+            ? {
+                ...(t.not_null ? { notNull: true } : {}),
+                ...(t.default_value != null ? { default: t.default_value } : {}),
+                ...(checks ? { checks } : {}),
+              }
+            : undefined;
         (userTypes[t.name] ??= []).push({
           name: t.name,
           schema: schemaName,
           sourceType: t.source_type ?? undefined,
-          metaType: t.typtype === 'e' ? 'E' : 'D',
-          attributes: t.typtype === 'e' ? (enumLabels.get(t.name) ?? []).map((l) => ({ name: l, type: '' })) : undefined,
+          // 'O' is the composite kind the PostgreSQL dialect writes as CREATE TYPE … AS (…).
+          metaType: t.typtype === 'e' ? 'E' : t.typtype === 'c' ? 'O' : 'D',
+          attributes:
+            t.typtype === 'e'
+              ? (enumLabels.get(t.name) ?? []).map((l) => ({ name: l, type: '' }))
+              : t.typtype === 'c'
+                ? (compositeFields.get(t.name) ?? [])
+                : undefined,
+          ...(domain ? { domain } : {}),
         });
       }
 

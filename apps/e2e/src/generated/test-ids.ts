@@ -3346,6 +3346,54 @@ export const TestIds = {
       /** button · Unlock */
       sqlTracerUnlock: 'sql-tracer-unlock',
     },
+    TypeDropPanel: {
+      /** button · Confirm: drop */
+      typeDropConfirmAll: 'type-drop-confirm-all',
+      /** button · Cancel */
+      typeDropConfirmAllCancel: 'type-drop-confirm-all-cancel',
+      /** button */
+      typeDropCopyAll: 'type-drop-copy-all',
+      /** p */
+      typeDropHint: 'type-drop-hint',
+      /** section · — */
+      typeDropImpact: 'type-drop-impact',
+      /** input */
+      typeDropKeepCheck: 'type-drop-keep-check',
+      /** p */
+      typeDropLoadError: 'type-drop-load-error',
+      /** button · Open in editor */
+      typeDropOpenEditor: 'type-drop-open-editor',
+      /** div */
+      typeDropPanel: 'type-drop-panel',
+      /** input */
+      typeDropPassword: 'type-drop-password',
+      /** p */
+      typeDropRefused: 'type-drop-refused',
+      /** input */
+      typeDropReplacement: 'type-drop-replacement',
+      /** button */
+      typeDropRunAll: 'type-drop-run-all',
+      /** p */
+      typeDropRunError: 'type-drop-run-error',
+      /** p */
+      typeDropRunStatus: 'type-drop-run-status',
+      /** article */
+      typeDropStep: (value: string | number) => `type-drop-step-${value}`,
+      /** button */
+      typeDropStepCopy: (value: string | number) => `type-drop-step-${value}-copy`,
+      /** section */
+      typeDropSteps: 'type-drop-steps',
+      /** select */
+      typeDropType: 'type-drop-type',
+      /** button · Unlock */
+      typeDropUnlock: 'type-drop-unlock',
+      /** p */
+      typeDropUnsupported: 'type-drop-unsupported',
+      /** p */
+      typeDropValues: 'type-drop-values',
+      /** ul */
+      typeDropWarnings: 'type-drop-warnings',
+    },
     UtilitiesView: {
       /** div */
       dbAccessModal: 'db-access-modal',
@@ -3365,6 +3413,8 @@ export const TestIds = {
       utilitiesConnectionPool: 'utilities-connection-pool',
       /** data · DB users & grants */
       utilitiesDatabaseAccess: 'utilities-database-access',
+      /** data · Drop Type */
+      utilitiesDropType: 'utilities-drop-type',
       /** data · Index Management */
       utilitiesIndexManagement: 'utilities-index-management',
       /** data · Table & Index Size */
@@ -5287,6 +5337,29 @@ export type TestId =
   | 'toolbar-swap-direction'
   | `toolbar-toggle-object-type-${string}`
   | `toolbar-toggle-type-filter-${string}`
+  | 'type-drop-confirm-all'
+  | 'type-drop-confirm-all-cancel'
+  | 'type-drop-copy-all'
+  | 'type-drop-hint'
+  | 'type-drop-impact'
+  | 'type-drop-keep-check'
+  | 'type-drop-load-error'
+  | 'type-drop-open-editor'
+  | 'type-drop-panel'
+  | 'type-drop-password'
+  | 'type-drop-refused'
+  | 'type-drop-replacement'
+  | 'type-drop-run-all'
+  | 'type-drop-run-error'
+  | 'type-drop-run-status'
+  | `type-drop-step-${string}`
+  | `type-drop-step-${string}-copy`
+  | 'type-drop-steps'
+  | 'type-drop-type'
+  | 'type-drop-unlock'
+  | 'type-drop-unsupported'
+  | 'type-drop-values'
+  | 'type-drop-warnings'
   | 'updates-apply-btn'
   | 'updates-check-btn'
   | 'updates-copy-cmd-btn'
@@ -5383,6 +5456,7 @@ export type TestId =
   | 'utilities-connection'
   | 'utilities-connection-pool'
   | 'utilities-database-access'
+  | 'utilities-drop-type'
   | 'utilities-index-management'
   | 'utilities-object-sizes'
   | 'utilities-query-files'

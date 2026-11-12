@@ -685,7 +685,7 @@ saved credential at the top, then a tool:
   A **type change** is **one ALTER in place** by default — `ALTER COLUMN … TYPE`,
   MySQL's `MODIFY COLUMN` restating NOT NULL, default, collation and comment, or
   on SQL Server one transaction that takes the column's indexes, keys and default
-  off and puts them back. Fine for small and medium tables. From about a million
+  off and puts them back (a default someone named keeps its name). Fine for small and medium tables. From about a million
   rows or 1 GB (the catalog's estimate) Fox warns that it can block writes while
   it rewrites the table. Tick **Large table mode** to do it in three
   parts instead, each with preview SQL you can **Copy** or **Run** here (Safe mode
@@ -728,6 +728,43 @@ saved credential at the top, then a tool:
   showing SQL that would fail there. Also refused for now: a primary-key
   column, a column other tables’ foreign keys point at, an identity column, and
   in large-table mode a table with no primary key (the copy batches through it).
+- **Drop Type** — drop a user-defined type: an enum, a domain, an alias type,
+  a composite or object type.
+  Pick a type to see **what uses it** from the schema Fox already loaded:
+  columns declared with it (arrays too), other types built on it, and views,
+  functions, procedures and triggers whose text *may* name it (a text match,
+  with the lines). A database will not drop a type a column still uses, so the
+  steps first move each such column onto a built-in type — **Its columns
+  become** suggests one (`text` for a PostgreSQL enum, the base type for a
+  domain or alias) and you can type another — then drop the type. The values
+  stay. For an enum, **Keep the allowed values** adds a check constraint to
+  each column so it still accepts only the enum's values. A column default
+  written with a cast to the type is set again without it. **Copy all**,
+  **Open in editor** and **Execute all** (Safe mode confirms; stops at the
+  first step the database refuses) work as in Rename Column.
+
+  Fox never writes `CASCADE`: anything that still depends on the type and that
+  Fox did not see makes the database refuse the drop and name it, rather than
+  dropping it too. Views and routines that use the type are listed but not
+  changed — drop or edit them first.
+
+  **Engines:** PostgreSQL, YugabyteDB, CockroachDB (enums and domains; a
+  composite type no column uses), SQL Server and Azure SQL (alias types; each
+  column is changed the way Rename Column does it, with its indexes and default
+  taken off and put back), DuckDB (enums; not while the table has an index). On
+  **Oracle** and **Db2** Fox drops a type no column uses; a column of an object,
+  structured or distinct type — or a PostgreSQL composite — has no in-place
+  change to a built-in type, so the plan refuses and names it.
+
+  Not covered: SQL Server **table types** and **CLR types** (Fox does not read
+  them yet). MySQL, MariaDB and TiDB `ENUM` / `SET`, and ClickHouse `Enum`,
+  `Tuple` and `Nested`, are written on the column itself, not as a named type:
+  there is nothing to drop — change the column with **Rename Column**. SQLite
+  and Redshift have no user-defined types. Refused
+  everywhere: a type another type is built on, a function or procedure that
+  takes the type as a parameter (the database would refuse the drop only after
+  the columns had changed), a column with a foreign key, and a replacement too
+  short for the longest enum value.
 - **Backup & Restore** — Fox Schema writes the backup and restore commands
   for this connection. The amber banner says *where* they run, because that is
   what the folder means:

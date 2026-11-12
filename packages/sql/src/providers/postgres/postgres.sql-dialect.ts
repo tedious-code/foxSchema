@@ -9,6 +9,9 @@ import {
   withDefaultTemporalFsp,
 } from '../../modules/dialect/type-mapping.js';
 
+/** A name in double quotes, embedded quotes doubled. */
+const quoteIdent = (name: string) => `"${name.replace(/"/g, '""')}"`;
+
 const types = makeDialectTypeFns({
   label: 'PostgreSQL',
   parseMap: {
@@ -227,11 +230,22 @@ export const postgresSqlDialect: SqlDialect = {
       const cols = u.attributes.map((a) => `  ${a.name} ${a.type}`).join(',\n');
       return `CREATE TYPE ${schema.name} AS (\n${cols}\n);`;
     }
-    // Domain type — Postgres uses "AS basetype".
+    // Domain — CREATE DOMAIN with its own rules; PostgreSQL refuses CREATE TYPE … AS basetype.
     if (u.metaType === 'D' && u.sourceType) {
-      return `CREATE TYPE ${schema.name} AS ${u.sourceType};`;
+      const d = u.domain ?? {};
+      const rules = [
+        ...(d.default != null ? [`DEFAULT ${d.default}`] : []),
+        ...(d.notNull ? ['NOT NULL'] : []),
+        ...(d.checks ?? []).map((c) => `CONSTRAINT ${quoteIdent(c.name)} ${c.expression}`),
+      ];
+      return `CREATE DOMAIN ${schema.name} AS ${u.sourceType}${rules.map((r) => `\n  ${r}`).join('')};`;
     }
     return null; // fall through to generic renderer
+  },
+
+  dropTypeStatement(name: string, type: TableSchema | undefined, ifExists: boolean): string {
+    const kind = type?.userType?.metaType === 'D' && type.userType.sourceType ? 'DOMAIN' : 'TYPE';
+    return `DROP ${kind}${ifExists ? ' IF EXISTS' : ''} ${name};`;
   },
 
   ...types,

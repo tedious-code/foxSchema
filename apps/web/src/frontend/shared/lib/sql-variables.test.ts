@@ -236,14 +236,12 @@ SELECT 3 AS a, 4 AS b;`;
     );
   });
 
-  it('stripSecretsForPersist and export omit secret payloads', () => {
+  it('stripSecretsForPersist drops secret variables so a delete stays gone after reload', () => {
     const secret = scalar('tok', 'shh', { secret: true, overrides: { c1: { value: 'x' } } });
     const plain = scalar('n', 1);
     const stripped = stripSecretsForPersist([secret, plain]);
-    expect(stripped[0]!.value).toBeUndefined();
-    expect(stripped[0]!.secret).toBe(true);
-    expect(isSecretUnset(stripped[0]!)).toBe(true);
-    expect(stripped[1]!.value).toBe(1);
+    expect(stripped).toEqual([expect.objectContaining({ name: 'n', value: 1 })]);
+    expect(stripped.some((v) => v.secret || v.name === 'tok')).toBe(false);
 
     const exported = exportVariables([secret, plain]);
     expect(exported[0]).toEqual({ name: 'tok', kind: 'scalar', secret: true });
@@ -301,7 +299,7 @@ SELECT 3 AS a, 4 AS b;`;
     if (r.ok) expect(r.sql).toBe('SELECT * FROM t WHERE id = 42;');
   });
 
-  it('stripSecretsForPersist clears list/table secret payloads but keeps columns', () => {
+  it('stripSecretsForPersist drops secret list and table variables too', () => {
     const secretList = list('ids', [1, 2], { secret: true });
     const secretTable: SqlVariable = {
       id: 't',
@@ -312,13 +310,9 @@ SELECT 3 AS a, 4 AS b;`;
       rows: [[1, 'a']],
       updatedAt: 1,
     };
-    const stripped = stripSecretsForPersist([secretList, secretTable]);
-    expect(stripped[0]!.values).toBeUndefined();
-    expect(stripped[0]!.secret).toBe(true);
-    expect(stripped[1]!.rows).toBeUndefined();
-    expect(stripped[1]!.columns).toEqual(['id', 'name']);
-    expect(isSecretUnset(stripped[0]!)).toBe(true);
-    expect(isSecretUnset(stripped[1]!)).toBe(true);
+    const plain = scalar('n', 1);
+    const stripped = stripSecretsForPersist([secretList, secretTable, plain]);
+    expect(stripped.map((v) => v.name)).toEqual(['n']);
   });
 
   it('exportVariables includes list/table bodies and omits empty overrides', () => {

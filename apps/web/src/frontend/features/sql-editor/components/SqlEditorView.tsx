@@ -600,7 +600,8 @@ export const SqlEditorView: React.FC = () => {
     {
       id: 'vault',
       title: 'Secrets',
-      visible: canEditorSecrets && canSecretsView,
+      // Editor rail: secrets stay on Credentials + Variables (secret checkbox).
+      visible: false,
       icon: <KeyRound className="text-[#d97706]" strokeWidth={SQL_ICON_STROKE} />,
     },
   ];

@@ -6,6 +6,7 @@ import {
   variableRefText,
   type SqlVariable,
 } from '@/shared/lib/sql-variables';
+import { deleteSecretVariable } from '@/features/sql-editor/lib/deleteEditorSecret';
 import { insertVariableRef } from '@/features/sql-editor/lib/sqlEditorBridge';
 import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { useSyncStore } from '@/features/compare';
@@ -133,6 +134,15 @@ export const SqlVariablesPanel: React.FC = () => {
     setValueDraft('');
     setSecretDraft(false);
     setError(null);
+  };
+
+  const onDeleteVariable = async (v: SqlVariable) => {
+    setError(null);
+    try {
+      await deleteSecretVariable(v, deleteVariable);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   };
 
   const commitEdit = (id: string, kind: 'scalar' | 'list') => {
@@ -427,8 +437,10 @@ export const SqlVariablesPanel: React.FC = () => {
                       data-testid={`sql-variable-delete-${v.name}`}
                       title="Delete variable"
                       aria-label={`Delete ${v.name}`}
-                      onClick={() => deleteVariable(v.id)}
-                      className="p-0.5 text-slate-500 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition shrink-0 mt-0.5"
+                      onClick={() => void onDeleteVariable(v)}
+                      className={`p-0.5 text-slate-500 hover:text-rose-400 transition shrink-0 mt-0.5 ${
+                        v.secret ? '' : 'opacity-0 group-hover:opacity-100'
+                      }`}
                     >
                       <Trash2 className="w-3.5 h-3.5 text-rose-400" strokeWidth={SQL_ICON_STROKE} />
                     </button>

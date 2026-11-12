@@ -68,12 +68,10 @@ That starts three processes (`apps/web/package.json` `dev:all:workflow`):
 
 Or start the engine alone: `npm run dev:workflow-server` (`tsx watch`, port **8081**).
 
-Then in the UI: **Workflow → Engine → Enabled → Save settings**. In **0.3.1**
-the Workflow rail item is off (`NAV_FLAGS.workflow` in
-`apps/web/src/frontend/app/features/featureRegistry.ts`); the engine still
-answers, Home → **Services** still probes it, and a stored last-view for
-Workflow is sent Home. Set that flag `true` to put the designer back — that is
-the whole of the hold-back. Saved default is `disabled`
+Then in the UI: **Workflow → Engine → Enabled → Save settings**. The Workflow
+rail item is on (`NAV_FLAGS.workflow` in
+`apps/web/src/frontend/app/features/featureRegistry.ts`). Home → **Services**
+still probes the engine. Saved default is `disabled`
 (`packages/server/src/features/workflow/workflow-settings.service.ts`), so new
 runs are refused until you enable it. Health probe:
 `GET http://127.0.0.1:8081/health` → `{ ok: true, service: "workflow-server" }`.
@@ -196,11 +194,9 @@ Saved in FoxSchema (`workflow.engine_config`). The engine re-reads them every
   let every designer on the install save and run with A's password. The proxy
   now refuses that. Move the workflow (or re-pick a connection that belongs
   here) instead of copying a `foxschema-…` credential id across workspaces.
-- **The rail item is off in 0.3.1.** `NAV_FLAGS.workflow === false` hides
-  Workflow from the activity rail and the command palette. The view, the engine
-  proxy and this runbook stay; turning the flag on is the restore. A stored
-  `activeView` of `workflow` is sent Home (`redirectFor`), so last-session
-  restore is not a way in.
+- **The rail item is on.** `NAV_FLAGS.workflow === true` puts Workflow on the
+  activity rail and the command palette. Accounts without `workflow.access` are
+  sent Home (`redirectFor`).
 - **Home → Services is status, not control.** `GET /api/system/services` reports
   the API (always `running` if the page loaded) and the engine: `running` (its
   `/health` answered), `not_configured` (this API lacks `WORKFLOW_ENGINE_TOKEN`

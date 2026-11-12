@@ -18,7 +18,9 @@ const listGcpProjects = vi.fn();
 const listGcpSecrets = vi.fn();
 const listGcpSecretVersions = vi.fn();
 const upsertVariable = vi.fn(() => null);
+const deleteVariable = vi.fn();
 const insertAtCursor = vi.fn((_text: string) => true);
+const editorVariables: Array<{ id: string; name: string; secret?: boolean }> = [];
 
 vi.mock('@/shared/api/appSecretsApi', () => ({
   listAppSecrets: (...args: unknown[]) => listAppSecrets(...args),
@@ -34,14 +36,18 @@ vi.mock('@/shared/api/appSecretsApi', () => ({
     `/api/app-secrets/providers/gcp/oauth/start${name ? `?name=${encodeURIComponent(name)}` : ''}`,
 }));
 
-vi.mock('@/features/sql-editor/state/useSqlEditorStore', () => ({
-  useSqlEditorStore: (sel: (s: Record<string, unknown>) => unknown) =>
-    sel({
-      upsertVariable,
-      deleteVariable: () => undefined,
-      variables: [],
-    }),
-}));
+vi.mock('@/features/sql-editor/state/useSqlEditorStore', () => {
+  const store = {
+    upsertVariable: (...args: unknown[]) => upsertVariable(...args),
+    deleteVariable: (...args: unknown[]) => deleteVariable(...args),
+    get variables() {
+      return editorVariables;
+    },
+  };
+  const hook = (sel: (s: typeof store) => unknown) => sel(store);
+  hook.getState = () => store;
+  return { useSqlEditorStore: hook };
+});
 
 vi.mock('@/features/sql-editor/lib/sqlEditorBridge', () => ({
   insertAtCursor: (text: string) => insertAtCursor(text),
@@ -60,6 +66,8 @@ describe('SqlSecretsPanel', () => {
     deleteAppSecret.mockReset();
     upsertVariable.mockReset();
     upsertVariable.mockReturnValue(null);
+    deleteVariable.mockReset();
+    editorVariables.length = 0;
     insertAtCursor.mockReset();
     insertAtCursor.mockReturnValue(true);
     listAppSecrets.mockResolvedValue([]);
@@ -196,5 +204,28 @@ describe('SqlSecretsPanel', () => {
     fireEvent.click(screen.getByTestId('sql-secret-insert-apiToken'));
     expect(insertAtCursor).toHaveBeenCalledWith('${{apiToken}}');
     expect(JSON.stringify(insertAtCursor.mock.calls)).not.toMatch(/from-sm|shh|secret value/i);
+  });
+
+  it('deletes the vault row and the session variable of the same name', async () => {
+    editorVariables.push({ id: 'v1', name: 'apiToken', secret: true });
+    listAppSecrets
+      .mockResolvedValueOnce([
+        {
+          id: 's1',
+          name: 'apiToken',
+          source: 'local',
+          hasValue: true,
+          updatedAt: new Date().toISOString(),
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    deleteAppSecret.mockResolvedValue(undefined);
+
+    render(<SqlSecretsPanel />);
+    await waitFor(() => expect(screen.getByTestId('sql-secret-delete-secret-s1')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('sql-secret-delete-secret-s1'));
+    await waitFor(() => expect(deleteAppSecret).toHaveBeenCalledWith('s1'));
+    expect(deleteVariable).toHaveBeenCalledWith('v1');
+    await waitFor(() => expect(screen.queryByTestId('sql-secret-apiToken')).toBeNull());
   });
 });

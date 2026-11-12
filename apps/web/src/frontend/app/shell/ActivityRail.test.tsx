@@ -40,8 +40,7 @@ describe('ActivityRail', () => {
     expect(screen.getByTestId('view-sql-editor-btn')).toBeTruthy();
     expect(screen.getByTestId('view-utilities-btn')).toBeTruthy();
     expect(screen.getByTestId('view-access-btn')).toBeTruthy();
-    // Workflow is held back for 0.3.1 (NAV_FLAGS.workflow === false).
-    expect(screen.queryByTestId('view-workflow-btn')).toBeNull();
+    expect(screen.getByTestId('view-workflow-btn')).toBeTruthy();
     expect(screen.getByTestId('sync-pane-history-btn')).toBeTruthy();
     expect(screen.getByTestId('credentials-btn')).toBeTruthy();
     expect(screen.getByTestId('history-btn')).toBeTruthy();

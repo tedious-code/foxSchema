@@ -2431,7 +2431,7 @@ export const useSqlEditorStore = create<SqlEditorState>()(
       // workspace, so one workspace's scripts do not load in another.
       storage: workspaceEditorStorage(),
       // Persist tabs + destinations mode + bookmarks + recent + variables. Never passwords/results.
-      // Secret variable payloads are stripped (session-only values).
+      // Secret variables are omitted (vault + this session only).
       partialize: (state) => {
         const tabs = persistableTabs(state.tabs).map((t) => ({
           ...t,

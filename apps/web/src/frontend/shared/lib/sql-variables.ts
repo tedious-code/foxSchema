@@ -276,45 +276,12 @@ export function resolveVariablesForConnection(
   });
 }
 
-/** Drop secret payloads before localStorage (keep name/kind/secret/overrides keys). */
+/**
+ * Secrets live in the vault (and this session). Persisting a name-only stub
+ * put a deleted secret back in Variables after reload.
+ */
 export function stripSecretsForPersist(variables: SqlVariable[]): SqlVariable[] {
-  return variables.map((v) => {
-    if (!v.secret) return { ...v };
-    const overrides = v.overrides
-      ? Object.fromEntries(
-          Object.entries(v.overrides).map(([id]) => [id, {} as VariableOverride])
-        )
-      : undefined;
-    if (v.kind === 'scalar') {
-      return {
-        id: v.id,
-        name: v.name,
-        kind: 'scalar' as const,
-        secret: true,
-        overrides,
-        updatedAt: v.updatedAt,
-      };
-    }
-    if (v.kind === 'list') {
-      return {
-        id: v.id,
-        name: v.name,
-        kind: 'list' as const,
-        secret: true,
-        overrides,
-        updatedAt: v.updatedAt,
-      };
-    }
-    return {
-      id: v.id,
-      name: v.name,
-      kind: 'table' as const,
-      secret: true,
-      columns: v.columns ? [...v.columns] : undefined,
-      overrides: undefined,
-      updatedAt: v.updatedAt,
-    };
-  });
+  return variables.filter((v) => !v.secret).map((v) => ({ ...v }));
 }
 
 /** Serialize variables for download; secret values are omitted. */

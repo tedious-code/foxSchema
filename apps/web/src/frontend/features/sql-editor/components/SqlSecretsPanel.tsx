@@ -3,7 +3,6 @@ import { KeyRound, Plus, Trash2 } from 'lucide-react';
 import {
   createAppSecret,
   createCloudProviderCredential,
-  deleteAppSecret,
   gcpOAuthStartUrl,
   listAppSecrets,
   listCloudProviders,
@@ -27,7 +26,11 @@ import {
   type CloudProviderField,
   type CloudSecretProviderId,
 } from '@/shared/lib/cloud-provider-settings';
-import { variableRefText } from '@/shared/lib/sql-variables';
+import { isSecretUnset, variableRefText } from '@/shared/lib/sql-variables';
+import {
+  APP_SECRETS_CHANGED_EVENT,
+  deleteVaultSecretAndVariables,
+} from '@/features/sql-editor/lib/deleteEditorSecret';
 import { insertVariableRef } from '@/features/sql-editor/lib/sqlEditorBridge';
 import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
@@ -128,6 +131,11 @@ export const SqlSecretsPanel = forwardRef<SqlSecretsPanelHandle>(function SqlSec
         if (prev && creds.some((c) => c.id === prev)) return prev;
         return creds[0]?.id ?? '';
       });
+      const vaultNames = new Set(secs.map((s) => s.name));
+      const { variables: sessionVars, deleteVariable: dropVar } = useSqlEditorStore.getState();
+      for (const v of sessionVars) {
+        if (v.secret && isSecretUnset(v) && !vaultNames.has(v.name)) dropVar(v.id);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -137,6 +145,12 @@ export const SqlSecretsPanel = forwardRef<SqlSecretsPanelHandle>(function SqlSec
 
   useEffect(() => {
     void refreshList();
+  }, [refreshList]);
+
+  useEffect(() => {
+    const onChanged = () => void refreshList();
+    window.addEventListener(APP_SECRETS_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(APP_SECRETS_CHANGED_EVENT, onChanged);
   }, [refreshList]);
 
   useEffect(() => {
@@ -378,14 +392,13 @@ export const SqlSecretsPanel = forwardRef<SqlSecretsPanelHandle>(function SqlSec
 
   const onDelete = async (s: AppSecretSummary) => {
     setError(null);
+    setSecrets((prev) => prev.filter((x) => x.id !== s.id));
     try {
-      await deleteAppSecret(s.id);
-      const linked = variables.find((v) => v.name === s.name && v.secret);
-      if (linked) deleteVariable(linked.id);
-      await refreshList();
+      await deleteVaultSecretAndVariables(s, variables, deleteVariable);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
     }
+    await refreshList();
   };
 
   return (
@@ -442,12 +455,13 @@ export const SqlSecretsPanel = forwardRef<SqlSecretsPanelHandle>(function SqlSec
               >
                 Insert
               </button>
-              <button data-testid={`sql-secret-delete-secret-${s.id}`}
+              <button
+                data-testid={`sql-secret-delete-secret-${s.id}`}
                 type="button"
                 title="Delete secret"
                 aria-label={`Delete ${s.name}`}
                 onClick={() => void onDelete(s)}
-                className="p-0.5 text-slate-500 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition"
+                className="p-0.5 text-slate-500 hover:text-rose-400 transition"
               >
                 <Trash2 className="w-3 h-3 text-rose-400" strokeWidth={SQL_ICON_STROKE} />
               </button>

@@ -56,6 +56,15 @@ export type SqlVariableExport = {
 
 export type VariableRef = { name: string; column?: string };
 
+function variableRefKey(name: string, column?: string): string {
+  return column ? `${name}.${column}` : name;
+}
+
+/** Editor snippet for a variable or secret: `${{name}}` / `${{name.col}}`. */
+export function variableRefText(name: string, column?: string): string {
+  return '${{' + variableRefKey(name, column) + '}}';
+}
+
 export type SetDirective =
   | { mode: 'scalar'; name: string }
   | { mode: 'column'; name: string; column: string }
@@ -78,7 +87,7 @@ export function findVariableRefs(sql: string): VariableRef[] {
   while ((m = VAR_REF_RE.exec(sql)) !== null) {
     const name = m[1]!;
     const column = m[2];
-    const key = column ? `${name}.${column}` : name;
+    const key = variableRefKey(name, column);
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(column ? { name, column } : { name });
@@ -196,7 +205,7 @@ export function expandVariableRef(
   if (variable.kind === 'list' || variable.kind === 'scalar') {
     return {
       ok: false,
-      error: `Variable "${variable.name}" is ${variable.kind}; use \${{${variable.name}}} without .${column}`,
+      error: `Variable "${variable.name}" is ${variable.kind}; use ${variableRefText(variable.name)} without .${column}`,
     };
   }
 
@@ -226,7 +235,7 @@ export function substituteVariables(
   const cache = new Map<string, string>();
 
   for (const ref of refs) {
-    const key = ref.column ? `${ref.name}.${ref.column}` : ref.name;
+    const key = variableRefKey(ref.name, ref.column);
     const v = byName.get(ref.name);
     if (!v) return { ok: false, error: `Undefined variable: ${ref.name}` };
     if (opts?.maskSecrets && v.secret) {
@@ -240,8 +249,7 @@ export function substituteVariables(
 
   VAR_REF_RE.lastIndex = 0;
   const out = sql.replace(VAR_REF_RE, (_full, name: string, column?: string) => {
-    const key = column ? `${name}.${column}` : name;
-    return cache.get(key)!;
+    return cache.get(variableRefKey(name, column))!;
   });
   return { ok: true, sql: out };
 }
@@ -472,18 +480,53 @@ export function reattachSetComments(
   });
 }
 
-/** Prepare one statement: strip @set lines, then substitute variables into the SQL. */
+/** True when the SQL interpolates at least one secret variable. */
+export function sqlRefsSecretVariable(sql: string, variables: SqlVariable[]): boolean {
+  const secrets = new Set(variables.filter((v) => v.secret).map((v) => v.name));
+  if (secrets.size === 0) return false;
+  return findVariableRefs(sql).some((ref) => secrets.has(ref.name));
+}
+
+/**
+ * SQL to persist in Recent: editor source if a secret was interpolated,
+ * otherwise the filled run text. Never stores a secret payload.
+ */
+export function recentQuerySql(
+  sourceSql: string,
+  ranSql: string,
+  variables: SqlVariable[]
+): string {
+  const source = sourceSql.trim();
+  if (sqlRefsSecretVariable(source, variables)) return source;
+  return ranSql.trim() || source;
+}
+
+/**
+ * Strip @set lines, then substitute variables.
+ * Pass `{ maskSecrets: true }` only for UI copy — execute must omit it.
+ */
 export function prepareStatement(
   statement: string,
-  variables: SqlVariable[]
+  variables: SqlVariable[],
+  opts?: SubstituteOptions
 ): { ok: true; sql: string; directives: SetDirective[] } | SubstituteErr {
   const { directives, sql: stripped } = parseSetDirectives(statement);
   if (!stripped.trim()) {
     return { ok: false, error: 'Statement is empty after removing @set directives' };
   }
-  const sub = substituteVariables(stripped, variables);
+  const sub = substituteVariables(stripped, variables, opts);
   if (!sub.ok) return sub;
   return { ok: true, sql: sub.sql, directives };
+}
+
+/**
+ * Filled SQL for the results rail and copy: non-secret vars inlined, secrets
+ * shown as `(secret)` so interpolated keys never appear in the UI.
+ */
+export function sqlForDisplay(statement: string, variables: SqlVariable[]): string {
+  const prepared = prepareStatement(statement, variables, { maskSecrets: true });
+  if (prepared.ok) return prepared.sql;
+  return parseSetDirectives(statement).sql.trim() || statement;
 }
 
 export type SetUpdate = {

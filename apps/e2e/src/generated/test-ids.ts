@@ -1221,7 +1221,7 @@ export const TestIds = {
   },
   connections: {
     CloudProviderCredentialsSection: {
-      /** button · Add cloud credential */
+      /** button · Add AWS, Azure, or WIF */
       cloudCredAdd: 'cloud-cred-add',
       /** button · Cancel */
       cloudCredCancel: 'cloud-cred-cancel',
@@ -1235,11 +1235,13 @@ export const TestIds = {
       cloudCredField: (key: string | number) => `cloud-cred-field-${key}`,
       /** div */
       cloudCredForm: 'cloud-cred-form',
+      /** button */
+      cloudCredGcpConnect: 'cloud-cred-gcp-connect',
       /** input · Name (e.g. Prod AWS) */
       cloudCredName: 'cloud-cred-name',
       /** select */
       cloudCredProviderSelect: 'cloud-cred-provider-select',
-      /** button · Remove */
+      /** button */
       cloudCredRemove: (id: string | number) => `cloud-cred-remove-${id}`,
       /** button · Save */
       cloudCredSave: 'cloud-cred-save',
@@ -2539,14 +2541,34 @@ export const TestIds = {
       sqlSecret: (name: string | number) => `sql-secret-${name}`,
       /** button · Add secret */
       sqlSecretAdd: 'sql-secret-add',
+      /** div */
+      sqlSecretAddCloudCred: 'sql-secret-add-cloud-cred',
       /** button · Cancel */
       sqlSecretCancel: 'sql-secret-cancel',
+      /** textarea */
+      sqlSecretCloudCredField: (key: string | number) => `sql-secret-cloud-cred-field-${key}`,
+      /** input · Credential name (e.g. Google Cloud) */
+      sqlSecretCloudCredName: 'sql-secret-cloud-cred-name',
+      /** select */
+      sqlSecretCloudCredProvider: 'sql-secret-cloud-cred-provider',
+      /** button */
+      sqlSecretCloudCredSave: 'sql-secret-cloud-cred-save',
       /** input */
       sqlSecretCloudId: 'sql-secret-cloud-id',
       /** button · Delete secret */
       sqlSecretDeleteSecret: (id: string | number) => `sql-secret-delete-secret-${id}`,
       /** button */
       sqlSecretFetch: 'sql-secret-fetch',
+      /** button · Connect Google Cloud */
+      sqlSecretGcpConnect: 'sql-secret-gcp-connect',
+      /** select */
+      sqlSecretGcpProject: 'sql-secret-gcp-project',
+      /** select */
+      sqlSecretGcpSecret: 'sql-secret-gcp-secret',
+      /** select */
+      sqlSecretGcpVersion: 'sql-secret-gcp-version',
+      /** button · Insert */
+      sqlSecretInsert: (name: string | number) => `sql-secret-insert-${name}`,
       /** select · Fetch from cloud Manual (enter secret key) */
       sqlSecretMode: 'sql-secret-mode',
       /** input · variable name (e.g. apiToken) */
@@ -2599,6 +2621,8 @@ export const TestIds = {
       sqlVariableImportFile: 'sql-variable-import-file',
       /** input */
       sqlVariableInput: (id: string | number) => `sql-variable-input-${id}`,
+      /** button · Insert */
+      sqlVariableInsert: (name: string | number) => `sql-variable-insert-${name}`,
       /** input · name */
       sqlVariableNameInput: 'sql-variable-name-input',
       /** button · … */
@@ -4169,6 +4193,7 @@ export type TestId =
   | `cloud-cred-edit-${string}`
   | `cloud-cred-field-${string}`
   | 'cloud-cred-form'
+  | 'cloud-cred-gcp-connect'
   | 'cloud-cred-name'
   | 'cloud-cred-provider-select'
   | `cloud-cred-remove-${string}`
@@ -5127,10 +5152,20 @@ export type TestId =
   | 'sql-schema-tree-type-all'
   | `sql-secret-${string}`
   | 'sql-secret-add'
+  | 'sql-secret-add-cloud-cred'
   | 'sql-secret-cancel'
+  | `sql-secret-cloud-cred-field-${string}`
+  | 'sql-secret-cloud-cred-name'
+  | 'sql-secret-cloud-cred-provider'
+  | 'sql-secret-cloud-cred-save'
   | 'sql-secret-cloud-id'
   | `sql-secret-delete-secret-${string}`
   | 'sql-secret-fetch'
+  | 'sql-secret-gcp-connect'
+  | 'sql-secret-gcp-project'
+  | 'sql-secret-gcp-secret'
+  | 'sql-secret-gcp-version'
+  | `sql-secret-insert-${string}`
   | 'sql-secret-mode'
   | 'sql-secret-name'
   | 'sql-secret-provider'
@@ -5196,6 +5231,7 @@ export type TestId =
   | 'sql-variable-import'
   | 'sql-variable-import-file'
   | `sql-variable-input-${string}`
+  | `sql-variable-insert-${string}`
   | 'sql-variable-name-input'
   | `sql-variable-overrides-${string}`
   | `sql-variable-preview-table-${string}`

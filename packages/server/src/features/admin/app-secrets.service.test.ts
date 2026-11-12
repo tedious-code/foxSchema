@@ -65,6 +65,12 @@ describe('AppSecretsStore', () => {
     });
     expect(created.cloudRef).toEqual({ secretId: 'prod/api', region: 'us-east-1' });
     expect(JSON.stringify(created)).not.toContain('from-aws');
+    const db = await getStore();
+    const cloudRow = await db.get<{ encrypted_value: string | null }>(
+      'SELECT encrypted_value FROM app_secrets WHERE id = ?',
+      [created.id]
+    );
+    expect(cloudRow?.encrypted_value).toBeNull();
 
     const out = await store.resolve(alice, ['awsTok']);
     expect(out.secrets.awsTok).toBe('from-aws');

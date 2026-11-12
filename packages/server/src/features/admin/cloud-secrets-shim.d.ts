@@ -20,6 +20,17 @@ declare module '@aws-sdk/client-secrets-manager' {
   }
 }
 
+declare module 'google-auth-library' {
+  export class IdentityPoolClient {
+    constructor(opts: Record<string, unknown>);
+    getAccessToken(): Promise<string | { token?: string | null } | null | undefined>;
+  }
+  export class GoogleAuth {
+    constructor(opts: { credentials?: Record<string, unknown>; scopes?: string[] });
+    getClient(): Promise<IdentityPoolClient>;
+  }
+}
+
 declare module '@google-cloud/secret-manager' {
   export class SecretManagerServiceClient {
     constructor(config?: {

@@ -471,7 +471,8 @@ Tips:
 - **Bookmarks** — save reusable snippets from the sidebar. Opening a ★ Sample
   keeps the Destinations you already had checked.
 - **Variables** — named values reused as `${{name}}` or `${{name.col}}` (table
-  column → list). Add them in the **Variables** sidebar; right-click a result
+  column → list). **Insert** on a Variables or Secrets row puts that ref at the
+  editor cursor (the value is never pasted). Add them in the **Variables** sidebar; right-click a result
   **cell** (scalar), **column header** (list), or **# / empty grid** (table); or
   use leading comments so Run captures automatically — put `-- @set`
   **immediately above** the SELECT it applies to (not below the previous query):
@@ -499,20 +500,36 @@ Tips:
   vars fail the run with a clear error; failed `@set` shows an amber warning above
   the results.
 
-  **Secrets** — mark a variable as secret to mask it in the sidebar, hover, and
-  statement preview. Secret **values are session-only** (not written to
-  localStorage); after reload, re-enter them or capture again with `@set` / the
-  grid. Note: substitution still embeds the value in the SQL sent to the server.
+  **Secrets** — mark a variable as secret to mask it in the sidebar, hover,
+  statement preview, **Out [n]** labels, and **Recent**. Secret **values are
+  session-only** (not written to localStorage); after reload, re-enter them or
+  capture again with `@set` / the grid. Note: substitution still embeds the
+  value in the SQL sent to the server (never in Recent or result labels).
   Secret variables **are available in code cells** as `vars.<name>.value` (for API
   tokens, etc.). `-- @node` cells send those values to the FoxSchema server worker
   under the same trust model as Node cells generally.
 
   **App Secrets vault** — use the **Secrets** sidebar to **Fetch** a key via a
-  **named cloud credential** (Credentials → Cloud providers — e.g. “Prod AWS”),
-  or **manually** enter a secret key. Secrets are registered as **Variables** with
-  the secret flag — the UI shows **••••** only. On Fetch / Refresh / Run, FoxSchema
-  resolves cloud refs with that credential’s tokens (or the host default chain when
-  no credential is linked). Optional host packages:
+  **named cloud credential**. For Google Cloud, click **Connect Google Cloud**
+  (Credentials → Cloud providers, or the Secrets empty state): this install’s
+  own Google OAuth app asks for Secret Manager access; FoxSchema stores only a
+  **refresh token** (encrypted) and never shows it again. Then pick the
+  credential, project, secret, and version and **Fetch**. Do not download a
+  service-account JSON key. Connecting under a name that is already connected
+  reconnects it (this needs **Edit secrets**); a name used by another kind of
+  credential is refused. For machines, paste a **Workload Identity Federation**
+  client config (`type: "external_account"`) or use the host identity (GCE / Cloud
+  Run / GKE metadata, or `GOOGLE_APPLICATION_CREDENTIALS`). A pasted config must
+  use Google’s own token endpoint, and may read its token only from a file or URL
+  the person running the install has listed (`FOX_GCP_WIF_TOKEN_FILES`,
+  `FOX_GCP_WIF_TOKEN_URLS`, see [DEPLOYMENT.md](DEPLOYMENT.md)). Add AWS or Azure keys
+  the same way (e.g. “Prod AWS”), or **manually** enter a secret key. Cloud secrets
+  are registered as **Variables** with the secret flag — the UI shows **••••** only;
+  retrieved values stay in the session and are not copied into the vault.
+  On Fetch / Refresh / Run, FoxSchema resolves cloud refs with that credential
+  (or the host default chain when no credential is linked, on a single-user
+  host). Workflow GCP secrets prefer the engine’s metadata identity or
+  `GOOGLE_ACCESS_TOKEN`; a legacy JSON key still works if already set. Optional host packages:
   `@aws-sdk/client-secrets-manager`, `@google-cloud/secret-manager`,
   `@azure/keyvault-secrets` + `@azure/identity`.
 

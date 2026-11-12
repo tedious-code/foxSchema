@@ -2,20 +2,81 @@ import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useStat
 import { KeyRound, Plus, Trash2 } from 'lucide-react';
 import {
   createAppSecret,
+  createCloudProviderCredential,
   deleteAppSecret,
+  gcpOAuthStartUrl,
   listAppSecrets,
   listCloudProviders,
+  listGcpProjects,
+  listGcpSecrets,
+  listGcpSecretVersions,
   resolveAppSecrets,
   type AppSecretCloudRef,
   type AppSecretSummary,
   type CloudProviderCredentialSummary,
+  type CloudProviderCredentials,
+  type GcpProjectSummary,
+  type GcpSecretSummary,
+  type GcpSecretVersionSummary,
 } from '@/shared/api/appSecretsApi';
-import { getCloudSecretProvider } from '@/shared/lib/cloud-provider-settings';
+import {
+  CLOUD_SECRET_PROVIDER_LIST,
+  CLOUD_SECRET_PROVIDERS,
+  getCloudSecretProvider,
+  isCloudSecretProviderId,
+  type CloudProviderField,
+  type CloudSecretProviderId,
+} from '@/shared/lib/cloud-provider-settings';
+import { variableRefText } from '@/shared/lib/sql-variables';
+import { insertVariableRef } from '@/features/sql-editor/lib/sqlEditorBridge';
 import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 
 export interface SqlSecretsPanelHandle {
   refresh: () => Promise<void>;
+}
+
+const FIELD_INPUT_CLASS =
+  'w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 font-mono text-slate-100 outline-none accent-focus';
+
+type CloudProviderFieldInputsProps = {
+  fields: CloudProviderField[];
+  values: Record<string, string>;
+  onChange: (key: string, value: string) => void;
+};
+
+function CloudProviderFieldInputs({
+  fields,
+  values,
+  onChange,
+}: CloudProviderFieldInputsProps) {
+  return (
+    <>
+      {fields.map((field) =>
+        field.kind === 'textarea' ? (
+          <textarea
+            key={field.key}
+            data-testid={`sql-secret-cloud-cred-field-${field.key}`}
+            placeholder={field.placeholder ?? field.label}
+            value={values[field.key] ?? ''}
+            onChange={(e) => onChange(field.key, e.target.value)}
+            rows={field.rows ?? 3}
+            className={`${FIELD_INPUT_CLASS} text-[11px] resize-y`}
+          />
+        ) : (
+          <input
+            key={field.key}
+            data-testid={`sql-secret-cloud-cred-field-${field.key}`}
+            type={field.kind === 'password' ? 'password' : 'text'}
+            placeholder={field.placeholder ?? field.label}
+            value={values[field.key] ?? ''}
+            onChange={(e) => onChange(field.key, e.target.value)}
+            className={`${FIELD_INPUT_CLASS} text-[12px]`}
+          />
+        )
+      )}
+    </>
+  );
 }
 
 /**
@@ -42,8 +103,19 @@ export const SqlSecretsPanel = forwardRef<SqlSecretsPanelHandle>(function SqlSec
   const [vaultUrl, setVaultUrl] = useState('');
   const [version, setVersion] = useState('');
   const [fetching, setFetching] = useState(false);
+  const [credName, setCredName] = useState('');
+  const [credProvider, setCredProvider] = useState<CloudSecretProviderId>('gcp');
+  const [credFields, setCredFields] = useState<Record<string, string>>({});
+  const [savingCred, setSavingCred] = useState(false);
+  const [gcpProjects, setGcpProjects] = useState<GcpProjectSummary[]>([]);
+  const [gcpSecrets, setGcpSecrets] = useState<GcpSecretSummary[]>([]);
+  const [gcpVersions, setGcpVersions] = useState<GcpSecretVersionSummary[]>([]);
+  const [gcpProject, setGcpProject] = useState('');
+  const [browseError, setBrowseError] = useState<string | null>(null);
+  const [browseLoading, setBrowseLoading] = useState(false);
 
   const selectedCred = credentials.find((c) => c.id === credentialId);
+  const gcpBrowse = selectedCred?.provider === 'gcp';
 
   const refreshList = useCallback(async () => {
     setLoading(true);
@@ -67,6 +139,80 @@ export const SqlSecretsPanel = forwardRef<SqlSecretsPanelHandle>(function SqlSec
     void refreshList();
   }, [refreshList]);
 
+  useEffect(() => {
+    if (!gcpBrowse || !credentialId) {
+      setGcpProjects([]);
+      setGcpSecrets([]);
+      setGcpVersions([]);
+      setGcpProject('');
+      setBrowseError(null);
+      return;
+    }
+    let cancelled = false;
+    setBrowseLoading(true);
+    setBrowseError(null);
+    void listGcpProjects(credentialId)
+      .then((projects) => {
+        if (cancelled) return;
+        setGcpProjects(projects);
+        const preferred =
+          (selectedCred?.projectId && projects.some((p) => p.id === selectedCred.projectId)
+            ? selectedCred.projectId
+            : '') ||
+          projects[0]?.id ||
+          selectedCred?.projectId ||
+          '';
+        setGcpProject(preferred);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setGcpProjects([]);
+        setBrowseError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        if (!cancelled) setBrowseLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [gcpBrowse, credentialId, selectedCred?.projectId]);
+
+  useEffect(() => {
+    if (!gcpBrowse || !credentialId || !gcpProject) {
+      setGcpSecrets([]);
+      return;
+    }
+    let cancelled = false;
+    void listGcpSecrets(credentialId, gcpProject)
+      .then((secrets) => {
+        if (!cancelled) setGcpSecrets(secrets);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setBrowseError(err instanceof Error ? err.message : String(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [gcpBrowse, credentialId, gcpProject]);
+
+  useEffect(() => {
+    if (!gcpBrowse || !credentialId || !gcpProject || !secretId.trim()) {
+      setGcpVersions([]);
+      return;
+    }
+    let cancelled = false;
+    void listGcpSecretVersions(credentialId, secretId.trim(), gcpProject)
+      .then((versions) => {
+        if (!cancelled) setGcpVersions(versions);
+      })
+      .catch(() => {
+        if (!cancelled) setGcpVersions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [gcpBrowse, credentialId, gcpProject, secretId]);
+
   const resetForm = () => {
     setName('');
     setMode('cloud');
@@ -76,6 +222,46 @@ export const SqlSecretsPanel = forwardRef<SqlSecretsPanelHandle>(function SqlSec
     setVaultUrl('');
     setVersion('');
     setAdding(false);
+    setCredName('');
+    setCredProvider('gcp');
+    setCredFields({});
+    setGcpProjects([]);
+    setGcpSecrets([]);
+    setGcpVersions([]);
+    setGcpProject('');
+    setBrowseError(null);
+  };
+
+  const credSettings = CLOUD_SECRET_PROVIDERS[credProvider];
+
+  const onSaveCloudCredential = async () => {
+    setError(null);
+    setNote(null);
+    setSavingCred(true);
+    try {
+      const credentials: Record<string, string> = {};
+      for (const field of credSettings.fields) {
+        const value = credFields[field.key]?.trim();
+        if (value) credentials[field.key] = value;
+      }
+      if (Object.keys(credentials).length === 0) {
+        throw new Error('Enter API credentials for this provider');
+      }
+      const saved = await createCloudProviderCredential({
+        name: credName.trim(),
+        provider: credProvider,
+        credentials: credentials as CloudProviderCredentials,
+      });
+      setCredName('');
+      setCredFields({});
+      setNote(`Saved “${saved.name}” — enter the secret name and Fetch`);
+      await refreshList();
+      setCredentialId(saved.id);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingCred(false);
+    }
   };
 
   const linkSecretVariable = (secretName: string, sessionValue?: string) => {
@@ -88,13 +274,20 @@ export const SqlSecretsPanel = forwardRef<SqlSecretsPanelHandle>(function SqlSec
     if (err) throw new Error(err);
   };
 
-  const cloudRef = (): AppSecretCloudRef => ({
-    secretId: secretId.trim(),
-    ...(credentialId ? { credentialId } : {}),
-    ...(region.trim() ? { region: region.trim() } : {}),
-    ...(vaultUrl.trim() ? { vaultUrl: vaultUrl.trim() } : {}),
-    ...(version.trim() ? { version: version.trim() } : {}),
-  });
+  const cloudRef = (): AppSecretCloudRef => {
+    const raw = secretId.trim();
+    const gcpSecretId =
+      gcpBrowse && gcpProject && raw && !raw.startsWith('projects/')
+        ? `projects/${gcpProject}/secrets/${raw}`
+        : raw;
+    return {
+      secretId: gcpSecretId,
+      ...(credentialId ? { credentialId } : {}),
+      ...(region.trim() ? { region: region.trim() } : {}),
+      ...(vaultUrl.trim() ? { vaultUrl: vaultUrl.trim() } : {}),
+      ...(version.trim() ? { version: version.trim() } : {}),
+    };
+  };
 
   const onAddManual = async () => {
     setError(null);
@@ -198,8 +391,9 @@ export const SqlSecretsPanel = forwardRef<SqlSecretsPanelHandle>(function SqlSec
   return (
     <div className="flex flex-col gap-1.5 min-h-0 flex-1" data-testid="sql-secrets">
       <p className="text-[11px] font-medium text-slate-500 leading-snug shrink-0">
-        Pick a named cloud credential and Fetch a key, or enter a secret manually. Values become
-        Variables and stay masked (••••).
+        Connect Google Cloud, pick a secret, and Fetch — or enter a key manually. Insert puts{' '}
+        <code className="text-slate-400">{variableRefText('name')}</code> at the cursor. Values stay
+        masked (••••).
       </p>
 
       {note && (
@@ -239,12 +433,21 @@ export const SqlSecretsPanel = forwardRef<SqlSecretsPanelHandle>(function SqlSec
               <span className="text-[11px] font-mono text-slate-500 shrink-0" title="Value hidden">
                 ••••
               </span>
+              <button
+                type="button"
+                data-testid={`sql-secret-insert-${s.name}`}
+                title={`Insert ${variableRefText(s.name)} at cursor`}
+                onClick={() => insertVariableRef(s.name)}
+                className="ml-auto shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold text-cyan-200 bg-cyan-950/60 border border-cyan-600/50 hover:bg-cyan-900/70 transition"
+              >
+                Insert
+              </button>
               <button data-testid={`sql-secret-delete-secret-${s.id}`}
                 type="button"
                 title="Delete secret"
                 aria-label={`Delete ${s.name}`}
                 onClick={() => void onDelete(s)}
-                className="ml-auto p-0.5 text-slate-500 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition"
+                className="p-0.5 text-slate-500 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition"
               >
                 <Trash2 className="w-3 h-3 text-rose-400" strokeWidth={SQL_ICON_STROKE} />
               </button>
@@ -287,9 +490,65 @@ export const SqlSecretsPanel = forwardRef<SqlSecretsPanelHandle>(function SqlSec
                 Cloud credential
               </label>
               {credentials.length === 0 ? (
-                <p className="text-[10px] text-amber-400/90 leading-snug">
-                  No named credentials yet — add one under Credentials → Cloud providers.
-                </p>
+                <div
+                  className="flex flex-col gap-1 rounded border border-amber-900/50 bg-amber-950/20 p-1.5"
+                  data-testid="sql-secret-add-cloud-cred"
+                >
+                  <p className="text-[10px] text-amber-300/90 leading-snug">
+                    Connect Google Cloud in the browser (recommended). Do not download a service
+                    account key — machines can paste a Workload Identity Federation client config
+                    instead. Then pick a secret and Fetch it into a masked variable.
+                  </p>
+                  <button
+                    type="button"
+                    data-testid="sql-secret-gcp-connect"
+                    onClick={() => window.location.assign(gcpOAuthStartUrl(credName.trim() || 'Google Cloud'))}
+                    className="self-start text-[12px] font-bold text-amber-400 hover:text-amber-300 px-1 py-0.5"
+                  >
+                    Connect Google Cloud
+                  </button>
+                  <input
+                    data-testid="sql-secret-cloud-cred-name"
+                    placeholder="Credential name (e.g. Google Cloud)"
+                    value={credName}
+                    onChange={(e) => setCredName(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[12px] text-slate-100 outline-none accent-focus"
+                  />
+                  <select
+                    data-testid="sql-secret-cloud-cred-provider"
+                    value={credProvider}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (isCloudSecretProviderId(v)) {
+                        setCredProvider(v);
+                        setCredFields({});
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[12px] text-slate-200 outline-none"
+                  >
+                    {CLOUD_SECRET_PROVIDER_LIST.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                  <CloudProviderFieldInputs
+                    fields={credSettings.fields}
+                    values={credFields}
+                    onChange={(key, value) =>
+                      setCredFields((prev) => ({ ...prev, [key]: value }))
+                    }
+                  />
+                  <button
+                    type="button"
+                    data-testid="sql-secret-cloud-cred-save"
+                    disabled={savingCred || !credName.trim()}
+                    onClick={() => void onSaveCloudCredential()}
+                    className="self-start text-[12px] font-bold text-amber-400 hover:text-amber-300 px-1 py-0.5 disabled:opacity-40"
+                  >
+                    {savingCred ? 'Saving…' : 'Save credential'}
+                  </button>
+                </div>
               ) : (
                 <select
                   data-testid="sql-secret-provider"
@@ -307,17 +566,82 @@ export const SqlSecretsPanel = forwardRef<SqlSecretsPanelHandle>(function SqlSec
                   })}
                 </select>
               )}
-              <input
-                data-testid="sql-secret-cloud-id"
-                placeholder={
-                  selectedCred?.provider === 'gcp'
-                    ? 'projects/…/secrets/…/versions/latest'
-                    : 'Secret id / name in cloud'
-                }
-                value={secretId}
-                onChange={(e) => setSecretId(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-100 outline-none"
-              />
+              {gcpBrowse && gcpProjects.length > 0 ? (
+                <>
+                  <select
+                    data-testid="sql-secret-gcp-project"
+                    value={gcpProject}
+                    onChange={(e) => {
+                      setGcpProject(e.target.value);
+                      setSecretId('');
+                      setVersion('');
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[12px] text-slate-200 outline-none"
+                  >
+                    {gcpProjects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name === p.id ? p.id : `${p.name} (${p.id})`}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    data-testid="sql-secret-gcp-secret"
+                    value={secretId}
+                    onChange={(e) => {
+                      setSecretId(e.target.value);
+                      setVersion('');
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[12px] text-slate-200 outline-none"
+                  >
+                    <option value="">{browseLoading ? 'Loading secrets…' : 'Select a secret'}</option>
+                    {gcpSecrets.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    data-testid="sql-secret-gcp-version"
+                    value={version}
+                    onChange={(e) => setVersion(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[12px] text-slate-200 outline-none"
+                  >
+                    {gcpVersions.length === 0 ? (
+                      <option value="">latest</option>
+                    ) : (
+                      gcpVersions.map((v) => (
+                        <option key={v.id} value={v.id === 'latest' ? '' : v.id}>
+                          {v.id}
+                          {v.state && v.state !== 'ENABLED' ? ` (${v.state})` : ''}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </>
+              ) : (
+                <>
+                  {gcpBrowse && browseError && (
+                    <p className="text-[10px] text-amber-400/90 leading-snug">{browseError}</p>
+                  )}
+                  <input
+                    data-testid="sql-secret-cloud-id"
+                    placeholder={
+                      (selectedCred?.provider ?? credProvider) === 'gcp'
+                        ? 'Secret name (e.g. api-token)'
+                        : 'Secret id / name in cloud'
+                    }
+                    value={secretId}
+                    onChange={(e) => setSecretId(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-100 outline-none"
+                  />
+                  <input data-testid="sql-secret-version"
+                    placeholder="version (optional)"
+                    value={version}
+                    onChange={(e) => setVersion(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-100 outline-none"
+                  />
+                </>
+              )}
               {selectedCred?.provider === 'aws' && (
                 <input data-testid="sql-secret-region"
                   placeholder="region (optional)"
@@ -334,12 +658,6 @@ export const SqlSecretsPanel = forwardRef<SqlSecretsPanelHandle>(function SqlSec
                   className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-100 outline-none"
                 />
               )}
-              <input data-testid="sql-secret-version"
-                placeholder="version (optional)"
-                value={version}
-                onChange={(e) => setVersion(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-100 outline-none"
-              />
             </>
           )}
 

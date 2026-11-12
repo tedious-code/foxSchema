@@ -6,15 +6,14 @@
 
 export type CloudSecretProviderId = 'aws' | 'gcp' | 'azure';
 
-export type CloudProviderField =
-  | {
-      key: string;
-      label: string;
-      kind: 'password' | 'text' | 'textarea';
-      required?: boolean;
-      placeholder?: string;
-      rows?: number;
-    };
+export type CloudProviderField = {
+  key: string;
+  label: string;
+  kind: 'password' | 'text' | 'textarea';
+  required?: boolean;
+  placeholder?: string;
+  rows?: number;
+};
 
 export type CloudSecretProviderSettings = {
   id: CloudSecretProviderId;
@@ -67,22 +66,29 @@ export const CLOUD_SECRET_PROVIDERS: Record<CloudSecretProviderId, CloudSecretPr
     id: 'gcp',
     label: 'Google Cloud',
     shortLabel: 'GCP',
-    description: 'Secret Manager — service account or access token',
+    description: 'Secret Manager — Connect Google Cloud, or Workload Identity Federation',
     badge: 'bg-blue-950/60 text-blue-300 border-blue-700/50',
     dot: 'bg-blue-400',
     fields: [
       {
+        key: 'projectId',
+        label: 'GCP project id',
+        kind: 'text',
+        placeholder: 'my-gcp-project',
+      },
+      {
         key: 'serviceAccountJson',
-        label: 'Service account JSON',
+        label: 'Workload Identity Federation config',
         kind: 'textarea',
         rows: 4,
-        placeholder: 'Paste the full JSON key',
+        placeholder:
+          'Paste type "external_account" client config (no private key). Prefer Connect Google Cloud for interactive use.',
       },
       {
         key: 'accessToken',
         label: 'OAuth access token',
         kind: 'password',
-        placeholder: 'Or use a bearer token instead of JSON',
+        placeholder: 'Or a short-lived bearer token',
       },
     ],
   },

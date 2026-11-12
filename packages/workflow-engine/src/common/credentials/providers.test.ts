@@ -13,7 +13,7 @@ import {
   resolveStoredSecret,
 } from './providers.js';
 import { InMemoryCredentialStore } from './store.js';
-import { randomBytes } from 'node:crypto';
+import { generateKeyPairSync, randomBytes } from 'node:crypto';
 
 describe('secret providers', () => {
   it('builds local and env payloads', () => {
@@ -89,6 +89,67 @@ describe('secret providers', () => {
       expect.objectContaining({
         headers: { Authorization: 'Bearer tok' },
       }),
+    );
+  });
+
+  it('stores a GCP service-account JSON and mints a token to fetch the secret', async () => {
+    const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const pem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+    const sa = {
+      type: 'service_account',
+      project_id: 'p1',
+      client_email: 'sa@p1.iam.gserviceaccount.com',
+      private_key: pem,
+    };
+    const stored = buildStoredSecret('gcp', {
+      secretId: 'api-token',
+      serviceAccountJson: JSON.stringify(sa),
+      format: 'json',
+    });
+    expect(stored.projectId).toBe('p1');
+    expect(stored.serviceAccountJson).toContain('BEGIN PRIVATE KEY');
+
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (String(url).includes('oauth2.googleapis.com/token')) {
+        return Response.json({ access_token: 'minted' });
+      }
+      expect(String(url)).toBe(
+        'https://secretmanager.googleapis.com/v1/projects/p1/secrets/api-token/versions/latest:access',
+      );
+      return Response.json({
+        payload: { data: Buffer.from('{"bearerToken":"from-sa"}').toString('base64') },
+      });
+    }) as unknown as typeof fetch;
+
+    const resolved = await resolveStoredSecret(stored, {}, fetchImpl);
+    expect(resolved).toEqual({ bearerToken: 'from-sa' });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('stores a Workload Identity Federation config and does not mint from a downloaded key', async () => {
+    const wif = {
+      type: 'external_account',
+      audience: '//iam.googleapis.com/projects/1/locations/global/workloadIdentityPools/p/providers/x',
+      subject_token_type: 'urn:ietf:params:oauth:token-type:jwt',
+      token_url: 'https://sts.googleapis.com/v1/token',
+      credential_source: { file: '/var/run/secrets/token' },
+    };
+    const stored = buildStoredSecret('gcp', {
+      projectId: 'p1',
+      secretId: 'api-token',
+      serviceAccountJson: JSON.stringify(wif),
+      format: 'json',
+    });
+    expect(stored.projectId).toBe('p1');
+    expect(stored.serviceAccountJson).toContain('external_account');
+    expect(stored.serviceAccountJson).not.toContain('private_key');
+
+    const fetchImpl = vi.fn(async () => {
+      throw new Error('offline');
+    }) as unknown as typeof fetch;
+
+    await expect(resolveStoredSecret(stored, {}, fetchImpl)).rejects.toThrow(
+      /Workload Identity Federation|Do not download a service account key/,
     );
   });
 

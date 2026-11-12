@@ -3,6 +3,7 @@
  * Prefer stored per-user provider credentials. Host default chains are only
  * allowed in single-user mode (or when ALLOW_HOST_CLOUD_CREDENTIALS=true).
  */
+import { assertSafeGcpWifConfig } from './gcp-wif-config';
 
 export type CloudSecretSource = 'aws' | 'gcp' | 'azure';
 
@@ -34,11 +35,151 @@ export type AwsProviderCredentials = {
   region?: string;
 };
 
-/** GCP service-account JSON key (full JSON string) or OAuth access token. */
+/** Parsed Google Cloud service-account key (IAM → Keys JSON). Legacy resolve only. */
+export type GcpServiceAccountKey = {
+  project_id?: string;
+  client_email: string;
+  private_key: string;
+};
+
+export const GCP_AVOID_SA_KEYS =
+  'Service account keys could pose a security risk if compromised. Use Connect Google Cloud, or a Workload Identity Federation client config (JSON with type "external_account"). Do not download a service account key.';
+
+export type GcpCredentialJson =
+  | { kind: 'wif'; config: Record<string, unknown> }
+  | { kind: 'service_account'; key: GcpServiceAccountKey };
+
+/**
+ * GCP credentials: user OAuth (refresh token), Workload Identity Federation
+ * client config, or a short-lived access token. Host ADC (including WIF via
+ * GOOGLE_APPLICATION_CREDENTIALS) is used only when none of these are set.
+ */
 export type GcpProviderCredentials = {
+  /** Present when connected via “Connect Google Cloud” (refresh token stored). */
+  auth?: 'oauth' | 'wif';
+  refreshToken?: string;
+  /** Google account email from the OAuth userinfo call (display only). */
+  email?: string;
+  /** WIF `external_account` client config, or a legacy service-account key. */
   serviceAccountJson?: string;
   accessToken?: string;
+  /** Used to expand a short Secret Manager name into projects/…/secrets/…. */
+  projectId?: string;
 };
+
+const GCP_SECRET_ID_HINT =
+  'GCP secret id must be the secret name, or projects/<project>/secrets/<name>';
+
+function jsonString(obj: Record<string, unknown>, key: string): string {
+  const value = obj[key];
+  return typeof value === 'string' ? value : '';
+}
+
+function parseGcpJsonObject(raw: string): Record<string, unknown> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw.trim());
+  } catch {
+    throw new Error('GCP credential JSON is not valid JSON');
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('GCP credential JSON must be an object');
+  }
+  return parsed as Record<string, unknown>;
+}
+
+export function parseGcpServiceAccountJson(raw: string): GcpServiceAccountKey {
+  const obj = parseGcpJsonObject(raw);
+  const type = jsonString(obj, 'type').trim();
+  if (type && type !== 'service_account') {
+    throw new Error(
+      'GCP JSON must be a service_account key (IAM → Service accounts → Keys)'
+    );
+  }
+  const client_email = jsonString(obj, 'client_email').trim();
+  const private_key = jsonString(obj, 'private_key');
+  if (!client_email || !private_key.trim()) {
+    throw new Error('GCP service account JSON needs client_email and private_key');
+  }
+  const project_id = jsonString(obj, 'project_id').trim() || undefined;
+  return { project_id, client_email, private_key };
+}
+
+/** Classify pasted GCP JSON: WIF client config vs a downloaded service-account key. */
+export function classifyGcpCredentialJson(raw: string): GcpCredentialJson {
+  const obj = parseGcpJsonObject(raw);
+  const type = jsonString(obj, 'type').trim();
+  if (type === 'external_account') {
+    if (!jsonString(obj, 'audience').trim() || !jsonString(obj, 'token_url').trim()) {
+      throw new Error('Workload Identity Federation config needs audience and token_url');
+    }
+    // A pasted config tells the server which file to read and where to send
+    // it: only Google's endpoints, and only a token source this install lists.
+    assertSafeGcpWifConfig(obj);
+    return { kind: 'wif', config: obj };
+  }
+  if (type === 'service_account' || (jsonString(obj, 'client_email') && jsonString(obj, 'private_key'))) {
+    return { kind: 'service_account', key: parseGcpServiceAccountJson(raw) };
+  }
+  throw new Error(GCP_AVOID_SA_KEYS);
+}
+
+/** New credentials must be OAuth or WIF — never a downloaded JSON key. */
+export function assertGcpJsonAllowedForStore(raw: string): { kind: 'wif' } {
+  const classified = classifyGcpCredentialJson(raw);
+  if (classified.kind !== 'wif') {
+    throw new Error(GCP_AVOID_SA_KEYS);
+  }
+  return { kind: 'wif' };
+}
+
+function parseGcpResourcePath(id: string): {
+  project: string;
+  name: string;
+  pathVersion?: string;
+} {
+  const parts = id.split('/');
+  if (parts[0] !== 'projects' || parts[2] !== 'secrets' || !parts[1] || !parts[3]) {
+    throw new Error(GCP_SECRET_ID_HINT);
+  }
+  if (parts.length === 4) {
+    return { project: parts[1], name: parts[3] };
+  }
+  if (parts[4] === 'versions' && parts.length >= 6) {
+    return {
+      project: parts[1],
+      name: parts[3],
+      pathVersion: parts.slice(5).join('/'),
+    };
+  }
+  throw new Error(GCP_SECRET_ID_HINT);
+}
+
+export function normalizeGcpSecretResource(
+  secretId: string,
+  projectId?: string,
+  version?: string
+): string {
+  const id = secretId.trim().replace(/\/+$/g, '');
+  if (!id) throw new Error('GCP secret id is required');
+
+  if (id.startsWith('projects/')) {
+    const parsed = parseGcpResourcePath(id);
+    return `projects/${parsed.project}/secrets/${parsed.name}/versions/${
+      version?.trim() || parsed.pathVersion || 'latest'
+    }`;
+  }
+  if (id.includes('/')) {
+    throw new Error(GCP_SECRET_ID_HINT);
+  }
+  const project = projectId?.trim();
+  if (!project) {
+    throw new Error(
+      'GCP secret fetch needs a project id — set it on the credential or paste projects/<project>/secrets/<name>'
+    );
+  }
+  return `projects/${project}/secrets/${id}/versions/${version?.trim() || 'latest'}`;
+}
 
 /** Azure service principal (client credentials). */
 export type AzureProviderCredentials = {
@@ -195,11 +336,96 @@ async function resolveAws(
   throw new Error(`AWS secret "${ref.secretId}" has no string/binary payload`);
 }
 
+function googleOAuthClientFromEnv(): { clientId: string; clientSecret: string } | null {
+  const clientId = (process.env.SSO_GOOGLE_CLIENT_ID ?? '').trim();
+  const clientSecret = (process.env.SSO_GOOGLE_CLIENT_SECRET ?? '').trim();
+  if (!clientId || !clientSecret) return null;
+  return { clientId, clientSecret };
+}
+
+export function isGcpOAuthCredentials(creds: GcpProviderCredentials | undefined): boolean {
+  return !!creds && (creds.auth === 'oauth' || !!creds.refreshToken?.trim());
+}
+
+type GcpAccessTokenClient = {
+  getAccessToken: () => Promise<string | { token?: string | null } | null | undefined>;
+};
+
+async function readGcpAccessToken(client: GcpAccessTokenClient): Promise<string | undefined> {
+  const got = await client.getAccessToken();
+  if (typeof got === 'string' && got.trim()) return got;
+  if (got && typeof got === 'object' && typeof got.token === 'string' && got.token.trim()) {
+    return got.token;
+  }
+  return undefined;
+}
+
+/** Mint a short-lived token from a WIF `external_account` client config. */
+export async function mintGcpWifAccessToken(config: Record<string, unknown>): Promise<string> {
+  // Checked here as well as on save: this is where the library acts on the
+  // config, and a row saved before the allow-list changed must not slip by.
+  assertSafeGcpWifConfig(config);
+  try {
+    const { IdentityPoolClient, GoogleAuth } = await import('google-auth-library');
+    const token =
+      (await readGcpAccessToken(
+        await new GoogleAuth({
+          credentials: config,
+          scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+        }).getClient()
+      )) ?? (await readGcpAccessToken(new IdentityPoolClient(config)));
+    if (token) return token;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/Cannot find module|MODULE_NOT_FOUND/i.test(msg)) {
+      throw new Error(
+        'Workload Identity Federation needs @google-cloud/secret-manager on the FoxSchema host'
+      );
+    }
+    throw err instanceof Error ? err : new Error(msg);
+  }
+  throw new Error('Workload Identity Federation did not return an access token');
+}
+
 async function resolveGcp(
   ref: CloudSecretRef,
   providerCreds?: CloudProviderCredentials
 ): Promise<string> {
   requireProviderCreds(providerCreds, 'gcp');
+  const gcp = (providerCreds ?? {}) as GcpProviderCredentials;
+  const json = gcp.serviceAccountJson?.trim();
+  const classified = json ? classifyGcpCredentialJson(json) : undefined;
+  const projectId =
+    gcp.projectId?.trim() ||
+    (classified?.kind === 'service_account' ? classified.key.project_id : undefined);
+  const name = normalizeGcpSecretResource(ref.secretId, projectId, ref.version);
+
+  if (isGcpOAuthCredentials(gcp) || classified?.kind === 'wif') {
+    const { accessGcpSecretVersionRest, refreshGcpAccessToken } = await import('./gcp-oauth');
+    let accessToken = gcp.accessToken?.trim() ?? '';
+    if (!accessToken && classified?.kind === 'wif') {
+      accessToken = await mintGcpWifAccessToken(classified.config);
+    }
+    const refreshToken = gcp.refreshToken?.trim() ?? '';
+    if (!accessToken && refreshToken) {
+      const client = googleOAuthClientFromEnv();
+      if (!client) {
+        throw new Error(
+          'Google Cloud OAuth credential needs a refreshed access token (configure this install’s Google OAuth client)'
+        );
+      }
+      accessToken = await refreshGcpAccessToken(refreshToken, client);
+    }
+    if (!accessToken) {
+      throw new Error(
+        classified?.kind === 'wif'
+          ? 'Workload Identity Federation did not return an access token'
+          : 'Google Cloud OAuth credential needs a refreshed access token'
+      );
+    }
+    return accessGcpSecretVersionRest(accessToken, name);
+  }
+
   let SecretManagerServiceClient: typeof import('@google-cloud/secret-manager').SecretManagerServiceClient;
   try {
     const mod = await import('@google-cloud/secret-manager');
@@ -209,9 +435,8 @@ async function resolveGcp(
       'GCP Secret Manager SDK not installed — add @google-cloud/secret-manager to the FoxSchema host'
     );
   }
-  const gcp = providerCreds as GcpProviderCredentials | undefined;
   const client =
-    gcp?.accessToken && !gcp.serviceAccountJson
+    gcp.accessToken && !json
       ? new SecretManagerServiceClient({
           authClient: {
             getAccessToken: async () => ({ token: gcp.accessToken }),
@@ -219,15 +444,9 @@ async function resolveGcp(
           } as never,
         })
       : new SecretManagerServiceClient(
-          gcp?.serviceAccountJson
-            ? { credentials: JSON.parse(gcp.serviceAccountJson) as object }
-            : undefined
+          json ? { credentials: JSON.parse(json) as object } : undefined
         );
 
-  let name = ref.secretId;
-  if (!name.includes('/versions/')) {
-    name = `${name.replace(/\/$/, '')}/versions/${ref.version || 'latest'}`;
-  }
   const [version] = await client.accessSecretVersion({ name });
   const data = version.payload?.data;
   if (!data) throw new Error(`GCP secret "${ref.secretId}" has empty payload`);

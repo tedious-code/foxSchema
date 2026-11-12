@@ -1,5 +1,5 @@
 import type { TableSchema } from '@/shared/lib/types';
-import type { SqlVariable } from '@/shared/lib/sql-variables';
+import { variableRefText, type SqlVariable } from '@/shared/lib/sql-variables';
 
 /** One connection's cached tables for autocomplete / explorer. */
 export interface SchemaCacheEntry {
@@ -78,6 +78,11 @@ export function insertAtCursor(text: string): boolean {
   const target = insertHandler ?? fallbackInsert;
   target?.(text);
   return target !== null;
+}
+
+/** Insert `${{name}}` at the cursor — never a resolved value. */
+export function insertVariableRef(name: string): boolean {
+  return insertAtCursor(variableRefText(name));
 }
 
 type SqlMutator = (fn: (sql: string) => string) => void;

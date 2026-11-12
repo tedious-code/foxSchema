@@ -61,7 +61,11 @@ export const CredentialManager: React.FC<Props> = ({ open, onClose }) => {
   const addConnection = useSyncStore((s) => s.addConnection);
   const updateConnection = useSyncStore((s) => s.updateConnection);
   const removeConnection = useSyncStore((s) => s.removeConnection);
-  const [tab, setTab] = useState<CredTab>('database');
+  const [tab, setTab] = useState<CredTab>(() =>
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('gcp_oauth')
+      ? 'cloud'
+      : 'database'
+  );
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<SavedConnectionSummary | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);

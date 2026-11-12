@@ -13,7 +13,7 @@ import type { CredentialKind, CredentialSource } from '@foxschema/workflow-engin
 import { api, type CredentialMeta } from '../api/engineClient';
 import type { SameMembers } from '../lib/engineShapes';
 import { toast } from '../lib/notify';
-import { Badge, Button, Input, Label, Select } from './controls';
+import { Badge, Button, Input, Label, Select, Textarea } from './controls';
 
 const KINDS = ['database', 'http', 'oauth', 'webhook', 'llm', 'email', 'sms'] as const;
 const SOURCES = ['local', 'env', 'gcp', 'aws', 'azure'] as const;
@@ -28,7 +28,15 @@ void [_kindsMatch, _sourcesMatch];
 type Kind = CredentialKind;
 type Source = Exclude<CredentialSource, 'foxschema'>;
 
-const KIND_FIELDS: Record<Kind, Array<{ key: string; label: string; secret?: boolean }>> = {
+type CredField = {
+  key: string;
+  label: string;
+  secret?: boolean;
+  placeholder?: string;
+  rows?: number;
+};
+
+const KIND_FIELDS: Record<Kind, CredField[]> = {
   database: [
     { key: 'host', label: 'Host' },
     { key: 'port', label: 'Port' },
@@ -70,19 +78,23 @@ const KIND_FIELDS: Record<Kind, Array<{ key: string; label: string; secret?: boo
   ],
 };
 
-const CLOUD_FIELDS: Array<{ key: string; label: string; placeholder?: string }> = [
+const CLOUD_FIELDS: CredField[] = [
   { key: 'format', label: 'Format (json | text)', placeholder: 'json' },
   { key: 'valueKey', label: 'Text value key', placeholder: 'value' },
 ];
 
-const SOURCE_FIELDS: Record<
-  Exclude<Source, 'local' | 'env'>,
-  Array<{ key: string; label: string; placeholder?: string }>
-> = {
+const SOURCE_FIELDS: Record<Exclude<Source, 'local' | 'env'>, CredField[]> = {
   gcp: [
     { key: 'projectId', label: 'GCP project id' },
     { key: 'secretId', label: 'Secret id' },
     { key: 'version', label: 'Version', placeholder: 'latest' },
+    {
+      key: 'serviceAccountJson',
+      label: 'GCP JSON (avoid downloaded keys)',
+      placeholder:
+        'Leave empty for metadata identity / GOOGLE_ACCESS_TOKEN. Do not paste a downloaded service-account key.',
+      rows: 4,
+    },
     ...CLOUD_FIELDS,
   ],
   aws: [
@@ -102,7 +114,7 @@ const SOURCE_FIELDS: Record<
 const SOURCE_HELP: Record<Source, string> = {
   local: 'Values are encrypted in the engine’s store.',
   env: 'Map each field to a process environment variable name (resolved at run time).',
-  gcp: 'Fetches from GCP Secret Manager. Auth: GOOGLE_ACCESS_TOKEN or GCP metadata identity.',
+  gcp: 'Fetches from GCP Secret Manager. Prefer GCE/Cloud Run/GKE metadata identity, GOOGLE_ACCESS_TOKEN, or Workload Identity Federation (GOOGLE_APPLICATION_CREDENTIALS). Do not download a service-account key.',
   aws: 'Fetches from AWS Secrets Manager. Auth: AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY.',
   azure:
     'Fetches from Azure Key Vault. Auth: AZURE_ACCESS_TOKEN or AZURE_TENANT_ID + AZURE_CLIENT_ID + AZURE_CLIENT_SECRET.',
@@ -153,6 +165,10 @@ export function CredentialsPanel({
   const patch = (next: CredentialForm) => {
     setForm(next);
     if (errors.name || errors.fields) setErrors(validate(next));
+  };
+
+  const setField = (key: string, value: string) => {
+    patch({ ...form, fields: { ...form.fields, [key]: value } });
   };
 
   const create = async (event: FormEvent) => {
@@ -259,22 +275,28 @@ export function CredentialsPanel({
                 {field.label}
                 {form.source === 'env' ? ' (env var name)' : ''}
               </Label>
-              <Input
-                id={`cred-${field.key}`}
-                type={form.source === 'local' && 'secret' in field && field.secret ? 'password' : 'text'}
-                autoComplete="off"
-                placeholder={
-                  'placeholder' in field
-                    ? field.placeholder
-                    : form.source === 'env'
-                      ? `e.g. FOXFLOW_${field.key.toUpperCase()}`
-                      : undefined
-                }
-                value={form.fields[field.key] ?? ''}
-                onChange={(event) =>
-                  patch({ ...form, fields: { ...form.fields, [field.key]: event.target.value } })
-                }
-              />
+              {field.rows ? (
+                <Textarea
+                  id={`cred-${field.key}`}
+                  rows={field.rows}
+                  autoComplete="off"
+                  placeholder={field.placeholder}
+                  value={form.fields[field.key] ?? ''}
+                  onChange={(event) => setField(field.key, event.target.value)}
+                />
+              ) : (
+                <Input
+                  id={`cred-${field.key}`}
+                  type={field.secret ? 'password' : 'text'}
+                  autoComplete="off"
+                  placeholder={
+                    field.placeholder ??
+                    (form.source === 'env' ? `e.g. FOXFLOW_${field.key.toUpperCase()}` : undefined)
+                  }
+                  value={form.fields[field.key] ?? ''}
+                  onChange={(event) => setField(field.key, event.target.value)}
+                />
+              )}
             </div>
           ))}
           {errors.fields && <div className="field-error">{errors.fields}</div>}

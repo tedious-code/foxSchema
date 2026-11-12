@@ -76,7 +76,9 @@ import {
   parseImportedVariables,
   parseSetDirectives,
   prepareStatement,
+  recentQuerySql,
   resolveVariablesForConnection,
+  sqlForDisplay,
   stripSecretsForPersist,
   type SetDirective,
   type SqlVariable,
@@ -177,6 +179,10 @@ export interface CredentialRun {
 }
 
 export interface TabResults {
+  /**
+   * Display SQL for Out [n] labels. Secret interpolations are `(secret)`;
+   * the values sent to the engine live in `pageSqlByConnection`.
+   */
   ranStatements: string[];
   /**
    * 0-based source cell indices aligned with `ranStatements` (for `Out [n]`).
@@ -1298,26 +1304,49 @@ export const useSqlEditorStore = create<SqlEditorState>()(
           );
         }
         const asOneTransaction = wantsTransaction && !hasCellOrSet && !steersOwnTransaction && !noTransaction;
+        type Prep = { ok: true; sql: string } | { ok: false; error: string };
+        function prepareByConnection(raw: string): Map<string, Prep> {
+          const byConn = new Map<string, Prep>();
+          for (const c of connections) {
+            const prepared = prepareStatement(
+              raw,
+              resolveVariablesForConnection(runVariables, c.id)
+            );
+            byConn.set(
+              c.id,
+              prepared.ok ? { ok: true, sql: prepared.sql } : { ok: false, error: prepared.error }
+            );
+          }
+          return byConn;
+        }
+        function substitutionFailure(byConn: Map<string, Prep>): string | undefined {
+          let firstError: string | undefined;
+          for (const prep of byConn.values()) {
+            if (prep.ok) return undefined;
+            if (firstError === undefined) firstError = prep.error;
+          }
+          return firstError ?? 'Variable substitution failed';
+        }
+        /** Masked label SQL from editor source — never the engine payload. */
+        function displaySql(raw: string, preparedByConn: Map<string, Prep>): string {
+          const connectionId =
+            connections.find((c) => preparedByConn.get(c.id)?.ok)?.id ?? '';
+          return sqlForDisplay(
+            raw,
+            resolveVariablesForConnection(runVariables, connectionId)
+          );
+        }
         if (asOneTransaction) {
-          type Prep = { ok: true; sql: string } | { ok: false; error: string };
           const prepared: Array<Map<string, Prep>> = [];
           for (let si = 0; si < rawStatements.length && !aborted; si++) {
             const raw = rawStatements[si]!;
-            const byConn = new Map<string, Prep>();
-            for (const c of connections) {
-              const preparedStmt = prepareStatement(raw, resolveVariablesForConnection(runVariables, c.id));
-              byConn.set(
-                c.id,
-                preparedStmt.ok ? { ok: true, sql: preparedStmt.sql } : { ok: false, error: preparedStmt.error }
-              );
-            }
-            const firstOk = [...byConn.values()].find((prep) => prep.ok);
-            if (!firstOk) {
-              const firstErr = [...byConn.values()].find((prep) => !prep.ok);
-              aborted = firstErr && !firstErr.ok ? firstErr.error : 'Variable substitution failed';
+            const byConn = prepareByConnection(raw);
+            const failed = substitutionFailure(byConn);
+            if (failed) {
+              aborted = failed;
               break;
             }
-            ranDisplay.push(firstOk.sql);
+            ranDisplay.push(displaySql(raw, byConn));
             ranIndexDisplay.push(sourceIndices?.[si] ?? si);
             prepared.push(byConn);
           }
@@ -1500,25 +1529,10 @@ export const useSqlEditorStore = create<SqlEditorState>()(
 
           const { directives } = parseSetDirectives(raw);
 
-          type Prep =
-            | { ok: true; sql: string }
-            | { ok: false; error: string };
-          const preparedByConn = new Map<string, Prep>();
-          for (const c of connections) {
-            const vars = resolveVariablesForConnection(runVariables, c.id);
-            const prepared = prepareStatement(raw, vars);
-            preparedByConn.set(
-              c.id,
-              prepared.ok
-                ? { ok: true, sql: prepared.sql }
-                : { ok: false, error: prepared.error }
-            );
-          }
-
-          const firstOk = [...preparedByConn.values()].find((p) => p.ok);
-          const firstErr = [...preparedByConn.values()].find((p) => !p.ok);
-          if (!firstOk) {
-            aborted = firstErr && !firstErr.ok ? firstErr.error : 'Variable substitution failed';
+          const preparedByConn = prepareByConnection(raw);
+          const failed = substitutionFailure(preparedByConn);
+          if (failed) {
+            aborted = failed;
             for (const c of connections) {
               const prep = preparedByConn.get(c.id)!;
               const prev = resultsByConn.get(c.id) ?? [];
@@ -1541,7 +1555,7 @@ export const useSqlEditorStore = create<SqlEditorState>()(
             break;
           }
 
-          ranDisplay.push(firstOk.sql);
+          ranDisplay.push(displaySql(raw, preparedByConn));
           ranIndexDisplay.push(sourceIndices?.[si] ?? si);
           setRanStatements([...ranDisplay], [...ranIndexDisplay]);
 
@@ -1636,7 +1650,13 @@ export const useSqlEditorStore = create<SqlEditorState>()(
           const current = state.resultsByTab[tabId];
           if (!current) return state;
           // Record a recent query when at least one statement ran.
-          const sqlSnippet = (current.ranStatements ?? []).join('\n').trim() || tab.sql.trim();
+          // Secret interpolations keep the editor source (`${{name}}`) so
+          // localStorage never holds a filled secret payload.
+          const sqlSnippet = recentQuerySql(
+            rawStatements.join('\n'),
+            (current.ranStatements ?? []).join('\n'),
+            runVariables
+          );
           let recentQueries = state.recentQueries;
           if (sqlSnippet) {
             const entry: RecentQuery = {

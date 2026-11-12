@@ -11,9 +11,12 @@ import {
   parseSetDirectives,
   prepareStatement,
   reattachSetComments,
+  recentQuerySql,
   resolveVariablesForConnection,
+  sqlForDisplay,
   stripSecretsForPersist,
   substituteVariables,
+  variableRefText,
   type SqlVariable,
   SQL_VARIABLE_LIST_MAX,
 } from './sql-variables';
@@ -38,6 +41,11 @@ describe('sql-variables', () => {
     expect(isValidVariableName('1bad')).toBe(false);
     expect(isValidVariableName('bad-name')).toBe(false);
     expect(isValidVariableName('')).toBe(false);
+  });
+
+  it('builds ${{name}} snippets for insert-at-cursor', () => {
+    expect(variableRefText('tok')).toBe('${{tok}}');
+    expect(variableRefText('t', 'id')).toBe('${{t.id}}');
   });
 
   it('finds ${{name}} and ${{name.col}} refs; ignores $var / ${x}', () => {
@@ -344,6 +352,29 @@ SELECT 3 AS a, 4 AS b;`;
     });
     expect(parseImportedVariables([{ name: 'bad', kind: 'list' }]).ok).toBe(false);
     expect(parseImportedVariables([{ name: '1bad', kind: 'scalar' }]).ok).toBe(false);
+  });
+
+  it('prepareStatement can mask secrets for display without failing when unset', () => {
+    const v = scalar('tok', undefined, { secret: true });
+    const r = prepareStatement('SELECT ${{tok}}', [v], { maskSecrets: true });
+    expect(r).toEqual({ ok: true, sql: 'SELECT (secret)', directives: [] });
+  });
+
+  it('sqlForDisplay fills public vars and masks secrets', () => {
+    const vars = [scalar('id', 7), scalar('tok', 'shh', { secret: true })];
+    expect(sqlForDisplay('SELECT ${{id}}, ${{tok}}', vars)).toBe('SELECT 7, (secret)');
+  });
+
+  it('recentQuerySql keeps editor source when a secret was interpolated', () => {
+    const vars = [scalar('id', 7), scalar('tok', 'shh', { secret: true })];
+    expect(
+      recentQuerySql(
+        'SELECT ${{id}} WHERE t = ${{tok}}',
+        "SELECT 7 WHERE t = 'shh'",
+        vars
+      )
+    ).toBe('SELECT ${{id}} WHERE t = ${{tok}}');
+    expect(recentQuerySql('SELECT ${{id}}', 'SELECT 7', [scalar('id', 7)])).toBe('SELECT 7');
   });
 
   it('maskSecrets only masks secret refs in mixed SQL', () => {

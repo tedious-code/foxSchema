@@ -61,9 +61,16 @@ export function createSsoRoutes(
   broker = new SsoBroker(),
   connectGoogleCloud?: ConnectGoogleCloudAtSignIn
 ): Router {
-  /** Asked for only with this install's own Google app, and only when an admin turned it on. */
-  const googleCloudAtSignIn = async (providerId: string) =>
-    providerId === 'google' && !!connectGoogleCloud && (await settings.googleCloudAtSignIn()).enabled;
+  /**
+   * Asked for only with this install's own Google app, only when an admin
+   * turned it on, and never when Google Cloud has a client of its own: a
+   * token granted to the sign-in client would not refresh with that one.
+   */
+  const googleCloudAtSignIn = async (providerId: string) => {
+    if (providerId !== 'google' || !connectGoogleCloud) return false;
+    const { enabled, dedicatedClient } = await settings.googleCloudAtSignIn();
+    return enabled && !dedicatedClient;
+  };
 
   const router = Router();
   const secure = process.env.NODE_ENV === 'production';

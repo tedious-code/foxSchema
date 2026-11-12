@@ -60,7 +60,7 @@ beforeEach(() => {
     mail: { configured: false, source: null, host: '', port: 587, security: 'starttls', username: '', hasPassword: false, from: '' },
     broker: { enabled: false, source: null, url: 'https://foxschema.com/wp-json/foxschema/v1/sso', admins: true, adminsSource: null },
     demo: { on: false, hint: '' },
-    googleCloud: { enabled: false, source: null },
+    googleCloud: { enabled: false, source: null, dedicatedClient: false },
   });
   apiSetSignInService.mockReset().mockResolvedValue(undefined);
   apiSaveDemoMode.mockReset().mockResolvedValue(undefined);
@@ -140,6 +140,7 @@ describe('SignInSettingsPanel · demo mode', () => {
     expect(section.textContent).toMatch(/never replaced/);
     // This install has its own Google app here, so no note about needing one.
     expect(section.textContent).not.toMatch(/Needs this install/);
+    expect(screen.queryByTestId('sign-in-google-cloud-dedicated')).toBeNull();
     const toggle = screen.getByTestId('sign-in-google-cloud-toggle') as HTMLInputElement;
     expect(toggle.checked).toBe(false);
     fireEvent.click(toggle);
@@ -150,7 +151,7 @@ describe('SignInSettingsPanel · demo mode', () => {
     apiSignInSettings.mockResolvedValue({
       ...(await apiSignInSettings()),
       providers: [provider('google', 'Google')],
-      googleCloud: { enabled: true, source: 'env' },
+      googleCloud: { enabled: true, source: 'env', dedicatedClient: true },
     });
     render(<SignInSettingsPanel />);
     const section = await screen.findByTestId('sign-in-google-cloud');
@@ -158,6 +159,8 @@ describe('SignInSettingsPanel · demo mode', () => {
     expect(section.textContent).toMatch(/on \(SSO_GOOGLE_CONNECT_GCP\)/);
     // No Google app of its own yet: the Fox sign-in service cannot grant Google Cloud.
     expect(section.textContent).toMatch(/Needs this install’s own Google app/);
+    // A dedicated Google Cloud client on the server: the switch does nothing, and the card says why.
+    expect(screen.getByTestId('sign-in-google-cloud-dedicated').textContent).toMatch(/GCP_OAUTH_CLIENT_ID/);
   });
 
   it('turns demo mode on, and saves the sign-in hint on its own', async () => {

@@ -285,8 +285,11 @@ export interface SignInSettingsState {
   broker: { enabled: boolean; source: SettingSource | null; url: string; admins: boolean; adminsSource: SettingSource | null };
   /** Demo mode: a banner on every page and `hint` on the sign-in page. */
   demo: { on: boolean; hint: string };
-  /** Whether Google sign-in also connects Google Cloud for secrets. */
-  googleCloud: { enabled: boolean; source: SettingSource | null };
+  /**
+   * Whether Google sign-in also connects Google Cloud for secrets.
+   * `dedicatedClient`: GCP_OAUTH_CLIENT_ID is set, so it never does.
+   */
+  googleCloud: { enabled: boolean; source: SettingSource | null; dedicatedClient: boolean };
 }
 
 export async function apiSignInSettings(): Promise<SignInSettingsState> {

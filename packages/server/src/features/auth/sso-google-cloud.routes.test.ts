@@ -104,7 +104,11 @@ afterAll(async () => {
 
 describe('Google sign-in that also connects Google Cloud', () => {
   it('is off until an admin turns it on: plain sign-in scopes, nothing saved', async () => {
-    expect((await call('GET', '/admin/sign-in', undefined, admin)).json.googleCloud).toEqual({ enabled: false, source: null });
+    expect((await call('GET', '/admin/sign-in', undefined, admin)).json.googleCloud).toEqual({
+      enabled: false,
+      source: null,
+      dedicatedClient: false,
+    });
     const off = await signIn({ refresh_token: '1//ignored', scope: `openid email ${CLOUD}` }, 'pat@example.com');
     expect(off.authorize.searchParams.get('scope')).toBe('openid email profile');
     expect(off.authorize.searchParams.get('access_type')).toBe('online');
@@ -117,7 +121,7 @@ describe('Google sign-in that also connects Google Cloud', () => {
     expect((await call('PUT', '/admin/sign-in/google-cloud', { enabled: true }, pat.sid)).status).toBe(403);
     expect((await call('PUT', '/admin/sign-in/google-cloud', { enabled: 'yes' }, admin)).status).toBe(400);
     expect((await call('PUT', '/admin/sign-in/google-cloud', { enabled: true }, admin)).status).toBe(200);
-    expect((await call('GET', '/admin/sign-in', undefined, admin)).json.googleCloud).toEqual({ enabled: true, source: 'app' });
+    expect((await call('GET', '/admin/sign-in', undefined, admin)).json.googleCloud).toMatchObject({ enabled: true, source: 'app' });
   });
 
   it('turned on, the first grant saves "Google Cloud" in the personal workspace; a later one changes nothing', async () => {
@@ -136,6 +140,25 @@ describe('Google sign-in that also connects Google Cloud', () => {
     expect(await cloudCredentials('pat@example.com')).toEqual([
       { name: 'Google Cloud', provider: 'gcp', refreshToken: '1//first' },
     ]);
+  });
+
+  it('never asks when Google Cloud has its own client: the grant would not refresh with it', async () => {
+    process.env.GCP_OAUTH_CLIENT_ID = 'gcp.apps.googleusercontent.com';
+    process.env.GCP_OAUTH_CLIENT_SECRET = 'gcp-secret';
+    try {
+      expect((await call('GET', '/admin/sign-in', undefined, admin)).json.googleCloud).toEqual({
+        enabled: true,
+        source: 'app',
+        dedicatedClient: true,
+      });
+      const signedIn = await signIn({ refresh_token: '1//other-client', scope: `openid email profile ${CLOUD}` }, 'lee@example.com');
+      expect(signedIn.authorize.searchParams.get('scope')).toBe('openid email profile');
+      expect(signedIn.location).toBe('/');
+      expect(await cloudCredentials('lee@example.com')).toEqual([]);
+    } finally {
+      delete process.env.GCP_OAUTH_CLIENT_ID;
+      delete process.env.GCP_OAUTH_CLIENT_SECRET;
+    }
   });
 
   it('signs in without saving anything when the person turned the cloud access down', async () => {

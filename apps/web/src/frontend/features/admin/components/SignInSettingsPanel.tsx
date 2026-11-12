@@ -334,7 +334,7 @@ const GoogleCloudAtSignIn: React.FC<{ state: SignInSettingsState; configured: bo
   configured,
   run,
 }) => {
-  const { enabled, source } = state.googleCloud;
+  const { enabled, source, dedicatedClient } = state.googleCloud;
   const locked = source === 'env';
   return (
     <div data-testid="sign-in-google-cloud" className="space-y-1 border-t border-slate-800 pt-2">
@@ -367,6 +367,12 @@ const GoogleCloudAtSignIn: React.FC<{ state: SignInSettingsState; configured: bo
         screen still signs them in.
         {!configured && ' Needs this install’s own Google app above: the Fox sign-in service cannot grant it.'}
       </p>
+      {dedicatedClient && (
+        <p data-testid="sign-in-google-cloud-dedicated" className="text-[11px] text-amber-300 leading-snug">
+          Not in effect: Google Cloud has its own OAuth client on this server (GCP_OAUTH_CLIENT_ID), and access
+          granted at sign-in would not work with it. People connect with Connect Google Cloud instead.
+        </p>
+      )}
     </div>
   );
 };

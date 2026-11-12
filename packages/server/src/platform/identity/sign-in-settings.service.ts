@@ -84,6 +84,17 @@ export interface BrokerSummary {
   adminsSource: SettingSource | null;
 }
 
+export interface GoogleCloudAtSignIn {
+  enabled: boolean;
+  source: SettingSource | null;
+  /**
+   * GCP_OAUTH_CLIENT_ID / _SECRET are set: Google Cloud has a client of its
+   * own, and a token the sign-in client was granted would not refresh with
+   * it. Sign-in then never asks for Google Cloud, whatever `enabled` says.
+   */
+  dedicatedClient: boolean;
+}
+
 export interface SignInSettingsSummary {
   publicUrl: string;
   publicUrlSource: SettingSource | null;
@@ -91,7 +102,7 @@ export interface SignInSettingsSummary {
   mail: MailSummary;
   broker: BrokerSummary;
   /** Whether Google sign-in also connects Google Cloud for secrets. */
-  googleCloud: { enabled: boolean; source: SettingSource | null };
+  googleCloud: GoogleCloudAtSignIn;
 }
 
 interface StoredProvider {
@@ -358,12 +369,14 @@ export class SignInSettings {
    * default: it puts a Google Cloud consent in front of everyone who signs in
    * with Google. SSO_GOOGLE_CONNECT_GCP=on|off sets it on the server.
    */
-  async googleCloudAtSignIn(): Promise<{ enabled: boolean; source: SettingSource | null }> {
+  async googleCloudAtSignIn(): Promise<GoogleCloudAtSignIn> {
+    // The same pair internal/gcp-oauth.ts prefers over the sign-in client.
+    const dedicatedClient = !!(env('GCP_OAUTH_CLIENT_ID') && env('GCP_OAUTH_CLIENT_SECRET'));
     const fromEnv = env('SSO_GOOGLE_CONNECT_GCP').toLowerCase();
-    if (fromEnv === 'on' || fromEnv === 'true') return { enabled: true, source: 'env' };
-    if (fromEnv === 'off' || fromEnv === 'false') return { enabled: false, source: 'env' };
+    if (fromEnv === 'on' || fromEnv === 'true') return { enabled: true, source: 'env', dedicatedClient };
+    if (fromEnv === 'off' || fromEnv === 'false') return { enabled: false, source: 'env', dedicatedClient };
     const stored = await this.settings.get(GOOGLE_CLOUD_KEY);
-    return { enabled: stored === 'on', source: stored ? 'app' : null };
+    return { enabled: stored === 'on', source: stored ? 'app' : null, dedicatedClient };
   }
 
   async setGoogleCloudAtSignIn(enabled: boolean): Promise<void> {

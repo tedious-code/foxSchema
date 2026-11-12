@@ -356,6 +356,7 @@ Every control has a test ID: **1048** buttons, text boxes, selects and textareas
   - `sign-in-demo-save` · button · Save hint
   - `sign-in-demo-toggle` · input
   - `sign-in-google-cloud` · div
+  - `sign-in-google-cloud-dedicated` · p
   - `sign-in-google-cloud-toggle` · input
   - `sign-in-mail` · section · Email for invites and password resets
   - `sign-in-mail-from` · input · Fox &lt;fox@example.com>

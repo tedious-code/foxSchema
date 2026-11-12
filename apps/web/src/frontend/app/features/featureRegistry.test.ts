@@ -76,7 +76,7 @@ describe('the rail', () => {
       ['sqlEditor', 'Editor', 'view-sql-editor-btn'],
       ['utilities', 'Utils', 'view-utilities-btn'],
       ['access', 'Access', 'view-access-btn'],
-      // Workflow is held back for 0.3.1 (NAV_FLAGS.workflow === false).
+      ['workflow', 'Workflow', 'view-workflow-btn'],
       ['snapshots', 'Snapshots', 'sync-pane-history-btn'],
     ]);
   });
@@ -86,7 +86,7 @@ describe('the rail', () => {
       'sync',
       'sqlEditor',
       'access',
-      // no 'workflow': held back for 0.3.1 (NAV_FLAGS.workflow === false).
+      'workflow',
       'snapshots',
     ]);
   });
@@ -140,11 +140,8 @@ describe('redirects', () => {
     for (const view of ['home', 'access', 'settings'] as const) expect(redirectFor(view, can())).toBeNull();
   });
 
-  it('sends anyone home from a view a feature flag has taken away', () => {
-    // Workflow is off the rail and out of the palette for 0.3.1. A session
-    // whose stored `activeView` still says `workflow` must not be the one way
-    // back into it.
+  it('sends someone without Workflow access home from that view', () => {
     expect(redirectFor('workflow', can())).toBe('home');
-    expect(redirectFor('workflow', can('workflow.access', 'workflow.design'))).toBe('home');
+    expect(redirectFor('workflow', can('workflow.access'))).toBeNull();
   });
 });

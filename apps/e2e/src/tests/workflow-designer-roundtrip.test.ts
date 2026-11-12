@@ -81,7 +81,6 @@ afterAll(async () => {
   }
 });
 
-// Workflow is off the rail for 0.3.1, so the view cannot be opened; see WORKFLOW_ON_RAIL.
 describe.skipIf(!WORKFLOW_ON_RAIL)('workflow designer round trip', () => {
   it('keeps every field it does not edit through a load and a save', async (ctx) => {
     if (!engineUp) ctx.skip();

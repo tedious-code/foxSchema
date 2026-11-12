@@ -209,11 +209,9 @@ app/         The application shell and settings screens. Home's Services card
   features/    The view registry: `featureRegistry.ts` (each view's rail
                button, who may see it, where
                someone goes who may not, what it adds to the top toolbar,
-               and its lazy entry). `NAV_FLAGS.workflow` is `false` in 0.3.1:
-               Workflow is off the rail and the command palette, and a stored
-               `activeView` for it is sent Home (`redirectFor`). The view and
-               `/api/workflow` stay; set the flag `true` to put it back.
-               App.tsx, the toolbar, the activity rail and prefetch all read it.
+               and its lazy entry). `NAV_FLAGS.workflow` is `true`: Workflow is
+               on the activity rail and the command palette. App.tsx, the toolbar,
+               the activity rail and prefetch all read it.
 features/    One folder per business domain. The files at its root are its
              public API; its folders (components/, state/, lib/, api/) are
              internal.

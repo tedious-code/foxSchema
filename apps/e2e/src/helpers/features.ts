@@ -9,11 +9,6 @@
 
 /**
  * Whether Workflow is on the activity rail — mirrors `NAV_FLAGS.workflow` in
- * `apps/web/src/frontend/app/features/featureRegistry.ts`, held back for 0.3.1.
- *
- * A view is reached only through the rail or the command palette; there is no
- * URL for one. With the flag off the Workflow view cannot be opened at all, so
- * its specs have nothing to drive. Turn this back to `true` with the flag and
- * they run again unchanged.
+ * `apps/web/src/frontend/app/features/featureRegistry.ts`.
  */
-export const WORKFLOW_ON_RAIL = false;
+export const WORKFLOW_ON_RAIL = true;

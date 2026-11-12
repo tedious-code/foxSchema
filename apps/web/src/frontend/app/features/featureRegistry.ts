@@ -103,6 +103,7 @@ export const WORKSPACE_VIEWS: Record<ActiveView, WorkspaceViewDefinition> = {
   },
   workflow: {
     rail: { navId: 'workflow', icon: Workflow, testId: 'view-workflow-btn' },
+    allowed: (can) => can('workflow.access'),
     load: () => import('@/features/workflow/view'),
   },
   snapshots: {
@@ -116,16 +117,9 @@ export const WORKSPACE_VIEWS: Record<ActiveView, WorkspaceViewDefinition> = {
 
 /**
  * Flags gate the nav items a view hangs off, and with them the view.
- *
- * Workflow is held back for 0.3.1: it is a large feature and is not ready to
- * be offered yet, so it is off the rail and out of the command palette. A view
- * is reached only through one of those, so with the flag off there is no way
- * in — and `redirectFor` sends anyone whose last session left them on the view
- * back to Home, so a stored `activeView` is not a way in either. The view's
- * code and `/api/workflow` are untouched and the engine still answers, so
- * turning this back to `true` is the whole of putting it back.
+ * Workflow is on the rail (`workflow: true`).
  */
-const NAV_FLAGS: Partial<Record<NavFeatureFlag, boolean>> = { workflow: false };
+const NAV_FLAGS: Partial<Record<NavFeatureFlag, boolean>> = { workflow: true };
 
 /**
  * The nav ids a flag currently hides. Read once: NAV_FLAGS is a build-time

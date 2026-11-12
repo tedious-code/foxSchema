@@ -111,10 +111,9 @@ need the **Install drivers** permission (admins by default). Only SQLite
 (`better-sqlite3`, the metadata store) cannot be removed. **⌘K** / **Ctrl+K** searches the same views the left rail
 shows, plus recents. The left rail is the Fox mark (Home), the **workspace**
 button (the one workspace this account is acting in), then **Compare**,
-**Editor**, **Utils**, **Access**, **Snapshots**, and **Creds** and
-**Applies** at the bottom. **Workflow** is built (Home → Services still reports
-the engine) but is held off the rail and the command palette in **0.3.1**; a
-previous session that left you there is sent Home. A launch session
+**Editor**, **Utils**, **Access**, **Workflow**, **Snapshots**, and **Creds** and
+**Applies** at the bottom. Home → **Services** still reports the workflow
+engine. Accounts without Workflow access are sent Home. A launch session
 (`foxschema open` before you create an account) hides the workspace button —
 you are already in the install owner's personal workspace.
 
@@ -845,11 +844,9 @@ Optional workspace for scheduled and triggered jobs (SQL, HTTP, files, email/SMS
 beside Compare and the SQL Editor. The designer lives in the Fox Schema UI;
 a **separate engine process** runs the jobs.
 
-In **0.3.1** the **Workflow** item is not on the activity rail or in the command
-palette — the designer and `/api/workflow` are unchanged, Home → **Services**
-still reports the engine, and a stored last-view that pointed at Workflow is
-sent Home. The steps below are for a checkout with the rail item on, or for
-the next release that turns it back.
+Open **Workflow** from the activity rail or the command palette. Home →
+**Services** still reports the engine. Accounts without `workflow.access` are
+sent Home.
 
 Developer / ops runbook: [workflow.md](workflow.md). Env vars:
 [DEPLOYMENT.md](DEPLOYMENT.md#workflow-engine).
@@ -1117,11 +1114,10 @@ whatever its 7-day expiry (`FOX_SESSION_IDLE_HOURS`; `0` turns the idle limit
 off). From the profile menu, **Sign out other sessions** ends every session
 except this one — useful if you left a browser open elsewhere.
 
-**Workflow engine down / Run refused / no Workflow on the rail.** In 0.3.1 the
-designer is held off the rail; Home → **Services** is how you see whether the
+**Workflow engine down / Run refused.** Home → **Services** shows whether the
 engine is Running, Not configured (set `WORKFLOW_ENGINE_TOKEN` and
 `FOXFLOW_ENCRYPTION_KEY` on the API) or Unreachable (those are set but `/health`
-did not answer). When the rail item is on, check **Workflow → Engine** health
+did not answer). Check **Workflow → Engine** health
 too. New installs default to **Disabled** — set **Enabled** and Save; the
 Services card then notes “Not taking new runs” until you do. `FOXFLOW_ENCRYPTION_KEY`
 is required at engine boot. Saved connections need both `WORKFLOW_ENGINE_TOKEN`

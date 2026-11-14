@@ -67,7 +67,7 @@ describe.skipIf(!hasSqlite3())('a published demo', () => {
     demoId = made.json.user.id;
 
     // The demo cannot add connections: an admin joins its workspace, adds the
-    // sample database, and leaves — the path docs/DEPLOYMENT.md describes.
+    // sample database, and leaves — the path docs/guides/DEPLOYMENT.md describes.
     demoCookie = await signInAs(DEMO_EMAIL, DEMO_PASSWORD);
     demoWorkspace = (await api('GET', '/workspaces', undefined, demoCookie)).json.currentId;
     expect((await api('PUT', `/workspaces/${demoWorkspace}/members/${adminId}`, { role: 'owner' })).status).toBe(200);

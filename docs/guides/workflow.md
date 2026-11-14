@@ -5,7 +5,7 @@ FoxSchema designs and administers workflows in the web UI. A **separate process*
 process with Schema Sync or the SQL Editor.
 
 User walkthrough: [user-guide.md](user-guide.md#workflow). Deploy env vars:
-[DEPLOYMENT.md](DEPLOYMENT.md#workflow-engine). Folder map: [CODE_MAP.md](CODE_MAP.md).
+[DEPLOYMENT.md](DEPLOYMENT.md#workflow-engine). Folder map: [CODE_MAP.md](../architecture/CODE_MAP.md).
 
 ## Architecture
 
@@ -204,7 +204,7 @@ Saved in FoxSchema (`workflow.engine_config`). The engine re-reads them every
   are set but health did not answer). A running engine that is Disabled in
   Workflow settings still reports `running`, with `detail` “Not taking new
   runs”. There is no Start / Stop from the card yet
-  ([plan](plans/2026-11-01-service-status.md)).
+  ([plan](../plans/2026-11-01-service-status.md)).
 - **Docker image does not start the engine.** `Dockerfile` / `docker-compose.app.yml`
   run FoxSchema only. Deploy `apps/workflow-server` beside it and set the token
   on both. See [DEPLOYMENT.md](DEPLOYMENT.md#workflow-engine).

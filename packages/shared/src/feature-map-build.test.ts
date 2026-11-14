@@ -1,6 +1,6 @@
 /**
- * The feature-map generator (scripts/feature-map/build.mjs): docs/feature-map.html
- * is built from docs/feature-map/ and the diagrams in docs/FEATURE_MAP.md.
+ * The feature-map generator (scripts/feature-map/build.mjs): docs/architecture/feature-map.html
+ * is built from docs/architecture/feature-map/ and the diagrams in docs/architecture/FEATURE_MAP.md.
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
@@ -32,10 +32,10 @@ describe('feature map build', () => {
   });
 
   // The page is generated: an edit made to it by hand is lost on the next build.
-  // Edit docs/feature-map/ or FEATURE_MAP.md, then run `npm run docs:feature-map`.
-  it('docs/feature-map.html is what the build writes', () => {
+  // Edit docs/architecture/feature-map/ or FEATURE_MAP.md, then run `npm run docs:feature-map`.
+  it('docs/architecture/feature-map.html is what the build writes', () => {
     const built = buildStaticPage(buildBoardPage(readSources()));
-    const committed = readFileSync(new URL('../../../docs/feature-map.html', import.meta.url), 'utf8');
-    expect(committed === built, 'docs/feature-map.html is stale: run npm run docs:feature-map').toBe(true);
+    const committed = readFileSync(new URL('../../../docs/architecture/feature-map.html', import.meta.url), 'utf8');
+    expect(committed === built, 'docs/architecture/feature-map.html is stale: run npm run docs:feature-map').toBe(true);
   });
 });

@@ -27,7 +27,7 @@ features/<id>/
   index.ts              public surface: the module, and anything other features may call
   <id>.routes.ts        paths, methods, guards — no business decisions
   <id>.service.ts       use cases; no HTTP types
-  <subject>.<role>.ts   more files by role as the feature grows (see docs/CONVENTIONS.md)
+  <subject>.<role>.ts   more files by role as the feature grows (see docs/conventions/CONVENTIONS.md)
   *.test.ts             beside what they test
 ```
 
@@ -170,4 +170,4 @@ The checklist below is what review looks for.
 - [ ] Persistence changes are a new numbered migration in `database/schema.ts` (append-only).
 - [ ] `npm run test-ids` after any JSX change; new controls have test IDs.
 - [ ] Typecheck, lint, the full suite and the web build (with the first-load budget) pass.
-- [ ] Docs: the feature's row in `docs/CODE_MAP.md`.
+- [ ] Docs: the feature's row in `docs/architecture/CODE_MAP.md`.

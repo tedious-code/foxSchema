@@ -51,7 +51,7 @@ foxschema
 foxschema shortcut        # Desktop app with fox icon
 ```
 
-`brew search foxschema` works only after the tap and the one-time trust. There is one formula and one npm package. Db2 is optional on npm and included in the Docker image. After an npm release, maintainers refresh the formula with [packaging/homebrew/update-formula.sh](../packaging/homebrew/update-formula.sh).
+`brew search foxschema` works only after the tap and the one-time trust. There is one formula and one npm package. Db2 is optional on npm and included in the Docker image. After an npm release, maintainers refresh the formula with [packaging/homebrew/update-formula.sh](../../packaging/homebrew/update-formula.sh).
 
 ---
 

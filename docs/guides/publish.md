@@ -125,7 +125,7 @@ brew trust tedious-code/foxschema
 brew install foxschema
 ```
 
-See [packaging/homebrew/README.md](../packaging/homebrew/README.md).
+See [packaging/homebrew/README.md](../../packaging/homebrew/README.md).
 
 ---
 

@@ -9,7 +9,7 @@
 # connection open, produces confusing partial failures that look like app
 # bugs but are actually environment races — burned real debugging time on
 # both of these more than once. See "False leads" in
-# docs/plans/2026-07-01-migration-ordering-bugs.md.
+# docs/testing/test-plans/2026-07-01-migration-ordering-bugs.md.
 #
 # Usage:
 #   bash scripts/seed/reset-all.sh                  # full reset (default)

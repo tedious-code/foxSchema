@@ -28,7 +28,7 @@
     { id: 'partial', label: 'Partial', cls: 'progress' },
     { id: 'fail', label: 'Fail', cls: 'blocked' },
   ];
-  // The copy kept in the repo (docs/feature-map.html) has no shared board.
+  // The copy kept in the repo (docs/architecture/feature-map.html) has no shared board.
   const STATIC = Boolean(window.FOX_MAP_STATIC);
   const TABS = STATIC ? ['features', 'workflows', 'schema', 'engines', 'coverage'] : ['plan', 'features', 'workflows', 'schema', 'engines', 'coverage'];
   const FEATURE_BY_ID = Object.fromEntries(FEATURES.map((f) => [f.id, f]));

@@ -1,80 +1,124 @@
 # Documentation
 
-One file per topic. If two pages used to say the same thing, this list names the one to read.
+One file per topic, in one folder per kind of document. If two pages used to say the same thing, this list names the one to read.
 
-Living documents describe the tree as it is. Plans and release notes are history: they record why a change was made, and their paths can be stale.
+Living documents (guides, architecture, conventions, testing, security) describe the tree as it is. Specs, plans and release notes are history: they record what was proposed and why, and their paths can be stale.
+
+## Where a new document goes
+
+| Folder | What belongs there |
+| --- | --- |
+| [`guides/`](guides/) | Instructions: install, use, deploy, operate, ship. Step by step, for a reader doing the task. |
+| [`architecture/`](architecture/) | How the system is built and where code lives. Kept in step with the code. |
+| [`conventions/`](conventions/) | Rules for writing code here: naming, dependencies, file headers. |
+| [`specs/`](specs/) | Proposals not built yet: what a feature should do and why. A spec moves to `plans/` once work starts. |
+| [`plans/`](plans/) | Implementation plans and schedules, dated `YYYY-MM-DD-topic.md`, with a status line at the top. |
+| [`testing/`](testing/) | How to write and run tests; test plans and their results in `testing/test-plans/`. |
+| [`security/`](security/) | The CI security process and the checklist for every change. |
+| [`releases/`](releases/) | One file per shipped version, plus the summary. Not edited after the version ships. |
+
+Images and video for the README live in `demo/` and `images/`.
 
 ## Start here
 
 | Topic | Document |
 | --- | --- |
-| What the product is and how to install it | [README](../README.md), [install.md](install.md) |
-| How to use the app | [user-guide.md](user-guide.md) |
-| Where code lives | [CODE_MAP.md](CODE_MAP.md) |
-| What each feature is, what it touches, and how to plan work on it | [FEATURE_MAP.md](FEATURE_MAP.md) |
-| How the system is put together | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| File and symbol names | [CONVENTIONS.md](CONVENTIONS.md) |
+| What the product is and how to install it | [README](../README.md), [install.md](guides/install.md) |
+| How to use the app | [user-guide.md](guides/user-guide.md) |
+| Where code lives | [CODE_MAP.md](architecture/CODE_MAP.md) |
+| What each feature is, what it touches, and how to plan work on it | [FEATURE_MAP.md](architecture/FEATURE_MAP.md) ([interactive map](architecture/feature-map.html)) |
+| How the system is put together | [ARCHITECTURE.md](architecture/ARCHITECTURE.md) |
 | How to work in this repo | [CONTRIBUTING.md](../CONTRIBUTING.md), [AGENTS.md](../AGENTS.md) |
 
-## Run and ship
+## Guides (instructions)
 
 | Topic | Document |
 | --- | --- |
-| Install channels (npm, Homebrew, Windows, Docker) | [install.md](install.md) |
-| Server deploy, env, encryption, SSO | [DEPLOYMENT.md](DEPLOYMENT.md) |
-| Workflow engine | [workflow.md](workflow.md) |
-| Cutting a release | [publish.md](publish.md) |
+| Install channels (npm, Homebrew, Windows, Docker) | [install.md](guides/install.md) |
+| Using the app, screen by screen | [user-guide.md](guides/user-guide.md) |
+| Server deploy, env, encryption, SSO, email | [DEPLOYMENT.md](guides/DEPLOYMENT.md) |
+| Sending email through Gmail (Nodemailer, and Fox) | [gmail-smtp.md](guides/gmail-smtp.md) |
+| Workflow engine | [workflow.md](guides/workflow.md) |
+| Cutting a release | [publish.md](guides/publish.md) |
 | Refresh the Homebrew formula after npm publish | [packaging/homebrew/README.md](../packaging/homebrew/README.md) |
-| Dependency updates | [DEPENDENCY_POLICY.md](DEPENDENCY_POLICY.md) |
-| Security process | [security/security-process.md](security/security-process.md) |
-| Db2 OS user example | [examples/db2-os-user.md](examples/db2-os-user.md) |
-| SQL editor examples | [examples/sql-editor/README.md](examples/sql-editor/README.md) |
+| Db2 OS user example | [examples/db2-os-user.md](guides/examples/db2-os-user.md) |
+| SQL editor examples | [examples/sql-editor/README.md](guides/examples/sql-editor/README.md) |
 
-Homebrew install steps live only in [install.md](install.md#homebrew-macos). The packaging readme does not repeat them.
+Homebrew install steps live only in [install.md](guides/install.md#homebrew-macos). The packaging readme does not repeat them.
 
-## Architecture (current)
+## Architecture
 
 | Topic | Document |
 | --- | --- |
-| Repo layout, dialects, migration flow | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| HTTP server, logging, what is never logged | [BACKEND_ARCHITECTURE.md](BACKEND_ARCHITECTURE.md) |
-| Feature folders and how to add one | [architecture/FEATURE-MODULE-GUIDE.md](architecture/FEATURE-MODULE-GUIDE.md) |
-| Which feature may import which | [architecture/FEATURE-DEPENDENCY-RULES.md](architecture/FEATURE-DEPENDENCY-RULES.md) |
+| Repo layout, dialects, migration flow | [ARCHITECTURE.md](architecture/ARCHITECTURE.md) |
+| Where code lives, and where a change belongs | [CODE_MAP.md](architecture/CODE_MAP.md) |
+| Every feature, its routes, tables and tests | [FEATURE_MAP.md](architecture/FEATURE_MAP.md) |
+| HTTP server, logging, what is never logged | [BACKEND_ARCHITECTURE.md](architecture/BACKEND_ARCHITECTURE.md) |
+| Feature folders and how to add one | [FEATURE-MODULE-GUIDE.md](architecture/FEATURE-MODULE-GUIDE.md) |
+| Which feature may import which | [FEATURE-DEPENDENCY-RULES.md](architecture/FEATURE-DEPENDENCY-RULES.md) |
 | Dialect hooks | [packages/sql/src/providers/DIALECTS.md](../packages/sql/src/providers/DIALECTS.md) |
+
+`architecture/feature-map.html` is generated: edit `architecture/feature-map/` or `FEATURE_MAP.md`, then run `npm run docs:feature-map`.
+
+## Conventions
+
+| Topic | Document |
+| --- | --- |
+| File and symbol names (enforced by `naming.test.ts`) | [CONVENTIONS.md](conventions/CONVENTIONS.md) |
+| Adding and updating dependencies | [DEPENDENCY_POLICY.md](conventions/DEPENDENCY_POLICY.md) |
+| Copyright header for new source files | [COPYRIGHT_HEADER.txt](conventions/COPYRIGHT_HEADER.txt) |
+
+## Specs (proposed, not built)
+
+| Topic | Document |
+| --- | --- |
+| Excel and Google Sheets import | [excel-and-sheets-import.md](specs/excel-and-sheets-import.md) |
+| Schema versioning, revert and history graph | [schema-versioning-and-revert.md](specs/schema-versioning-and-revert.md) |
+| Server Beam: move data between databases with JS + SQL | [server-beam.md](specs/server-beam.md) |
+
+## Plans and schedules (history)
+
+Finished or in-progress implementation plans. Each starts with its status. Do not treat them as the map of the code; the current map is [CODE_MAP.md](architecture/CODE_MAP.md).
+
+| Topic | Document |
+| --- | --- |
+| Feature-module schedule | [2026-10-10-feature-architecture.md](plans/2026-10-10-feature-architecture.md) |
+| Package split (the old core package → `@foxschema/sql` + `@foxschema/db`) | [package-split.md](plans/package-split.md) |
+| Backend moved out of the web app; Express removed | [backend-extraction.md](plans/backend-extraction.md) |
+| API layout and the decisions still open | [api-restructure.md](plans/api-restructure.md) |
+| Frontend moved to `app/` + `features/` + `shared/` | [frontend-refactor.md](plans/frontend-refactor.md) |
+| Workspaces and admin policy | [2026-10-09-workspaces-and-admin-policy.md](plans/2026-10-09-workspaces-and-admin-policy.md) |
+| SQL editor | [sql-editor.md](plans/sql-editor.md) |
+| Data Compare at 2,000 rows, SQL Tracer, Redis keys as tables | [2026-10-17-data-compare-and-sql-tracer.md](plans/2026-10-17-data-compare-and-sql-tracer.md) |
+| Test ids | [2026-10-03-test-ids.md](plans/2026-10-03-test-ids.md) |
+| Migrations in Git | [2026-10-02-migrations-in-git.md](plans/2026-10-02-migrations-in-git.md) |
+| Diff colors and safety gates | [2026-06-30-diff-colors-and-safety-gates.md](plans/2026-06-30-diff-colors-and-safety-gates.md) |
+| Service status on Home (status shipped; start/stop later) | [2026-11-01-service-status.md](plans/2026-11-01-service-status.md) |
+| Safe column change: planner, Utils screen, in-place default, all 14 SQL engines | [2026-11-01-safe-column-change.md](plans/2026-11-01-safe-column-change.md) |
 
 ## Testing
 
 | Topic | Document |
 | --- | --- |
-| How to write an end-to-end test | [testing/WRITING_E2E.md](testing/WRITING_E2E.md) |
-| How to run it against the engines, and failures that are not bugs | [testing/RUNNING_E2E.md](testing/RUNNING_E2E.md) |
-| Generated test-id catalog | [testing/TEST_IDS.md](testing/TEST_IDS.md) |
+| How to write an end-to-end test | [WRITING_E2E.md](testing/WRITING_E2E.md) |
+| How to run it against the engines, and failures that are not bugs | [RUNNING_E2E.md](testing/RUNNING_E2E.md) |
+| Generated test-id catalog | [TEST_IDS.md](testing/TEST_IDS.md) |
 
-## Plans (history)
-
-Finished or in-progress design notes. Do not treat them as the map of the code. The current map is [CODE_MAP.md](CODE_MAP.md).
+### Test plans and results
 
 | Topic | Document |
 | --- | --- |
-| Package split (`packages/core` → sql + db) | [plans/package-split.md](plans/package-split.md) |
-| Backend moved out of the web app; Express removed | [plans/backend-extraction.md](plans/backend-extraction.md) |
-| API layout and the decisions still open | [plans/api-restructure.md](plans/api-restructure.md) |
-| Frontend moved to `app/` + `features/` + `shared/` | [plans/frontend-refactor.md](plans/frontend-refactor.md) |
-| Feature-module schedule | [plans/2026-10-10-feature-architecture.md](plans/2026-10-10-feature-architecture.md) |
-| Workspaces and admin policy | [plans/2026-10-09-workspaces-and-admin-policy.md](plans/2026-10-09-workspaces-and-admin-policy.md) |
-| SQL editor | [plans/sql-editor.md](plans/sql-editor.md) |
-| Data Compare at 2,000 rows, SQL Tracer, Redis keys as tables | [plans/2026-10-17-data-compare-and-sql-tracer.md](plans/2026-10-17-data-compare-and-sql-tracer.md) |
-| Test ids | [plans/2026-10-03-test-ids.md](plans/2026-10-03-test-ids.md) |
-| Migrations in Git | [plans/2026-10-02-migrations-in-git.md](plans/2026-10-02-migrations-in-git.md) |
-| Seed and migration ordering | [plans/2026-07-01-seed-test-matrix.md](plans/2026-07-01-seed-test-matrix.md), [plans/2026-07-01-migration-ordering-bugs.md](plans/2026-07-01-migration-ordering-bugs.md) |
-| Diff colors and safety gates | [plans/2026-06-30-diff-colors-and-safety-gates.md](plans/2026-06-30-diff-colors-and-safety-gates.md) |
-| Schema versioning | [plans/schema-versioning-and-revert.md](plans/schema-versioning-and-revert.md) |
-| Server beam | [plans/server-beam.md](plans/server-beam.md) |
-| Excel and Sheets import | [plans/excel-and-sheets-import.md](plans/excel-and-sheets-import.md) |
-| Feature review test plan | [plans/2026-10-06-review-features-test-plan.md](plans/2026-10-06-review-features-test-plan.md) |
-| Feature and dialect test plan, and its first results | [plans/2026-10-25-feature-and-dialect-test-plan.md](plans/2026-10-25-feature-and-dialect-test-plan.md), [plans/2026-10-26-feature-and-dialect-test-results.md](plans/2026-10-26-feature-and-dialect-test-results.md) |
-| Service status on Home (status shipped; start/stop later) | [plans/2026-11-01-service-status.md](plans/2026-11-01-service-status.md) |
-| Safe column change: plan and SQL for review (planner, Utils screen, in-place default, all 14 SQL engines) | [plans/2026-11-01-safe-column-change.md](plans/2026-11-01-safe-column-change.md) |
+| Feature and dialect test plan, and its first results | [2026-10-25-feature-and-dialect-test-plan.md](testing/test-plans/2026-10-25-feature-and-dialect-test-plan.md), [2026-10-26-feature-and-dialect-test-results.md](testing/test-plans/2026-10-26-feature-and-dialect-test-results.md) |
+| Review features across every engine | [2026-10-06-review-features-test-plan.md](testing/test-plans/2026-10-06-review-features-test-plan.md) |
+| Seed test matrix, and the migration-ordering bugs it found | [2026-07-01-seed-test-matrix.md](testing/test-plans/2026-07-01-seed-test-matrix.md), [2026-07-01-migration-ordering-bugs.md](testing/test-plans/2026-07-01-migration-ordering-bugs.md) |
+
+## Security
+
+| Topic | Document |
+| --- | --- |
+| Checklist for every change | [checklist.md](security/checklist.md) |
+| CI security jobs and how to maintain them | [security-process.md](security/security-process.md) |
+| Reporting a vulnerability | [SECURITY.md](../SECURITY.md) |
 
 ## Releases
 

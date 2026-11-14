@@ -14,7 +14,7 @@
  * A verification code proves someone reads mail at an address, so it never
  * goes to the log. Without SMTP it goes through the Fox mail service on
  * foxschema.com (`FOX_VERIFY_MAIL_URL`), which sends a fixed message with the
- * code; docs/DEPLOYMENT.md describes the endpoint.
+ * code; docs/guides/DEPLOYMENT.md describes the endpoint.
  *
  * Links point at the configured public URL only. Built from the request's
  * Host header, a reset link would point wherever the requester said.

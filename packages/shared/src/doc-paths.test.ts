@@ -6,7 +6,7 @@
  * Every repo path the navigational docs name must actually exist.
  *
  * `CLAUDE.md` is loaded into every agent session; `AGENTS.md`, `README.md` and
- * `docs/CODE_MAP.md` are where a human starts. They are not prose — they are
+ * `docs/architecture/CODE_MAP.md` are where a human starts. They are not prose — they are
  * the index. When the tree moves and the index does not, the index stops being
  * wrong in a way anyone notices and starts being wrong in a way everyone acts
  * on.
@@ -42,12 +42,14 @@ const TRACKED_DOCS = [
   'AGENTS.md',
   'README.md',
   'CONTRIBUTING.md',
-  'docs/CODE_MAP.md',
-  'docs/ARCHITECTURE.md',
-  'docs/CONVENTIONS.md',
-  'docs/BACKEND_ARCHITECTURE.md',
-  'docs/DEPLOYMENT.md',
-  'docs/DEPENDENCY_POLICY.md',
+  'docs/architecture/CODE_MAP.md',
+  'docs/architecture/ARCHITECTURE.md',
+  'docs/conventions/CONVENTIONS.md',
+  'docs/architecture/BACKEND_ARCHITECTURE.md',
+  'docs/guides/DEPLOYMENT.md',
+  'docs/conventions/DEPENDENCY_POLICY.md',
+  'docs/README.md',
+  'docs/security/checklist.md',
   'docs/architecture/FEATURE-MODULE-GUIDE.md',
   'docs/architecture/FEATURE-DEPENDENCY-RULES.md',
 ];

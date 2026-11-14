@@ -80,7 +80,7 @@ Save it as `apps/e2e/src/tests/<area>-<what>.test.ts`.
 ## 5. Run it
 
 With the dev stack up (`npm run dev`; DB containers for the dialect tests, see
-`docs/ARCHITECTURE.md`):
+`docs/architecture/ARCHITECTURE.md`):
 
 ```bash
 cd apps/e2e && npx vitest run src/tests/workflow-runs.test.ts

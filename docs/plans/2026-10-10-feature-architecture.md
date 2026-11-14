@@ -21,7 +21,7 @@ schedule is in §6.
 | Platform layer, server | `packages/server/src/platform/{contracts,http,guards,db,crypto,logger}` |
 | Error contract | `ServiceError` + `sendError`; every 4xx carries `{ ok, error, code }` (asserted by `api/http-contract.test.ts`) |
 | Route regression net | `api/http-contract.test.ts` lists every route with its empty-body status (136) |
-| Naming rules | `docs/CONVENTIONS.md`, enforced by `packages/shared/src/naming.test.ts` |
+| Naming rules | `docs/conventions/CONVENTIONS.md`, enforced by `packages/shared/src/naming.test.ts` |
 
 ### Gaps against the target plan
 

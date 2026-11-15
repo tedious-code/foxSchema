@@ -168,6 +168,22 @@ describe('writing the file', () => {
     );
   });
 
+  it('serializes concurrent overwrite batches so neither overwrites the other', async () => {
+    const path = await tempPath();
+    const sink = new FileSinkPipe();
+    const ctx = contextFor(config(path, { mode: 'overwrite' }));
+
+    await Promise.all([
+      sink.write(batch([{ name: 'Dana', outcome: 'sold' }]), ctx),
+      sink.write(batch([{ name: 'Ali', outcome: 'callback' }]), ctx),
+    ]);
+
+    const written = await readFile(path, 'utf8');
+    expect(written.split('name,outcome\n')).toHaveLength(2);
+    expect(written).toContain('Dana,sold\n');
+    expect(written).toContain('Ali,callback\n');
+  });
+
   it('creates the directory rather than failing on a missing folder', async () => {
     const path = join(await tempPath('nested'), 'deep', 'out.csv');
 

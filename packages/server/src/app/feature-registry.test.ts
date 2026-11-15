@@ -15,7 +15,8 @@ process.env.APP_ENCRYPTION_KEY = '0'.repeat(64);
 import type { FastifyReply } from 'fastify';
 import { Router } from '../platform/http/router';
 import type { AppRequest } from '../platform/http/types';
-import { bootFeatures, composeFeatures, createFeatureContext } from './feature-registry';
+import Fastify from 'fastify';
+import { bootFeatures, composeFeatures, createFeatureContext, registerFeatureFastify } from './feature-registry';
 import type { FeatureAccess, ServerFeatureModule } from '../platform/feature-module';
 
 function feature(id: string, mounts: Array<{ prefix: string; access: FeatureAccess; rateLimited?: boolean }>): ServerFeatureModule {
@@ -86,5 +87,16 @@ describe('composeFeatures', () => {
     expect(() => composeFeatures([feature('p', [{ prefix: '/api', access: 'public', rateLimited: true }])], ctx)).toThrow(
       /rate limit/
     );
+  });
+
+  it('skips a Fastify plugin that throws so the rest of the API still boots', async () => {
+    const ran: string[] = [];
+    const app = Fastify();
+    await registerFeatureFastify(app, ctx, [
+      { id: 'a', mounts: [], registerFastify: async () => { throw new Error('engine key'); } },
+      { id: 'b', mounts: [], registerFastify: async () => { ran.push('b'); } },
+    ]);
+    expect(ran).toEqual(['b']);
+    await app.close();
   });
 });

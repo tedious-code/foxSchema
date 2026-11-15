@@ -7,12 +7,6 @@
  */
 import { z } from 'zod';
 import {
-  WORKFLOW_CONNECTION_RESOLVE_PATH,
-  WORKFLOW_ENGINE_TOKEN_ENV,
-  foxSchemaEndpoint,
-  type ResolvedWorkflowConnection,
-} from '@foxschema/workflow-contract';
-import {
   mintGcpAccessToken,
   normalizeGcpSecretResource,
   parseGcpServiceAccountJson,
@@ -230,6 +224,9 @@ export async function resolveStoredSecret(
   payload: StoredSecretPayload,
   env: NodeJS.ProcessEnv = process.env,
   fetchImpl: typeof fetch = fetch,
+  resolveFoxSchema?: (
+    connectionId: string,
+  ) => Promise<Record<string, unknown> | undefined>,
 ): Promise<Record<string, unknown>> {
   let resolved: Record<string, unknown>;
 
@@ -250,7 +247,7 @@ export async function resolveStoredSecret(
       resolved = await resolveAzureSecret(payload, env, fetchImpl);
       break;
     case 'foxschema':
-      resolved = await resolveFoxSchemaConnection(payload, env, fetchImpl);
+      resolved = await resolveFoxSchemaConnection(payload, resolveFoxSchema);
       break;
     default: {
       const _exhaustive: never = payload.source;
@@ -594,39 +591,24 @@ async function signAwsHeaders(input: {
  */
 async function resolveFoxSchemaConnection(
   payload: StoredSecretPayload,
-  env: NodeJS.ProcessEnv,
-  fetchImpl: typeof fetch,
+  injected?: (
+    connectionId: string,
+  ) => Promise<Record<string, unknown> | undefined>,
 ): Promise<Record<string, unknown>> {
   const connectionId = payload.connectionId;
   if (!connectionId) {
     throw new Error('FoxSchema connection reference is incomplete (connectionId)');
   }
-  const { url, token } = foxSchemaEndpoint(WORKFLOW_CONNECTION_RESOLVE_PATH, env);
-  if (!token) {
+  if (!injected) {
     throw new Error(
-      `${WORKFLOW_ENGINE_TOKEN_ENV} is not set, so saved FoxSchema connections cannot be resolved`,
+      'Saved FoxSchema connections resolve only through the in-process engine. This run was not given a connection resolver.',
     );
   }
-  const response = await fetchImpl(url, {
-    method: 'POST',
-    headers: {
-      accept: 'application/json',
-      'content-type': 'application/json',
-      authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ connectionId }),
-  });
-  if (!response.ok) {
-    const reason =
-      response.status === 404
-        ? 'it is not granted to workflows, or no longer exists'
-        : `FoxSchema answered HTTP ${response.status}`;
-    throw new Error(`Saved connection ${connectionId} could not be resolved: ${reason}`);
+  const resolved = await injected(connectionId);
+  if (!resolved) {
+    throw new Error(
+      `Saved connection ${connectionId} could not be resolved: it is not granted to workflows, or no longer exists`,
+    );
   }
-  const body = (await response.json()) as ResolvedWorkflowConnection;
-  return {
-    dialect: body.dialect,
-    ...(body.schema ? { schema: body.schema } : {}),
-    option: body.option,
-  };
+  return resolved;
 }

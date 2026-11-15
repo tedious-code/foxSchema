@@ -309,7 +309,7 @@ td.no { color: var(--muted); }
     PLAT["platform&lt;br/&gt;identity · RBAC · workspaces&lt;br/&gt;connections · guards"]
     FEAT["18 feature modules&lt;br/&gt;163 routes"]
   end
-  WFS["Workflow server :8081&lt;br/&gt;apps/workflow-server&lt;br/&gt;+ packages/workflow-engine"]
+  WFS["Workflow engine&lt;br/&gt;in-process&lt;br/&gt;packages/workflow-engine"]
   META[("Metadata store&lt;br/&gt;SQLite · 28 tables")]
   ENG[("Target databases&lt;br/&gt;16 engines")]
 
@@ -318,8 +318,7 @@ td.no { color: var(--muted); }
   PLAT --&gt; FEAT
   FEAT --&gt; META
   FEAT -- "packages/db drivers" --&gt; ENG
-  FEAT -- "engine proxy (workflow.*)" --&gt; WFS
-  WFS -- "internal: resolve a granted connection" --&gt; FEAT
+  FEAT -- "in-process engine" --&gt; WFS
   WFS --&gt; ENG</pre></div>
           <div class="diagram"><pre class="mermaid">flowchart LR
   R[Request] --&gt; O["Origin policy&lt;br/&gt;+ rate limit"] --&gt; S["Session guard&lt;br/&gt;(auth.guard)"] --&gt; RO["app.write or GET / reads"]
@@ -408,18 +407,15 @@ td.no { color: var(--muted); }
         <div class="diagram"><h3>Workflow engine</h3><pre class="mermaid">sequenceDiagram
   actor U as User
   participant W as Web: Workflow
-  participant S as Server (proxy)
-  participant E as Workflow server
+  participant S as Server (in-process engine)
   participant D as Database
   U-&gt;&gt;W: design pipes, save
-  W-&gt;&gt;S: /api/workflow/* (workflow.design)
+  W-&gt;&gt;S: /api/workflow/engine/* (workflow.design)
   S-&gt;&gt;S: refuse connections not usable in this workspace
-  S-&gt;&gt;E: forward (WORKFLOW_ENGINE_TOKEN)
   U-&gt;&gt;W: run
-  E-&gt;&gt;S: POST /api/workflow-internal/connections/resolve
-  S--&gt;&gt;E: granted connection (workflow_connection_grants)
-  E-&gt;&gt;D: SQL pipe
-  E--&gt;&gt;W: run events, a human gate waits for an answer</pre></div>
+  S-&gt;&gt;S: resolve granted connection (workflow_connection_grants)
+  S-&gt;&gt;D: SQL pipe
+  S--&gt;&gt;W: run events, a human gate waits for an answer</pre></div>
         <div class="diagram"><h3>Access — inspect, build, apply</h3><pre class="mermaid">flowchart LR
   A[Pick connection] --&gt; B[Inspector: who holds what]
   B --&gt; C[Builder: intent → GRANT / REVOKE / account DDL&lt;br/&gt;providers/*/access-sql, user-sql]

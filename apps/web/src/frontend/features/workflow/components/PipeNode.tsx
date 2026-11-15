@@ -60,12 +60,12 @@ function resolvePorts(declared: PortInfo[], fallback: PortInfo[]): PortInfo[] {
   return declared.length > 0 ? declared : fallback;
 }
 
-function fallbackInputs(role: PipeData['role']): PortInfo[] {
-  return role === 'transform' || role === 'sink' ? [DEFAULT_IN] : [];
+function fallbackInputs(role: PipeData['role'], trigger: boolean): PortInfo[] {
+  return trigger || role === 'trigger' ? [] : [DEFAULT_IN];
 }
 
-function fallbackOutputs(role: PipeData['role']): PortInfo[] {
-  return role === 'sink' ? [] : [DEFAULT_OUT];
+function fallbackOutputs(type: string): PortInfo[] {
+  return type === 'sink.response' ? [] : [DEFAULT_OUT];
 }
 
 function portTone(name: string): string {
@@ -83,14 +83,129 @@ function isTriggerType(type: string, role: PipeData['role']): boolean {
   );
 }
 
+function parsePipeConfig(raw: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(raw || '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function shortenUrl(rawUrl: unknown): string {
+  if (typeof rawUrl !== 'string' || !rawUrl.trim()) return '…';
+  return rawUrl.trim().replace(/^https?:\/\//i, '');
+}
+
+export function pipeSummary(
+  type: string,
+  configRaw: string,
+  intent?: string,
+): string | null {
+  const cfg = parsePipeConfig(configRaw);
+  if (type.startsWith('source.trigger') || type === 'source.triggerPayload') {
+    return typeof cfg.triggerId === 'string' && cfg.triggerId
+      ? `trigger: ${cfg.triggerId}`
+      : null;
+  }
+  if (type === 'source.api.http') {
+    const method = typeof cfg.method === 'string' ? cfg.method : 'GET';
+    return `${method} ${shortenUrl(cfg.url)}`;
+  }
+  if (type === 'transform.http' || type === 'sink.http') {
+    const req =
+      cfg.request && typeof cfg.request === 'object' && !Array.isArray(cfg.request)
+        ? (cfg.request as Record<string, unknown>)
+        : cfg;
+    const method = typeof req.method === 'string' ? req.method : 'POST';
+    return `${method} ${shortenUrl(req.url)}`;
+  }
+  if (type === 'source.api.http.multi') {
+    const count = Array.isArray(cfg.endpoints) ? cfg.endpoints.length : 0;
+    return `${count} parallel endpoints`;
+  }
+  if (type === 'source.db.sql') {
+    const dialect = typeof cfg.dialect === 'string' ? cfg.dialect : 'sql';
+    const firstLine =
+      typeof cfg.sql === 'string'
+        ? cfg.sql.trim().split('\n')[0]?.trim() ?? ''
+        : '';
+    return firstLine ? `${dialect} · ${firstLine}` : dialect;
+  }
+  if (type === 'sink.db.sql') {
+    const dialect = typeof cfg.dialect === 'string' ? cfg.dialect : 'sql';
+    if (cfg.mode === 'statement') return `${dialect} · SQL statement`;
+    const table = typeof cfg.table === 'string' && cfg.table ? cfg.table : '…';
+    return `${dialect} · INSERT → ${table}`;
+  }
+  if (
+    type === 'source.file.csv' ||
+    type === 'source.file.json' ||
+    type === 'source.file.text'
+  ) {
+    return typeof cfg.path === 'string' && cfg.path ? `read: ${cfg.path}` : null;
+  }
+  if (type === 'sink.file.delimited') {
+    const path = typeof cfg.path === 'string' && cfg.path ? cfg.path : '…';
+    const mode = typeof cfg.mode === 'string' ? cfg.mode : 'append';
+    return `write: ${path} (${mode})`;
+  }
+  if (type === 'transform.map') {
+    const mappings =
+      cfg.mappings && typeof cfg.mappings === 'object' && !Array.isArray(cfg.mappings)
+        ? Object.keys(cfg.mappings as Record<string, unknown>)
+        : [];
+    if (mappings.length === 0) return null;
+    const preview = mappings.slice(0, 3).join(', ');
+    return `map: ${preview}${mappings.length > 3 ? ` (+${mappings.length - 3})` : ''}`;
+  }
+  if (type === 'transform.condition') {
+    const field = typeof cfg.field === 'string' ? cfg.field : '';
+    const op =
+      typeof cfg.operator === 'string'
+        ? cfg.operator
+        : typeof cfg.op === 'string'
+          ? cfg.op
+          : '';
+    if (!field) return null;
+    const val = cfg.value !== undefined ? ` ${String(cfg.value)}` : '';
+    return `if ${field} ${op}${val}`;
+  }
+  if (type === 'transform.verify') {
+    const rules = Array.isArray(cfg.rules) ? cfg.rules : [];
+    const onInvalid = typeof cfg.onInvalid === 'string' ? cfg.onInvalid : 'reject';
+    return `${rules.length} rule${rules.length === 1 ? '' : 's'} · ${onInvalid}`;
+  }
+  if (type === 'transform.split') {
+    return typeof cfg.field === 'string' && cfg.field
+      ? `split by: ${cfg.field}`
+      : null;
+  }
+  if (type === 'logic.loop') {
+    const size = typeof cfg.size === 'number' ? cfg.size : 1;
+    return `chunk size: ${size}`;
+  }
+  if (type === 'transform.script') {
+    if (intent?.trim()) return intent.trim();
+    if (typeof cfg.script === 'string' && cfg.script.trim()) {
+      return cfg.script.trim().split('\n')[0]?.trim() ?? null;
+    }
+    return null;
+  }
+  return intent?.trim() || null;
+}
+
 export function PipeNode({ id, data, selected }: NodeProps<PipeNodeType>) {
-  const inputs = resolvePorts(data.inputs, fallbackInputs(data.role));
-  const outputs = resolvePorts(data.outputs, fallbackOutputs(data.role));
-  const shortType = data.type.split('.').slice(-2).join('.');
   const trigger = isTriggerType(data.type, data.role);
+  const inputs = resolvePorts(data.inputs, fallbackInputs(data.role, trigger));
+  const outputs = resolvePorts(data.outputs, fallbackOutputs(data.type));
+  const shortType = data.type.split('.').slice(-2).join('.');
   const visualRole = trigger ? 'trigger' : data.role;
   const RoleIcon = trigger ? Zap : ROLE_ICON[data.role];
   const multiOut = outputs.length > 1;
+  const summary = pipeSummary(data.type, data.config, data.intent);
 
   return (
     <div
@@ -120,6 +235,11 @@ export function PipeNode({ id, data, selected }: NodeProps<PipeNodeType>) {
       </div>
       <div className="title">{data.pipeId || id}</div>
       <div className="sub">{shortType}</div>
+      {summary && (
+        <div className="pipe-summary" title={data.intent || summary}>
+          {summary}
+        </div>
+      )}
       {multiOut && (
         <div className="pipe-ports">
           {outputs.map((port) => (

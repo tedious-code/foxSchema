@@ -5,11 +5,17 @@
  *
  * Workflow designer — ported from FoxAgent (components/WorkflowsPanel.tsx).
  */
-import { Copy, Download, FilePlus2, PlayCircle, Search, Trash2, Upload } from 'lucide-react';
+import { Copy, Download, FilePlus2, PlayCircle, Search, Sparkles, Trash2, Upload } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { toast } from '../lib/notify';
 import { api, type WorkflowPackage, type WorkflowSummary } from '../api/engineClient';
 import { useWorkflows } from '../api/engineQueries';
+import {
+  WORKFLOW_SAMPLES,
+  sampleForCanvas,
+  samplesAlreadyInstalled,
+  saveSampleWorkflows,
+} from '../lib/workflowSamples';
 import { Button, Input } from './controls';
 
 interface Props {
@@ -19,6 +25,11 @@ interface Props {
   onOpen: (id: string) => void;
   /** Start a blank workflow under a new id. */
   onCreate: (id: string) => void;
+  /**
+   * Open a sample on the canvas without waiting for a round-trip. Used when
+   * the engine is unreachable so the starter is still visible.
+   */
+  onApplySample: (document: (typeof WORKFLOW_SAMPLES)[number]['document']) => void;
 }
 
 function relativeTime(iso?: string): string {
@@ -38,6 +49,7 @@ export function WorkflowsPanel({
   currentId,
   onOpen,
   onCreate,
+  onApplySample,
 }: Props) {
   const { workflows, loading, refresh } = useWorkflows();
   const [query, setQuery] = useState('');
@@ -66,6 +78,30 @@ export function WorkflowsPanel({
     }
     setNewId('');
     onCreate(id);
+  };
+
+  const hasSamples = samplesAlreadyInstalled(workflows.map((workflow) => workflow.id));
+
+  const installSamples = async () => {
+    const showcase = sampleForCanvas();
+    try {
+      await saveSampleWorkflows(api.save);
+      refresh();
+      onOpen(showcase.id);
+      toast.success(
+        hasSamples
+          ? `Updated ${WORKFLOW_SAMPLES.length} sample workflows`
+          : `Added ${WORKFLOW_SAMPLES.length} sample workflows`,
+        {
+          description: 'Open one and press Test run once the engine is Enabled.',
+        },
+      );
+    } catch (error) {
+      onApplySample(showcase.document);
+      toast.error('Could not save the sample to the engine', {
+        description: `${(error as Error).message} It is on the canvas — Save when the engine is reachable.`,
+      });
+    }
   };
 
   const duplicate = async (workflow: WorkflowSummary) => {
@@ -177,6 +213,14 @@ export function WorkflowsPanel({
           <Button variant="primary" onClick={create} disabled={!newId.trim()}>
             <FilePlus2 /> New
           </Button>
+          <Button
+            data-testid="workflow-add-sample"
+            variant="ghost"
+            onClick={() => void installSamples()}
+            title="Install built-in sample workflows you can Test run without a database"
+          >
+            <Sparkles /> {hasSamples ? 'Refresh samples' : 'Add samples'}
+          </Button>
           <Button variant="ghost" onClick={() => importRef.current?.click()}>
             <Upload /> Import
           </Button>
@@ -199,7 +243,7 @@ export function WorkflowsPanel({
       ) : filtered.length === 0 ? (
         <p className="empty">
           {workflows.length === 0
-            ? 'No workflows yet. Name one above to start building.'
+            ? 'No workflows yet. Name one above to start building, or add the built-in samples.'
             : 'No workflows match that search.'}
         </p>
       ) : (

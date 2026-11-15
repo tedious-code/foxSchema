@@ -47,6 +47,7 @@ import {
   withTriggerCredentialId,
   type WorkflowTrigger,
 } from '../lib/triggers';
+import { TriggerEndpointCard } from './TriggerEndpointCard';
 import { Button, Input, Label, Select, Textarea, TimezoneSelect } from './controls';
 
 /**
@@ -465,10 +466,9 @@ export function TriggerConfigurationDialog({
                     </div>
                     {trigger.executionType === 'http' && (
                       <div className="span-2">
-                        <Label>HTTP request</Label>
+                        <Label>Outgoing HTTP request</Label>
                         <small className="form-help">
-                          Shared with the HTTP API pipe — params, headers, auth,
-                          body (no duplicated fields).
+                          Calls this external URL when the schedule fires. To receive incoming API calls to trigger this workflow, configure an API Endpoint Trigger instead.
                         </small>
                         <HttpRequestEditor
                           // Remount per trigger: the editor keeps local
@@ -665,9 +665,16 @@ export function TriggerConfigurationDialog({
                           }
                         />
                       </div>
-                      <div className="span-2 request-preview">
-                        <strong>Request Preview</strong>
-                        <pre>{`POST /api/triggers/{workflowId}/${trigger.id}\nContent-Type: application/json`}</pre>
+                      <div className="span-2">
+                        <TriggerEndpointCard
+                          workflowId={currentWorkflowId}
+                          triggerId={trigger.id}
+                          kind={trigger.kind}
+                          credentialId={triggerCredentialId(trigger)}
+                          authHeader={trigger.kind === 'http' ? trigger.authHeader : undefined}
+                          requiredFields={trigger.kind === 'http' ? trigger.requiredFields : undefined}
+                          path={trigger.kind === 'webhook' ? trigger.path : undefined}
+                        />
                       </div>
                     </div>
                   )}

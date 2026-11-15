@@ -115,7 +115,7 @@ export class TextSourcePipe implements SourcePipe {
       family: 'file',
       version: '0.4.0',
       role: 'source',
-      inputs: [],
+      inputs: [{ name: 'in', type: 'records' }],
       outputs: [
         { name: 'out', type: 'records' },
         { name: REJECTS_PORT, type: 'records' },

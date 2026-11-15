@@ -14,7 +14,12 @@ import {
   Loader2,
   Terminal,
 } from 'lucide-react';
-import type { DebugLogLine, DebugPipeState } from '../hooks/useDebugSamples';
+import {
+   samplesForPipe,
+  type DebugLogLine,
+  type DebugPipeState,
+  type DebugSample,
+} from '../hooks/useDebugSamples';
 import { pipeKey } from '../lib/ports';
 import type { PipeNodeType } from './PipeNode';
 
@@ -28,6 +33,7 @@ interface Props {
   runError: string | null;
   /** Live per-pipe state keyed `pipelineId::pipeId`. */
   pipeStates: Record<string, DebugPipeState>;
+  samples?: DebugSample[];
   log: DebugLogLine[];
   /**
    * Canvas node id of the pipe the log and info columns describe. Not the bare
@@ -35,6 +41,7 @@ interface Props {
    * described the first pipeline's pipe whenever two pipelines reused an id.
    */
   selectedNodeId: string | null;
+  onSelectNode?: (nodeId: string) => void;
 }
 
 const RUNNING = new Set(['queued', 'running']);
@@ -68,13 +75,21 @@ export function ExecutionPanel({
   runStatus,
   runError,
   pipeStates,
+  samples = [],
   log,
   selectedNodeId,
+  onSelectNode,
 }: Props) {
   const focused = nodes.find((node) => node.id === selectedNodeId) ?? nodes[0];
   const focusedKey = focused
     ? pipeKey(focused.data.pipelineId, focused.data.pipeId)
     : '';
+  const focusedInSamples = focused
+    ? samplesForPipe(samples, focused.data.pipelineId, focused.data.pipeId, 'in')
+    : [];
+  const focusedOutSamples = focused
+    ? samplesForPipe(samples, focused.data.pipelineId, focused.data.pipeId, 'out')
+    : [];
   // Before the first run the panel describes the graph; after one it reports
   // what actually happened.
   const idle = runId === null;
@@ -116,11 +131,15 @@ export function ExecutionPanel({
                       : 'execution-row'
                   }
                   key={node.id}
-                  title={state?.error}
+                  title={state?.error ?? 'Click to inspect pipe Input / Output'}
+                  onClick={() => onSelectNode?.(node.id)}
+                  style={{ cursor: 'pointer' }}
                 >
                   <span className={`execution-dot ${node.data.role}`} />
                   <span>
-                    {node.data.pipelineId} / {node.data.pipeId}
+                    {nodes.some((n) => n.data.pipelineId !== node.data.pipelineId)
+                      ? `${node.data.pipelineId} / ${node.data.pipeId}`
+                      : node.data.pipeId}
                   </span>
                   <span className={`execution-row-state ${stateClass(state?.status)}`}>
                     {idle
@@ -143,7 +162,48 @@ export function ExecutionPanel({
           <div className="execution-log-heading">
             <Terminal size={14} />
             <strong>{focused?.data.pipeId ?? 'Workflow preview'}</strong>
+            {focused && !idle && (
+              <span className="execution-id">
+                · click any pipe on the left to inspect Input &amp; Output
+              </span>
+            )}
           </div>
+          {!idle && focused && (focusedInSamples.length > 0 || focusedOutSamples.length > 0) && (
+            <div className="execution-io-grid">
+              <div className="execution-io-card">
+                <div className="execution-io-title">
+                  <strong>INPUT ({focused.data.pipeId})</strong>
+                  <span>
+                    {focusedInSamples[0]
+                      ? `${focusedInSamples[0].recordCount} record(s)`
+                      : focused.data.role === 'trigger' || focused.data.type.startsWith('source.trigger')
+                        ? 'Trigger root'
+                        : '0 records'}
+                  </span>
+                </div>
+                <pre className="execution-io-pre">
+                  {focusedInSamples[0]
+                    ? JSON.stringify(focusedInSamples[0].records, null, 2)
+                    : '— (no upstream input)'}
+                </pre>
+              </div>
+              <div className="execution-io-card">
+                <div className="execution-io-title">
+                  <strong>OUTPUT ({focused.data.pipeId})</strong>
+                  <span>
+                    {focusedOutSamples[0]
+                      ? `${focusedOutSamples[0].recordCount} record(s)`
+                      : '0 records'}
+                  </span>
+                </div>
+                <pre className="execution-io-pre">
+                  {focusedOutSamples[0]
+                    ? JSON.stringify(focusedOutSamples[0].records, null, 2)
+                    : '—'}
+                </pre>
+              </div>
+            </div>
+          )}
           {idle ? (
             <>
               <div className="execution-log-line">

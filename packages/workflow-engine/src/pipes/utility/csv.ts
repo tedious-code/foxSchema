@@ -45,7 +45,7 @@ export class CsvSourcePipe implements SourcePipe {
       family: 'file',
       version: '0.3.0',
       role: 'source',
-      inputs: [],
+      inputs: [{ name: 'in', type: 'records' }],
       outputs: [
         { name: 'out', type: 'records' },
         // Dead-letter: schema-invalid rows when onInvalid is 'reject'.

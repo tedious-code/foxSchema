@@ -27,6 +27,7 @@ import {
   withTriggerCredentialId,
   type WorkflowTrigger,
 } from '../lib/triggers';
+import { TriggerEndpointCard } from './TriggerEndpointCard';
 
 interface Props {
   trigger: WorkflowTrigger;
@@ -155,10 +156,9 @@ export function TriggerInlineSettings({
         </div>
         {cron.executionType === 'http' && (
           <>
-            <label>HTTP request</label>
+            <label>Outgoing HTTP Request</label>
             <div className="hint">
-              Same request shape as the HTTP API pipe — params, headers, auth,
-              body.
+              Outgoing call made when schedule fires. (To trigger this workflow externally via API, use an API Endpoint Trigger instead).
             </div>
             <HttpRequestEditor
               key={trigger.id}
@@ -363,9 +363,13 @@ export function TriggerInlineSettings({
             })
           }
         />
-        <div className="hint">
-          Signed webhook ingress via POST /api/triggers/:workflowId/:triggerId
-        </div>
+        <TriggerEndpointCard
+          workflowId={currentWorkflowId}
+          triggerId={webhook.id}
+          kind="webhook"
+          credentialId={triggerCredentialId(webhook)}
+          path={webhook.path}
+        />
       </>
     );
   }
@@ -400,9 +404,14 @@ export function TriggerInlineSettings({
             })
           }
         />
-        <div className="hint">
-          Authenticated HTTP ingress via POST /api/triggers/:workflowId/:triggerId
-        </div>
+        <TriggerEndpointCard
+          workflowId={currentWorkflowId}
+          triggerId={http.id}
+          kind="http"
+          credentialId={http.credentialId}
+          authHeader={http.authHeader}
+          requiredFields={http.requiredFields}
+        />
       </>
     );
   }

@@ -25,7 +25,7 @@ export async function saveWorkflowSettings(body: AdminConfigPut): Promise<Workfl
 }
 
 export async function fetchWorkflowEngineHealth(): Promise<
-  WorkflowHealth & { endpoint: string; error?: string }
+  WorkflowHealth & { error?: string }
 > {
   return api.get('/workflow/engine/health');
 }
@@ -35,7 +35,6 @@ export function toAdminConfigPut(config: WorkflowEngineConfig): AdminConfigPut {
   return {
     state: config.state,
     acceptsRuns: config.state === 'enabled',
-    endpoint: config.endpoint,
     maxParallel: config.maxParallel,
     onOverlap: config.onOverlap,
     sinks: config.sinks.map((s) => ({

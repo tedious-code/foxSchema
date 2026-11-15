@@ -54,7 +54,7 @@ export class JsonSourcePipe implements SourcePipe {
       family: 'file',
       version: '0.1.0',
       role: 'source',
-      inputs: [],
+      inputs: [{ name: 'in', type: 'records' }],
       outputs: [
         { name: 'out', type: 'records' },
         { name: REJECTS_PORT, type: 'records' },

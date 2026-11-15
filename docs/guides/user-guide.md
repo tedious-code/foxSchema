@@ -98,9 +98,8 @@ optional — use **Skip for now** if you prefer. It only appears once per instal
 You land on **Home**: continue last compare / last query, **Snapshots**, **Utilities**,
 and saved connections (grouped by dialect). A **Services** card lists the **API**
 (this server, with its version), the **Web UI** (this page loaded), and the
-**Workflow engine** — Running, Not configured (names the missing
-`WORKFLOW_ENGINE_TOKEN` / `FOXFLOW_ENCRYPTION_KEY`), or Unreachable (those are
-set but its health check did not answer). A running engine that is Disabled in
+**Workflow engine** — Running, Not configured (set `FOXFLOW_ENCRYPTION_KEY`), or
+Unreachable (the key is set but the engine did not start). A running engine that is Disabled in
 Workflow settings still shows Running, with “Not taking new runs”. The card
 refreshes every 10 seconds while Home is open. Status only: there is no Start
 or Stop from here yet. Under it, **Drivers** lists each database driver package
@@ -851,21 +850,23 @@ sent Home.
 Developer / ops runbook: [workflow.md](workflow.md). Env vars:
 [DEPLOYMENT.md](DEPLOYMENT.md#workflow-engine).
 
-1. Start the engine beside Fox Schema (`npm run dev:with-workflow` in a checkout,
-   or deploy `apps/workflow-server` next to Docker/CLI). The published Docker
-   image is Fox Schema only — it does not start the engine. Home → **Services**
-   shows whether this API can reach it; it does not start or stop it.
+1. `npm run dev` starts the API with the in-process engine. Production needs
+   `FOXFLOW_ENCRYPTION_KEY`. Home → **Services** shows whether it started.
 2. Open **Workflow** on the activity rail (when the rail item is on).
-3. **Engine** tab: health should read `engine ok`. Set state to **Enabled** and
-   **Save settings**. New installs default to **Disabled**, so Run does nothing
-   useful until you enable it.
-4. **Designer**: drop a trigger (Manual, Schedule, Webhook, API Endpoint, …) and
+3. **Engine** tab: health should read `engine ready`. New installs default to
+   **Enabled**. Set **Disabled** if you do not want new runs.
+4. **Add samples** (Designer toolbar or the **Workflows** list) installs three
+   starters you can **Test run** with no database or credential: **Hello
+   records** (trigger → map), **Orders branch** (verify, paid/other split,
+   merge), and **Regions join** (split → loop → script, then a second pipeline
+   after the first succeeds). Re-clicking refreshes those same ids in place.
+5. **Designer**: drop a trigger (Manual, Schedule, Webhook, API Endpoint, …) and
    pipes. Picking a saved connection on a **SQL query** / **SQL write** pipe
    **links** it — Fox Schema records the grant; the pipe never holds a password.
    A saved connection belongs to **this workspace**. Saving or running a
    workflow that names another workspace's connection is refused (403) — the
    engine is install-wide, so this check is what keeps A's password out of B.
-5. **Run** from the designer, or let cron / webhook / poll fire. **Runs** lists
+6. **Run** from the designer, or let cron / webhook / poll fire. **Runs** lists
    history. A live run can be **cancelled**. A run paused on **Ask a person**
    shows the question there: **Send answer** continues it, **Resume** without
    an answer retries the gate. Steering reads the run's snapshot, so a run that
@@ -1115,15 +1116,12 @@ off). From the profile menu, **Sign out other sessions** ends every session
 except this one — useful if you left a browser open elsewhere.
 
 **Workflow engine down / Run refused.** Home → **Services** shows whether the
-engine is Running, Not configured (set `WORKFLOW_ENGINE_TOKEN` and
-`FOXFLOW_ENCRYPTION_KEY` on the API) or Unreachable (those are set but `/health`
-did not answer). Check **Workflow → Engine** health
-too. New installs default to **Disabled** — set **Enabled** and Save; the
-Services card then notes “Not taking new runs” until you do. `FOXFLOW_ENCRYPTION_KEY`
-is required at engine boot. Saved connections need both `WORKFLOW_ENGINE_TOKEN`
-(same value on FoxSchema and the engine) and an explicit grant (pick the
-connection on a SQL pipe). A 403 on save or run usually means the workflow names
-a connection from another workspace. The published Docker image does not start
-the engine. See [workflow.md](workflow.md).
+engine is Running, Not configured (set `FOXFLOW_ENCRYPTION_KEY` on the API) or
+Unreachable (the key is set but the engine did not start). Check **Workflow →
+Engine** health too. New installs default to **Enabled**. A Disabled engine
+still shows Running, with “Not taking new runs”. Saved connections need an
+explicit grant (pick the connection on a SQL pipe). A 403 on save or run usually
+means the workflow names a connection from another workspace. See
+[workflow.md](workflow.md).
 
 Still stuck? Open a GitHub issue with what you did and the error you saw.

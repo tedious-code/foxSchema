@@ -63,7 +63,7 @@ export class PostgresSourcePipe implements SourcePipe {
       tags: ['sql', 'postgres'],
       version: '0.1.0',
       role: 'source',
-      inputs: [],
+      inputs: [{ name: 'in', type: 'records' }],
       outputs: [{ name: 'out', type: 'records' }],
       configSchema,
     });

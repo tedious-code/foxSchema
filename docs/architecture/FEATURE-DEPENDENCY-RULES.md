@@ -9,8 +9,8 @@ registration are in [FEATURE-MODULE-GUIDE.md](FEATURE-MODULE-GUIDE.md).
 sql  ←  db         ←  server  ←  web (serving entry only), cli
 sql  ←  ui-shared  ←  web (frontend)
 sql  ←  shared     ←  server, web, cli
-workflow-contract  ←  server, web, workflow-engine, workflow-server
-sql, db  ←  workflow-engine  ←  workflow-server
+workflow-contract  ←  server, web, workflow-engine
+sql, db  ←  workflow-engine  ←  server
 ```
 
 Enforced by `packages/sql/src/purity.test.ts`, `packages/shared/src/purity.test.ts`,
@@ -38,7 +38,7 @@ database/   metadata store and migrations
 4. A feature never imports `app/` or `api/`. What a feature declares
    (`ServerFeatureModule`) is in `platform/feature-module.ts` for that reason.
 5. `api/` declares no business route and imports no feature; it mounts what
-   the registry returns and runs the features' `onBoot` through it.
+   the registry returns, runs `onBoot`, and calls `registerFastify` through it.
 6. A feature does not reimplement drivers (`@foxschema/db`) or dialect SQL
    (`@foxschema/sql`); dialect strings go in `packages/sql/src/providers/`.
 7. Workspace-owned data is reached through `platform/connections` and the

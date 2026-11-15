@@ -14,6 +14,7 @@
  * Guide: docs/architecture/FEATURE-MODULE-GUIDE.md
  */
 import type { ConnectionModule } from '@foxschema/db';
+import type { FastifyInstance } from 'fastify';
 import type { Router } from './http/router';
 import type { AuthModule } from './identity/auth.service';
 import type { ConnectionStore } from './connections/connection-store.service';
@@ -48,6 +49,14 @@ export interface ServerFeatureModule {
   mounts: FeatureMount[];
   /** Housekeeping only safe at startup. Run once by the registry; a failure is logged and boot carries on. */
   onBoot?: () => void;
+  /**
+   * Native Fastify plugins this feature needs (the in-process workflow engine).
+   * Called from the HTTP bootstrap via the registry so `api/` never imports a
+   * feature. Session and permission guards stay the feature's job here: these
+   * plugins are not `FeatureMount`s and do not go through `composeFeatures`.
+   * A throw is logged and boot continues (same as `onBoot`).
+   */
+  registerFastify?: (app: FastifyInstance, context: FeatureContext) => Promise<void> | void;
 }
 
 /**

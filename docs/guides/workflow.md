@@ -1,8 +1,7 @@
 # Workflow engine
 
-FoxSchema designs and administers workflows in the web UI. A **separate process**
-(`apps/workflow-server`) runs them, so a slow or failing job never shares a
-process with Schema Sync or the SQL Editor.
+FoxSchema designs and administers workflows in the web UI. The engine runs
+**in the FoxSchema API process** (`packages/server/src/features/workflow/runtime`).
 
 User walkthrough: [user-guide.md](user-guide.md#workflow). Deploy env vars:
 [DEPLOYMENT.md](DEPLOYMENT.md#workflow-engine). Folder map: [CODE_MAP.md](../architecture/CODE_MAP.md).
@@ -11,96 +10,67 @@ User walkthrough: [user-guide.md](user-guide.md#workflow). Deploy env vars:
 
 ```
 Browser  ── /api/workflow/* (session + RBAC) ──►  FoxSchema API  (:3210)
-                                                    │ Bearer WORKFLOW_ENGINE_TOKEN
+                                                    │ in-process Engine
                                                     ▼
-                                          workflow-server (:8081 /api/*)
-                                                    │ packages/workflow-engine
+                                          packages/workflow-engine
                     ┌───────────────────────────────┼──────────────────────────┐
                     │                               │                          │
-              optional scheduler              SQLite FOXFLOW_DB_PATH     /api/hooks/*
-              + worker processes              (repo-root default)        (public ingress)
-                    │
-                    └── Bearer token ──► FoxSchema /api/workflow-internal/*
-                                         (engine-config, connections/resolve)
+              scheduler + cron/poll           SQLite FOXFLOW_DB_PATH     /api/hooks/*
+              (same process)                  (repo-root default)        (public ingress)
 ```
 
 | Piece | Role |
 |-------|------|
 | `apps/web/src/frontend/features/workflow` | Designer, runs, credentials, Engine control plane |
-| `packages/server/src/features/workflow` | Session-gated proxy (`ENGINE_ROUTES`), connection grants, saved engine settings |
-| `apps/workflow-server` | Fastify HTTP process: API, optional scheduler/worker roles, trigger ingress |
+| `packages/server/src/features/workflow` | Settings, connection grants, `ENGINE_ROUTES` Fastify plugins |
+| `packages/server/src/features/workflow/runtime` | Engine host, Fastify route plugins, SQL probe |
 | `packages/workflow-engine` | Definitions, compiler, runtime, SQLite stores, built-in pipes |
-| `packages/workflow-contract` | Browser-safe types, token env name, internal route paths |
+| `packages/workflow-contract` | Browser-safe types |
 
-The proxy is the only door the designer uses. Webhook and API-endpoint **ingress
-is never fronted** by a FoxSchema session — those routes authenticate their own
-callers (`apps/workflow-server/src/app.ts`).
+The designer talks to `/api/workflow/engine/*` with a FoxSchema session.
+Webhook and API-endpoint **ingress is never fronted** by that session — those
+routes authenticate their own callers (`runtime/routes/triggers.ts`).
 
 Saving a workflow runs the same checks the executor will: every pipe must be
 usable, and every edge `fromPort` must be a port the source pipe declares
 (`assertKnownFromPorts` in `packages/workflow-engine/src/runtime/ports.ts`,
-called from `apps/workflow-server/src/routes/workflows.ts`). An unknown port is
+called from `packages/server/src/features/workflow/runtime/routes/workflows.ts`). An unknown port is
 refused at save (`pipeline p: edge split → out: unknown fromPort "eu"`), not
 discovered when a scheduled run fails. Pipes without static metadata skip the
 check (Goto).
 
-Without `WORKFLOW_ENGINE_TOKEN`, the engine API stays open (loopback dev only)
-and FoxSchema's internal resolve route returns 503, so saved connections cannot
-be used by workflows.
+Saved FoxSchema connections resolve in-process through
+`WorkflowConnectionGrants.resolveForEngine` (injected into the Engine). There
+is no service token and no second hop.
 
 ## Local development
 
-`npm run dev` does **not** start the engine. Use:
-
-```bash
-export WORKFLOW_ENGINE_TOKEN="$(openssl rand -hex 32)"   # same value on both processes
-export FOXFLOW_ENCRYPTION_KEY="$(openssl rand -hex 32)"  # 32 bytes, hex or base64; required at engine boot
-npm run dev:with-workflow
-```
-
-That starts three processes (`apps/web/package.json` `dev:all:workflow`):
+`npm run dev` starts the API with a local `FOXFLOW_ENCRYPTION_KEY` (`dev:api`)
+and the in-process engine. New installs default to **enabled**, so Test run
+works after sign-in.
 
 | Process | Default |
 |---------|---------|
-| FoxSchema API | http://127.0.0.1:3210 |
+| FoxSchema API + engine | http://127.0.0.1:3210 |
 | Vite UI | http://localhost:5173 |
-| Workflow engine | http://127.0.0.1:8081 |
 
-Or start the engine alone: `npm run dev:workflow-server` (`tsx watch`, port **8081**).
+Then in the UI: **Workflow → Engine**. The Workflow rail item is on
+(`NAV_FLAGS.workflow` in `apps/web/src/frontend/app/features/featureRegistry.ts`).
+**Add samples** on the designer (or the Workflows list) installs
+`sample-hello-records`, `sample-orders-branch`, and `sample-regions-join`.
+Health: `GET /api/workflow/engine/health` with a session.
 
-Then in the UI: **Workflow → Engine → Enabled → Save settings**. The Workflow
-rail item is on (`NAV_FLAGS.workflow` in
-`apps/web/src/frontend/app/features/featureRegistry.ts`). Home → **Services**
-still probes the engine. Saved default is `disabled`
-(`packages/server/src/features/workflow/workflow-settings.service.ts`), so new
-runs are refused until you enable it. Health probe:
-`GET http://127.0.0.1:8081/health` → `{ ok: true, service: "workflow-server" }`.
+Production still requires a real `FOXFLOW_ENCRYPTION_KEY` (32 bytes, hex or
+base64). Do not alias it to `APP_ENCRYPTION_KEY`.
 
-## Process roles
-
-All roles share one SQLite file. The default path is **repo-root**
-`workflow-engine.sqlite`, not `process.cwd()` — each `npm -w` script has a
-different cwd, and a relative default would split-brain
-(`packages/workflow-engine/src/storage/database-path.ts`). Set `FOXFLOW_DB_PATH`
-to override.
-
-| Role | Script | Behavior |
-|------|--------|----------|
-| **server** (default) | `npm -w @foxschema/workflow-server run dev` / `start` | Full API + cron/poll + inline execution |
-| **scheduler** | `npm -w @foxschema/workflow-server run start:scheduler` | Admits cron/poll; queues runs (`executeInline: false`) |
-| **worker** | `npm -w @foxschema/workflow-server run start:worker` | Claims queued runs every `FOXFLOW_WORKER_POLL_MS` (default 2000 ms) |
-
-Queued-run claim is a single-row `UPDATE … WHERE status = 'queued'` — exactly
-one worker wins (`claimQueuedRun`).
-
-Graceful shutdown (server): SIGTERM/SIGINT/SIGHUP close ingress first, then the
-API (cron/poll stop, scheduler drain ≤2 s, SQLite close). Cap:
-`FOXFLOW_SHUTDOWN_TIMEOUT_MS` (default **3000**). Fastify uses
-`forceCloseConnections: true` so run-event SSE cannot hang `close()`.
+All engine stores share one SQLite file. The default path is **repo-root**
+`workflow-engine.sqlite`, not `process.cwd()`. Set `FOXFLOW_DB_PATH` to override.
+A later optional extract can split scheduler/worker processes; they are not a
+second API.
 
 ## Permissions
 
-Same four names on the activity rail, workspace tabs, and proxy allowlist
+Same four names on the activity rail, workspace tabs, and engine allowlist
 (`packages/shared/src/permissions.ts`, `packages/shared/src/nav.ts`):
 
 | Permission | Who (defaults) | What |
@@ -142,7 +112,7 @@ of FoxSchema uses.
 Picking a saved connection in a SQL pipe **grants** it: FoxSchema records
 `workflow_connection_grants` and the engine credential id `foxschema-{connectionId}`.
 The engine resolves that connection **as the owner** through
-`POST /api/workflow-internal/connections/resolve`. Revoke stops the next run.
+`WorkflowConnectionGrants.resolveForEngine`. Revoke stops the next run.
 The pipe never stores a password.
 
 The engine itself is install-wide (one SQLite file, every designer sees every
@@ -150,7 +120,7 @@ workflow). A saved connection is not: it belongs to one workspace. Save, run,
 duplicate, read a run, and steering (cancel / resume / answer) all call
 `WorkflowConnectionGrants.notUsableBy` on the connections named in the body,
 the stored workflow, or the run snapshot (`ENGINE_ROUTES[].connections`). A
-connection the caller is not a member of is **403** before the proxy forwards.
+connection the caller is not a member of is **403** before the handler runs.
 A grant is also ignored once the granter leaves that workspace
 (`resolveForEngine`).
 
@@ -172,15 +142,13 @@ answer are not starts.
 
 ## Engine settings
 
-Saved in FoxSchema (`workflow.engine_config`). The engine re-reads them every
-**30 seconds**. If FoxSchema is unreachable it keeps the last known values
-(no fail-open).
+Saved in FoxSchema (`workflow.engine_config`). The in-process engine applies
+them on save and re-reads them every **30 seconds**.
 
 | Setting | Default | Meaning |
 |---------|---------|---------|
-| State | `disabled` | `enabled` admits new runs; `draining` finishes in-flight work (sub-workflows only); `disabled` admits nothing new |
-| Endpoint | `http://127.0.0.1:8081` | Where the proxy forwards |
-| Max parallel | `4` | Cap **per engine process** (two workers each honor it independently) |
+| State | `enabled` | `enabled` admits new runs; `draining` finishes in-flight work (sub-workflows only); `disabled` admits nothing new |
+| Max parallel | `4` | Cap on runs executing at once in this process |
 | onOverlap | `skip` | `skip` / `queue` / `parallel` when a trigger fires while a run is already active |
 | Sinks | all off | Event store (DB), JSON files, text files — file targets are names under `WORKFLOW_LOG_DIR`, never paths |
 
@@ -191,23 +159,27 @@ Saved in FoxSchema (`workflow.engine_config`). The engine re-reads them every
   engine credential store and is **required at engine boot** — there is no
   plaintext fallback (`keyFromEnv()`).
 - **A connection stays in its workspace.** Linking one in workspace A used to
-  let every designer on the install save and run with A's password. The proxy
+  let every designer on the install save and run with A's password. The API
   now refuses that. Move the workflow (or re-pick a connection that belongs
   here) instead of copying a `foxschema-…` credential id across workspaces.
 - **The rail item is on.** `NAV_FLAGS.workflow === true` puts Workflow on the
   activity rail and the command palette. Accounts without `workflow.access` are
   sent Home (`redirectFor`).
 - **Home → Services is status, not control.** `GET /api/system/services` reports
-  the API (always `running` if the page loaded) and the engine: `running` (its
-  `/health` answered), `not_configured` (this API lacks `WORKFLOW_ENGINE_TOKEN`
-  or `FOXFLOW_ENCRYPTION_KEY` — `detail` names which), or `unreachable` (those
-  are set but health did not answer). A running engine that is Disabled in
-  Workflow settings still reports `running`, with `detail` “Not taking new
-  runs”. There is no Start / Stop from the card yet
-  ([plan](../plans/2026-11-01-service-status.md)).
-- **Docker image does not start the engine.** `Dockerfile` / `docker-compose.app.yml`
-  run FoxSchema only. Deploy `apps/workflow-server` beside it and set the token
-  on both. See [DEPLOYMENT.md](DEPLOYMENT.md#workflow-engine).
+  the API (always `running` if the page loaded) and the in-process engine:
+  `running` when `FOXFLOW_ENCRYPTION_KEY` is set and the engine started,
+  `not_configured` when the key is missing, or `unreachable` if boot failed.
+  A running engine that is Disabled in Workflow settings still reports
+  `running`, with `detail` “Not taking new runs”. There is no Start / Stop
+  from the card yet ([plan](../plans/2026-11-01-service-status.md)).
+- **Docker.** Set `FOXFLOW_ENCRYPTION_KEY` on the FoxSchema process. The image
+  defaults `FOXFLOW_DB_PATH` to `/data/workflow-engine.sqlite`. See
+  [DEPLOYMENT.md](DEPLOYMENT.md#workflow-engine).
+- **In-process isolation.** A hung SQL or script shares this API process.
+  Mitigations: script pipes still run on worker threads; a bad
+  `FOXFLOW_ENCRYPTION_KEY` does not take down the API; saved-connection
+  resolve is injected (no HTTP to this process); HTTP pipes refuse loopback
+  and link-local; plugins load only with a digest pin.
 - **Sink batch claims are per run.** Postgres/MySQL write pipes scope the
   idempotency claim to `[workflowRunId, batch.id]` so a retry inside one run
   dedupes, but the next scheduled run is not suppressed.
@@ -217,12 +189,13 @@ Saved in FoxSchema (`workflow.engine_config`). The engine re-reads them every
   is an editor permission; without the root an editor could read or write any
   file the engine process can (`pipes/utility/file-root.ts`).
 - **Plugin loading** needs both `FOXFLOW_PLUGINS_DIR` and
-  `FOXFLOW_PLUGINS_ALLOWLIST`. Unapproved plugins are skipped, not fatal.
+  `FOXFLOW_PLUGINS_ALLOWLIST` as `name@sha256:<hex>`. Name-only entries are
+  ignored. Unapproved plugins are skipped, not fatal.
 - **Do not commit** `foxflow.sqlite*` / `workflow-engine.sqlite` / `workflow-files/`.
 
 ## Tests
 
 ```bash
-npx vitest run packages/workflow-engine apps/workflow-server packages/server/src/features/workflow
+npx vitest run packages/workflow-engine packages/server/src/features/workflow
 npm run test:e2e:workflow    # Playwright smoke (dev servers must be up)
 ```

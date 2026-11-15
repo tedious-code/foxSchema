@@ -731,6 +731,91 @@ describe('PipelineExecutor', () => {
     expect(sample.data?.truncated).toBe(true);
     expect(sample.data?.recordCount).toBe(2);
   });
+
+  it('chains trigger → source → transform → sink → sink in any order', async () => {
+    const dbWrites: RecordBatch[] = [];
+    const emailWrites: RecordBatch[] = [];
+    let querySawTenant: unknown;
+    const registry = new PipeRegistry([
+      {
+        type: 'source.trigger.manual',
+        role: 'source',
+        async *read() {
+          yield {
+            id: 'trig-1',
+            partitionId: '0',
+            records: [{ tenantId: 'acme' }],
+          };
+        },
+      },
+      {
+        type: 'source.db.sql',
+        role: 'source',
+        async *read(context) {
+          querySawTenant = context.variables?.tenantId;
+          yield {
+            id: 'sql-1',
+            partitionId: '0',
+            records: [
+              { id: 1, tenantId: context.variables?.tenantId, amount: 150 },
+              { id: 2, tenantId: context.variables?.tenantId, amount: 20 },
+            ],
+          };
+        },
+      },
+      {
+        type: 'transform.filter',
+        role: 'transform',
+        async transform(input) {
+          return {
+            ...input,
+            records: input.records.filter((row) => Number(row.amount) >= 100),
+          };
+        },
+      },
+      {
+        type: 'sink.db.sql',
+        role: 'sink',
+        async write(input) {
+          dbWrites.push(input);
+        },
+      },
+      {
+        type: 'sink.notify.email',
+        role: 'sink',
+        async write(input) {
+          emailWrites.push(input);
+        },
+      },
+    ]);
+
+    await new PipelineExecutor({ registry }).execute(
+      pipeline(
+        [
+          { id: 'trigger', role: 'source', type: 'source.trigger.manual', config: {}, concurrency: 1 },
+          { id: 'query', role: 'source', type: 'source.db.sql', config: {}, concurrency: 1 },
+          { id: 'filter', role: 'transform', type: 'transform.filter', config: {}, concurrency: 1 },
+          { id: 'write', role: 'sink', type: 'sink.db.sql', config: {}, concurrency: 1 },
+          { id: 'notify', role: 'sink', type: 'sink.notify.email', config: {}, concurrency: 1 },
+        ],
+        [
+          { from: 'trigger', to: 'query' },
+          { from: 'query', to: 'filter' },
+          { from: 'filter', to: 'write' },
+          { from: 'write', to: 'notify' },
+        ],
+      ),
+      { workflowRunId: 'run-chain' },
+    );
+
+    expect(querySawTenant).toBe('acme');
+    expect(dbWrites.flatMap((item) => item.records)).toEqual([
+      { id: 1, tenantId: 'acme', amount: 150 },
+    ]);
+    expect(emailWrites.flatMap((item) => item.records)).toEqual([
+      { id: 1, tenantId: 'acme', amount: 150 },
+    ]);
+  });
 });
 
 function batch(id: string, value: number): RecordBatch {

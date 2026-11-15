@@ -84,7 +84,9 @@ export function createTriggerCoordinators(engine: Engine): { cron: CronCoordinat
   return { cron: new CronCoordinator(options), poll: new PollCoordinator(options) };
 }
 
-export function createContext(options: Pick<EngineOptions, 'databasePath' | 'encryptionKey'> = {}): AppContext {
+export function createContext(
+  options: Pick<EngineOptions, 'databasePath' | 'encryptionKey' | 'resolveFoxSchemaConnection'> = {},
+): AppContext {
   // Unset options are intentional: Engine applies the database-path and key
   // defaults, so every process lands on the same file.
   const engine = createEngine(options);
@@ -118,7 +120,14 @@ export async function loadConfiguredPlugins(
 ): Promise<string[]> {
   const root = process.env.FOXFLOW_PLUGINS_DIR;
   if (!root) return [];
-  const allowlist = parseAllowlist(process.env.FOXFLOW_PLUGINS_ALLOWLIST);
+  const parsed = parseAllowlist(process.env.FOXFLOW_PLUGINS_ALLOWLIST);
+  const nameOnly = parsed.filter((entry) => !entry.digest).map((entry) => entry.name);
+  if (nameOnly.length > 0) {
+    logger.warn?.(
+      `[plugins] FOXFLOW_PLUGINS_ALLOWLIST entries without @sha256: are ignored: ${nameOnly.join(', ')}`,
+    );
+  }
+  const allowlist = parsed.filter((entry) => entry.digest);
   const loaded: string[] = [];
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- the operator-set FOXFLOW_PLUGINS_DIR; nothing in it is imported unless allowlisted
   const entries = await readdir(root, { withFileTypes: true });
@@ -127,6 +136,7 @@ export async function loadConfiguredPlugins(
     try {
       const manifest = await loadPipePlugin(join(root, entry.name), registry, {
         allowlist,
+        requireDigest: true,
       });
       loaded.push(`${manifest.name}@${manifest.version}`);
     } catch (error) {

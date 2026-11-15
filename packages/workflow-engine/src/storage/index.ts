@@ -385,6 +385,9 @@ class SqliteCredentialStore implements CredentialStore {
   constructor(
     private readonly db: DatabaseSync,
     private readonly key: Buffer,
+    private readonly resolveFoxSchemaConnection?: (
+      connectionId: string,
+    ) => Promise<Record<string, unknown> | undefined>,
   ) {}
 
   async create(input: CreateCredentialInput): Promise<CredentialMeta> {
@@ -473,7 +476,12 @@ class SqliteCredentialStore implements CredentialStore {
         unknown
       >,
     );
-    return resolveStoredSecret(payload);
+    return resolveStoredSecret(
+      payload,
+      process.env,
+      fetch,
+      this.resolveFoxSchemaConnection,
+    );
   }
 
   async updateSecret(
@@ -1407,6 +1415,11 @@ function withStatementCache(db: DatabaseSync): DatabaseSync {
 export function openSqliteStores(
   filename: string,
   encryptionKey: Buffer,
+  options: {
+    resolveFoxSchemaConnection?: (
+      connectionId: string,
+    ) => Promise<Record<string, unknown> | undefined>;
+  } = {},
 ): SqliteStores {
   const db = withStatementCache(new DatabaseSync(filename));
   if (filename !== ':memory:') db.exec('PRAGMA journal_mode = WAL');
@@ -1417,7 +1430,11 @@ export function openSqliteStores(
     events: new SqliteEventStore(db),
     checkpoints: new SqliteCheckpointStore(db),
     schedules: new SqliteTriggerScheduleStore(db),
-    credentials: new SqliteCredentialStore(db, encryptionKey),
+    credentials: new SqliteCredentialStore(
+      db,
+      encryptionKey,
+      options.resolveFoxSchemaConnection,
+    ),
     environments: new SqliteEnvironmentStore(db),
     variables: new SqliteVariableStore(db),
     humanInputs: new SqliteHumanInputStore(db, encryptionKey),

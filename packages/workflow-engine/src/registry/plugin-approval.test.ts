@@ -75,6 +75,17 @@ describe('plugin approval', () => {
     expect(await wasImported(marker)).toBe(false);
   });
 
+  it('refuses a name-only allowlist entry when a digest is required', async () => {
+    const { pkg, marker } = await writePlugin();
+    await expect(
+      loadPipePlugin(pkg, new PipeRegistry([]), {
+        allowlist: [{ name: '@acme/pipes' }],
+        requireDigest: true,
+      }),
+    ).rejects.toThrow(/not approved/);
+    expect(await wasImported(marker)).toBe(false);
+  });
+
   it('loads a plugin approved by name', async () => {
     const { pkg, marker } = await writePlugin();
     const registry = new PipeRegistry([]);

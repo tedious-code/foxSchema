@@ -153,60 +153,25 @@ docker compose -f docker-compose.app.yml up -d
 
 ### Workflow engine
 
-The workflow engine (`apps/workflow-server`) is a separate process: a slow or
-failing run never shares a process with FoxSchema. FoxSchema reaches it through
-its engine proxy, and the engine calls FoxSchema back to resolve saved
-connections a user linked to workflows and to read the engine settings saved in
-the admin screen. Both directions authenticate with one shared token.
+The workflow engine runs **in the FoxSchema API process**. The browser talks to
+`/api/workflow/engine/*` with a session; public webhook and API-endpoint
+ingress is `/api/hooks/*` and `/api/triggers/*`. Set `FOXFLOW_ENCRYPTION_KEY`
+(32 bytes, hex or base64) on the same process — it is **required** and is not
+`APP_ENCRYPTION_KEY`.
 
-The published app does not start the engine. Opt in with the compose profile
-(the image must be built locally so it contains `apps/workflow-server`):
+Home → **Services** (`GET /api/system/services`) shows whether the engine
+started; it does not start it. The Workflow rail item is on (`NAV_FLAGS.workflow`).
 
-```bash
-WORKFLOW_ENGINE_ENDPOINT=http://workflow:8081 \
-WORKFLOW_ENGINE_TOKEN="$(openssl rand -hex 32)" \
-FOXFLOW_ENCRYPTION_KEY="$(openssl rand -hex 32)" \
-docker compose -f docker-compose.app.yml --profile workflow up -d --build
-```
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `FOXFLOW_ENCRYPTION_KEY` | — | **Required.** 32-byte key (hex or base64) encrypting the engine's credential store. No plaintext fallback. A bad key is logged and the rest of the API still boots. |
+| `FOXFLOW_DB_PATH` | Image: `/data/workflow-engine.sqlite`. Otherwise `workflow-engine.sqlite` at the repo root | The engine's SQLite database. Keep it on `/data` in Docker so it survives recreate. |
+| `FOXFLOW_FILES_DIR` | Image: `/data/workflow-files`. Otherwise `workflow-files/` next to the engine database | The only directory the file pipes read or write. |
+| `FOXFLOW_PLUGINS_ALLOWLIST` | empty (load nothing) | `name@sha256:<hex>` pins. A name without a digest is ignored. |
+| `WORKFLOW_LOG_DIR` | `workflow-logs/` next to the engine database | Directory for the JSON / text run-event sinks. A sink target is a file name inside it, never a path. |
 
-`WORKFLOW_ENGINE_ENDPOINT` is the unsaved default only. An endpoint saved in
-Workflow settings still wins. Leave the profile off and the app runs as Fox
-Schema alone. Home → **Services** (`GET /api/system/services`) shows whether
-this API can reach the engine; it does not start it. The Workflow rail item
-is on (`NAV_FLAGS.workflow`).
-
-| Variable | Set on | Default | Purpose |
-|----------|--------|---------|---------|
-| `WORKFLOW_ENGINE_TOKEN` | both | — | Shared service token. Set the **same** long random value on FoxSchema and the engine. Without it the engine API is open (loopback dev only) and saved connections cannot be used by workflows. Listening off loopback (the compose profile sets `HOST=0.0.0.0`) is refused without it. |
-| `WORKFLOW_ENGINE_ENDPOINT` | FoxSchema | `http://127.0.0.1:8081` | Unsaved engine URL. A saved Workflow setting overrides it. The compose profile uses `http://workflow:8081`. |
-| `FOXSCHEMA_URL` | engine | `http://127.0.0.1:3210` | Where the engine reaches FoxSchema's API. |
-| `PORT` / `HOST` | engine | `8081` / `127.0.0.1` | The engine API. Keep it on a private interface. |
-| `INGRESS_PORT` / `INGRESS_HOST` | engine | unset / `127.0.0.1` | Webhook and API-endpoint ingress on a listener of its own, serving only `/api/hooks/*` and `/api/triggers/*`. Put this one behind your public reverse proxy; webhook traffic then never touches FoxSchema or the engine API. |
-| `WORKFLOW_LOG_DIR` | engine | `workflow-logs/` next to the engine database | Directory for the JSON / text run-event sinks enabled in the admin screen. A sink target is a file name inside it, never a path. |
-| `FOXFLOW_ENCRYPTION_KEY` | engine | — | **Required at boot.** 32-byte key (hex or base64) encrypting the engine's own credential store. No plaintext fallback. |
-| `FOXFLOW_DB_PATH` | engine | `workflow-engine.sqlite` at the repo root | The engine's SQLite database. |
-| `FOXFLOW_FILES_DIR` | engine | `workflow-files/` next to the engine database | The only directory the file pipes (CSV / JSON / text sources, Write CSV file, the designer's file preview) read or write. A relative pipe path is taken from here; an absolute one must already be inside it. |
-| `FOXFLOW_TRUST_PROXY` | engine | `false` | Trust `X-Forwarded-*` when the engine sits behind a proxy. |
-
-The engine re-reads its settings from FoxSchema every 30 seconds: `Disabled`
-refuses new runs from every trigger, `Draining` finishes work in flight, and
-`Max parallel runs` caps runs executing at once in each engine process. If FoxSchema is unreachable the
-engine keeps the settings it last had.
-
-`FOXFLOW_ENCRYPTION_KEY` is **required at engine boot** (32 bytes, hex or base64) —
-there is no plaintext fallback. Default `FOXFLOW_DB_PATH` in a git checkout is
-repo-root `workflow-engine.sqlite`, not relative to cwd, so server / scheduler /
-worker share one file. Optional split roles:
-
-```bash
-npm -w @foxschema/workflow-server run start:scheduler   # admit cron/poll, queue runs
-npm -w @foxschema/workflow-server run start:worker      # claim queued runs
-```
-
-**The published Docker image does not start the engine.** `Dockerfile` /
-`docker-compose.app.yml` run FoxSchema only. Deploy `apps/workflow-server` beside
-it (same token on both). Local checkout: `npm run dev:with-workflow`. Full
-runbook: [workflow.md](workflow.md).
+`Disabled` refuses new runs, `Draining` finishes work in flight, and
+`Max parallel runs` caps runs executing at once. Full runbook: [workflow.md](workflow.md).
 
 ### First-open email subscriber wizard
 

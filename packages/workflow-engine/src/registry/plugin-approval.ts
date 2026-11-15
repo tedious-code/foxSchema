@@ -18,10 +18,12 @@ import { join } from 'node:path';
  * executes and before any of those boundaries apply. `import` of untrusted code
  * is already game over, so the only defence is refusing to import it.
  *
- * So a plugin loads when, and only when, an operator has named it *and* the
- * bytes still match what they approved. Approving `acme-pipes` must not silently
- * approve whatever that directory contains tomorrow — a plugin directory is
- * exactly the kind of place where a supply-chain edit lands quietly.
+ * So a plugin loads when, and only when, an operator has named it *and* pinned
+ * the bytes. Approving `acme-pipes` by name must not silently approve whatever
+ * that directory contains tomorrow — a plugin directory is exactly the kind of
+ * place where a supply-chain edit lands quietly. The env allowlist therefore
+ * requires `name@sha256:<hex>`. Programmatic loaders may still pass a name-only
+ * entry when the embedder chose the package in code.
  */
 
 export class PluginNotApprovedError extends Error {
@@ -29,7 +31,7 @@ export class PluginNotApprovedError extends Error {
     // The computed digest is included so approving a reviewed plugin is a
     // copy-paste rather than a hunt for how to compute one.
     super(
-      `plugin ${name} is not approved: add "${name}@${digest}" to FOXFLOW_PLUGINS_ALLOWLIST to load exactly these bytes, or "${name}" to approve it by name`,
+      `plugin ${name} is not approved: add "${name}@${digest}" to FOXFLOW_PLUGINS_ALLOWLIST to load exactly these bytes`,
     );
     this.name = 'PluginNotApprovedError';
   }
@@ -52,9 +54,10 @@ export interface PluginApproval {
 }
 
 /**
- * Parse `FOXFLOW_PLUGINS_ALLOWLIST`: a comma-separated list of `name` or
- * `name@sha256:<hex>`. An unset or empty value approves nothing, which is why
- * the plugin directory is inert until an operator opts in.
+ * Parse `FOXFLOW_PLUGINS_ALLOWLIST`: a comma-separated list of
+ * `name@sha256:<hex>` (and legacy bare names, which the directory loader
+ * ignores). An unset or empty value approves nothing, which is why the plugin
+ * directory is inert until an operator opts in.
  */
 export function parseAllowlist(raw: string | undefined): PluginApproval[] {
   if (!raw) return [];

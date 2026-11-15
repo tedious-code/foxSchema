@@ -129,7 +129,7 @@ export class FileSinkPipe implements SinkPipe {
       // Writes to the filesystem: a dry run must not touch it.
       sideEffects: true,
       inputs: [{ name: 'in', type: 'records' }],
-      outputs: [],
+      outputs: [{ name: 'out', type: 'records' }],
       // The JSON Schema the designer's form reads is derived from the same zod
       // schema save and run validate with, so the two cannot disagree.
       configSchema,

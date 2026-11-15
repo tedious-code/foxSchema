@@ -48,13 +48,10 @@ packages/server             The backend: HTTP layer, feature modules, metadata s
 
 apps/web                    The frontend, plus the entry point that serves it.
 apps/cli                    The `foxschema` command line tool.
-apps/workflow-server        The workflow engine's HTTP process (port 8081), plus
-                            optional scheduler and worker roles. Its API answers
-                            the server's engine proxy (WORKFLOW_ENGINE_TOKEN);
-                            trigger ingress can take a port of its own
-                            (INGRESS_PORT). Pulls engine settings from the server.
-                            Runbook: docs/guides/workflow.md.
 apps/e2e                    Browser tests that drive the running application.
+
+The in-process workflow engine is `packages/server/src/features/workflow/runtime`
+(runbook: docs/guides/workflow.md).
 ```
 
 Imports may only run in one direction:
@@ -63,8 +60,8 @@ Imports may only run in one direction:
 sql  ←  db         ←  server  ←  web (serving entry only), cli
 sql  ←  ui-shared  ←  web (frontend)
 sql  ←  shared     ←  server, web, cli
-workflow-contract  ←  server, web, workflow-engine, workflow-server
-sql, db  ←  workflow-engine  ←  workflow-server
+workflow-contract  ←  server, web, workflow-engine
+sql, db  ←  workflow-engine  ←  server
 ```
 
 `packages/sql/src/purity.test.ts`, `packages/shared/src/purity.test.ts`,
@@ -302,7 +299,7 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | Guard or cross-cutting HTTP concern | `packages/server/src/platform/` |
 | How a dialect lexes SQL (permission gates, splitter) | `packages/sql/src/modules/sql-text/sql-readings.ts` + `sql-tokens.ts`. Do not add a second scanner. |
 | Workspace membership, invites, public / private | `packages/server/src/features/workspaces/`; request scope is `platform/workspaces`. Services take `WorkspaceScope` (`scopeOf(req)`). |
-| Workflow pipe, runtime, or store | `packages/workflow-engine/` — HTTP process in `apps/workflow-server/` ([workflow.md](../guides/workflow.md)) |
+| Workflow pipe, runtime, or store | `packages/workflow-engine/` — in-process Fastify plugins in `packages/server/src/features/workflow/runtime/` ([workflow.md](../guides/workflow.md)) |
 
 ## Checks to run
 

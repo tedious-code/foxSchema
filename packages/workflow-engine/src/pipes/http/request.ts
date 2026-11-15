@@ -25,6 +25,7 @@ import {
   type StoredCookie,
 } from './cookies.js';
 import { interpolate, interpolateDeep } from '../../sdk/index.js';
+import { assertHttpTargetAllowed } from './http-target.js';
 
 export interface HttpExecuteOptions {
   request: unknown;
@@ -93,10 +94,13 @@ export function buildHttpRequest(
   // Query array is authoritative — drop any search already baked into the URL
   // (designer auto-maps Params ↔ URL, which would otherwise duplicate keys).
   const url = new URL(request.url);
-  url.search = '';
-  for (const param of resolveKv(request.query)) {
-    // Condition operators use bracket style: `price[gte]=100`; eq stays plain.
-    url.searchParams.append(httpKvQueryKey(param), param.value);
+  const queryParams = resolveKv(request.query);
+  if (queryParams.length > 0) {
+    url.search = '';
+    for (const param of queryParams) {
+      // Condition operators use bracket style: `price[gte]=100`; eq stays plain.
+      url.searchParams.append(httpKvQueryKey(param), param.value);
+    }
   }
 
   const headers = new Headers();
@@ -260,6 +264,7 @@ async function dispatch(
   options: HttpExecuteOptions,
 ): Promise<Omit<HttpExecuteResult, 'cookies'> & { setCookies: StoredCookie[] }> {
   const { url, init } = buildHttpRequest(request, secret, cookies);
+  await assertHttpTargetAllowed(url, { resolveHost: options.fetch === undefined });
   const requestFn = options.fetch ?? globalThis.fetch.bind(globalThis);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), request.timeoutMs);
@@ -559,6 +564,7 @@ async function maybeRefreshToken(options: {
     }
   }
 
+  await assertHttpTargetAllowed(url, { resolveHost: options.fetch === undefined });
   const requestFn = options.fetch ?? globalThis.fetch.bind(globalThis);
   const response = await requestFn(url, {
     method: refresh.method,

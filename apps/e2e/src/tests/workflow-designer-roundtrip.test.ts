@@ -9,8 +9,7 @@
  * attempts. Saving used to drop each: an imported workflow came back
  * `authored`, renamed to its id, with the engine's default retry.
  *
- * Needs the web app at E2E_BASE_URL and workflow-server on :8081 with no
- * service token (loopback dev); skips when the engine is not there.
+ * Needs the web app at E2E_BASE_URL and the FoxSchema API (in-process engine).
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright';
@@ -19,8 +18,9 @@ import { byTestId } from '../helpers/test-ids.js';
 import { AppPage } from '../pages/AppPage.js';
 import { WorkflowPage } from '../pages/WorkflowPage.js';
 import { WORKFLOW_ON_RAIL } from '../helpers/features.js';
+import { sessionCookie } from '../helpers/app-session.js';
+import { apiCall } from '../helpers/accounts.js';
 
-const ENGINE = 'http://127.0.0.1:8081/api';
 const ID = 'e2e-designer-carry';
 const HANDLER = 'e2e-designer-carry-handler';
 
@@ -39,7 +39,6 @@ const doc = (id: string, extra: Record<string, unknown> = {}) => ({
           role: 'source',
           config: {},
           timeoutMs: 1234,
-          // Beyond the attempts the canvas edits: a save used to drop the rest.
           retry: { attempts: 5, backoff: 'fixed', maxDelayMs: 900, jitter: false, on: 'all' },
         },
       ],
@@ -49,19 +48,22 @@ const doc = (id: string, extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
-async function engine(method: string, path: string, body?: unknown) {
-  const res = await fetch(`${ENGINE}${path}`, {
-    method,
-    ...(body ? { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {}),
-  });
-  return { status: res.status, json: (await res.json().catch(() => null)) as any };
-}
-
 let driver: Page;
+let cookie = '';
 let engineUp = false;
 
+async function engine(method: string, path: string, body?: unknown) {
+  return apiCall(method, `/workflow/engine${path}`, body, cookie);
+}
+
 beforeAll(async () => {
-  engineUp = await fetch('http://127.0.0.1:8081/health').then((r) => r.ok, () => false);
+  try {
+    cookie = await sessionCookie();
+    const health = await apiCall('GET', '/workflow/engine/health', undefined, cookie);
+    engineUp = health.status === 200 && health.json?.ok === true;
+  } catch {
+    engineUp = false;
+  }
   if (!engineUp) return;
   expect((await engine('PUT', `/workflows/${HANDLER}`, doc(HANDLER))).status).toBe(200);
   const seeded = await engine(
@@ -132,9 +134,6 @@ describe.skipIf(!WORKFLOW_ON_RAIL)('workflow designer round trip', () => {
   });
 
   it('keeps the section you are in while you type in a trigger', async (ctx) => {
-    // The dialog used to re-sync its selection from props in an effect; with
-    // the triggers among its dependencies, every keystroke snapped it back to
-    // General. Mounted only while open, it starts once and stays put.
     if (!engineUp) ctx.skip();
     const section = driver.locator('[data-testid="workflow-trigger-config-section-input parameters"]');
     await section.click();

@@ -6,6 +6,7 @@
  * Workflow engine — moved from FoxAgent (apps/api/src/routes/triggers.ts).
  */
 import { createHash, randomUUID } from 'node:crypto';
+import { Readable } from 'node:stream';
 import {
   RUN_OUTPUT_EVENT,
   TriggerAuthenticationError,
@@ -21,6 +22,15 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { ZodTypeProvider } from '../zod-provider.js';
 import { z } from 'zod';
 import type { AppContext } from '../context.js';
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    rawBody?: Buffer;
+  }
+  interface FastifyContextConfig {
+    rawBody?: boolean;
+  }
+}
 
 /** The shape both route families hand to the shared ingress handler. */
 interface IngressRequest {
@@ -59,9 +69,29 @@ const querySchema = z.object({
 /** Methods a webhook may be configured to answer, so the routes can exist. */
 const INGRESS_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 
+/** Buffer the stream so HMAC can see the exact bytes, then replay it for JSON parsing. */
+async function replayWithRawBody(
+  request: { rawBody?: Buffer },
+  payload: AsyncIterable<unknown>,
+): Promise<Readable> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of payload) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array));
+  }
+  const buf = Buffer.concat(chunks);
+  request.rawBody = buf;
+  return Readable.from(buf);
+}
+
 export function triggerRoutes(ctx: AppContext) {
   return async (app: FastifyInstance) => {
     const r = app.withTypeProvider<ZodTypeProvider>();
+    // Keep the raw bytes on the trigger routes only. `fastify-raw-body`
+    // skips encapsulation and would replace JSON parsing on the whole API.
+    r.addHook('preParsing', async (request, _reply, payload) => {
+      if (request.routeOptions.config?.rawBody !== true) return payload;
+      return replayWithRawBody(request, payload);
+    });
 
     /**
      * Vanity paths, resolved by scanning saved workflows.

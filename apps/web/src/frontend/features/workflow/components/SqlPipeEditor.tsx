@@ -24,6 +24,7 @@ import { workflowConnections } from '../api/workflowApi';
 import { invalidateEngineQueries } from '../api/engineQueries';
 import { JSON_EDITOR_OPTIONS, useJsonEditorTheme } from '../lib/jsonEditorOptions';
 import { toast } from '../lib/notify';
+import { Input, Select } from './controls';
 
 export type SqlPipeType = 'source.db.sql' | 'sink.db.sql';
 
@@ -154,9 +155,13 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
                 ? [connection.name, dialectLabel(connection.dialect), connection.database].filter(Boolean).join(' · ')
                 : credentialId
                   ? `Engine credential: ${credentialId}`
-                  : connections.length > 0
-                    ? 'Choose a saved connection…'
-                    : 'No saved connections'
+                  : config.dialect === 'sqlite'
+                    ? 'Built-in SQLite (in-memory) · or choose a saved connection…'
+                    : config.dialect === 'postgres'
+                      ? 'PostgreSQL (localhost:5432/foxdb) · or choose a saved connection…'
+                      : connections.length > 0
+                      ? 'Choose a saved connection…'
+                      : 'No saved connections'
         }
       />
       {connection &&
@@ -171,6 +176,24 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
         Linking lets workflows use the connection. Only members of its workspace can save, run or inspect a
         workflow that uses it. FoxSchema keeps the password and hands it to the engine for each run.
       </div>
+      {!credentialId && (
+        <>
+          <label>Built-in database dialect</label>
+          <Select
+            aria-label="Fallback dialect"
+            value={config.dialect === 'postgres' ? 'postgres' : 'sqlite'}
+            onChange={(event) =>
+              onConfigChange({
+                ...config,
+                dialect: event.target.value,
+              })
+            }
+          >
+            <option value="sqlite">Built-in SQLite (in-memory)</option>
+            <option value="postgres">Local PostgreSQL (localhost:5432/foxdb)</option>
+          </Select>
+        </>
+      )}
 
       {connectionId && canBrowse && (
         <>
@@ -203,6 +226,61 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
                   ? 'Pick the table to insert into; its columns become the column list.'
                   : 'Pick a table to add a SELECT of its columns.'}
               </div>
+            </>
+          )}
+        </>
+      )}
+
+      {type === 'sink.db.sql' && (
+        <>
+          <label>Write mode</label>
+          <Select
+            aria-label="Write mode"
+            value={mode ?? 'insert'}
+            onChange={(event) => {
+              const nextMode = event.target.value as 'insert' | 'statement';
+              onConfigChange({ ...config, mode: nextMode });
+            }}
+          >
+            <option value="insert">Insert rows into table</option>
+            <option value="statement">Run SQL statement per record</option>
+          </Select>
+          {(mode ?? 'insert') === 'insert' && (
+            <>
+              <label>Target table</label>
+              <Input
+                aria-label="Target table"
+                placeholder={schema ? `${schema}.orders` : 'orders'}
+                value={typeof config.table === 'string' ? config.table : ''}
+                onChange={(event) =>
+                  onConfigChange({
+                    ...config,
+                    mode: 'insert',
+                    table: event.target.value,
+                  })
+                }
+              />
+              <label>Columns (comma-separated, optional)</label>
+              <Input
+                aria-label="Columns"
+                placeholder="Leave blank to insert all record fields"
+                value={
+                  Array.isArray(config.columns)
+                    ? config.columns.map(String).join(', ')
+                    : ''
+                }
+                onChange={(event) => {
+                  const cols = event.target.value
+                    .split(',')
+                    .map((col) => col.trim())
+                    .filter(Boolean);
+                  onConfigChange({
+                    ...config,
+                    mode: 'insert',
+                    columns: cols,
+                  });
+                }}
+              />
             </>
           )}
         </>

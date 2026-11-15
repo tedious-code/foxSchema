@@ -218,11 +218,10 @@ const ROUTES: RouteExpectation[] = [
   { method: 'POST', path: '/api/lokee/databases/:id/force-migrate/plan', status: 400 },
   { method: 'GET', path: '/api/workflow/settings', status: 200 },
   { method: 'PUT', path: '/api/workflow/settings', status: 200 },
+  { method: 'GET', path: '/api/workflow/engine/health', status: 200 },
   { method: 'GET', path: '/api/workflow/connections', status: 200 },
   { method: 'PUT', path: '/api/workflow/connections/:id/grant', status: 404 },
   { method: 'DELETE', path: '/api/workflow/connections/:id/grant', status: 200 },
-  { method: 'GET', path: '/api/workflow-internal/engine-config', status: 503 },
-  { method: 'POST', path: '/api/workflow-internal/connections/resolve', status: 503 },
   { method: 'POST', path: '/api/sql-trace/start', status: 400 },
   { method: 'GET', path: '/api/sql-trace/:id/events', status: 404 },
   { method: 'POST', path: '/api/sql-trace/:id/stop', status: 404 },
@@ -257,19 +256,13 @@ const PUBLIC = new Set([
   '/api/signup',
   '/api/signup/skip',
   '/api/signup/state',
-  // Called by the workflow engine with its service token, never a session;
-  // they answer 503 until that token is configured.
-  '/api/workflow-internal/engine-config',
-  '/api/workflow-internal/connections/resolve',
 ]);
 
 /**
- * Mounted but not probed here: the workflow proxy forwards these to the
- * workflow engine, a separate process with its own tests
- * (`apps/workflow-server`), so what an empty request gets depends on whether
- * that process is running. Everything else a feature mounts is in ROUTES.
+ * Fastify plugins the workflow feature registers (designer + public triggers)
+ * are not in `composeFeatures`, so they are not in ROUTES. Their session and
+ * allowlist behaviour is covered in `workflow.routes.test.ts`.
  */
-const PROXIED = [/^\/api\/workflow\/engine\//];
 
 /** The session the probes run as: the admin first-run setup creates. */
 let sessionCookie = '';
@@ -352,7 +345,7 @@ describe('HTTP contract', () => {
       // ships. A route is added here deliberately; that is the point.
       const { buildApiRoutes } = await import('./server');
       const key = (r: { method: string; path: string }) => `${r.method.toUpperCase()} ${r.path}`;
-      const served = buildApiRoutes().filter((r) => !PROXIED.some((p) => p.test(r.path)));
+      const served = buildApiRoutes();
       expect(served.map(key).sort()).toEqual(ROUTES.map(key).sort());
     });
 
@@ -429,4 +422,16 @@ describe('HTTP contract', () => {
       },
       30_000
     );
+
+    it('refuses an engine designer path with no session', async () => {
+      const res = await fetch(`http://127.0.0.1:${port}/api/workflow/engine/workflows`);
+      expect(res.status).toBe(401);
+    });
+
+    it('serves public trigger ingress without a session', async () => {
+      const hook = await fetch(`http://127.0.0.1:${port}/api/hooks/no-such-path`, { method: 'POST' });
+      expect(hook.status).toBe(404);
+      const trigger = await fetch(`http://127.0.0.1:${port}/api/triggers/wf/hook`, { method: 'POST' });
+      expect(trigger.status).toBe(404);
+    });
   });

@@ -6,88 +6,64 @@
  * Engine health as the control panel reports it.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { WorkflowEngineConfig } from '@foxschema/workflow-contract';
 import type { AppSettingsStore } from '../../platform/settings/app-settings.service';
+import { markWorkflowEngineReady } from './runtime/engine-ready';
 import { WorkflowSettingsService, defaultWorkflowEngineConfig } from './workflow-settings.service';
 
-function serviceWith(state: WorkflowEngineConfig['state'], respond: () => Response) {
-  const stored = JSON.stringify({ state, endpoint: 'http://engine.test:8081/' });
-  const appSettings = { get: async () => stored, set: async () => undefined } as unknown as AppSettingsStore;
-  const fetchMock = vi.fn(async () => respond());
-  vi.stubGlobal('fetch', fetchMock);
-  return { service: new WorkflowSettingsService(appSettings), fetchMock };
-}
-
 afterEach(() => {
-  vi.unstubAllGlobals();
+  markWorkflowEngineReady(false);
 });
 
 describe('probeEngineHealth', () => {
-  it('reads the engine’s { ok: true } as healthy, with admission from the saved state', async () => {
-    const { service, fetchMock } = serviceWith('enabled', () => Response.json({ ok: true, service: 'workflow-server' }));
+  it('is healthy when the in-process engine is ready, with admission from the saved state', async () => {
+    markWorkflowEngineReady(true);
+    const stored = JSON.stringify({ state: 'enabled' });
+    const service = new WorkflowSettingsService({
+      get: async () => stored,
+      set: async () => undefined,
+    } as unknown as AppSettingsStore);
 
     await expect(service.probeEngineHealth()).resolves.toEqual({
       ok: true,
       acceptsRuns: true,
-      version: undefined,
-      endpoint: 'http://engine.test:8081',
     });
-    expect(fetchMock).toHaveBeenCalledWith('http://engine.test:8081/health', expect.anything());
   });
 
   it('does not report runs accepted while the saved state is draining', async () => {
-    const { service } = serviceWith('draining', () => Response.json({ ok: true }));
-
+    markWorkflowEngineReady(true);
+    const service = new WorkflowSettingsService({
+      get: async () => JSON.stringify({ state: 'draining' }),
+      set: async () => undefined,
+    } as unknown as AppSettingsStore);
     expect(await service.probeEngineHealth()).toMatchObject({ ok: true, acceptsRuns: false });
   });
 
-  it('ignores an acceptsRuns the engine sends — admission is the control plane’s', async () => {
-    const { service } = serviceWith('disabled', () => Response.json({ ok: true, acceptsRuns: true, version: '1.2.0' }));
-
-    expect(await service.probeEngineHealth()).toMatchObject({ ok: true, acceptsRuns: false, version: '1.2.0' });
-  });
-
-  it.each([
-    ['a body without ok: true', () => Response.json({ status: 'ok' })],
-    ['an empty body object', () => Response.json({})],
-  ])('is not healthy on %s', async (_label, respond) => {
-    const { service } = serviceWith('enabled', respond);
-
-    expect((await service.probeEngineHealth()).ok).toBe(false);
-  });
-
-  it('is not healthy on an HTTP error', async () => {
-    const { service } = serviceWith('enabled', () => new Response('boom', { status: 500 }));
-
-    expect(await service.probeEngineHealth()).toMatchObject({ ok: false, acceptsRuns: false, error: 'HTTP 500' });
+  it('is not healthy before the engine starts', async () => {
+    const service = new WorkflowSettingsService({
+      get: async () => JSON.stringify({ state: 'enabled' }),
+      set: async () => undefined,
+    } as unknown as AppSettingsStore);
+    expect(await service.probeEngineHealth()).toMatchObject({ ok: false, acceptsRuns: false });
   });
 });
 
 describe('defaultWorkflowEngineConfig', () => {
-  const previous = process.env.WORKFLOW_ENGINE_ENDPOINT;
-
-  afterEach(() => {
-    if (previous === undefined) delete process.env.WORKFLOW_ENGINE_ENDPOINT;
-    else process.env.WORKFLOW_ENGINE_ENDPOINT = previous;
+  it('defaults to enabled so a local install can run a workflow after npm run dev', () => {
+    expect(defaultWorkflowEngineConfig().state).toBe('enabled');
+    expect(defaultWorkflowEngineConfig().endpoint).toBe('');
   });
+});
 
-  it('keeps a saved endpoint ahead of WORKFLOW_ENGINE_ENDPOINT', async () => {
-    process.env.WORKFLOW_ENGINE_ENDPOINT = 'http://workflow:8081';
-    const saved = {
-      get: async () => JSON.stringify({ endpoint: 'http://saved.example:9' }),
+describe('readConfig', () => {
+  it('drops a saved remote engine URL; the engine is in-process', async () => {
+    const service = new WorkflowSettingsService({
+      get: async () => JSON.stringify({ state: 'draining', endpoint: 'http://attacker.test', processes: [{ id: 'x' }] }),
       set: async () => undefined,
-    } as unknown as AppSettingsStore;
-    expect((await new WorkflowSettingsService(saved).getConfig()).endpoint).toBe('http://saved.example:9');
-
-    const blank = { get: async () => null, set: async () => undefined } as unknown as AppSettingsStore;
-    expect((await new WorkflowSettingsService(blank).getConfig()).endpoint).toBe('http://workflow:8081');
-  });
-
-  it('uses WORKFLOW_ENGINE_ENDPOINT only when it is an http(s) URL', () => {
-    process.env.WORKFLOW_ENGINE_ENDPOINT = 'http://workflow:8081';
-    expect(defaultWorkflowEngineConfig().endpoint).toBe('http://workflow:8081');
-    process.env.WORKFLOW_ENGINE_ENDPOINT = 'file:///tmp/nope';
-    expect(defaultWorkflowEngineConfig().endpoint).toBe('http://127.0.0.1:8081');
+    } as unknown as AppSettingsStore);
+    const config = await service.getConfig();
+    expect(config.state).toBe('draining');
+    expect(config.endpoint).toBe('');
+    expect(config.processes).toEqual([]);
   });
 });
 
@@ -104,7 +80,7 @@ describe('getConfig', () => {
     return { service: new WorkflowSettingsService(appSettings), get };
   }
 
-  it('reads the store once for a burst of calls, as every proxied engine call asks', async () => {
+  it('reads the store once for a burst of calls', async () => {
     const { service, get } = counting();
     for (let i = 0; i < 5; i++) await service.getConfig();
     expect(get).toHaveBeenCalledTimes(1);
@@ -126,30 +102,11 @@ describe('getConfig', () => {
     expect(second.maxParallel).toBe(2);
     expect(second.sinks).toHaveLength(3);
   });
-});
 
-describe('probeEngineHealth reads the endpoint as the proxy does', () => {
-  it('refuses a non-http endpoint without fetching it', async () => {
-    const appSettings = {
-      get: async () => JSON.stringify({ state: 'enabled', endpoint: 'file:///etc/passwd' }),
-      set: async () => undefined,
-    } as unknown as AppSettingsStore;
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-    const health = await new WorkflowSettingsService(appSettings).probeEngineHealth();
-    expect(health.ok).toBe(false);
-    expect(health.error).toMatch(/http or https/);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('probes the address the proxy forwards to: every trailing slash and the query dropped', async () => {
-    const appSettings = {
-      get: async () => JSON.stringify({ state: 'enabled', endpoint: 'http://engine.test:8081/base//?x=1' }),
-      set: async () => undefined,
-    } as unknown as AppSettingsStore;
-    const fetchMock = vi.fn(async () => Response.json({ ok: true }));
-    vi.stubGlobal('fetch', fetchMock);
-    await new WorkflowSettingsService(appSettings).probeEngineHealth();
-    expect(fetchMock).toHaveBeenCalledWith('http://engine.test:8081/base/health', expect.anything());
+  it('does not persist an endpoint: the engine is in-process', async () => {
+    const { service } = counting();
+    await service.putConfig({ endpoint: 'http://attacker.test', state: 'draining' });
+    expect((await service.getConfig()).endpoint).toBe('');
+    expect((await service.getConfig()).state).toBe('draining');
   });
 });

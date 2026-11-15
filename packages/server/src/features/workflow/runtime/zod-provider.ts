@@ -21,16 +21,22 @@ export interface ZodTypeProvider extends FastifyTypeProvider {
   serializer: this['schema'] extends z.ZodType ? z.input<this['schema']> : unknown;
 }
 
+function isZodSchema(schema: unknown): schema is z.ZodType {
+  return typeof (schema as { safeParse?: unknown } | undefined)?.safeParse === 'function';
+}
+
 /** Parse the request part; the parsed value (defaults applied) replaces it. */
 export const validatorCompiler: FastifySchemaCompiler<z.ZodType> =
   ({ schema }) =>
   (data) => {
-    const result = schema.safeParse(data);
-    return result.success ? { value: result.data } : { error: result.error };
+    if (!isZodSchema(schema)) return { value: data };
+    const parsed = schema.safeParse(data);
+    if (parsed.success) return { value: parsed.data };
+    return { error: parsed.error };
   };
 
 /** Serialize through the response schema, so undeclared fields never leave. */
 export const serializerCompiler: FastifySerializerCompiler<z.ZodType> =
   ({ schema }) =>
   (data) =>
-    JSON.stringify(schema.parse(data));
+    JSON.stringify(isZodSchema(schema) ? schema.parse(data) : data);

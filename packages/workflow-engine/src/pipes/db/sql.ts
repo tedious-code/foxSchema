@@ -98,10 +98,67 @@ const connectionFields = {
   schema: z.string().min(1).optional(),
 };
 
+/** The local development database from `docker compose up` (docker-compose.yml). */
+const DEV_POSTGRES = {
+  POSTGRES_HOST: '127.0.0.1',
+  POSTGRES_PORT: '5432',
+  POSTGRES_USER: 'foxuser',
+  POSTGRES_PASSWORD: 'foxpass',
+  POSTGRES_DB: 'foxdb',
+} as const;
+
+/**
+ * Where a Postgres step with no credential connects: the `POSTGRES_*`
+ * variables, falling back to the development container's defaults.
+ *
+ * The defaults are development-only. In production a step without a
+ * credential would otherwise try a database on this host with well-known
+ * credentials, so there it connects only when the operator has named the
+ * host, user and password; otherwise the step fails and says what to set.
+ */
+export function credentiallessPostgresOption(env: NodeJS.ProcessEnv): Record<string, unknown> {
+  if (env.NODE_ENV === 'production') {
+    const missing = (['POSTGRES_HOST', 'POSTGRES_USER', 'POSTGRES_PASSWORD'] as const).filter((name) => !env[name]);
+    if (missing.length > 0) {
+      throw new Error(
+        `This SQL step has no database credential. Add one to the step, or set ${missing.join(', ')} on the server.`,
+      );
+    }
+  }
+  const host = env.POSTGRES_HOST || DEV_POSTGRES.POSTGRES_HOST;
+  const port = Number(env.POSTGRES_PORT || DEV_POSTGRES.POSTGRES_PORT);
+  const username = env.POSTGRES_USER || DEV_POSTGRES.POSTGRES_USER;
+  const password = env.POSTGRES_PASSWORD || DEV_POSTGRES.POSTGRES_PASSWORD;
+  const database = env.POSTGRES_DB || DEV_POSTGRES.POSTGRES_DB;
+  return {
+    host,
+    port,
+    username,
+    user: username,
+    password,
+    database,
+    connectionString: `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}/${encodeURIComponent(database)}`,
+  };
+}
+
 async function connectionFor(
   context: PipeContext,
   config: { dialect?: string; schema?: string },
 ): Promise<SqlConnection> {
+  if (!context.pipe.credentialId && config.dialect === 'sqlite') {
+    return {
+      dialect: 'sqlite',
+      ...(config.schema ? { schema: config.schema } : {}),
+      option: { database: ':memory:' },
+    };
+  }
+  if (!context.pipe.credentialId && config.dialect === 'postgres') {
+    return {
+      dialect: 'postgres',
+      ...(config.schema ? { schema: config.schema } : {}),
+      option: credentiallessPostgresOption(process.env),
+    };
+  }
   const secret = await requirePipeSecret(context, 'a database credential');
 
   // A saved FoxSchema connection resolves to { dialect, schema, option }; a
@@ -184,7 +241,7 @@ export class SqlSourcePipe implements SourcePipe {
       tags: ['sql', 'query', 'job', 'script'],
       version: '0.1.0',
       role: 'source',
-      inputs: [],
+      inputs: [{ name: 'in', type: 'records' }],
       outputs: [{ name: 'out', type: 'records' }],
       configSchema: sourceConfigSchema,
     });
@@ -249,8 +306,98 @@ function recordStatements(
   scope: Record<string, unknown>,
   dialect: string,
 ): RenderedSql[] {
-  const template = splitTemplate(sql);
-  return records.map((record) => bindTemplate(template, { ...scope, record }, dialect));
+  const statements = statementsOf(sql);
+  if (statements.length === 0) throw new Error('sql holds no statements');
+  const templates = statements.map((statement) => splitTemplate(statement));
+  return records.flatMap((record) =>
+    templates.map((template) =>
+      bindTemplate(template, { ...record, ...scope, record }, dialect),
+    ),
+  );
+}
+
+function inferColumnType(records: Record<string, unknown>[], col: string, dialect: 'sqlite' | 'postgres'): string {
+  const values = records.map((r) => r[col]).filter((v) => v !== null && v !== undefined);
+  const nums = values.filter((v): v is number => typeof v === 'number');
+  if (dialect === 'sqlite') {
+    if (nums.length > 0 && nums.length === values.length) {
+      return nums.every((n) => Number.isInteger(n)) ? 'INTEGER' : 'REAL';
+    }
+    if (values.length > 0 && typeof values[0] === 'boolean') return 'INTEGER';
+    return 'TEXT';
+  }
+  if (nums.length > 0 && nums.length === values.length) {
+    // Only integer `id` narrows to BIGINT; data measurements stay NUMERIC so an
+    // integer first batch does not reject decimal values in subsequent batches.
+    if (col === 'id' && nums.every((n) => Number.isInteger(n))) return 'BIGINT';
+    return 'NUMERIC';
+  }
+  if (values.length > 0 && typeof values[0] === 'boolean') return 'BOOLEAN';
+  return 'TEXT';
+}
+
+export function sqliteCreateTableSql(
+  records: Record<string, unknown>[],
+  table: string,
+  configuredColumns: string[],
+): { create: string; alterColumns: string[] } {
+  const columns = configuredColumns.length > 0 ? configuredColumns : Object.keys(records[0]!);
+  const target = quoteQualifiedName(table, 'sqlite');
+  const defs: string[] = [];
+  if (!columns.includes('id')) {
+    defs.push('"id" INTEGER PRIMARY KEY AUTOINCREMENT');
+  }
+  for (const col of columns) {
+    const quoted = quoteQualifiedName(col, 'sqlite');
+    const sqlType = inferColumnType(records, col, 'sqlite');
+    defs.push(col === 'id' ? `${quoted} ${sqlType} PRIMARY KEY` : `${quoted} ${sqlType}`);
+  }
+  const alterColumns = columns.map((col) => {
+    const quoted = quoteQualifiedName(col, 'sqlite');
+    const sqlType = inferColumnType(records, col, 'sqlite');
+    return `ALTER TABLE ${target} ADD COLUMN ${quoted} ${sqlType}`;
+  });
+  return {
+    create: `CREATE TABLE IF NOT EXISTS ${target} (${defs.join(', ')})`,
+    alterColumns,
+  };
+}
+
+export function postgresCreateTableSql(
+  records: Record<string, unknown>[],
+  table: string,
+  configuredColumns: string[],
+): { create: string; alterColumns: string[] } {
+  const columns = configuredColumns.length > 0 ? configuredColumns : Object.keys(records[0]!);
+  const target = quoteQualifiedName(table, 'postgres');
+  const defs: string[] = [];
+  if (!columns.includes('id')) {
+    defs.push('"id" SERIAL PRIMARY KEY');
+  }
+  for (const col of columns) {
+    const quoted = quoteQualifiedName(col, 'postgres');
+    const sqlType = inferColumnType(records, col, 'postgres');
+    if (col === 'id') {
+      defs.push(`${quoted} ${sqlType === 'BIGINT' ? 'BIGINT' : sqlType} PRIMARY KEY`);
+    } else {
+      defs.push(`${quoted} ${sqlType}`);
+    }
+  }
+  if (!columns.includes('created_at')) {
+    defs.push('"created_at" TIMESTAMPTZ DEFAULT NOW()');
+  }
+  const alterColumns = columns.map((col) => {
+    const quoted = quoteQualifiedName(col, 'postgres');
+    const sqlType = inferColumnType(records, col, 'postgres');
+    return `ALTER TABLE ${target} ADD COLUMN IF NOT EXISTS ${quoted} ${sqlType}`;
+  });
+  if (!columns.includes('created_at')) {
+    alterColumns.push(`ALTER TABLE ${target} ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ DEFAULT NOW()`);
+  }
+  return {
+    create: `CREATE TABLE IF NOT EXISTS ${target} (${defs.join(', ')})`,
+    alterColumns,
+  };
 }
 
 const sinkConfigSchema = z
@@ -261,6 +408,14 @@ const sinkConfigSchema = z
     table: z.string().min(1).optional(),
     /** Columns to write, in order. Empty takes every field of the batch's first record. */
     columns: z.array(z.string().min(1)).default([]),
+    /**
+     * Insert mode only: the column that identifies a row. With it, a record
+     * whose key is already in the table updates that row instead of adding
+     * one, so running the workflow again does not duplicate rows. The column
+     * needs a unique or primary-key constraint (a table this step creates has
+     * one on `id`). PostgreSQL and SQLite only. Without it, rows are inserted.
+     */
+    upsertKey: z.string().min(1).optional(),
     /** Statement per record; `{{record.field}}` binds a field. */
     sql: z.string().min(1).optional(),
     ...connectionFields,
@@ -274,7 +429,123 @@ const sinkConfigSchema = z
   .refine((config) => config.mode !== 'statement' || config.sql, {
     message: 'statement mode needs sql',
     path: ['sql'],
+  })
+  .refine((config) => !config.upsertKey || config.mode === 'insert', {
+    message: 'upsertKey applies to insert mode only',
+    path: ['upsertKey'],
+  })
+  .refine((config) => !config.upsertKey || config.columns.length === 0 || config.columns.includes(config.upsertKey), {
+    message: 'upsertKey must be one of the columns written',
+    path: ['upsertKey'],
   });
+
+/**
+ * Turn an `INSERT` into an upsert on `key`: a row whose key already exists is
+ * updated with the other written columns (or left alone when there are none).
+ * Only when the step asks for it with `upsertKey`; a plain insert stays one.
+ */
+export function upsertSql(sqlText: string, columns: string[], key: string, dialect: string): string {
+  if (dialect !== 'postgres' && dialect !== 'sqlite') {
+    throw new Error(`upsertKey is supported on PostgreSQL and SQLite, not ${dialect}`);
+  }
+  if (!sqlText.startsWith('INSERT INTO ')) return sqlText;
+  if (!columns.includes(key)) throw new Error(`upsertKey ${key} is not one of the columns written`);
+  const quotedKey = quoteQualifiedName(key, dialect);
+  const updates = columns
+    .filter((column) => column !== key)
+    .map((column) => {
+      const quoted = quoteQualifiedName(column, dialect);
+      return `${quoted} = excluded.${quoted}`;
+    });
+  return updates.length === 0
+    ? `${sqlText} ON CONFLICT (${quotedKey}) DO NOTHING`
+    : `${sqlText} ON CONFLICT (${quotedKey}) DO UPDATE SET ${updates.join(', ')}`;
+}
+
+/**
+ * One record per key, the last one winning. A single upsert statement may not
+ * touch the same row twice, so duplicate keys in one batch must collapse first.
+ */
+function lastPerKey(records: Record<string, unknown>[], key: string): Record<string, unknown>[] {
+  const byKey = new Map<string, Record<string, unknown>>();
+  for (const record of records) byKey.set(JSON.stringify(record[key] ?? null), record);
+  return [...byKey.values()];
+}
+
+const ddlLocks = new Map<string, Promise<void>>();
+
+async function withDdlLock<T>(key: string, work: () => Promise<T>): Promise<T> {
+  const prev = ddlLocks.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const next = prev.then(() => gate);
+  ddlLocks.set(key, next);
+  await prev;
+  try {
+    return await work();
+  } finally {
+    release();
+    if (ddlLocks.get(key) === next) {
+      ddlLocks.delete(key);
+    }
+  }
+}
+
+function autoTableLockKey(connection: SqlConnection, table: string): string {
+  return [
+    connection.dialect,
+    connection.schema ?? '',
+    String(connection.option.host ?? ''),
+    String(connection.option.port ?? ''),
+    String(connection.option.database ?? ''),
+    String(connection.option.connectionString ?? ''),
+    table,
+  ].join(':');
+}
+
+/**
+ * Ensures the auto-created target table and columns exist before batch writes.
+ * Serialized per target table and guarded in PostgreSQL by a transaction-scoped
+ * advisory lock so concurrent pipeline batches never collide on `pg_type`.
+ */
+export async function ensureAutoTable(
+  open: SqlRunner,
+  connection: SqlConnection,
+  table: string,
+  records: Record<string, unknown>[],
+  columns: string[],
+): Promise<void> {
+  if (connection.dialect !== 'sqlite' && connection.dialect !== 'postgres') return;
+  const key = autoTableLockKey(connection, table);
+  await withDdlLock(key, async () => {
+    if (connection.dialect === 'sqlite') {
+      const ddl = sqliteCreateTableSql(records, table, columns);
+      await withSession(open, connection, false, async (session) => {
+        await session.query(ddl.create, []);
+        for (const alterSql of ddl.alterColumns) {
+          try {
+            await session.query(alterSql, []);
+          } catch {
+            // SQLite has no ADD COLUMN IF NOT EXISTS; ignore duplicate-column errors.
+          }
+        }
+      });
+      return;
+    }
+
+    const ddl = postgresCreateTableSql(records, table, columns);
+    const advisoryKey = `${connection.schema ?? 'public'}.${table}`;
+    await withSession(open, connection, true, async (session) => {
+      await session.query('SELECT pg_advisory_xact_lock(hashtext($1))', [advisoryKey]);
+      await session.query(ddl.create, []);
+      for (const alterSql of ddl.alterColumns) {
+        await session.query(alterSql, []);
+      }
+    });
+  });
+}
 
 export class SqlSinkPipe implements SinkPipe {
   readonly type = 'sink.db.sql';
@@ -292,7 +563,7 @@ export class SqlSinkPipe implements SinkPipe {
       version: '0.1.0',
       role: 'sink',
       inputs: [{ name: 'in', type: 'records' }],
-      outputs: [],
+      outputs: [{ name: 'out', type: 'records' }],
       configSchema: sinkConfigSchema,
     });
   }
@@ -301,18 +572,49 @@ export class SqlSinkPipe implements SinkPipe {
     sinkConfigSchema.parse(config);
   }
 
-  async write(batch: RecordBatch, context: PipeContext): Promise<void> {
+  async write(batch: RecordBatch, context: PipeContext): Promise<RecordBatch | void> {
     if (batch.records.length === 0) return;
     const config = sinkConfigSchema.parse(context.pipe.config);
     const connection = await connectionFor(context, config);
     const scope = templateScope(context);
+    const records = config.upsertKey ? lastPerKey(batch.records, config.upsertKey) : batch.records;
     const statements =
       config.mode === 'insert'
-        ? insertStatements(batch.records, config.table!, config.columns, connection.dialect)
+        ? insertStatements(records, config.table!, config.columns, connection.dialect)
         : recordStatements(batch.records, config.sql!, scope, connection.dialect);
 
-    await withSession(this.open, connection, config.transaction, async (session) => {
-      for (const statement of statements) await session.query(statement.text, statement.params);
+    if (
+      this.open === foxSchemaDrivers &&
+      config.mode === 'insert' &&
+      config.table &&
+      (connection.dialect === 'sqlite' || connection.dialect === 'postgres')
+    ) {
+      await ensureAutoTable(this.open, connection, config.table, records, config.columns);
+    }
+
+    const returnedRows = await withSession(this.open, connection, config.transaction, async (session) => {
+      const insertColumns =
+        config.mode === 'insert'
+          ? config.columns.length > 0
+            ? config.columns
+            : Object.keys(records[0]!)
+          : [];
+      const rows: Record<string, unknown>[] = [];
+      for (const statement of statements) {
+        const sqlText = config.upsertKey
+          ? upsertSql(statement.text, insertColumns, config.upsertKey, connection.dialect)
+          : statement.text;
+        const result = await session.query(sqlText, statement.params);
+        if (result.length > 0) rows.push(...result);
+      }
+      return rows;
     });
+    if (returnedRows.length > 0) {
+      return {
+        id: batch.id,
+        partitionId: batch.partitionId,
+        records: returnedRows,
+      };
+    }
   }
 }

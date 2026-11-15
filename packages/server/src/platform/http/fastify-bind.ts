@@ -17,13 +17,10 @@ import type { AppRequest, Middleware } from './types';
 import type { RouteDefinition } from './router';
 
 /**
- * Run a route's guards in order, then its handler.
- *
- * A guard that calls `next()` allows the request to continue. A guard that
- * responds without calling `next()` ends the request, and the handler is
- * skipped.
+ * Run Express-style guards against a Fastify request. False if one answered
+ * without calling `next()` — the handler must not run.
  */
-async function runChain(
+export async function runMiddlewares(
   middlewares: Middleware[],
   req: AppRequest,
   res: FastifyReply
@@ -50,7 +47,7 @@ export function bindRoutes(app: FastifyInstance, routes: RouteDefinition[]): voi
       // Read by the session guard (`req.routeOptions.config.reads`).
       config: { reads: route.reads === true },
       handler: async (request, reply) => {
-        const proceed = await runChain(route.middlewares, request as AppRequest, reply);
+        const proceed = await runMiddlewares(route.middlewares, request as AppRequest, reply);
         if (!proceed) return reply;
         await route.handler(request as AppRequest, reply);
         return reply;

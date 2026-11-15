@@ -135,7 +135,7 @@ export class SmsSinkPipe implements SinkPipe {
       version: '0.1.0',
       role: 'sink',
       inputs: [{ name: 'in', type: 'records' }],
-      outputs: [],
+      outputs: [{ name: 'out', type: 'records' }],
       configSchema,
     });
   }

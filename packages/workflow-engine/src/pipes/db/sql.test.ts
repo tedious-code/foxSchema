@@ -9,7 +9,18 @@
 import { describe, expect, it } from 'vitest';
 import type { CredentialStore } from '../../common/index.js';
 import type { PipeContext, RecordBatch } from '../../registry/index.js';
-import { SqlSinkPipe, SqlSourcePipe, type SqlConnection, type SqlRunner, type SqlSession } from './sql.js';
+import {
+  credentiallessPostgresOption,
+  SqlSinkPipe,
+  SqlSourcePipe,
+  ensureAutoTable,
+  postgresCreateTableSql,
+  sqliteCreateTableSql,
+  upsertSql,
+  type SqlConnection,
+  type SqlRunner,
+  type SqlSession,
+} from './sql.js';
 
 class RecordingSession implements SqlSession {
   readonly queries: Array<{ sql: string; params: unknown[] }> = [];
@@ -265,5 +276,175 @@ describe('sink.db.sql', () => {
     const sink = new SqlSinkPipe();
     expect(() => sink.validateConfig({ mode: 'insert' })).toThrow(/table/);
     expect(() => sink.validateConfig({ mode: 'statement' })).toThrow(/sql/);
+  });
+
+  it('infers auto-increment id and real types safely for auto-created tables', () => {
+    const sqliteDdl = sqliteCreateTableSql(
+      [{ city: 'Tokyo', temp_c: 11, population: 9733276 }],
+      'wf_enriched_cities',
+      [],
+    );
+    expect(sqliteDdl.create).toContain('"id" INTEGER PRIMARY KEY AUTOINCREMENT');
+    expect(sqliteDdl.create).toContain('"temp_c" INTEGER');
+
+    const sqliteWithIdDdl = sqliteCreateTableSql(
+      [{ id: 101, customer: 'Alice', amount: 49.5 }],
+      'workflow_orders',
+      [],
+    );
+    expect(sqliteWithIdDdl.create).not.toContain('AUTOINCREMENT');
+    expect(sqliteWithIdDdl.create).toContain('"id" INTEGER PRIMARY KEY');
+    expect(sqliteWithIdDdl.create).toContain('"amount" REAL');
+
+    // Postgres uses NUMERIC for non-id numeric measurements so an integer first
+    // batch (temp_c: 11) never causes decimal batches (11.7) to fail.
+    const pgDdl = postgresCreateTableSql(
+      [{ city: 'Tokyo', population: 9733276, temp_c: 11, wind_kmh: 3 }],
+      'wf_enriched_cities',
+      [],
+    );
+    expect(pgDdl.create).toContain('"id" SERIAL PRIMARY KEY');
+    expect(pgDdl.create).toContain('"temp_c" NUMERIC');
+    expect(pgDdl.create).toContain('"wind_kmh" NUMERIC');
+    expect(pgDdl.create).toContain('"population" NUMERIC');
+
+    const pgWithIdDdl = postgresCreateTableSql(
+      [{ id: 101, amount: 49 }],
+      'workflow_orders',
+      [],
+    );
+    expect(pgWithIdDdl.create).toContain('"id" BIGINT PRIMARY KEY');
+    expect(pgWithIdDdl.create).toContain('"amount" NUMERIC');
+  });
+
+  it('turns an insert into an upsert on the key it is given', () => {
+    expect(
+      upsertSql(
+        'INSERT INTO "workflow_orders" ("id", "customer", "amount") VALUES ($1, $2, $3)',
+        ['id', 'customer', 'amount'],
+        'id',
+        'postgres',
+      ),
+    ).toBe(
+      'INSERT INTO "workflow_orders" ("id", "customer", "amount") VALUES ($1, $2, $3) ON CONFLICT ("id") DO UPDATE SET "customer" = excluded."customer", "amount" = excluded."amount"',
+    );
+    expect(upsertSql('INSERT INTO "ids" ("id") VALUES (?)', ['id'], 'id', 'sqlite')).toBe(
+      'INSERT INTO "ids" ("id") VALUES (?) ON CONFLICT ("id") DO NOTHING',
+    );
+    expect(() => upsertSql('INSERT INTO t (a) VALUES (?)', ['a'], 'id', 'sqlite')).toThrow(/not one of the columns/);
+    expect(() => upsertSql('INSERT INTO t (id) VALUES (?)', ['id'], 'id', 'mysql')).toThrow(/PostgreSQL and SQLite/);
+  });
+
+  it('serializes concurrent Postgres auto-table DDL and uses an advisory transaction lock', async () => {
+    let activeSessions = 0;
+    let maxConcurrentSessions = 0;
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+
+    const open: SqlRunner = async (_connection, options) => {
+      expect(options.dedicated).toBe(true);
+      return {
+        async query(sql, params) {
+          queries.push({ sql, params: [...params] });
+          await Promise.resolve();
+          return [];
+        },
+        async transaction(work) {
+          activeSessions += 1;
+          maxConcurrentSessions = Math.max(maxConcurrentSessions, activeSessions);
+          try {
+            return await work();
+          } finally {
+            activeSessions -= 1;
+          }
+        },
+        async close() {},
+      };
+    };
+
+    const connection: SqlConnection = {
+      dialect: 'postgres',
+      option: { host: '127.0.0.1', port: 5432, database: 'foxdb' },
+    };
+
+    await Promise.all([
+      ensureAutoTable(open, connection, 'wf_etl_reconciled_ledger', [{ account_id: 'ACC-1' }], []),
+      ensureAutoTable(open, connection, 'wf_etl_reconciled_ledger', [{ account_id: 'ACC-2' }], []),
+    ]);
+
+    expect(maxConcurrentSessions).toBe(1);
+    expect(queries.filter((q) => q.sql.includes('pg_advisory_xact_lock'))).toEqual([
+      { sql: 'SELECT pg_advisory_xact_lock(hashtext($1))', params: ['public.wf_etl_reconciled_ledger'] },
+      { sql: 'SELECT pg_advisory_xact_lock(hashtext($1))', params: ['public.wf_etl_reconciled_ledger'] },
+    ]);
+  });
+});
+
+describe('a Postgres step without a credential', () => {
+  it('uses the development database when nothing is set', () => {
+    expect(credentiallessPostgresOption({})).toMatchObject({
+      host: '127.0.0.1',
+      port: 5432,
+      user: 'foxuser',
+      database: 'foxdb',
+    });
+  });
+
+  it('refuses the development defaults in production', () => {
+    expect(() => credentiallessPostgresOption({ NODE_ENV: 'production' })).toThrow(
+      /no database credential.*POSTGRES_HOST, POSTGRES_USER, POSTGRES_PASSWORD/,
+    );
+    expect(() =>
+      credentiallessPostgresOption({ NODE_ENV: 'production', POSTGRES_HOST: 'db', POSTGRES_USER: 'app' }),
+    ).toThrow(/set POSTGRES_PASSWORD on the server/);
+  });
+
+  it('connects in production when the operator names the database', () => {
+    const option = credentiallessPostgresOption({
+      NODE_ENV: 'production',
+      POSTGRES_HOST: 'db.internal',
+      POSTGRES_USER: 'app',
+      POSTGRES_PASSWORD: 'p@ss:word/1',
+      POSTGRES_DB: 'flows',
+    });
+    expect(option).toMatchObject({ host: 'db.internal', user: 'app', database: 'flows' });
+    // A password with URL characters must not break the connection string.
+    expect(option.connectionString).toBe('postgresql://app:p%40ss%3Aword%2F1@db.internal:5432/flows');
+  });
+});
+
+describe('upsertKey on an insert step', () => {
+  it('leaves a plain insert alone when the step names no key', async () => {
+    const session = new RecordingSession();
+    const { open } = runner(session);
+    await new SqlSinkPipe(open).write(
+      batchOf([{ id: 1, name: 'a' }]),
+      context('sink.db.sql', 'sink', { table: 'customers' }, saved('postgres')),
+    );
+    expect(session.queries.map((q) => q.sql)).toEqual(['INSERT INTO "customers" ("id", "name") VALUES ($1, $2)']);
+  });
+
+  it('upserts on the named key, keeping the last record for a repeated key', async () => {
+    const session = new RecordingSession();
+    const { open } = runner(session);
+    await new SqlSinkPipe(open).write(
+      batchOf([
+        { id: 1, name: 'first' },
+        { id: 2, name: 'b' },
+        { id: 1, name: 'last' },
+      ]),
+      context('sink.db.sql', 'sink', { table: 'customers', upsertKey: 'id' }, saved('postgres')),
+    );
+    expect(session.queries).toEqual([
+      {
+        sql: 'INSERT INTO "customers" ("id", "name") VALUES ($1, $2), ($3, $4) ON CONFLICT ("id") DO UPDATE SET "name" = excluded."name"',
+        params: [1, 'last', 2, 'b'],
+      },
+    ]);
+  });
+
+  it('refuses a key on a statement step, or one that is not written', () => {
+    const sink = new SqlSinkPipe();
+    expect(() => sink.validateConfig({ mode: 'statement', sql: 'SELECT 1', upsertKey: 'id' })).toThrow(/insert mode only/);
+    expect(() => sink.validateConfig({ table: 't', columns: ['name'], upsertKey: 'id' })).toThrow(/one of the columns/);
   });
 });

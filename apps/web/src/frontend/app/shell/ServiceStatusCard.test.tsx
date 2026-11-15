@@ -43,7 +43,7 @@ describe('ServiceStatusCard', () => {
   });
 
   it.each([
-    ['not_configured', 'Not configured', 'Set WORKFLOW_ENGINE_TOKEN on the server to run the engine.'],
+    ['not_configured', 'Not configured', 'Set FOXFLOW_ENCRYPTION_KEY on the server to run the engine.'],
     ['unreachable', 'Unreachable', 'No answer: fetch failed'],
   ] as const)('shows an engine that is %s, with the reason', async (state, label, detail) => {
     answer(report({ state, detail }));

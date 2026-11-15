@@ -408,6 +408,14 @@ const sinkConfigSchema = z
     table: z.string().min(1).optional(),
     /** Columns to write, in order. Empty takes every field of the batch's first record. */
     columns: z.array(z.string().min(1)).default([]),
+    /**
+     * Insert mode only: the column that identifies a row. With it, a record
+     * whose key is already in the table updates that row instead of adding
+     * one, so running the workflow again does not duplicate rows. The column
+     * needs a unique or primary-key constraint (a table this step creates has
+     * one on `id`). PostgreSQL and SQLite only. Without it, rows are inserted.
+     */
+    upsertKey: z.string().min(1).optional(),
     /** Statement per record; `{{record.field}}` binds a field. */
     sql: z.string().min(1).optional(),
     ...connectionFields,
@@ -421,21 +429,47 @@ const sinkConfigSchema = z
   .refine((config) => config.mode !== 'statement' || config.sql, {
     message: 'statement mode needs sql',
     path: ['sql'],
+  })
+  .refine((config) => !config.upsertKey || config.mode === 'insert', {
+    message: 'upsertKey applies to insert mode only',
+    path: ['upsertKey'],
+  })
+  .refine((config) => !config.upsertKey || config.columns.length === 0 || config.columns.includes(config.upsertKey), {
+    message: 'upsertKey must be one of the columns written',
+    path: ['upsertKey'],
   });
 
-export function postgresUpsertSql(sqlText: string, columns: string[]): string {
-  if (!columns.includes('id') || !sqlText.startsWith('INSERT INTO ')) return sqlText;
-  const nonIdCols = columns.filter((col) => col !== 'id');
-  if (nonIdCols.length === 0) {
-    return `${sqlText} ON CONFLICT ("id") DO NOTHING`;
+/**
+ * Turn an `INSERT` into an upsert on `key`: a row whose key already exists is
+ * updated with the other written columns (or left alone when there are none).
+ * Only when the step asks for it with `upsertKey`; a plain insert stays one.
+ */
+export function upsertSql(sqlText: string, columns: string[], key: string, dialect: string): string {
+  if (dialect !== 'postgres' && dialect !== 'sqlite') {
+    throw new Error(`upsertKey is supported on PostgreSQL and SQLite, not ${dialect}`);
   }
-  const updates = nonIdCols
-    .map((col) => {
-      const quoted = quoteQualifiedName(col, 'postgres');
-      return `${quoted} = EXCLUDED.${quoted}`;
-    })
-    .join(', ');
-  return `${sqlText} ON CONFLICT ("id") DO UPDATE SET ${updates}`;
+  if (!sqlText.startsWith('INSERT INTO ')) return sqlText;
+  if (!columns.includes(key)) throw new Error(`upsertKey ${key} is not one of the columns written`);
+  const quotedKey = quoteQualifiedName(key, dialect);
+  const updates = columns
+    .filter((column) => column !== key)
+    .map((column) => {
+      const quoted = quoteQualifiedName(column, dialect);
+      return `${quoted} = excluded.${quoted}`;
+    });
+  return updates.length === 0
+    ? `${sqlText} ON CONFLICT (${quotedKey}) DO NOTHING`
+    : `${sqlText} ON CONFLICT (${quotedKey}) DO UPDATE SET ${updates.join(', ')}`;
+}
+
+/**
+ * One record per key, the last one winning. A single upsert statement may not
+ * touch the same row twice, so duplicate keys in one batch must collapse first.
+ */
+function lastPerKey(records: Record<string, unknown>[], key: string): Record<string, unknown>[] {
+  const byKey = new Map<string, Record<string, unknown>>();
+  for (const record of records) byKey.set(JSON.stringify(record[key] ?? null), record);
+  return [...byKey.values()];
 }
 
 const ddlLocks = new Map<string, Promise<void>>();
@@ -543,9 +577,10 @@ export class SqlSinkPipe implements SinkPipe {
     const config = sinkConfigSchema.parse(context.pipe.config);
     const connection = await connectionFor(context, config);
     const scope = templateScope(context);
+    const records = config.upsertKey ? lastPerKey(batch.records, config.upsertKey) : batch.records;
     const statements =
       config.mode === 'insert'
-        ? insertStatements(batch.records, config.table!, config.columns, connection.dialect)
+        ? insertStatements(records, config.table!, config.columns, connection.dialect)
         : recordStatements(batch.records, config.sql!, scope, connection.dialect);
 
     if (
@@ -554,7 +589,7 @@ export class SqlSinkPipe implements SinkPipe {
       config.table &&
       (connection.dialect === 'sqlite' || connection.dialect === 'postgres')
     ) {
-      await ensureAutoTable(this.open, connection, config.table, batch.records, config.columns);
+      await ensureAutoTable(this.open, connection, config.table, records, config.columns);
     }
 
     const returnedRows = await withSession(this.open, connection, config.transaction, async (session) => {
@@ -562,18 +597,13 @@ export class SqlSinkPipe implements SinkPipe {
         config.mode === 'insert'
           ? config.columns.length > 0
             ? config.columns
-            : Object.keys(batch.records[0]!)
+            : Object.keys(records[0]!)
           : [];
       const rows: Record<string, unknown>[] = [];
       for (const statement of statements) {
-        let sqlText = statement.text;
-        if (this.open === foxSchemaDrivers && config.mode === 'insert' && sqlText.startsWith('INSERT INTO ')) {
-          if (connection.dialect === 'sqlite') {
-            sqlText = sqlText.replace(/^INSERT INTO /, 'INSERT OR REPLACE INTO ');
-          } else if (connection.dialect === 'postgres') {
-            sqlText = postgresUpsertSql(sqlText, insertColumns);
-          }
-        }
+        const sqlText = config.upsertKey
+          ? upsertSql(statement.text, insertColumns, config.upsertKey, connection.dialect)
+          : statement.text;
         const result = await session.query(sqlText, statement.params);
         if (result.length > 0) rows.push(...result);
       }

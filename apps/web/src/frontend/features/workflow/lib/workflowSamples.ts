@@ -17,7 +17,7 @@
  *   credential to those steps or set POSTGRES_HOST/USER/PASSWORD.
  *
  * Re-running a sample updates its rows rather than adding more: every row
- * written to PostgreSQL carries a stable `id`, and inserts upsert on it.
+ * written carries a stable `id`, and each insert step sets `upsertKey: 'id'`.
  */
 
 /** Same demo people as the SQL Editor samples — no user tables required. */
@@ -466,6 +466,7 @@ const SQL_CRUD: SampleWorkflow = {
               dialect: 'sqlite',
               mode: 'insert',
               table: 'workflow_orders',
+              upsertKey: 'id',
               columns: ['id', 'customer', 'plan', 'amount', 'status'],
             },
           },
@@ -575,6 +576,7 @@ const CITIES_POSTGRES: SampleWorkflow = {
               dialect: 'postgres',
               mode: 'insert',
               table: 'public.cities',
+              upsertKey: 'id',
               columns: ['id', 'name', 'country', 'country_code', 'latitude', 'longitude', 'timezone'],
             },
           },
@@ -778,6 +780,7 @@ const API_ENRICH_MULTI_DB: SampleWorkflow = {
               dialect: 'postgres',
               mode: 'insert',
               table: 'wf_enriched_cities',
+              upsertKey: 'id',
             },
           },
           {
@@ -789,6 +792,7 @@ const API_ENRICH_MULTI_DB: SampleWorkflow = {
               dialect: 'sqlite',
               mode: 'insert',
               table: 'wf_enriched_cities',
+              upsertKey: 'id',
             },
           },
         ],
@@ -1054,6 +1058,7 @@ const FILE_CSV_MULTI_PIPELINE: SampleWorkflow = {
               dialect: 'postgres',
               mode: 'insert',
               table: 'wf_csv_port_cities',
+              upsertKey: 'id',
             },
           },
           {
@@ -1065,6 +1070,7 @@ const FILE_CSV_MULTI_PIPELINE: SampleWorkflow = {
               dialect: 'sqlite',
               mode: 'insert',
               table: 'wf_csv_port_cities',
+              upsertKey: 'id',
             },
           },
         ],
@@ -1321,6 +1327,7 @@ const MULTI_API_FANOUT: SampleWorkflow = {
               dialect: 'postgres',
               mode: 'insert',
               table: 'wf_hub_telemetry',
+              upsertKey: 'id',
             },
           },
           {
@@ -1332,6 +1339,7 @@ const MULTI_API_FANOUT: SampleWorkflow = {
               dialect: 'sqlite',
               mode: 'insert',
               table: 'wf_hub_telemetry',
+              upsertKey: 'id',
             },
           },
         ],
@@ -1456,6 +1464,7 @@ const CROSS_DB_ETL_SPLIT: SampleWorkflow = {
               dialect: 'postgres',
               mode: 'insert',
               table: 'wf_etl_source_accounts',
+              upsertKey: 'id',
             },
           },
         ],
@@ -1552,6 +1561,7 @@ const CROSS_DB_ETL_SPLIT: SampleWorkflow = {
               dialect: 'sqlite',
               mode: 'insert',
               table: 'wf_etl_sqlite_warehouse',
+              upsertKey: 'id',
             },
           },
           {
@@ -1590,6 +1600,7 @@ const CROSS_DB_ETL_SPLIT: SampleWorkflow = {
               dialect: 'postgres',
               mode: 'insert',
               table: 'wf_etl_pg_vip_mart',
+              upsertKey: 'id',
             },
           },
           {
@@ -1610,6 +1621,7 @@ const CROSS_DB_ETL_SPLIT: SampleWorkflow = {
               dialect: 'sqlite',
               mode: 'insert',
               table: 'wf_etl_sqlite_growth_mart',
+              upsertKey: 'id',
             },
           },
         ],
@@ -1695,6 +1707,7 @@ const CROSS_DB_ETL_SPLIT: SampleWorkflow = {
               dialect: 'postgres',
               mode: 'insert',
               table: 'wf_etl_reconciled_ledger',
+              upsertKey: 'id',
             },
           },
           {

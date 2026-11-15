@@ -12,6 +12,7 @@ import type { PipeProvider } from '../sdk/index.js';
 import type { PipeRegistry, AnyPipe } from './pipes.js';
 import {
   assertApproved,
+  PluginNotApprovedError,
   pluginDigest,
   type PluginApproval,
 } from './plugin-approval.js';
@@ -50,6 +51,12 @@ export interface LoadPipePluginOptions {
    * code can appear without anyone deciding to run it.
    */
   allowlist?: PluginApproval[];
+  /**
+   * When true, a name-only allowlist entry is treated as missing. The env
+   * directory loader always sets this; a pin-by-name is how tomorrow's bytes
+   * get imported without a review.
+   */
+  requireDigest?: boolean;
 }
 
 /**
@@ -92,7 +99,13 @@ export async function loadPipePlugin(
       packageRoot,
       manifest.pipes.map((entry) => entry.entry),
     );
-    assertApproved(manifest.name, digest, options.allowlist);
+    if (options.requireDigest) {
+      const pinned = options.allowlist.find((entry) => entry.name === manifest.name && entry.digest);
+      if (!pinned) throw new PluginNotApprovedError(manifest.name, digest);
+      assertApproved(manifest.name, digest, options.allowlist);
+    } else {
+      assertApproved(manifest.name, digest, options.allowlist);
+    }
   }
 
   for (const entry of manifest.pipes) {

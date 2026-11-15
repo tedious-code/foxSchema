@@ -8,7 +8,7 @@ alwaysApply: true
 Base: `main` @ `0.2.317` · Feature merge: PR #121 · Blank-page harden: PR #120
 
 ## Product context
-FoxSchema = schema diff/migration + SQL Editor + workspaces. Destinations checklist, Schema explorer, Monaco, code cells (`-- @js` / `-- @ts` / `-- @node` / `-- @nodets`), table blueprint, bookmarks/samples, Grants, Backup & Restore, Git migrations.
+FoxSchema = schema diff/migration + SQL Editor + workspaces. Destinations checklist, Schema explorer, Monaco, code cells (`-- @js` / `-- @ts` / `-- @node` / `-- @nodets`), table blueprint, bookmarks/samples, Grants, Backup & Restore, Git migrations. Workflow engine runs in-process in the FoxSchema API (`FOXFLOW_ENCRYPTION_KEY` on `dev:api`).
 
 ## Feature-module architecture (#498–#504, built 2026-10-10)
 - **One feature folder per side**, composed in one static registry:

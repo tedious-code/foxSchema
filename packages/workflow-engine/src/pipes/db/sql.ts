@@ -102,6 +102,33 @@ async function connectionFor(
   context: PipeContext,
   config: { dialect?: string; schema?: string },
 ): Promise<SqlConnection> {
+  if (!context.pipe.credentialId && config.dialect === 'sqlite') {
+    return {
+      dialect: 'sqlite',
+      ...(config.schema ? { schema: config.schema } : {}),
+      option: { database: ':memory:' },
+    };
+  }
+  if (!context.pipe.credentialId && config.dialect === 'postgres') {
+    const host = process.env.POSTGRES_HOST ?? '127.0.0.1';
+    const port = Number(process.env.POSTGRES_PORT ?? 5432);
+    const username = process.env.POSTGRES_USER ?? 'foxuser';
+    const password = process.env.POSTGRES_PASSWORD ?? 'foxpass';
+    const database = process.env.POSTGRES_DB ?? 'foxdb';
+    return {
+      dialect: 'postgres',
+      ...(config.schema ? { schema: config.schema } : {}),
+      option: {
+        host,
+        port,
+        username,
+        user: username,
+        password,
+        database,
+        connectionString: `postgresql://${username}:${password}@${host}:${port}/${database}`,
+      },
+    };
+  }
   const secret = await requirePipeSecret(context, 'a database credential');
 
   // A saved FoxSchema connection resolves to { dialect, schema, option }; a
@@ -184,7 +211,7 @@ export class SqlSourcePipe implements SourcePipe {
       tags: ['sql', 'query', 'job', 'script'],
       version: '0.1.0',
       role: 'source',
-      inputs: [],
+      inputs: [{ name: 'in', type: 'records' }],
       outputs: [{ name: 'out', type: 'records' }],
       configSchema: sourceConfigSchema,
     });
@@ -249,8 +276,98 @@ function recordStatements(
   scope: Record<string, unknown>,
   dialect: string,
 ): RenderedSql[] {
-  const template = splitTemplate(sql);
-  return records.map((record) => bindTemplate(template, { ...scope, record }, dialect));
+  const statements = statementsOf(sql);
+  if (statements.length === 0) throw new Error('sql holds no statements');
+  const templates = statements.map((statement) => splitTemplate(statement));
+  return records.flatMap((record) =>
+    templates.map((template) =>
+      bindTemplate(template, { ...record, ...scope, record }, dialect),
+    ),
+  );
+}
+
+function inferColumnType(records: Record<string, unknown>[], col: string, dialect: 'sqlite' | 'postgres'): string {
+  const values = records.map((r) => r[col]).filter((v) => v !== null && v !== undefined);
+  const nums = values.filter((v): v is number => typeof v === 'number');
+  if (dialect === 'sqlite') {
+    if (nums.length > 0 && nums.length === values.length) {
+      return nums.every((n) => Number.isInteger(n)) ? 'INTEGER' : 'REAL';
+    }
+    if (values.length > 0 && typeof values[0] === 'boolean') return 'INTEGER';
+    return 'TEXT';
+  }
+  if (nums.length > 0 && nums.length === values.length) {
+    // Only integer `id` narrows to BIGINT; data measurements stay NUMERIC so an
+    // integer first batch does not reject decimal values in subsequent batches.
+    if (col === 'id' && nums.every((n) => Number.isInteger(n))) return 'BIGINT';
+    return 'NUMERIC';
+  }
+  if (values.length > 0 && typeof values[0] === 'boolean') return 'BOOLEAN';
+  return 'TEXT';
+}
+
+export function sqliteCreateTableSql(
+  records: Record<string, unknown>[],
+  table: string,
+  configuredColumns: string[],
+): { create: string; alterColumns: string[] } {
+  const columns = configuredColumns.length > 0 ? configuredColumns : Object.keys(records[0]!);
+  const target = quoteQualifiedName(table, 'sqlite');
+  const defs: string[] = [];
+  if (!columns.includes('id')) {
+    defs.push('"id" INTEGER PRIMARY KEY AUTOINCREMENT');
+  }
+  for (const col of columns) {
+    const quoted = quoteQualifiedName(col, 'sqlite');
+    const sqlType = inferColumnType(records, col, 'sqlite');
+    defs.push(col === 'id' ? `${quoted} ${sqlType} PRIMARY KEY` : `${quoted} ${sqlType}`);
+  }
+  const alterColumns = columns.map((col) => {
+    const quoted = quoteQualifiedName(col, 'sqlite');
+    const sqlType = inferColumnType(records, col, 'sqlite');
+    return `ALTER TABLE ${target} ADD COLUMN ${quoted} ${sqlType}`;
+  });
+  return {
+    create: `CREATE TABLE IF NOT EXISTS ${target} (${defs.join(', ')})`,
+    alterColumns,
+  };
+}
+
+export function postgresCreateTableSql(
+  records: Record<string, unknown>[],
+  table: string,
+  configuredColumns: string[],
+): { create: string; alterColumns: string[] } {
+  const columns = configuredColumns.length > 0 ? configuredColumns : Object.keys(records[0]!);
+  const target = quoteQualifiedName(table, 'postgres');
+  const defs: string[] = [];
+  if (!columns.includes('id')) {
+    defs.push('"id" SERIAL PRIMARY KEY');
+  }
+  for (const col of columns) {
+    const quoted = quoteQualifiedName(col, 'postgres');
+    const sqlType = inferColumnType(records, col, 'postgres');
+    if (col === 'id') {
+      defs.push(`${quoted} ${sqlType === 'BIGINT' ? 'BIGINT' : sqlType} PRIMARY KEY`);
+    } else {
+      defs.push(`${quoted} ${sqlType}`);
+    }
+  }
+  if (!columns.includes('created_at')) {
+    defs.push('"created_at" TIMESTAMPTZ DEFAULT NOW()');
+  }
+  const alterColumns = columns.map((col) => {
+    const quoted = quoteQualifiedName(col, 'postgres');
+    const sqlType = inferColumnType(records, col, 'postgres');
+    return `ALTER TABLE ${target} ADD COLUMN IF NOT EXISTS ${quoted} ${sqlType}`;
+  });
+  if (!columns.includes('created_at')) {
+    alterColumns.push(`ALTER TABLE ${target} ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ DEFAULT NOW()`);
+  }
+  return {
+    create: `CREATE TABLE IF NOT EXISTS ${target} (${defs.join(', ')})`,
+    alterColumns,
+  };
 }
 
 const sinkConfigSchema = z
@@ -292,7 +409,7 @@ export class SqlSinkPipe implements SinkPipe {
       version: '0.1.0',
       role: 'sink',
       inputs: [{ name: 'in', type: 'records' }],
-      outputs: [],
+      outputs: [{ name: 'out', type: 'records' }],
       configSchema: sinkConfigSchema,
     });
   }
@@ -301,7 +418,7 @@ export class SqlSinkPipe implements SinkPipe {
     sinkConfigSchema.parse(config);
   }
 
-  async write(batch: RecordBatch, context: PipeContext): Promise<void> {
+  async write(batch: RecordBatch, context: PipeContext): Promise<RecordBatch | void> {
     if (batch.records.length === 0) return;
     const config = sinkConfigSchema.parse(context.pipe.config);
     const connection = await connectionFor(context, config);
@@ -311,8 +428,45 @@ export class SqlSinkPipe implements SinkPipe {
         ? insertStatements(batch.records, config.table!, config.columns, connection.dialect)
         : recordStatements(batch.records, config.sql!, scope, connection.dialect);
 
-    await withSession(this.open, connection, config.transaction, async (session) => {
-      for (const statement of statements) await session.query(statement.text, statement.params);
+    const returnedRows = await withSession(this.open, connection, config.transaction, async (session) => {
+      if (this.open === foxSchemaDrivers && connection.dialect === 'sqlite' && config.mode === 'insert' && config.table) {
+        const ddl = sqliteCreateTableSql(batch.records, config.table, config.columns);
+        await session.query(ddl.create, []);
+        for (const alterSql of ddl.alterColumns) {
+          try {
+            await session.query(alterSql, []);
+          } catch {
+            // SQLite has no ADD COLUMN IF NOT EXISTS; ignore duplicate-column errors.
+          }
+        }
+      }
+      if (this.open === foxSchemaDrivers && connection.dialect === 'postgres' && config.mode === 'insert' && config.table) {
+        const ddl = postgresCreateTableSql(batch.records, config.table, config.columns);
+        await session.query(ddl.create, []);
+        for (const alterSql of ddl.alterColumns) {
+          await session.query(alterSql, []);
+        }
+      }
+      const rows: Record<string, unknown>[] = [];
+      for (const statement of statements) {
+        const sqlText =
+          this.open === foxSchemaDrivers &&
+          connection.dialect === 'sqlite' &&
+          config.mode === 'insert' &&
+          statement.text.startsWith('INSERT INTO ')
+            ? statement.text.replace(/^INSERT INTO /, 'INSERT OR REPLACE INTO ')
+            : statement.text;
+        const result = await session.query(sqlText, statement.params);
+        if (result.length > 0) rows.push(...result);
+      }
+      return rows;
     });
+    if (returnedRows.length > 0) {
+      return {
+        id: batch.id,
+        partitionId: batch.partitionId,
+        records: returnedRows,
+      };
+    }
   }
 }

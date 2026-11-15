@@ -136,7 +136,7 @@ export interface TransformPipe extends PipeBase {
 
 export interface SinkPipe extends PipeBase {
   role: 'sink';
-  write(batch: RecordBatch, context: PipeContext): Promise<void>;
+  write(batch: RecordBatch, context: PipeContext): Promise<RecordBatch | void>;
   /**
    * The run is over: release anything kept for it. A sink instance serves
    * every run, so state keyed by run (a file's header already written) would

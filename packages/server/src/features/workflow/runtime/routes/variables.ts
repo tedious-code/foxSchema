@@ -30,9 +30,10 @@ const variableBodySchema = z
  * key). Exactly one environment is active; runs resolve against it unless the
  * caller overrides per run.
  */
-export function variableRoutes(ctx: AppContext) {
+export function variableRoutes(ctx: AppContext, options: { extra?: boolean } = {}) {
   return async (app: FastifyInstance) => {
     const r = app.withTypeProvider<ZodTypeProvider>();
+    const extra = options.extra !== false;
 
     r.get('/environments', {}, async () => ({
       environments: await ctx.environments.list(),
@@ -60,28 +61,30 @@ export function variableRoutes(ctx: AppContext) {
       },
     );
 
-    r.patch(
-      '/environments/:id',
-      {
-        schema: {
-          params: z.object({ id: z.string().min(1) }),
-          body: z.object({ name: z.string().min(1).max(80) }),
+    if (extra) {
+      r.patch(
+        '/environments/:id',
+        {
+          schema: {
+            params: z.object({ id: z.string().min(1) }),
+            body: z.object({ name: z.string().min(1).max(80) }),
+          },
         },
-      },
-      async (req, reply) => {
-        const existing = await ctx.environments.getByName(req.body.name);
-        if (existing && existing.id !== req.params.id) {
-          return reply
-            .code(409)
-            .send({ error: `environment already exists: ${req.body.name}` });
-        }
-        const renamed = await ctx.environments.rename(
-          req.params.id,
-          req.body.name,
-        );
-        return renamed ?? reply.code(404).send({ error: 'not found' });
-      },
-    );
+        async (req, reply) => {
+          const existing = await ctx.environments.getByName(req.body.name);
+          if (existing && existing.id !== req.params.id) {
+            return reply
+              .code(409)
+              .send({ error: `environment already exists: ${req.body.name}` });
+          }
+          const renamed = await ctx.environments.rename(
+            req.params.id,
+            req.body.name,
+          );
+          return renamed ?? reply.code(404).send({ error: 'not found' });
+        },
+      );
+    }
 
     r.delete(
       '/environments/:id',
@@ -236,34 +239,36 @@ export function variableRoutes(ctx: AppContext) {
       },
     );
 
-    /** What a run of `workflowId` would see right now, for the designer. */
-    r.get(
-      '/variables/resolved',
-      {
-        schema: {
-          querystring: z.object({
-            workflowId: z.string().min(1),
-            environmentId: z.string().min(1).optional(),
-          }),
+    /** What a run of `workflowId` would see right now. Not on the designer prefix. */
+    if (extra) {
+      r.get(
+        '/variables/resolved',
+        {
+          schema: {
+            querystring: z.object({
+              workflowId: z.string().min(1),
+              environmentId: z.string().min(1).optional(),
+            }),
+          },
         },
-      },
-      async (req, reply) => {
-        const environment = req.query.environmentId
-          ? await ctx.environments.get(req.query.environmentId)
-          : await ctx.environments.active();
-        if (!environment) {
-          return req.query.environmentId
-            ? reply.code(404).send({ error: 'environment not found' })
-            : { environment: null, variables: {} };
-        }
-        return {
-          environment,
-          variables: await ctx.variables.resolve(
-            environment.id,
-            req.query.workflowId,
-          ),
-        };
-      },
-    );
+        async (req, reply) => {
+          const environment = req.query.environmentId
+            ? await ctx.environments.get(req.query.environmentId)
+            : await ctx.environments.active();
+          if (!environment) {
+            return req.query.environmentId
+              ? reply.code(404).send({ error: 'environment not found' })
+              : { environment: null, variables: {} };
+          }
+          return {
+            environment,
+            variables: await ctx.variables.resolve(
+              environment.id,
+              req.query.workflowId,
+            ),
+          };
+        },
+      );
+    }
   };
 }

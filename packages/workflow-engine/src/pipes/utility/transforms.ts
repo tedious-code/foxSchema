@@ -94,7 +94,7 @@ function normalizeConditionConfig(config: unknown): unknown {
   };
 }
 
-const conditionConfigSchema = z.preprocess(normalizeConditionConfig, z.object({
+const conditionFieldsSchema = z.object({
   field: z.string().min(1),
   operator: z.enum([
     'equals',
@@ -107,7 +107,12 @@ const conditionConfigSchema = z.preprocess(normalizeConditionConfig, z.object({
     'exists',
   ]),
   value: z.unknown().optional(),
-}));
+});
+
+const conditionConfigSchema = z.preprocess(
+  normalizeConditionConfig,
+  conditionFieldsSchema,
+);
 
 export class ConditionPipe implements TransformPipe {
   readonly type = 'transform.condition';
@@ -128,7 +133,7 @@ export class ConditionPipe implements TransformPipe {
         { name: 'true', type: 'records' },
         { name: 'false', type: 'records' },
       ],
-      configSchema: conditionConfigSchema,
+      configSchema: conditionFieldsSchema,
     });
   }
 

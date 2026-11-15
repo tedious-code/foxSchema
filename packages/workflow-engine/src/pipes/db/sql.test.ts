@@ -9,7 +9,15 @@
 import { describe, expect, it } from 'vitest';
 import type { CredentialStore } from '../../common/index.js';
 import type { PipeContext, RecordBatch } from '../../registry/index.js';
-import { SqlSinkPipe, SqlSourcePipe, type SqlConnection, type SqlRunner, type SqlSession } from './sql.js';
+import {
+  SqlSinkPipe,
+  SqlSourcePipe,
+  postgresCreateTableSql,
+  sqliteCreateTableSql,
+  type SqlConnection,
+  type SqlRunner,
+  type SqlSession,
+} from './sql.js';
 
 class RecordingSession implements SqlSession {
   readonly queries: Array<{ sql: string; params: unknown[] }> = [];
@@ -265,5 +273,44 @@ describe('sink.db.sql', () => {
     const sink = new SqlSinkPipe();
     expect(() => sink.validateConfig({ mode: 'insert' })).toThrow(/table/);
     expect(() => sink.validateConfig({ mode: 'statement' })).toThrow(/sql/);
+  });
+
+  it('infers auto-increment id and real types safely for auto-created tables', () => {
+    const sqliteDdl = sqliteCreateTableSql(
+      [{ city: 'Tokyo', temp_c: 11, population: 9733276 }],
+      'wf_enriched_cities',
+      [],
+    );
+    expect(sqliteDdl.create).toContain('"id" INTEGER PRIMARY KEY AUTOINCREMENT');
+    expect(sqliteDdl.create).toContain('"temp_c" INTEGER');
+
+    const sqliteWithIdDdl = sqliteCreateTableSql(
+      [{ id: 101, customer: 'Alice', amount: 49.5 }],
+      'workflow_orders',
+      [],
+    );
+    expect(sqliteWithIdDdl.create).not.toContain('AUTOINCREMENT');
+    expect(sqliteWithIdDdl.create).toContain('"id" INTEGER PRIMARY KEY');
+    expect(sqliteWithIdDdl.create).toContain('"amount" REAL');
+
+    // Postgres uses NUMERIC for non-id numeric measurements so an integer first
+    // batch (temp_c: 11) never causes decimal batches (11.7) to fail.
+    const pgDdl = postgresCreateTableSql(
+      [{ city: 'Tokyo', population: 9733276, temp_c: 11, wind_kmh: 3 }],
+      'wf_enriched_cities',
+      [],
+    );
+    expect(pgDdl.create).toContain('"id" SERIAL PRIMARY KEY');
+    expect(pgDdl.create).toContain('"temp_c" NUMERIC');
+    expect(pgDdl.create).toContain('"wind_kmh" NUMERIC');
+    expect(pgDdl.create).toContain('"population" NUMERIC');
+
+    const pgWithIdDdl = postgresCreateTableSql(
+      [{ id: 101, amount: 49 }],
+      'workflow_orders',
+      [],
+    );
+    expect(pgWithIdDdl.create).toContain('"id" BIGINT PRIMARY KEY');
+    expect(pgWithIdDdl.create).toContain('"amount" NUMERIC');
   });
 });

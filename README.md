@@ -114,16 +114,9 @@ Walkthrough: [User guide → SQL Editor](docs/user-guide.md#sql-editor).
 ## Workflow
 
 Optional designer for scheduled and triggered jobs (SQL, HTTP, files, email/SMS).
-The UI lives in Fox Schema; a **separate engine process** (`apps/workflow-server`,
-port **8081**) runs them. The published Docker image does not start that process.
-
-```bash
-export WORKFLOW_ENGINE_TOKEN="$(openssl rand -hex 32)"
-export FOXFLOW_ENCRYPTION_KEY="$(openssl rand -hex 32)"
-npm run dev:with-workflow
-```
-
-Then **Workflow → Engine → Enabled**. Runbook: [docs/workflow.md](docs/workflow.md).
+The engine runs in the FoxSchema API process. Production needs
+`FOXFLOW_ENCRYPTION_KEY` (32 bytes, hex or base64). `npm run dev` sets a local
+key. Then **Workflow → Engine**. Runbook: [docs/workflow.md](docs/workflow.md).
 User steps: [User guide → Workflow](docs/user-guide.md#workflow).
 
 ## Schema Sync
@@ -179,7 +172,6 @@ CommonJS at runtime. Requires **Node ≥ 22.5**.
 | `packages/workflow-engine` | Workflow runtime, stores, built-in pipes |
 | `apps/web` | React UI + the entry point that serves it (CLI launcher + Docker) |
 | `apps/cli` | `foxschema` CLI, desktop shortcut, TUI |
-| `apps/workflow-server` | Workflow engine HTTP process (`:8081`) |
 | `apps/e2e` | Playwright tests against dockerized databases |
 
 Maintainers: [docs/publish.md](docs/publish.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

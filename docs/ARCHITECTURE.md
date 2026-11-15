@@ -23,7 +23,7 @@ foxschema doctor
 # Development (starts both the Fastify API + Vite frontend)
 npm run dev                          # sign-in required; first open runs setup
 npm run dev:auth                     # multi-user auth mode
-npm run dev:with-workflow            # plus workflow-server on :8081
+# The workflow engine starts in the API process (FOXFLOW_ENCRYPTION_KEY on dev:api)
 
 # The gate: what CI runs on a pull request, run here. Passing here means passing there.
 npm run verify                         # every step; a failed one prints its output
@@ -103,7 +103,6 @@ apps/web/src/frontend/
   shared/               API client, UI components, lib, utils
 
 apps/cli/               `foxschema` CLI — browser launcher (:3210), line commands, Ink TUI
-apps/workflow-server/   Workflow engine HTTP process (:8081); optional scheduler/worker
 apps/e2e/               Playwright tests that drive the running application
 packaging/homebrew/     Scripts to refresh Formula/foxschema.rb (Homebrew, same repo)
 ```

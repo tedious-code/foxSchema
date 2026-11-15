@@ -3,10 +3,10 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * Engine control plane: where the workflow engine listens, whether it takes new
- * runs, and its reported health. Saved in FoxSchema's own settings.
+ * Engine control plane: whether the in-process engine takes new runs, how
+ * many at once, and where run events are copied.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Settings2 } from 'lucide-react';
 import type { EngineState, OverlapPolicy, WorkflowEngineConfig } from '@foxschema/workflow-contract';
 import { useAuthStore } from '@/platform/authStore';
@@ -36,19 +36,6 @@ export function EnginePanel(): React.ReactElement {
   const [health, setHealth] = useState<Health | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const refreshHealth = useCallback(async () => {
-    try {
-      setHealth(await fetchWorkflowEngineHealth());
-    } catch (err) {
-      setHealth({
-        ok: false,
-        acceptsRuns: false,
-        endpoint: '',
-        error: err instanceof Error ? err.message : 'health request failed',
-      });
-    }
-  }, []);
-
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -58,19 +45,34 @@ export function EnginePanel(): React.ReactElement {
       } catch (err) {
         if (!cancelled) toast.error('Could not load engine settings', { description: (err as Error).message });
       }
-      if (!cancelled) await refreshHealth();
+      try {
+        const next = await fetchWorkflowEngineHealth();
+        if (!cancelled) setHealth(next);
+      } catch (err) {
+        if (!cancelled) {
+          setHealth({
+            ok: false,
+            acceptsRuns: false,
+            error: err instanceof Error ? err.message : 'health request failed',
+          });
+        }
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [refreshHealth]);
+  }, []);
 
   const save = async () => {
     if (!config) return;
     setSaving(true);
     try {
       setConfig(await saveWorkflowSettings(toAdminConfigPut(config)));
-      await refreshHealth();
+      try {
+        setHealth(await fetchWorkflowEngineHealth());
+      } catch {
+        /* settings saved; health chip can stay stale until the next open */
+      }
     } catch (err) {
       toast.error('Save failed', { description: (err as Error).message });
     } finally {
@@ -96,8 +98,8 @@ export function EnginePanel(): React.ReactElement {
           Engine control plane
         </div>
         <p className="mb-3 text-[11px] text-slate-400">
-          FoxSchema designs and administers workflows; the engine runs them. The designer reaches the
-          engine only through FoxSchema, which checks each user&apos;s workflow permissions.
+          The engine runs in this FoxSchema process. Enable it to take new runs; draining finishes
+          work already admitted and takes nothing new.
         </p>
         <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px]">
           <span
@@ -110,18 +112,10 @@ export function EnginePanel(): React.ReactElement {
           >
             {health
               ? health.ok
-                ? `engine ok${health.version ? ` · ${health.version}` : ''}`
-                : `engine down · ${health.error ?? 'unreachable'}`
+                ? `engine ready${health.acceptsRuns ? '' : ' · not taking runs'}`
+                : `engine down · ${health.error ?? 'not started'}`
               : 'engine status unknown'}
           </span>
-          <button
-            type="button"
-            data-testid="workflow-engine-refresh-health"
-            onClick={() => void refreshHealth()}
-            className="rounded border border-slate-700 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-300 hover:bg-slate-900"
-          >
-            Refresh health
-          </button>
           <button
             type="button"
             data-testid="workflow-engine-save"
@@ -157,15 +151,6 @@ export function EnginePanel(): React.ReactElement {
             </button>
           ))}
         </div>
-        <label className="mt-4 flex max-w-xl flex-col gap-1">
-          <span className={sectionLabelCls}>API endpoint</span>
-          <input
-            data-testid="workflow-engine-endpoint"
-            value={config.endpoint}
-            onChange={(e) => patch({ endpoint: e.target.value })}
-            className={FIELD_CLS}
-          />
-        </label>
         <div className="mt-3 flex flex-wrap gap-4">
           <label className="flex max-w-xs flex-col gap-1">
             <span className={sectionLabelCls}>Max parallel runs</span>
@@ -193,37 +178,6 @@ export function EnginePanel(): React.ReactElement {
             </select>
           </label>
         </div>
-      </section>
-
-      <section className="rounded-md border border-slate-800 bg-slate-950/60 p-4">
-        <div className="mb-3 text-sm font-semibold text-slate-100">Processes</div>
-        {config.processes.length === 0 ? (
-          <p className="text-[11px] text-slate-500">The engine has not reported any processes.</p>
-        ) : (
-          <ul className="grid gap-2 sm:grid-cols-3">
-            {config.processes.map((proc) => (
-              <li
-                key={proc.id}
-                data-testid={`workflow-process-${proc.id}`}
-                className="rounded border border-slate-800 bg-slate-900/50 px-3 py-2"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-slate-100">{proc.label}</span>
-                  <span
-                    className={`rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase ${
-                      proc.status === 'up'
-                        ? 'border-emerald-500/30 bg-emerald-950/40 text-emerald-300'
-                        : 'border-rose-500/30 bg-rose-950/40 text-rose-300'
-                    }`}
-                  >
-                    {proc.status}
-                  </span>
-                </div>
-                {proc.detail && <div className="mt-1 text-[11px] text-slate-400">{proc.detail}</div>}
-              </li>
-            ))}
-          </ul>
-        )}
       </section>
 
       <section className="rounded-md border border-slate-800 bg-slate-950/60 p-4">

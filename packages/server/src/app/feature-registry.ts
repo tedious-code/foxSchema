@@ -12,6 +12,7 @@
  * with its own guard chain, and Fastify matches routes by path, not by
  * registration order.
  */
+import type { FastifyInstance } from 'fastify';
 import { ConnectionModule } from '@foxschema/db';
 import { Router } from '../platform/http/router';
 import type { Middleware } from '../platform/http/types';
@@ -84,6 +85,21 @@ export function bootFeatures(features: readonly ServerFeatureModule[] = FEATURES
       feature.onBoot?.();
     } catch (err: unknown) {
       getLogger().warn({ component: feature.id, err }, 'startup housekeeping skipped');
+    }
+  }
+}
+
+/** Native Fastify plugins features declare. `api/` calls this through the registry. */
+export async function registerFeatureFastify(
+  app: FastifyInstance,
+  context: FeatureContext,
+  features: readonly ServerFeatureModule[] = FEATURES,
+): Promise<void> {
+  for (const feature of features) {
+    try {
+      await feature.registerFastify?.(app, context);
+    } catch (err: unknown) {
+      getLogger().warn({ component: feature.id, err }, 'Fastify plugin skipped');
     }
   }
 }

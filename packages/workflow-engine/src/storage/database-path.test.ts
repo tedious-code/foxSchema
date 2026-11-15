@@ -29,7 +29,7 @@ describe('resolveDatabasePath', () => {
     // different database.
     const cwd = process.cwd();
     try {
-      process.chdir(join(cwd, 'apps', 'workflow-server'));
+      process.chdir(join(cwd, 'apps', 'cli'));
       expect(resolveDatabasePath()).toBe(fromRepoRoot);
       process.chdir(join(cwd, 'packages', 'workflow-engine'));
       expect(resolveDatabasePath()).toBe(fromRepoRoot);

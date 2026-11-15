@@ -34,15 +34,9 @@ on **:3210** (`packages/server`). Connection details for the seeded databases ar
 printed by `seed-all.sh` (all use `foxuser` / `foxpass` except SQL Server/Oracle —
 see the script output).
 
-Workflow engine (optional, separate process on **:8081**):
-
-```bash
-export WORKFLOW_ENGINE_TOKEN="$(openssl rand -hex 32)"
-export FOXFLOW_ENCRYPTION_KEY="$(openssl rand -hex 32)"
-npm run dev:with-workflow
-```
-
-Then **Workflow → Engine → Enabled**. Runbook: [docs/workflow.md](docs/workflow.md).
+The workflow engine runs in the API process. `npm run dev` sets a local
+`FOXFLOW_ENCRYPTION_KEY`. Production needs a real 32-byte key. Runbook:
+[docs/workflow.md](docs/workflow.md).
 
 For the advanced test schemas (`demo_c` / `demo_d` — FK chains, cross-dialect type
 matrix, materialized views, etc.): `bash scripts/seed/seed-advanced.sh all`.
@@ -67,7 +61,6 @@ the Playwright E2E suite (see below).
 | [`packages/workflow-engine`](packages/workflow-engine) | Workflow runtime, SQLite stores, built-in pipes. |
 | [`apps/web`](apps/web) | React/Vite UI and the entry point that serves it (also used by the CLI launcher and Docker). |
 | [`apps/cli`](apps/cli) | Public `foxschema` CLI — browser launcher, desktop shortcut, line commands, Ink TUI. |
-| [`apps/workflow-server`](apps/workflow-server) | Workflow engine HTTP process (`:8081`). |
 | [`apps/e2e`](apps/e2e) | Playwright E2E tests against the dockerized databases. |
 
 The design, the migration pipeline, and the dialect system are described in
@@ -82,7 +75,6 @@ through a `WorkspaceScope`; see **Workspaces** there. Route unit tests use
 # Web (Fastify API + Vite UI)
 npm run dev
 npm run dev:auth                  # multi-user + auth enabled
-npm run dev:with-workflow         # API + UI + workflow-server (:8081)
 
 # CLI / TUI (opens local UI like the published package)
 cd apps/cli && npx tsx src/index.ts

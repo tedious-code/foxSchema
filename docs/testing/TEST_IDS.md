@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1058** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1057** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1859,14 +1859,11 @@ Every control has a test ID: **1058** buttons, text boxes, selects and textareas
 - **EnginePanel** · `features/workflow/components/EnginePanel.tsx`
   - `workflow-engine` · div
   - `workflow-engine-{id}` · button
-  - `workflow-engine-endpoint` · input
   - `workflow-engine-health` · span
   - `workflow-engine-max-parallel` · input
   - `workflow-engine-overlap` · select · skip queue parallel
-  - `workflow-engine-refresh-health` · button · Refresh health
   - `workflow-engine-save` · button
   - `workflow-engine-target-{kind}` · input · target
-  - `workflow-process-{id}` · li
   - `workflow-sink-{kind}` · input
 - **HttpRequestEditor** · `features/workflow/components/HttpRequestEditor.tsx`
   - `workflow-http-auth-credential` · select · Select…
@@ -1975,6 +1972,7 @@ Every control has a test ID: **1058** buttons, text boxes, selects and textareas
 - **VariablesPanel** · `features/workflow/components/VariablesPanel.tsx`
   - `workflow-variables-environment-{id}` · button
 - **WorkflowDesigner** · `features/workflow/components/WorkflowDesigner.tsx`
+  - `workflow-designer-add-sample` · Button
   - `workflow-designer-breadcrumb-workflows` · button · Workflows
   - `workflow-designer-id` · Input · Workflow id
   - `workflow-designer-load` · Button
@@ -1982,6 +1980,7 @@ Every control has a test ID: **1058** buttons, text boxes, selects and textareas
   - `workflow-designer-switch-pipeline-{id}` · button
   - `workflow-designer-triggers` · Button
 - **WorkflowsPanel** · `features/workflow/components/WorkflowsPanel.tsx`
+  - `workflow-add-sample` · Button · Install built-in sample workflows you can Test run without a database
   - `workflow-list-file` · input
   - `workflow-list-open-in-designer-{id}` · button · Open in designer
 - **WorkflowView** · `features/workflow/components/WorkflowView.tsx`

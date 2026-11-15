@@ -35,6 +35,7 @@ import { TriggerInlineSettings } from './TriggerInlineSettings';
 import { JSON_EDITOR_OPTIONS, useJsonEditorTheme } from '../lib/jsonEditorOptions';
 import { portLabel } from '../lib/ports';
 import type { WorkflowTrigger } from '../lib/triggers';
+import { Button, Input, Select } from './controls';
 
 /**
  * Config keys the HTTP request editor owns for `source.api.http`, kept out of
@@ -90,6 +91,7 @@ type SchemaProperty = {
   default?: unknown;
   minimum?: number;
   maximum?: number;
+  items?: { type?: string };
   additionalProperties?: unknown;
 };
 
@@ -406,8 +408,34 @@ function ConfigField({
     );
   }
 
+  if (schema.type === 'array' && schema.items?.type !== 'object') {
+    const arrayText = Array.isArray(value)
+      ? value.map((item) => String(item ?? '')).join(', ')
+      : typeof value === 'string'
+        ? value
+        : '';
+    return (
+      <div>
+        <label>{name} (comma-separated)</label>
+        <input data-testid={`workflow-inspector-field-${name}`}
+          type="text"
+          placeholder="item1, item2"
+          value={arrayText}
+          onChange={(event) => {
+            const items = event.target.value
+              .split(',')
+              .map((item) => item.trim())
+              .filter(Boolean);
+            onChange(items);
+          }}
+        />
+      </div>
+    );
+  }
+
   if (
     schema.type === 'object' ||
+    schema.type === 'array' ||
     schema.additionalProperties !== undefined
   ) {
     return (
@@ -473,24 +501,44 @@ export function Inspector({
   // `triggerId` and the sub-workflow `workflowId` get dedicated pickers below,
   // so keep them out of the generic schema-driven config fields.
   const isHttpSource = data?.type === 'source.api.http';
+  const isHttpTransformOrSink =
+    data?.type === 'transform.http' || data?.type === 'sink.http';
+  const isHttpPipe = isHttpSource || isHttpTransformOrSink;
   const isMultiHttpSource = data?.type === 'source.api.http.multi';
   // The CSV/Text sources get a dedicated editor (parsing, schema, preview)
   // covering every config key, so the generic fields stay hidden for them.
   const isDelimitedSource =
     data?.type === 'source.file.csv' || data?.type === 'source.file.text';
-  // The SQL pipes' editor owns the statement text; the rest stay generic.
+  // The SQL pipes' editor owns the connection, table, columns, and statement text.
   const isSqlPipe = data?.type === 'source.db.sql' || data?.type === 'sink.db.sql';
   const isScriptPipe = data?.type === 'transform.script';
+  const isConditionPipe = data?.type === 'transform.condition';
+  const isMapPipe = data?.type === 'transform.map';
+  const isVerifyPipe = data?.type === 'transform.verify';
+  const isFileSink = data?.type === 'sink.file.delimited';
+  const needsEngineCredential =
+    data?.type === 'sink.notify.email' ||
+    data?.type === 'sink.notify.sms' ||
+    data?.type === 'source.db.postgres' ||
+    data?.type === 'source.db.mysql' ||
+    data?.type === 'sink.postgres' ||
+    data?.type === 'sink.mysql';
+  const SQL_OWNED_KEYS = new Set(['sql', 'dialect', 'schema', 'mode', 'table', 'columns']);
   const propertyKeys = Object.keys(properties).filter(
     (key) =>
       !isDelimitedSource &&
       !isMultiHttpSource &&
-      !(isSqlPipe && key === 'sql') &&
+      !isConditionPipe &&
+      !isMapPipe &&
+      !isVerifyPipe &&
+      !isFileSink &&
+      !(isSqlPipe && SQL_OWNED_KEYS.has(key)) &&
       !(isScriptPipe && key === 'script') &&
       !(entry?.triggerKind && key === 'triggerId') &&
       !(isSubWorkflow && key === 'workflowId') &&
       !(isSubWorkflow && key === 'workflowVersion') &&
-      !(isHttpSource && HTTP_REQUEST_KEYS.has(key)),
+      !(isHttpSource && HTTP_REQUEST_KEYS.has(key)) &&
+      !(isHttpTransformOrSink && key === 'request'),
   );
   const subWorkflowId =
     typeof config.workflowId === 'string' ? config.workflowId : '';
@@ -596,6 +644,26 @@ export function Inspector({
     onChange(pipeId, { config: JSON.stringify(next, null, 2) });
   };
 
+  const credentialPicker = (
+    <FilterPicker
+      id="pipe-credential"
+      mode="single"
+      testId="pipe-credential"
+      options={credentials.map((c) => ({
+        id: c.id,
+        label: c.name,
+        badge: c.kind,
+        detail: c.source ? `${c.id} · ${c.source}` : c.id,
+        testId: `pipe-credential-option-${c.id}`,
+      }))}
+      selectedId={data.credentialId || null}
+      onSelect={(credentialId) => onChange(pipeId, { credentialId })}
+      clearLabel="none"
+      placeholder="Filter by name, kind, id…"
+      summary={credentialSummary(credentials, data.credentialId)}
+    />
+  );
+
   return (
     <aside className="inspector">
       {header}
@@ -611,20 +679,6 @@ export function Inspector({
         }}
       />
       {renameError && <div className="field-error">{renameError}</div>}
-
-      <label>Intent</label>
-      <input data-testid="workflow-inspector-intent"
-        value={data.intent ?? ''}
-        placeholder={entry?.label ?? 'What this pipe does'}
-        onChange={(ev) =>
-          onChange(pipeId, {
-            intent: ev.target.value.trim() || undefined,
-          })
-        }
-      />
-      <div className="hint">
-        Optional one-liner for agents; defaults to the pipe type name.
-      </div>
 
       {entry?.triggerKind && (
         <>
@@ -733,87 +787,494 @@ export function Inspector({
         </>
       )}
 
-      {!entry?.simple && (
+      {isConditionPipe && (() => {
+        const OP_ALIASES: Record<string, string> = {
+          eq: 'equals',
+          ne: 'notEquals',
+          gt: 'greaterThan',
+          gte: 'greaterThanOrEqual',
+          lt: 'lessThan',
+          lte: 'lessThanOrEqual',
+        };
+        const rawOperator =
+          typeof config.operator === 'string'
+            ? config.operator
+            : typeof config.op === 'string'
+              ? config.op
+              : 'equals';
+        const resolvedOperator = OP_ALIASES[rawOperator] ?? rawOperator;
+        return (
+          <>
+            <h4 className="inspector-section">Condition rule</h4>
+            <label>Field path</label>
+            <Input
+              aria-label="Condition field"
+              placeholder="e.g. status, amount, user.role"
+              value={typeof config.field === 'string' ? config.field : ''}
+              onChange={(ev) => patchConfig('field', ev.target.value)}
+            />
+            <label>Operator</label>
+            <Select
+              aria-label="Condition operator"
+              value={resolvedOperator}
+              onChange={(ev) => {
+                const { op: _drop, ...rest } = parseConfig(data.config);
+                onChange(pipeId, {
+                  config: JSON.stringify(
+                    { ...rest, operator: ev.target.value },
+                    null,
+                    2,
+                  ),
+                });
+              }}
+            >
+              <option value="equals">equals (=)</option>
+              <option value="notEquals">does not equal (≠)</option>
+              <option value="greaterThan">greater than (&gt;)</option>
+              <option value="greaterThanOrEqual">greater than or equal (≥)</option>
+              <option value="lessThan">less than (&lt;)</option>
+              <option value="lessThanOrEqual">less than or equal (≤)</option>
+              <option value="contains">contains</option>
+              <option value="exists">exists (is not null)</option>
+            </Select>
+            {resolvedOperator !== 'exists' && (
+              <>
+                <label>Compare value</label>
+                <Input
+                  aria-label="Condition value"
+                  placeholder="e.g. paid, 100, true"
+                  value={config.value === undefined ? '' : String(config.value)}
+                  onChange={(ev) => {
+                    const raw = ev.target.value;
+                    if (raw === 'true') return patchConfig('value', true);
+                    if (raw === 'false') return patchConfig('value', false);
+                    if (raw.trim() !== '' && !Number.isNaN(Number(raw))) {
+                      return patchConfig('value', Number(raw));
+                    }
+                    patchConfig('value', raw);
+                  }}
+                />
+              </>
+            )}
+            <div className="hint">
+              Matching records exit on the <strong>true</strong> port; non-matching records exit on <strong>false</strong>.
+            </div>
+          </>
+        );
+      })()}
+
+      {isMapPipe && (
         <>
-          <label>Type</label>
-          <select data-testid="workflow-inspector-type"
-            value={data.type}
-            onChange={(ev) => {
-              const selected = catalog.find((e) => e.type === ev.target.value);
-              if (selected) {
-                onChange(pipeId, { type: selected.type, role: selected.role });
-              }
+          <h4 className="inspector-section">Field mappings</h4>
+          {Object.entries(
+            config.mappings && typeof config.mappings === 'object' && !Array.isArray(config.mappings)
+              ? (config.mappings as Record<string, string>)
+              : {},
+          ).map(([targetField, sourcePath], index) => (
+            <div key={index} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '6px', marginBottom: '6px' }}>
+              <Input
+                aria-label={`Output field ${index + 1}`}
+                placeholder="Output field"
+                value={targetField}
+                onChange={(ev) => {
+                  const currentMappings =
+                    config.mappings && typeof config.mappings === 'object' && !Array.isArray(config.mappings)
+                      ? { ...(config.mappings as Record<string, string>) }
+                      : {};
+                  const entries = Object.entries(currentMappings);
+                  entries[index] = [ev.target.value, String(sourcePath ?? '')];
+                  patchConfig('mappings', Object.fromEntries(entries));
+                }}
+              />
+              <Input
+                aria-label={`Source path ${index + 1}`}
+                placeholder="Source path (e.g. user.email)"
+                value={String(sourcePath ?? '')}
+                onChange={(ev) => {
+                  const currentMappings =
+                    config.mappings && typeof config.mappings === 'object' && !Array.isArray(config.mappings)
+                      ? { ...(config.mappings as Record<string, string>) }
+                      : {};
+                  currentMappings[targetField] = ev.target.value;
+                  patchConfig('mappings', currentMappings);
+                }}
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  const currentMappings =
+                    config.mappings && typeof config.mappings === 'object' && !Array.isArray(config.mappings)
+                      ? { ...(config.mappings as Record<string, string>) }
+                      : {};
+                  delete currentMappings[targetField];
+                  patchConfig('mappings', currentMappings);
+                }}
+              >
+                ×
+              </Button>
+            </div>
+          ))}
+          <Button
+            size="sm"
+            onClick={() => {
+              const currentMappings =
+                config.mappings && typeof config.mappings === 'object' && !Array.isArray(config.mappings)
+                  ? { ...(config.mappings as Record<string, string>) }
+                  : {};
+              const nextKey = `field_${Object.keys(currentMappings).length + 1}`;
+              patchConfig('mappings', { ...currentMappings, [nextKey]: nextKey });
             }}
           >
-            {categories.map((category) => (
-              <optgroup key={category.id} label={category.label}>
-                {category.entries.map((e) => (
-                  <option key={e.type} value={e.type}>
-                    {e.label} ({e.type})
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-
-          <label htmlFor="pipe-credential">Credential</label>
-          <FilterPicker
-            id="pipe-credential"
-            mode="single"
-            testId="pipe-credential"
-            options={credentials.map((c) => ({
-              id: c.id,
-              label: c.name,
-              badge: c.kind,
-              detail: c.source ? `${c.id} · ${c.source}` : c.id,
-              testId: `pipe-credential-option-${c.id}`,
-            }))}
-            selectedId={data.credentialId || null}
-            onSelect={(credentialId) => onChange(pipeId, { credentialId })}
-            clearLabel="none"
-            placeholder="Filter by name, kind, id…"
-            summary={credentialSummary(credentials, data.credentialId)}
-          />
-
-          <label>Concurrency (×N workers)</label>
-          <input data-testid="workflow-inspector-concurrency"
-            type="number"
-            min={1}
-            max={64}
-            value={data.concurrency}
-            onChange={(ev) =>
-              onChange(pipeId, { concurrency: Math.max(1, Number(ev.target.value) || 1) })
-            }
-          />
-
-          <label>Retry attempts (0 = off)</label>
-          <input data-testid="workflow-inspector-http-retry-attempts"
-            type="number"
-            min={0}
-            max={20}
-            value={data.retryAttempts}
-            onChange={(ev) =>
-              onChange(pipeId, { retryAttempts: Math.max(0, Number(ev.target.value) || 0) })
-            }
-          />
+            + Add field mapping
+          </Button>
+          <label className="checkbox-row" style={{ marginTop: '8px' }}>
+            <Input
+              type="checkbox"
+              style={{ width: 'auto' }}
+              checked={Boolean(config.includeOriginal ?? true)}
+              onChange={(ev) => patchConfig('includeOriginal', ev.target.checked)}
+            />
+            Keep original fields on each record
+          </label>
         </>
       )}
 
-      {isHttpSource && (
+      {isVerifyPipe && (() => {
+        type VerifyRuleItem = { field: string; op: string; value?: unknown; message?: string };
+        const rules: VerifyRuleItem[] = Array.isArray(config.rules)
+          ? (config.rules as VerifyRuleItem[])
+          : [];
+        const updateRules = (nextRules: VerifyRuleItem[]) => {
+          patchConfig('rules', nextRules);
+          setConfigError(null);
+        };
+        const parseCompareValue = (op: string, raw: string): unknown => {
+          if (op === 'oneOf') {
+            return raw
+              .split(',')
+              .map((item) => item.trim())
+              .filter(Boolean);
+          }
+          if (op === 'matches') return raw;
+          if (raw === 'true') return true;
+          if (raw === 'false') return false;
+          if (raw.trim() !== '' && !Number.isNaN(Number(raw))) {
+            return Number(raw);
+          }
+          return raw;
+        };
+        const onInvalid =
+          typeof config.onInvalid === 'string' ? config.onInvalid : 'reject';
+        const minScore =
+          typeof config.minScore === 'number' ? config.minScore : 1;
+        const outputField =
+          typeof config.outputField === 'string'
+            ? config.outputField
+            : 'verification';
+
+        return (
+          <>
+            <h4 className="inspector-section">Verification rules</h4>
+            {rules.map((rule, index) => {
+              const needsValue =
+                rule.op !== 'exists' && rule.op !== 'notEmpty';
+              const valueText = Array.isArray(rule.value)
+                ? rule.value.map(String).join(', ')
+                : rule.value === undefined
+                  ? ''
+                  : String(rule.value);
+              return (
+                <div
+                  key={index}
+                  style={{
+                    border: '1px solid var(--border-soft)',
+                    borderRadius: '4px',
+                    padding: '6px',
+                    marginBottom: '6px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    background: 'var(--panel-2)',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr auto',
+                      gap: '4px',
+                    }}
+                  >
+                    <Input
+                      aria-label={`Verify rule ${index + 1} field`}
+                      placeholder="Field path (e.g. amount)"
+                      value={rule.field ?? ''}
+                      onChange={(ev) => {
+                        const next = rules.map((r, i) =>
+                          i === index ? { ...r, field: ev.target.value } : r,
+                        );
+                        updateRules(next);
+                      }}
+                    />
+                    <Select
+                      aria-label={`Verify rule ${index + 1} operator`}
+                      value={rule.op || 'exists'}
+                      onChange={(ev) => {
+                        const nextOp = ev.target.value;
+                        const next = rules.map((r, i) => {
+                          if (i !== index) return r;
+                          if (nextOp === 'exists' || nextOp === 'notEmpty') {
+                            const { value: _drop, ...rest } = r;
+                            return { ...rest, op: nextOp };
+                          }
+                          return { ...r, op: nextOp };
+                        });
+                        updateRules(next);
+                      }}
+                    >
+                      <option value="exists">exists (not null)</option>
+                      <option value="notEmpty">not empty</option>
+                      <option value="equals">equals (=)</option>
+                      <option value="notEquals">does not equal (≠)</option>
+                      <option value="gt">greater than (&gt;)</option>
+                      <option value="gte">greater or equal (≥)</option>
+                      <option value="lt">less than (&lt;)</option>
+                      <option value="lte">less or equal (≤)</option>
+                      <option value="matches">matches regex</option>
+                      <option value="oneOf">one of (a, b)</option>
+                      <option value="minLength">min length</option>
+                      <option value="maxLength">max length</option>
+                    </Select>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      title="Remove rule"
+                      onClick={() =>
+                        updateRules(rules.filter((_, i) => i !== index))
+                      }
+                    >
+                      ×
+                    </Button>
+                  </div>
+                  {needsValue && (
+                    <Input
+                      aria-label={`Verify rule ${index + 1} value`}
+                      placeholder={
+                        rule.op === 'oneOf'
+                          ? 'Comma-separated values (e.g. paid, pending)'
+                          : rule.op === 'matches'
+                            ? 'Regex pattern (e.g. ^[A-Z]{2}$)'
+                            : 'Compare value'
+                      }
+                      value={valueText}
+                      onChange={(ev) => {
+                        const next = rules.map((r, i) =>
+                          i === index
+                            ? {
+                                ...r,
+                                value: parseCompareValue(
+                                  r.op || 'equals',
+                                  ev.target.value,
+                                ),
+                              }
+                            : r,
+                        );
+                        updateRules(next);
+                      }}
+                    />
+                  )}
+                  <Input
+                    aria-label={`Verify rule ${index + 1} message`}
+                    placeholder="Failure message (optional)"
+                    value={rule.message ?? ''}
+                    onChange={(ev) => {
+                      const next = rules.map((r, i) => {
+                        if (i !== index) return r;
+                        const msg = ev.target.value;
+                        if (!msg) {
+                          const { message: _drop, ...rest } = r;
+                          return rest;
+                        }
+                        return { ...r, message: msg };
+                      });
+                      updateRules(next);
+                    }}
+                  />
+                </div>
+              );
+            })}
+            <Button
+              size="sm"
+              onClick={() =>
+                updateRules([
+                  ...rules,
+                  { field: 'id', op: 'exists' },
+                ])
+              }
+            >
+              + Add verification rule
+            </Button>
+
+            <label style={{ marginTop: '8px' }}>On invalid record</label>
+            <Select
+              aria-label="On invalid record"
+              value={onInvalid}
+              onChange={(ev) => patchConfig('onInvalid', ev.target.value)}
+            >
+              <option value="reject">Send to rejects port (dead-letter)</option>
+              <option value="annotate">Annotate record with verdict and pass through</option>
+              <option value="fail">Stop and fail workflow run</option>
+            </Select>
+
+            <label>Minimum score (0–1)</label>
+            <Input
+              aria-label="Minimum score"
+              type="number"
+              min={0}
+              max={1}
+              step={0.1}
+              value={minScore}
+              onChange={(ev) => {
+                const n = Number(ev.target.value);
+                patchConfig(
+                  'minScore',
+                  Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 1,
+                );
+              }}
+            />
+
+            <label>Verdict output field</label>
+            <Input
+              aria-label="Verdict output field"
+              placeholder="verification"
+              value={outputField}
+              onChange={(ev) => patchConfig('outputField', ev.target.value)}
+            />
+            <div className="hint">
+              Passing records exit on <strong>out</strong>; failed records route
+              according to <em>On invalid record</em> (<strong>rejects</strong>,
+              annotated pass-through, or hard fail).
+            </div>
+          </>
+        );
+      })()}
+
+      {isFileSink && (() => {
+        const columnsText = Array.isArray(config.columns)
+          ? config.columns.map(String).join(', ')
+          : '';
+        const modeValue =
+          config.mode === 'overwrite' ? 'overwrite' : 'append';
+        const delimiterValue =
+          typeof config.delimiter === 'string' ? config.delimiter : ',';
+        const newlineValue = config.newline === '\r\n' ? '\r\n' : '\n';
+        const headerChecked = config.header !== false;
+        const escapeChecked = config.escapeFormulas !== false;
+
+        return (
+          <>
+            <h4 className="inspector-section">CSV / Delimited file output</h4>
+            <label>File path (inside workflow-files/)</label>
+            <Input
+              aria-label="Output file path"
+              placeholder="exports/data.csv"
+              value={typeof config.path === 'string' ? config.path : ''}
+              onChange={(ev) => patchConfig('path', ev.target.value)}
+            />
+
+            <label>Columns to write (comma-separated)</label>
+            <Input
+              aria-label="Output columns"
+              placeholder="id, name, country"
+              value={columnsText}
+              onChange={(ev) => {
+                const cols = ev.target.value
+                  .split(',')
+                  .map((col) => col.trim())
+                  .filter(Boolean);
+                patchConfig('columns', cols);
+              }}
+            />
+
+            <label>Write mode</label>
+            <Select
+              aria-label="File write mode"
+              value={modeValue}
+              onChange={(ev) => patchConfig('mode', ev.target.value)}
+            >
+              <option value="overwrite">Overwrite file each run</option>
+              <option value="append">Append rows to file</option>
+            </Select>
+
+            <label>Delimiter</label>
+            <Select
+              aria-label="Delimiter"
+              value={delimiterValue}
+              onChange={(ev) => patchConfig('delimiter', ev.target.value)}
+            >
+              <option value=",">Comma (,)</option>
+              <option value={'\t'}>Tab (\t)</option>
+              <option value=";">Semicolon (;)</option>
+              <option value="|">Pipe (|)</option>
+            </Select>
+
+            <label>Line ending</label>
+            <Select
+              aria-label="Line ending"
+              value={newlineValue}
+              onChange={(ev) => patchConfig('newline', ev.target.value)}
+            >
+              <option value={'\n'}>LF — Unix / macOS (\n)</option>
+              <option value={'\r\n'}>CRLF — Windows / Excel (\r\n)</option>
+            </Select>
+
+            <label className="checkbox-row" style={{ marginTop: '6px' }}>
+              <Input
+                type="checkbox"
+                style={{ width: 'auto' }}
+                checked={headerChecked}
+                onChange={(ev) => patchConfig('header', ev.target.checked)}
+              />
+              Write header row
+            </label>
+
+            <label className="checkbox-row">
+              <Input
+                type="checkbox"
+                style={{ width: 'auto' }}
+                checked={escapeChecked}
+                onChange={(ev) =>
+                  patchConfig('escapeFormulas', ev.target.checked)
+                }
+              />
+              Escape spreadsheet formulas
+            </label>
+          </>
+        );
+      })()}
+
+      {isHttpPipe && (
         <>
           <h4 className="inspector-section">HTTP request</h4>
           <HttpRequestEditor
             // Remount per node: the editor keeps local buffers (body JSON,
             // Zod schema, test data) that must never bleed across pipes.
             key={pipeId}
-            value={toHttpRequestValue(config)}
+            value={toHttpRequestValue(
+              isHttpTransformOrSink &&
+                config.request &&
+                typeof config.request === 'object' &&
+                !Array.isArray(config.request)
+                ? (config.request as Record<string, unknown>)
+                : config,
+            )}
             credentials={credentials}
             onChange={(request: HttpRequestValue) => {
-              const next: Record<string, unknown> = {
-                ...parseConfig(data.config),
-                ...request,
-              };
-              delete next.request;
+              const current = parseConfig(data.config);
+              const next: Record<string, unknown> = isHttpTransformOrSink
+                ? { ...current, request }
+                : { ...current, ...request };
+              if (!isHttpTransformOrSink) delete next.request;
               onChange(pipeId, { config: JSON.stringify(next, null, 2) });
               setConfigError(null);
             }}
@@ -921,40 +1382,117 @@ export function Inspector({
         </>
       )}
 
-      {!entry?.simple && (
+      {!entry?.simple && needsEngineCredential && (
         <>
-          <button data-testid="workflow-inspector-show-raw"
-            type="button"
-            className="linkish"
-            onClick={() => setShowRaw((open) => !open)}
-          >
-            {showRaw ? 'Hide raw JSON' : 'Edit raw JSON'}
-          </button>
-          {showRaw && (
-            <>
-              <label>Config (JSON)</label>
-              <div className="monaco-frame">
-                <Editor
-                  height="220px"
-                  language="json"
-                  theme={jsonEditorTheme}
-                  value={data.config}
-                  onChange={(value) => {
-                    const next = value ?? '';
-                    onChange(pipeId, { config: next });
-                    try {
-                      JSON.parse(next || '{}');
-                      setConfigError(null);
-                    } catch {
-                      setConfigError('Not valid JSON — fix before validating or saving.');
-                    }
-                  }}
-                  options={JSON_EDITOR_OPTIONS}
-                />
-              </div>
-            </>
-          )}
+          <label htmlFor="pipe-credential">Credential</label>
+          {credentialPicker}
         </>
+      )}
+
+      {!entry?.simple && (
+        <details className="inspector-advanced" style={{ marginTop: '14px' }}>
+          <summary className="linkish" style={{ cursor: 'pointer', userSelect: 'none' }}>
+            Advanced &amp; execution options
+          </summary>
+          <div style={{ marginTop: '8px' }}>
+            <label>Type</label>
+            <select data-testid="workflow-inspector-type"
+              value={data.type}
+              onChange={(ev) => {
+                const selected = catalog.find((e) => e.type === ev.target.value);
+                if (selected) {
+                  onChange(pipeId, { type: selected.type, role: selected.role });
+                }
+              }}
+            >
+              {categories.map((category) => (
+                <optgroup key={category.id} label={category.label}>
+                  {category.entries.map((e) => (
+                    <option key={e.type} value={e.type}>
+                      {e.label} ({e.type})
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+
+            <label>Intent</label>
+            <input data-testid="workflow-inspector-intent"
+              value={data.intent ?? ''}
+              placeholder={entry?.label ?? 'What this pipe does'}
+              onChange={(ev) =>
+                onChange(pipeId, {
+                  intent: ev.target.value.trim() || undefined,
+                })
+              }
+            />
+            <div className="hint">
+              Optional one-liner for agents; defaults to the pipe type name.
+            </div>
+
+            {!needsEngineCredential && (
+              <>
+                <label htmlFor="pipe-credential">Credential override</label>
+                {credentialPicker}
+              </>
+            )}
+
+            <label>Concurrency (×N workers)</label>
+            <input data-testid="workflow-inspector-concurrency"
+              type="number"
+              min={1}
+              max={64}
+              value={data.concurrency}
+              onChange={(ev) =>
+                onChange(pipeId, { concurrency: Math.max(1, Number(ev.target.value) || 1) })
+              }
+            />
+
+            <label>Retry attempts (0 = off)</label>
+            <input data-testid="workflow-inspector-http-retry-attempts"
+              type="number"
+              min={0}
+              max={20}
+              value={data.retryAttempts}
+              onChange={(ev) =>
+                onChange(pipeId, { retryAttempts: Math.max(0, Number(ev.target.value) || 0) })
+              }
+            />
+
+            <button data-testid="workflow-inspector-show-raw"
+              type="button"
+              className="linkish"
+              style={{ marginTop: '8px' }}
+              onClick={() => setShowRaw((open) => !open)}
+            >
+              {showRaw ? 'Hide raw JSON' : 'Edit raw JSON'}
+            </button>
+            {showRaw && (
+              <>
+                <label>Config (JSON)</label>
+                <div className="monaco-frame">
+                  <Editor
+                    height="220px"
+                    language="json"
+                    theme={jsonEditorTheme}
+                    value={data.config}
+                    onChange={(value) => {
+                      const next = value ?? '';
+                      onChange(pipeId, { config: next });
+                      try {
+                        JSON.parse(next || '{}');
+                        setConfigError(null);
+                      } catch {
+                        setConfigError('Not valid JSON — fix before validating or saving.');
+                      }
+                    }}
+                    options={JSON_EDITOR_OPTIONS}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        </details>
       )}
       {configError ? (
         <div className="field-error">{configError}</div>

@@ -210,9 +210,10 @@ async function saveMutation(ctx: AppContext, reply: RouteReply, merged: Workflow
   return reply.code(200).send({ workflow, plan: plansFor(workflow) });
 }
 
-export function workflowRoutes(ctx: AppContext) {
+export function workflowRoutes(ctx: AppContext, options: { extra?: boolean } = {}) {
   return async (app: FastifyInstance) => {
     const r = app.withTypeProvider<ZodTypeProvider>();
+    const extra = options.extra !== false;
 
     // Validate + plan without persisting — powers the designer's "Validate"
     // button. Returns completion waves (pipeline level) plus per-pipeline
@@ -263,25 +264,27 @@ export function workflowRoutes(ctx: AppContext) {
      * Static validation cannot tell you whether a map produces the fields the
      * next pipe expects, or whether a condition routes anything down the branch
      * you drew. Only running it can, and running it for real writes to
-     * production.
+     * production. Not mounted on the FoxSchema designer prefix.
      */
-    r.post(
-      '/workflows/:id/dry-run',
-      { schema: { params: z.object({ id: z.string() }) } },
-      async (req, reply) => {
-        const workflow = await ctx.workflows.get(req.params.id);
-        if (!workflow) return reply.code(404).send({ error: 'not found' });
+    if (extra) {
+      r.post(
+        '/workflows/:id/dry-run',
+        { schema: { params: z.object({ id: z.string() }) } },
+        async (req, reply) => {
+          const workflow = await ctx.workflows.get(req.params.id);
+          if (!workflow) return reply.code(404).send({ error: 'not found' });
 
-        const body = (req.body ?? {}) as { samples?: Record<string, unknown> };
-        const samples = (body.samples ?? {}) as Record<
-          string,
-          Record<string, unknown>[]
-        >;
-        return reply
-          .code(200)
-          .send(await dryRunWorkflow(ctx.registry, workflow, samples));
-      },
-    );
+          const body = (req.body ?? {}) as { samples?: Record<string, unknown> };
+          const samples = (body.samples ?? {}) as Record<
+            string,
+            Record<string, unknown>[]
+          >;
+          return reply
+            .code(200)
+            .send(await dryRunWorkflow(ctx.registry, workflow, samples));
+        },
+      );
+    }
 
     r.get('/workflows', {}, async () => {
       const [workflows, summaries] = await Promise.all([
@@ -358,91 +361,82 @@ export function workflowRoutes(ctx: AppContext) {
     });
 
     /**
-     * Propose a thin orchestration workflow that reuses callable catalog
-     * entries (Agentic OS Phase F).
+     * Agent propose and per-pipeline mutate: not mounted on the FoxSchema
+     * designer prefix. A hook regression must not expose them behind a session.
      */
-    r.post('/agent/propose-workflow', {}, async (req, reply) => {
-      const body = (req.body ?? {}) as Record<string, unknown>;
-      try {
-        const catalog = await ctx.workflows.list();
-        const result = proposeWorkflow({
-          purpose: String(body.purpose ?? ''),
-          id: String(body.id ?? ''),
-          ...(typeof body.name === 'string' ? { name: body.name } : {}),
-          ...(Array.isArray(body.tags) ? { tags: body.tags.map(String) } : {}),
-          ...(typeof body.limit === 'number' ? { limit: body.limit } : {}),
-          catalog,
-        });
-        // Validate shape without requiring sub-workflows to exist as savable
-        // yet — propose is a draft. Still parse so agents get a legal doc.
-        const workflow = parseWorkflowInput(result.workflow);
-        return {
-          workflow,
-          reused: result.reused,
-          notes: result.notes,
-        };
-      } catch (err) {
-        return reply.code(400).send({ error: (err as Error).message });
-      }
-    });
-
-    /**
-     * Extend a saved workflow with one pipeline, instead of re-authoring the
-     * whole document. This is the seam an agent uses: regenerating a workflow to
-     * add a nightly reconciliation step is how the parts it forgot to mention
-     * get silently dropped.
-     *
-     * The merged document goes through the same parse, cycle and middleware
-     * checks a human `PUT` goes through, so this cannot install a workflow a
-     * human could not have saved, and nothing is persisted unless the whole
-     * result is legal.
-     */
-    r.post(
-      '/workflows/:id/pipelines',
-      { schema: { params: z.object({ id: z.string() }) } },
-      async (req, reply) => {
-        const current = await ctx.workflows.get(req.params.id);
-        if (!current) return reply.code(404).send({ error: 'not found' });
-
+    if (extra) {
+      r.post('/agent/propose-workflow', {}, async (req, reply) => {
         const body = (req.body ?? {}) as Record<string, unknown>;
-        let merged: WorkflowDef;
         try {
-          assertExpectedVersion(current, body.expectedVersion as number | undefined);
-          merged = addPipeline(current, {
-            pipeline: body.pipeline as never,
-            dependsOn: body.dependsOn as never,
-            feeds: body.feeds as never,
-            replace: body.replace === true,
+          const catalog = await ctx.workflows.list();
+          const result = proposeWorkflow({
+            purpose: String(body.purpose ?? ''),
+            id: String(body.id ?? ''),
+            ...(typeof body.name === 'string' ? { name: body.name } : {}),
+            ...(Array.isArray(body.tags) ? { tags: body.tags.map(String) } : {}),
+            ...(typeof body.limit === 'number' ? { limit: body.limit } : {}),
+            catalog,
           });
+          // Validate shape without requiring sub-workflows to exist as savable
+          // yet — propose is a draft. Still parse so agents get a legal doc.
+          const workflow = parseWorkflowInput(result.workflow);
+          return {
+            workflow,
+            reused: result.reused,
+            notes: result.notes,
+          };
         } catch (err) {
-          return sendMutationError(reply, err);
+          return reply.code(400).send({ error: (err as Error).message });
         }
-        return saveMutation(ctx, reply, merged);
-      },
-    );
+      });
 
-    r.delete(
-      '/workflows/:id/pipelines/:pipelineId',
-      {
-        schema: {
-          params: z.object({ id: z.string(), pipelineId: z.string() }),
-          querystring: z.object({ expectedVersion: z.coerce.number().optional() }),
+      r.post(
+        '/workflows/:id/pipelines',
+        { schema: { params: z.object({ id: z.string() }) } },
+        async (req, reply) => {
+          const current = await ctx.workflows.get(req.params.id);
+          if (!current) return reply.code(404).send({ error: 'not found' });
+
+          const body = (req.body ?? {}) as Record<string, unknown>;
+          let merged: WorkflowDef;
+          try {
+            assertExpectedVersion(current, body.expectedVersion as number | undefined);
+            merged = addPipeline(current, {
+              pipeline: body.pipeline as never,
+              dependsOn: body.dependsOn as never,
+              feeds: body.feeds as never,
+              replace: body.replace === true,
+            });
+          } catch (err) {
+            return sendMutationError(reply, err);
+          }
+          return saveMutation(ctx, reply, merged);
         },
-      },
-      async (req, reply) => {
-        const current = await ctx.workflows.get(req.params.id);
-        if (!current) return reply.code(404).send({ error: 'not found' });
+      );
 
-        let merged: WorkflowDef;
-        try {
-          assertExpectedVersion(current, req.query.expectedVersion);
-          merged = removePipeline(current, req.params.pipelineId);
-        } catch (err) {
-          return sendMutationError(reply, err);
-        }
-        return saveMutation(ctx, reply, merged);
-      },
-    );
+      r.delete(
+        '/workflows/:id/pipelines/:pipelineId',
+        {
+          schema: {
+            params: z.object({ id: z.string(), pipelineId: z.string() }),
+            querystring: z.object({ expectedVersion: z.coerce.number().optional() }),
+          },
+        },
+        async (req, reply) => {
+          const current = await ctx.workflows.get(req.params.id);
+          if (!current) return reply.code(404).send({ error: 'not found' });
+
+          let merged: WorkflowDef;
+          try {
+            assertExpectedVersion(current, req.query.expectedVersion);
+            merged = removePipeline(current, req.params.pipelineId);
+          } catch (err) {
+            return sendMutationError(reply, err);
+          }
+          return saveMutation(ctx, reply, merged);
+        },
+      );
+    }
 
     r.delete(
       '/workflows/:id',

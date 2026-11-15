@@ -17,7 +17,7 @@ const deleteAppSecret = vi.fn();
 const listGcpProjects = vi.fn();
 const listGcpSecrets = vi.fn();
 const listGcpSecretVersions = vi.fn();
-const upsertVariable = vi.fn(() => null);
+const upsertVariable = vi.fn((..._args: unknown[]) => null);
 const deleteVariable = vi.fn();
 const insertAtCursor = vi.fn((_text: string) => true);
 const editorVariables: Array<{ id: string; name: string; secret?: boolean }> = [];

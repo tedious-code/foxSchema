@@ -87,6 +87,8 @@ const EXCEPTIONS = new Set<string>([
   // the name would lose the record of where `apps/workflow-server` came from.
   'apps/foxworkflow',
   'apps/designer',
+  // Retired: the engine now runs in packages/server. Named in older docs.
+  'apps/workflow-server',
   // The old backend root, named in the docs precisely to say it is gone. Only
   // the bare directory is exempt — a file under it (the stale
   // `apps/web/src/backend/database/schema.ts` that started all this) still

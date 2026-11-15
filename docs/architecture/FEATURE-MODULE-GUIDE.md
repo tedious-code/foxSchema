@@ -52,10 +52,15 @@ Housekeeping that is only safe at startup goes in `onBoot` (the files feature
 sweeps orphaned upload parts there). The registry runs it once; a failure is
 logged and boot carries on.
 
+Native Fastify plugins (SSE, raw-body webhooks) go on `registerFastify(app, context)`,
+called from `createFastifyApp` through the registry so `api/` never imports a
+feature. The workflow engine uses this for `/api/workflow/engine` and public
+`/api/hooks` / `/api/triggers`.
+
 - `access` is one of `public`, `user` (signed in), `registered` (signed in
-  with a real account, not a launch link), `internal` (the workflow engine's
-  service token). The registry turns it into the guard chain; a feature never
-  wires the session guard itself.
+  with a real account, not a launch link), `internal` (a service-token mount;
+  unused now that the engine is in-process). The registry turns it into the
+  guard chain; a feature never wires the session guard itself.
 - Permission checks stay on each route: `requirePermissions('…')` from
   `platform/authorization`. Visibility in the UI is never authorization.
 - A POST that only reads (a SELECT in the body, a schema load) must pass the

@@ -36,48 +36,38 @@ describe('foxschema credential source', () => {
     expect(() => buildStoredSecret('foxschema', {})).toThrow(/connectionId/);
   });
 
-  it('resolves through FoxSchema, presenting the service token', async () => {
-    const fetchImpl = vi.fn(async () => Response.json(RESOLVED));
-
+  it('resolves through an injected function without HTTP', async () => {
+    const fetchImpl = vi.fn();
     const resolved = await resolveStoredSecret(
       { source: 'foxschema', connectionId: 'conn-1' },
-      { WORKFLOW_ENGINE_TOKEN: 'shared-token', FOXSCHEMA_URL: 'http://fox.test:3210/' },
+      {},
       fetchImpl as unknown as typeof fetch,
+      async (connectionId) => (connectionId === 'conn-1' ? RESOLVED : undefined),
     );
-
     expect(resolved).toEqual(RESOLVED);
-    expect(fetchImpl).toHaveBeenCalledWith(
-      'http://fox.test:3210/api/workflow-internal/connections/resolve',
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({ connectionId: 'conn-1' }),
-        headers: expect.objectContaining({ authorization: 'Bearer shared-token' }),
-      }),
-    );
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('fails plainly without a token, before calling FoxSchema', async () => {
+  it('refuses HTTP when no resolver is injected', async () => {
     const fetchImpl = vi.fn();
     await expect(
       resolveStoredSecret(
         { source: 'foxschema', connectionId: 'conn-1' },
-        {},
+        { WORKFLOW_ENGINE_TOKEN: 'shared-token', FOXSCHEMA_URL: 'http://fox.test:3210/' },
         fetchImpl as unknown as typeof fetch,
       ),
-    ).rejects.toThrow(/WORKFLOW_ENGINE_TOKEN is not set/);
+    ).rejects.toThrow(/in-process engine/);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it('says a refused connection is not granted, without repeating what FoxSchema sent', async () => {
-    const fetchImpl = vi.fn(async () =>
-      Response.json({ error: 'internal detail' }, { status: 404 }),
-    );
-    const failure = resolveStoredSecret(
-      { source: 'foxschema', connectionId: 'conn-1' },
-      { WORKFLOW_ENGINE_TOKEN: 'shared-token' },
-      fetchImpl as unknown as typeof fetch,
-    );
-    await expect(failure).rejects.toThrow(/not granted to workflows/);
-    await expect(failure).rejects.not.toThrow(/internal detail/);
+  it('says a refused connection is not granted', async () => {
+    await expect(
+      resolveStoredSecret(
+        { source: 'foxschema', connectionId: 'conn-1' },
+        {},
+        fetch as typeof fetch,
+        async () => undefined,
+      ),
+    ).rejects.toThrow(/not granted to workflows/);
   });
 });

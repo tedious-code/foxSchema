@@ -21,12 +21,9 @@ let cachedRoot: string | undefined;
  * Resolve the metadata database location.
  *
  * Every engine process has to agree on one file. A bare relative filename is
- * resolved by `node:sqlite` against `process.cwd()` — and each dev script runs
- * in its own workspace directory (`npm -w @foxschema/workflow-server run dev`
- * leaves cwd at `apps/workflow-server`). The server, scheduler and worker would
- * each open a *different* database, and any command run from elsewhere would
- * silently create another. Anchoring the default to the repo root makes the
- * location independent of where you stand.
+ * resolved by `node:sqlite` against `process.cwd()` — and npm workspace scripts
+ * leave cwd in `apps/web` or `packages/server`. Anchoring the default to the
+ * repo root makes the location independent of where you stand.
  *
  * `FOXFLOW_DB_PATH` still wins, so deployments can put the file anywhere.
  */

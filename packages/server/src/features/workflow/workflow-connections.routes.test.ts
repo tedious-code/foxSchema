@@ -10,10 +10,10 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Permission } from '@foxschema/shared';
 import type { WorkflowConnectionSummary, WorkflowEngineConfig } from '@foxschema/workflow-contract';
+import type { CredentialStore } from '@foxschema/workflow-engine';
 import { bindRoutes } from '../../platform/http/fastify-bind';
 import { Router } from '../../platform/http/router';
 import type { AuthedRequest } from '../../platform/http/types';
-import { WorkflowEngineProxyService } from './workflow-engine-proxy.service';
 import type { WorkflowSettingsService } from './workflow-settings.service';
 import { createWorkflowRoutes } from './workflow.routes';
 
@@ -32,27 +32,30 @@ afterEach(async () => {
   app = undefined;
 });
 
-async function serve(permissions: Permission[], engineStatus = 201) {
+async function serve(permissions: Permission[], engineOk = true) {
   const granted = new Set<string>();
-  const engineCalls: Array<{ method: string; url: string; body?: unknown }> = [];
+  const engineCalls: Array<{ method: string; id?: string; body?: unknown }> = [];
   const settings = {
     getConfig: async (): Promise<WorkflowEngineConfig> => ({
       state: 'enabled',
-      endpoint: 'http://engine.test:8081',
+      endpoint: '',
       maxParallel: 4,
       onOverlap: 'skip',
       processes: [],
       sinks: [],
     }),
   } as unknown as WorkflowSettingsService;
-  const fetchImpl = (async (input: Parameters<typeof fetch>[0], init: RequestInit = {}) => {
-    engineCalls.push({
-      method: init.method ?? 'GET',
-      url: String(input),
-      ...(init.body ? { body: JSON.parse(String(init.body)) } : {}),
-    });
-    return new Response(null, { status: engineStatus });
-  }) as typeof fetch;
+  const credentials = {
+    create: async (input) => {
+      engineCalls.push({ method: 'create', body: input });
+      if (!engineOk) throw new Error('engine down');
+      return { id: input.id ?? 'id', name: input.name, kind: input.kind, source: input.source ?? 'local', createdAt: '', updatedAt: '' };
+    },
+    remove: async (id) => {
+      engineCalls.push({ method: 'remove', id });
+      return true;
+    },
+  } as Pick<CredentialStore, 'create' | 'remove'>;
   const grants = {
     list: async () => [{ ...CONNECTION, granted: granted.has(CONNECTION.id) }],
     grant: async (_scope: unknown, id: string) => {
@@ -65,10 +68,7 @@ async function serve(permissions: Permission[], engineStatus = 201) {
   };
 
   const root = Router();
-  root.use(
-    '/api/workflow',
-    createWorkflowRoutes(settings, new WorkflowEngineProxyService(settings, fetchImpl), grants),
-  );
+  root.use('/api/workflow', createWorkflowRoutes({ settings, grants, credentials }));
   app = Fastify();
   app.addHook('onRequest', async (req) => {
     const authed = req as unknown as AuthedRequest;
@@ -91,8 +91,7 @@ describe('workflow connection routes', () => {
     expect(granted.has('conn-1')).toBe(true);
     expect(engineCalls).toEqual([
       {
-        method: 'POST',
-        url: 'http://engine.test:8081/api/credentials',
+        method: 'create',
         body: {
           id: 'foxschema-conn-1',
           name: 'Warehouse',
@@ -105,7 +104,7 @@ describe('workflow connection routes', () => {
   });
 
   it('takes the grant back when the engine does not record the credential', async () => {
-    const { server, granted } = await serve(['workflow.design'], 500);
+    const { server, granted } = await serve(['workflow.design'], false);
     const res = await server.inject({ method: 'PUT', url: '/api/workflow/connections/conn-1/grant' });
     expect(res.statusCode).toBe(503);
     expect(granted.has('conn-1')).toBe(false);
@@ -123,10 +122,7 @@ describe('workflow connection routes', () => {
     await server.inject({ method: 'PUT', url: '/api/workflow/connections/conn-1/grant' });
     const res = await server.inject({ method: 'DELETE', url: '/api/workflow/connections/conn-1/grant' });
     expect(res.statusCode).toBe(200);
-    expect(engineCalls.at(-1)).toEqual({
-      method: 'DELETE',
-      url: 'http://engine.test:8081/api/credentials/foxschema-conn-1',
-    });
+    expect(engineCalls.at(-1)).toEqual({ method: 'remove', id: 'foxschema-conn-1' });
   });
 
   it('needs workflow.design', async () => {

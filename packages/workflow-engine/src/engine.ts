@@ -45,6 +45,13 @@ export interface EngineOptions {
    * which is allowed to know about database drivers.
    */
   sql?: SqlProbe;
+  /**
+   * Resolve a FoxSchema saved-connection id to driver options. In-process
+   * embedders inject this so a run never HTTP-calls FoxSchema for credentials.
+   */
+  resolveFoxSchemaConnection?: (
+    connectionId: string,
+  ) => Promise<Record<string, unknown> | undefined>;
   subWorkflowMaxDepth?: number;
   subWorkflowPollIntervalMs?: number;
 }
@@ -69,6 +76,7 @@ export class Engine {
     const stores = openSqliteStores(
       resolveDatabasePath(options.databasePath),
       options.encryptionKey ?? keyFromEnv(),
+      { resolveFoxSchemaConnection: options.resolveFoxSchemaConnection },
     );
     // Every writer of run events — executor, runner, scheduler, sub-workflows —
     // is handed this one store, so observing it here observes all of them.

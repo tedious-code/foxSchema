@@ -30,6 +30,7 @@ import {
   Radio,
   Save,
   Settings2,
+  Sparkles,
   Split,
   ZoomIn,
   ZoomOut,
@@ -48,6 +49,7 @@ import {
   useMiddlewareCatalog,
   useRuns,
   useWorkflowList,
+  invalidateEngineQueries,
 } from '../api/engineQueries';
 import type { CatalogEntry } from '../lib/catalog';
 import { CredentialsPanel } from './CredentialsPanel';
@@ -87,6 +89,12 @@ import {
   type OverlapPolicy,
   type WorkflowTrigger,
 } from '../lib/triggers';
+import {
+  WORKFLOW_SAMPLES,
+  sampleForCanvas,
+  samplesAlreadyInstalled,
+  saveSampleWorkflows,
+} from '../lib/workflowSamples';
 import { useWorkflowUiStore } from '../store/workflowUiStore';
 
 const nodeTypes = { pipe: PipeNode };
@@ -128,6 +136,77 @@ function edgePresentation(sourceHandle?: string | null): Partial<Edge<PipeEdgeDa
 // Module-level so React Flow sees one identity; an inline object was a new
 // options value on every render.
 const DEFAULT_EDGE_OPTIONS = edgePresentation();
+
+const DEFAULT_PIPE_CONFIGS: Record<string, Record<string, unknown>> = {
+  'source.db.sql': {
+    dialect: 'sqlite',
+    sql: 'SELECT id, customer, plan, amount, status FROM workflow_orders ORDER BY id;',
+  },
+  'sink.db.sql': {
+    dialect: 'sqlite',
+    mode: 'insert',
+    table: 'workflow_orders',
+  },
+  'transform.verify': {
+    rules: [{ field: 'id', op: 'exists', message: 'id is required' }],
+    onInvalid: 'reject',
+  },
+  'transform.map': {
+    mappings: { id: 'id' },
+    includeOriginal: true,
+  },
+  'transform.condition': {
+    field: 'status',
+    operator: 'equals',
+    value: 'paid',
+  },
+  'transform.split': {
+    field: 'region',
+  },
+  'logic.loop': {
+    size: 1,
+    maxIterations: 1000,
+  },
+  'transform.script': {
+    script: 'return records;',
+  },
+  'source.api.http': {
+    method: 'GET',
+    url: 'https://geocoding-api.open-meteo.com/v1/search?name=Tokyo&count=1',
+    recordsPath: 'results',
+  },
+  'transform.http': {
+    request: {
+      method: 'GET',
+      url: 'https://api.open-meteo.com/v1/forecast?latitude={{latitude}}&longitude={{longitude}}&current_weather=true',
+    },
+    outputField: 'weather',
+  },
+  'sink.file.delimited': {
+    path: 'export.csv',
+    columns: ['id', 'name'],
+    mode: 'overwrite',
+    delimiter: ',',
+    header: true,
+  },
+  'source.file.csv': {
+    path: 'export.csv',
+    delimiter: ',',
+    skipLines: 0,
+  },
+  'source.file.json': {
+    path: 'export.json',
+    format: 'auto',
+  },
+};
+
+function defaultPipeConfig(type: string, boundTriggerId: string): string {
+  if (boundTriggerId) {
+    return JSON.stringify({ triggerId: boundTriggerId }, null, 2);
+  }
+  const preset = DEFAULT_PIPE_CONFIGS[type];
+  return preset ? JSON.stringify(preset, null, 2) : '{}';
+}
 
 type Pipeline = {
   id: string;
@@ -509,24 +588,23 @@ function Designer() {
         const pipelineNodeCount = current.filter(
           (node) => node.data.pipelineId === activePipelineId,
         ).length;
+        const nextNodeId = pipeKey(activePipelineId, pipeId);
         const node: PipeNodeType = {
-          id: pipeKey(activePipelineId, pipeId),
+          id: nextNodeId,
           type: 'pipe',
           position: position ?? {
-            x: 80 + (pipelineNodeCount % 4) * 190,
+            x: 80 + (pipelineNodeCount % 4) * 210,
             y:
               80 +
               pipelineIndex * 210 +
-              Math.floor(pipelineNodeCount / 4) * 100,
+              Math.floor(pipelineNodeCount / 4) * 110,
           },
           data: {
             pipelineId: activePipelineId,
             pipeId,
             role: entry.role,
             type: entry.type,
-            config: boundTriggerId
-              ? JSON.stringify({ triggerId: boundTriggerId }, null, 2)
-              : '{}',
+            config: defaultPipeConfig(entry.type, boundTriggerId),
             concurrency: 1,
             retryAttempts: 3,
             credentialId: '',
@@ -534,6 +612,7 @@ function Designer() {
             outputs: entry.outputs ?? [],
           },
         };
+        setSelectedId(nextNodeId);
         return [...current, node];
       });
       setView('designer');
@@ -845,6 +924,34 @@ function Designer() {
     [applyDocument],
   );
 
+  const applySampleDocument = useCallback(
+    (document: (typeof WORKFLOW_SAMPLES)[number]['document']) => {
+      applyDocument(document as SavedWorkflow);
+    },
+    [applyDocument],
+  );
+
+  const addSampleWorkflow = useCallback(async () => {
+    const showcase = sampleForCanvas();
+    applyDocument(showcase.document as SavedWorkflow);
+    try {
+      await saveSampleWorkflows(api.save);
+      invalidateEngineQueries('workflows');
+      toast.success(
+        WORKFLOW_SAMPLES.length === 1
+          ? `Sample "${showcase.name}"`
+          : `${WORKFLOW_SAMPLES.length} samples — "${showcase.name}" is on the canvas`,
+        {
+          description: 'Open the others from the Workflows list. Test run once the engine is Enabled.',
+        },
+      );
+    } catch (error) {
+      toast.error('Could not save the sample to the engine', {
+        description: `${(error as Error).message} It is on the canvas — Save when the engine is reachable.`,
+      });
+    }
+  }, [applyDocument]);
+
   const run = useCallback(async () => {
     if (!(await save())) return;
     setBusy(true);
@@ -926,6 +1033,21 @@ function Designer() {
                 Load
               </Button>
               <Button
+                data-testid="workflow-designer-add-sample"
+                onClick={() => void addSampleWorkflow()}
+                disabled={busy || !canDesign}
+                title={
+                  canDesign
+                    ? 'Install built-in sample workflows you can Test run without a database'
+                    : 'Adding samples needs the workflow design permission'
+                }
+              >
+                <Sparkles />
+                {samplesAlreadyInstalled(workflowList.map((workflow) => workflow.id))
+                  ? 'Refresh samples'
+                  : 'Add samples'}
+              </Button>
+              <Button
                 data-testid="workflow-designer-save"
                 onClick={() => void save()}
                 disabled={busy || nodes.length === 0 || !canDesign}
@@ -951,36 +1073,42 @@ function Designer() {
               <Button size="icon" onClick={() => void zoomIn()} aria-label="Zoom in"><ZoomIn /></Button>
               <Button size="icon" onClick={() => void zoomOut()} aria-label="Zoom out"><ZoomOut /></Button>
               <Button onClick={() => void fitView()} title="Fit the pipeline to the canvas">Fit</Button>
-              <span className="toolbar-separator" />
-              <span className="pipeline-context-label">Add pipes to</span>
-              <div className="pipeline-chips" role="group" aria-label="Target pipeline">
-                {pipelines.map((pipeline) => (
-                  <button data-testid={`workflow-designer-switch-pipeline-${pipeline.id}`}
-                    key={pipeline.id}
-                    className={pipeline.id === activePipelineId ? 'active' : ''}
-                    onClick={() => switchPipeline(pipeline.id)}
+              {pipelines.length > 1 && (
+                <>
+                  <span className="toolbar-separator" />
+                  <span className="pipeline-context-label">Stage</span>
+                  <div className="pipeline-chips" role="group" aria-label="Target pipeline">
+                    {pipelines.map((pipeline) => (
+                      <button data-testid={`workflow-designer-switch-pipeline-${pipeline.id}`}
+                        key={pipeline.id}
+                        className={pipeline.id === activePipelineId ? 'active' : ''}
+                        onClick={() => switchPipeline(pipeline.id)}
+                      >
+                        <span className="pipeline-chip-dot" />
+                        {pipeline.name}
+                        <small>{pipelineNodeCounts.get(pipeline.id) ?? 0}</small>
+                      </button>
+                    ))}
+                  </div>
+                  <Button
+                    onClick={() => void extractActivePipeline()}
+                    disabled={busy || !canDesign || (pipelineNodeCounts.get(activePipelineId) ?? 0) === 0}
+                    title="Promote the active pipeline to a reusable workflow"
                   >
-                    <span className="pipeline-chip-dot" />
-                    {pipeline.name}
-                    <small>{pipelineNodeCounts.get(pipeline.id) ?? 0}</small>
-                  </button>
-                ))}
-              </div>
-              <Button onClick={addPipeline}>+ Pipeline</Button>
-              <Button
-                onClick={() => void extractActivePipeline()}
-                disabled={busy || !canDesign || (pipelineNodeCounts.get(activePipelineId) ?? 0) === 0}
-                title="Promote the active pipeline to a reusable workflow"
-              >
-                <Split /> Extract
+                    <Split /> Extract
+                  </Button>
+                  <Input
+                    className="pipeline-task-input"
+                    aria-label="Active pipeline task"
+                    placeholder="Stage task…"
+                    value={pipelines.find((pipeline) => pipeline.id === activePipelineId)?.task ?? ''}
+                    onChange={(event) => updateActivePipelineTask(event.target.value)}
+                  />
+                </>
+              )}
+              <Button onClick={addPipeline} title="Add a parallel or sequential stage to this workflow">
+                + Stage
               </Button>
-              <Input
-                className="pipeline-task-input"
-                aria-label="Active pipeline task"
-                placeholder="Pipeline task…"
-                value={pipelines.find((pipeline) => pipeline.id === activePipelineId)?.task ?? ''}
-                onChange={(event) => updateActivePipelineTask(event.target.value)}
-              />
             </div>
             <div className="canvas-tools-right">
               <Button
@@ -992,14 +1120,15 @@ function Designer() {
               >
                 <Radio /> Triggers <span className="toolbar-count">{triggers.length}</span>
               </Button>
-              <Button
-                onClick={() => setDependenciesOpen(true)}
-                disabled={pipelines.length < 2}
-                title={pipelines.length < 2 ? 'Add another pipeline to create a join' : 'Join pipelines (wait for all)'}
-              >
-                <GitBranch /> Joins
-                {dependencies.length > 0 && <span className="toolbar-count">{dependencies.length}</span>}
-              </Button>
+              {pipelines.length > 1 && (
+                <Button
+                  onClick={() => setDependenciesOpen(true)}
+                  title="Join stages (wait for upstream stages)"
+                >
+                  <GitBranch /> Joins
+                  {dependencies.length > 0 && <span className="toolbar-count">{dependencies.length}</span>}
+                </Button>
+              )}
               <Select
                 className="overlap-select"
                 value={overlapPolicy}
@@ -1047,18 +1176,20 @@ function Designer() {
                   ev.dataTransfer.dropEffect = 'move';
                 }}
               >
-                <div className="pipeline-overview" aria-label="Workflow pipelines">
-                  {pipelines.map((pipeline, index) => (
-                    <div
-                      key={pipeline.id}
-                      className={pipeline.id === activePipelineId ? 'pipeline-overview-item active' : 'pipeline-overview-item'}
-                    >
-                      <span>{index + 1}</span>
-                      <strong>{pipeline.name}</strong>
-                      <small>{pipelineNodeCounts.get(pipeline.id) ?? 0} pipes</small>
-                    </div>
-                  ))}
-                </div>
+                {pipelines.length > 1 && (
+                  <div className="pipeline-overview" aria-label="Workflow pipelines">
+                    {pipelines.map((pipeline, index) => (
+                      <div
+                        key={pipeline.id}
+                        className={pipeline.id === activePipelineId ? 'pipeline-overview-item active' : 'pipeline-overview-item'}
+                      >
+                        <span>{index + 1}</span>
+                        <strong>{pipeline.name}</strong>
+                        <small>{pipelineNodeCounts.get(pipeline.id) ?? 0} pipes</small>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {nodes.length === 0 && (
                   <div className="canvas-hint">
                     <div className="canvas-hint-card">
@@ -1122,8 +1253,10 @@ function Designer() {
               runStatus={debugRunStatus}
               runError={debugRunError}
               pipeStates={debugPipeStates}
+              samples={debugSamples}
               log={debugLog}
               selectedNodeId={selected?.id ?? null}
+              onSelectNode={setSelectedId}
             />
           </div>
         )}
@@ -1134,6 +1267,7 @@ function Designer() {
             currentId={workflowId}
             onOpen={openWorkflow}
             onCreate={createWorkflow}
+            onApplySample={applySampleDocument}
           />
         )}
         {view === 'variables' && <VariablesPanel />}

@@ -41,7 +41,6 @@ export default defineConfig({
           include: [
             'packages/**/*.test.ts',
             'apps/web/**/*.test.ts',
-            'apps/workflow-server/**/*.test.ts',
             'apps/cli/src/**/*.test.ts',
             // The browser suites need a running app; their pure helpers do not.
             'apps/e2e/src/helpers/**/*.test.ts',
@@ -73,7 +72,11 @@ export default defineConfig({
           // and without SMTP that goes to the Fox mail service on foxschema.com.
           // A suite must never mail the real one; those that test it run their
           // own stand-in.
-          env: { FOXFLOW_FILES_DIR: tmpdir(), FOX_VERIFY_MAIL_URL: 'off' },
+          env: {
+            FOXFLOW_FILES_DIR: tmpdir(),
+            FOX_VERIFY_MAIL_URL: 'off',
+            FOXFLOW_ENCRYPTION_KEY: '0'.repeat(64),
+          },
           testTimeout: 15_000,
         },
       },

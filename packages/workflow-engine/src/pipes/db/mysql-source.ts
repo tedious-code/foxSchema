@@ -80,7 +80,7 @@ export class MysqlSourcePipe implements SourcePipe {
       tags: ['sql', 'mysql'],
       version: '0.1.0',
       role: 'source',
-      inputs: [],
+      inputs: [{ name: 'in', type: 'records' }],
       outputs: [{ name: 'out', type: 'records' }],
       configSchema,
     });

@@ -291,8 +291,13 @@ export class PipelineExecutor {
       const context = await this.connectorContext(pipeline, pipe, execution);
       await this.markPipe(context, 'running');
       try {
+        const isTrigger =
+          pipe.role === 'trigger' ||
+          pipe.type.startsWith('source.trigger') ||
+          Boolean(connector.metadata?.().triggerKind);
         const isTransform = connector.role === 'transform';
-        if (!isTransform && connector.role !== 'sink') {
+        const isSource = connector.role === 'source' && !isTrigger;
+        if (isTrigger || (!isTransform && !isSource && connector.role !== 'sink')) {
           throw new ExecutionError(
             `source pipe ${pipe.id} cannot receive an input batch`,
           );
@@ -313,20 +318,58 @@ export class PipelineExecutor {
           context,
           execution.workflowRunId,
           pipeline.id,
-          (): Promise<TransformOutput | void> =>
-            isTransform
-              ? (connector as TransformPipe).transform(batch, context)
-              : (connector as SinkPipe).write(batch, context),
+          async (): Promise<TransformOutput | void> => {
+            if (isTransform) {
+              return (connector as TransformPipe).transform(batch, context);
+            }
+            if (isSource) {
+              const usesRecordTemplate = JSON.stringify(pipe.config).includes('{{');
+              const records =
+                usesRecordTemplate && batch.records.length > 0
+                  ? batch.records
+                  : [batch.records[0] ?? {}];
+              const batches: RecordBatch[] = [];
+              for (const record of records) {
+                const scopedContext: PipeContext =
+                  record && typeof record === 'object'
+                    ? {
+                        ...context,
+                        variables: {
+                          ...record,
+                          record,
+                          records: batch.records,
+                          ...context.variables,
+                        },
+                      }
+                    : context;
+                const iter = (connector as SourcePipe).read(scopedContext)[Symbol.asyncIterator]();
+                while (true) {
+                  const next = await withDeadline(() => iter.next(), pipe, 'read');
+                  if (next.done) break;
+                  throwIfAborted(execution.signal);
+                  validateBatch(next.value, pipe.id);
+                  batches.push(next.value);
+                }
+              }
+              return batches;
+            }
+            return (connector as SinkPipe).write(batch, context);
+          },
         );
         if (result.skipped) {
           await this.markPipe(context, 'skipped', batch);
           return;
         }
-        if (isTransform) {
+        const edges = downstream.get(pipe.id)!;
+        if (isTransform || isSource || edges.length > 0 || result.value !== undefined) {
+          const outputValue =
+            isTransform || isSource
+              ? (result.value as TransformOutput)
+              : ((result.value as TransformOutput) ?? batch);
           await this.routeOutput(
             pipes,
-            downstream.get(pipe.id)!,
-            result.value as TransformOutput,
+            edges,
+            outputValue,
             pipe,
             dispatch,
             execution,
@@ -334,8 +377,18 @@ export class PipelineExecutor {
             sampledKeys,
           );
         }
+        const completedBatch =
+          isSource && Array.isArray(result.value)
+            ? {
+                id: batch.id,
+                partitionId: batch.partitionId,
+                records: result.value.flatMap((item) => item.records),
+              }
+            : result.value && !Array.isArray(result.value) && !(result.value instanceof Map)
+              ? (result.value as RecordBatch)
+              : batch;
         await this.saveCheckpoint(pipeline.id, pipe.id, execution, batch);
-        await this.markPipe(context, 'success', batch);
+        await this.markPipe(context, 'success', completedBatch);
       } catch (error) {
         await this.markPipe(
           context,
@@ -428,6 +481,7 @@ export class PipelineExecutor {
         // Iterated by hand so the *wait for the next batch* can be bounded too:
         // a source hung on a request is as damaging as a hung sink, and
         // `for await` gives nowhere to put the deadline.
+        let batchCount = 0;
         const batches = connector.read(context)[Symbol.asyncIterator]();
         while (true) {
           const next = await withDeadline(
@@ -436,6 +490,7 @@ export class PipelineExecutor {
             'read',
           );
           if (next.done) break;
+          batchCount++;
           const batch = next.value;
           throwIfAborted(execution.signal);
           validateBatch(batch, pipe.id);
@@ -459,7 +514,11 @@ export class PipelineExecutor {
           if (inFlight.length >= limit) await drainHead();
         }
         while (inFlight.length > 0) await drainHead();
-        await this.markPipe(context, 'success');
+        const isTrigger =
+          pipe.role === 'trigger' ||
+          pipe.type.startsWith('source.trigger') ||
+          Boolean(connector.metadata?.().triggerKind);
+        await this.markPipe(context, batchCount === 0 && isTrigger ? 'skipped' : 'success');
         return;
       } catch (error) {
         // Let whatever is still travelling finish before retrying or failing,

@@ -26,12 +26,15 @@ abstract class TriggerSourcePipe implements SourcePipe {
   protected abstract readonly kind: TriggerKind | '*';
   protected abstract readonly displayName: string;
 
+  protected readonly paletteTier: 'primary' | 'advanced' = 'primary';
+
   metadata(): PipeMetadata {
     return definePipeMetadata({
       type: this.type,
       name: this.displayName,
       category: 'Trigger',
       family: 'trigger',
+      palette: this.paletteTier,
       version: '0.1.0',
       role: 'source',
       inputs: [],
@@ -59,7 +62,20 @@ abstract class TriggerSourcePipe implements SourcePipe {
     if (!invocation) {
       throw new Error(`${this.type} requires a workflow trigger invocation`);
     }
-    if (this.kind !== '*' && invocation.kind !== this.kind) {
+    const boundTriggerId =
+      typeof context.pipe.config.triggerId === 'string' && context.pipe.config.triggerId.trim()
+        ? context.pipe.config.triggerId.trim()
+        : undefined;
+
+    if (boundTriggerId && invocation.triggerId && boundTriggerId !== invocation.triggerId) {
+      // A different trigger activated this run; this trigger node stays idle.
+      return;
+    }
+    if (
+      this.kind !== '*' &&
+      invocation.kind !== this.kind &&
+      invocation.kind !== 'manual'
+    ) {
       throw new Error(
         `${this.type} expects a ${this.kind} trigger, got ${invocation.kind}`,
       );
@@ -81,6 +97,7 @@ export class TriggerPayloadSourcePipe extends TriggerSourcePipe {
   readonly type = 'source.triggerPayload';
   protected readonly kind = '*' as const;
   protected readonly displayName = 'Trigger payload';
+  protected override readonly paletteTier = 'advanced' as const;
 }
 
 export class ManualTriggerSourcePipe extends TriggerSourcePipe {
@@ -121,6 +138,7 @@ export class ParentTriggerSourcePipe extends TriggerSourcePipe {
   readonly type = 'source.trigger.parent';
   protected readonly kind = 'parent' as const;
   protected readonly displayName = 'Parent Workflow Trigger';
+  protected override readonly paletteTier = 'advanced' as const;
 }
 
 function recordsForKind(

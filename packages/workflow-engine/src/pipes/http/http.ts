@@ -53,7 +53,7 @@ export class HttpSourcePipe implements SourcePipe {
       tags: ['auth', 'api', 'oauth'],
       version: '0.3.0',
       role: 'source',
-      inputs: [],
+      inputs: [{ name: 'in', type: 'records' }],
       outputs: [{ name: 'out', type: 'records' }],
       configSchema: {
         type: 'object',

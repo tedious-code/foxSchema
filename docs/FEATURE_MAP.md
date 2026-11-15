@@ -40,7 +40,7 @@ flowchart LR
     PLAT["platform<br/>identity · RBAC · workspaces<br/>connections · guards"]
     FEAT["18 feature modules<br/>163 routes"]
   end
-  WFS["Workflow server :8081<br/>apps/workflow-server<br/>+ packages/workflow-engine"]
+  WFS["Workflow engine<br/>in-process<br/>packages/workflow-engine"]
   META[("Metadata store<br/>SQLite · 28 tables")]
   ENG[("Target databases<br/>16 engines")]
 
@@ -49,8 +49,7 @@ flowchart LR
   PLAT --> FEAT
   FEAT --> META
   FEAT -- "packages/db drivers" --> ENG
-  FEAT -- "engine proxy (workflow.*)" --> WFS
-  WFS -- "internal: resolve a granted connection" --> FEAT
+  FEAT -- "in-process engine" --> WFS
   WFS --> ENG
 ```
 
@@ -194,10 +193,10 @@ in its folders and its e2e specs (`apps/e2e/src/tests`).
 
 | ID | Feature and sub-features | UI | API | Code | Perms | Tables | Tests |
 |---|---|---|---|---|---|---|---|
-| `workflow.designer` | Designer — workflows list, canvas (pipes and edges), palette, inspector, triggers, SQL / script / HTTP / delimited editors, dependencies | Workflow (rail) | engine proxy under `/api/workflow` | web `workflow`; `packages/workflow-engine/src/definitions.ts` | `workflow.access`, `workflow.design` | engine's own store | web 12; e2e `workflow-designer-roundtrip` |
+| `workflow.designer` | Designer — workflows list, canvas (pipes and edges), palette, inspector, triggers, SQL / script / HTTP / delimited editors, dependencies. **Add samples** installs `sample-hello-records`, `sample-orders-branch`, `sample-regions-join` | Workflow (rail) | `/api/workflow/engine` | web `workflow`; `packages/workflow-engine/src/definitions.ts` | `workflow.access`, `workflow.design` | engine's own store | web 12; e2e `workflow-designer-roundtrip` |
 | `workflow.pipes` | Pipes — db (SQL on every dialect, Postgres / MySQL sources), http (request, multi-http, transform, sink, cookies), notify (email, SMS, SMTP), control (loop, split, merge, goto, human gate, sub-workflow), utility (CSV, delimited, JSON, script, text, transforms, verify, files), trigger | Designer palette | (engine) | `packages/workflow-engine/src/pipes/*` | `workflow.design` | — | workflow-engine 87 |
-| `workflow.runs` | Runs — execution panel, cancel a live run, answer a human gate, variables, credentials | Workflow | engine proxy | web `RunsPanel`, `ExecutionPanel`, `VariablesPanel`, `CredentialsPanel` | `workflow.run` | engine's own store | (workflow tests) |
-| `workflow.engine` | Engine control plane — settings and health, saved-connection grants, internal resolve / engine-config routes (token-guarded) | Workflow → Engine | `/api/workflow` (5), `/api/workflow-internal` (2) | server `workflow`; `apps/workflow-server`; `packages/workflow-contract` | `workflow.admin` | `workflow_settings`, `workflow_connection_grants` | server 6, workflow-server 19; e2e `workflow-smoke` |
+| `workflow.runs` | Runs — execution panel, cancel a live run, answer a human gate, variables, credentials | Workflow | `/api/workflow/engine` | web `RunsPanel`, `ExecutionPanel`, `VariablesPanel`, `CredentialsPanel` | `workflow.run` | engine's own store | (workflow tests) |
+| `workflow.engine` | Engine control plane — settings, health, saved-connection grants; in-process Fastify plugins | Workflow → Engine | `/api/workflow`, `/api/hooks`, `/api/triggers` | server `workflow`; `packages/workflow-engine`; `packages/workflow-contract` | `workflow.admin` | `workflow_settings`, `workflow_connection_grants` | server + runtime tests; e2e `workflow-smoke` |
 | `cli` | `foxschema` — setup, open, compare, migrate, snapshot, history, connections, drivers (e.g. `drivers install db2`), doctor, search, shortcut, reset-password; TUI screens | Terminal | (packages + local server) | `apps/cli` | — | metadata store | cli 25 |
 | `engines.dialects` | 16 engines: SQL generation, compare, splitting, type mapping (`packages/sql/src/providers`) and drivers (`packages/db/src/providers`) | — | — | see [Engines and capabilities](#engines-and-capabilities) | — | — | sql 86, db 24; 14 dialect e2e suites |
 
@@ -289,18 +288,15 @@ flowchart LR
 sequenceDiagram
   actor U as User
   participant W as Web: Workflow
-  participant S as Server (proxy)
-  participant E as Workflow server
+  participant S as Server (in-process engine)
   participant D as Database
   U->>W: design pipes, save
-  W->>S: /api/workflow/* (workflow.design)
+  W->>S: /api/workflow/engine/* (workflow.design)
   S->>S: refuse connections not usable in this workspace
-  S->>E: forward (WORKFLOW_ENGINE_TOKEN)
   U->>W: run
-  E->>S: POST /api/workflow-internal/connections/resolve
-  S-->>E: granted connection (workflow_connection_grants)
-  E->>D: SQL pipe
-  E-->>W: run events, a human gate waits for an answer
+  S->>S: resolve granted connection (workflow_connection_grants)
+  S->>D: SQL pipe
+  S-->>W: run events, a human gate waits for an answer
 ```
 
 ### Access — inspect, build, apply
@@ -565,7 +561,7 @@ that value matches the ObjectId a SELECT showed.
 | Unit — drivers | `packages/db` | 28 (live `*.it.test.ts` behind `FOX_IT_DB=1`) |
 | Unit — server | `packages/server` | 111 |
 | Unit — web | `apps/web` | 189 (sql-editor 65, lokee-weave 14, access 13, workflow 12, …) |
-| Unit — workflow | `packages/workflow-engine`, `apps/workflow-server` | 87 + 19 |
+| Unit — workflow | `packages/workflow-engine`, `packages/server/src/features/workflow` | engine + in-process runtime |
 | Unit — CLI | `apps/cli` | 25 |
 | E2E (Playwright) | `apps/e2e/src/tests` | 58 spec files (`npm run test:e2e:all`) |
 

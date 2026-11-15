@@ -3503,22 +3503,16 @@ export const TestIds = {
       workflowEngine: 'workflow-engine',
       /** button */
       workflowEngineForId: (id: string | number) => `workflow-engine-${id}`,
-      /** input */
-      workflowEngineEndpoint: 'workflow-engine-endpoint',
       /** span */
       workflowEngineHealth: 'workflow-engine-health',
       /** input */
       workflowEngineMaxParallel: 'workflow-engine-max-parallel',
       /** select · skip queue parallel */
       workflowEngineOverlap: 'workflow-engine-overlap',
-      /** button · Refresh health */
-      workflowEngineRefreshHealth: 'workflow-engine-refresh-health',
       /** button */
       workflowEngineSave: 'workflow-engine-save',
       /** input · target */
       workflowEngineTarget: (kind: string | number) => `workflow-engine-target-${kind}`,
-      /** li */
-      workflowProcess: (id: string | number) => `workflow-process-${id}`,
       /** input */
       workflowSink: (kind: string | number) => `workflow-sink-${kind}`,
     },
@@ -3735,6 +3729,8 @@ export const TestIds = {
       workflowVariablesEnvironment: (id: string | number) => `workflow-variables-environment-${id}`,
     },
     WorkflowDesigner: {
+      /** Button */
+      workflowDesignerAddSample: 'workflow-designer-add-sample',
       /** button · Workflows */
       workflowDesignerBreadcrumbWorkflows: 'workflow-designer-breadcrumb-workflows',
       /** Input · Workflow id */
@@ -3749,6 +3745,8 @@ export const TestIds = {
       workflowDesignerTriggers: 'workflow-designer-triggers',
     },
     WorkflowsPanel: {
+      /** Button · Install built-in sample workflows you can Test run without a database */
+      workflowAddSample: 'workflow-add-sample',
       /** input */
       workflowListFile: 'workflow-list-file',
       /** button · Open in designer */
@@ -5471,6 +5469,8 @@ export type TestId =
   | 'view-utilities-btn'
   | 'view-workflow-btn'
   | 'warning-banner'
+  | 'workflow-add-sample'
+  | 'workflow-designer-add-sample'
   | 'workflow-designer-breadcrumb-workflows'
   | 'workflow-designer-id'
   | 'workflow-designer-load'
@@ -5479,11 +5479,9 @@ export type TestId =
   | 'workflow-designer-triggers'
   | 'workflow-engine'
   | `workflow-engine-${string}`
-  | 'workflow-engine-endpoint'
   | 'workflow-engine-health'
   | 'workflow-engine-max-parallel'
   | 'workflow-engine-overlap'
-  | 'workflow-engine-refresh-health'
   | 'workflow-engine-save'
   | `workflow-engine-target-${string}`
   | 'workflow-http-auth-credential'
@@ -5546,7 +5544,6 @@ export type TestId =
   | 'workflow-no-panes'
   | 'workflow-palette-search-pipes'
   | 'workflow-palette-show-advanced'
-  | `workflow-process-${string}`
   | 'workflow-run-answer'
   | `workflow-run-answer-${string}`
   | 'workflow-run-cancel'

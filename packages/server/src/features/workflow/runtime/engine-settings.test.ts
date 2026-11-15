@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  *
  * The engine takes its admission settings and log sinks from FoxSchema, and
- * keeps the last ones it had when FoxSchema cannot be reached.
+ * keeps the last ones it had when that read fails.
  */
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -21,48 +21,35 @@ const CONFIG: EngineRuntimeConfig = {
   sinks: [{ kind: 'json', enabled: true, target: 'runs.jsonl' }],
 };
 
-function sync(fetchImpl: typeof fetch, env: NodeJS.ProcessEnv = { WORKFLOW_ENGINE_TOKEN: 'tok' }) {
+function sync(load: () => Promise<EngineRuntimeConfig>) {
   const scheduler = { setAdmission: vi.fn() };
   const sinks = { configure: vi.fn() };
   const errors: string[] = [];
-  const instance = new EngineConfigSync({ scheduler, sinks, env, fetch: fetchImpl, onError: (m) => errors.push(m) });
+  const instance = new EngineConfigSync({ scheduler, sinks, load, onError: (m) => errors.push(m) });
   return { instance, scheduler, sinks, errors };
 }
 
 describe('EngineConfigSync', () => {
-  it('applies what FoxSchema saved, asking with the service token', async () => {
-    const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) => Response.json(CONFIG));
-    const s = sync(fetchImpl as unknown as typeof fetch, {
-      WORKFLOW_ENGINE_TOKEN: 'tok',
-      FOXSCHEMA_URL: 'http://fox.test:3210/',
-    });
-
+  it('applies what FoxSchema saved', async () => {
+    const s = sync(async () => CONFIG);
     await s.instance.refresh();
-
-    expect(fetchImpl.mock.calls[0]![0]).toBe('http://fox.test:3210/api/workflow-internal/engine-config');
-    expect(new Headers(fetchImpl.mock.calls[0]![1]!.headers).get('authorization')).toBe('Bearer tok');
     expect(s.scheduler.setAdmission).toHaveBeenCalledWith({ state: 'draining', maxConcurrentRuns: 3 });
     expect(s.sinks.configure).toHaveBeenCalledWith(CONFIG.sinks);
   });
 
-  it('keeps the last settings when FoxSchema cannot answer', async () => {
-    const s = sync((async () => new Response(null, { status: 502 })) as unknown as typeof fetch);
+  it('keeps the last settings when the load fails', async () => {
+    const s = sync(async () => {
+      throw new Error('store down');
+    });
     expect(await s.instance.refresh()).toBeUndefined();
     expect(s.scheduler.setAdmission).not.toHaveBeenCalled();
-    expect(s.errors[0]).toMatch(/HTTP 502/);
+    expect(s.errors[0]).toMatch(/store down/);
   });
 
   it('ignores an answer with a state it does not know', async () => {
-    const s = sync((async () => Response.json({ ...CONFIG, state: 'sideways' })) as unknown as typeof fetch);
+    const s = sync(async () => ({ ...CONFIG, state: 'sideways' as EngineRuntimeConfig['state'] }));
     await s.instance.refresh();
     expect(s.scheduler.setAdmission).not.toHaveBeenCalled();
-  });
-
-  it('does not start without a token', () => {
-    const fetchImpl = vi.fn();
-    const s = sync(fetchImpl as unknown as typeof fetch, {});
-    expect(s.instance.start()).toBe(false);
-    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
 

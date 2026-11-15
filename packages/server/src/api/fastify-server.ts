@@ -50,7 +50,10 @@
  */
 
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
-import { BODY_LIMIT, buildApiRoutes } from './server';
+import { ConnectionFactory } from '@foxschema/db';
+import { asAppLogger, getLogger } from '../platform/logger/logger';
+import { FEATURES, composeFeatures, createFeatureContext, registerFeatureFastify } from '../app/feature-registry';
+import { BODY_LIMIT } from './server';
 import { ERROR_STATUS, type ErrorCode } from '@foxschema/shared';
 import fastifyCors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
@@ -241,7 +244,9 @@ export async function createFastifyApp(
   // Every route registered individually, with its own guards as its own
   // preHandler chain. There is no bridge and no shared middleware chain: a
   // limiter on an upload path costs nothing on /api/health.
-  bindRoutes(app, buildApiRoutes());
+  ConnectionFactory.useLogger(asAppLogger(getLogger()));
+  const featureContext = createFeatureContext();
+  bindRoutes(app, composeFeatures(FEATURES, featureContext).flatten());
 
   // Fastify allows exactly one not-found handler per instance, so it has one
   // owner: this function. When a staticDir is given, anything that is not an
@@ -257,10 +262,9 @@ export async function createFastifyApp(
     return reply.code(404).send({ ok: false, error: 'Not found', code: 'not_found' });
   });
 
-  // An unhandled throw must not return an HTML stack page to a JSON client.
-  // The single place a request failure is logged. The database layer reports
-  // timings at debug and re-throws; logging there as well would turn one
-  // failure into several lines saying the same thing.
+  // Set before feature Fastify plugins: a plugin that installs a serializer
+  // compiler must inherit this handler, or parser errors skip it and return
+  // Fastify's default JSON (no `ok` / `code`).
   app.setErrorHandler((error: unknown, req, reply) => {
     const code = (error as { statusCode?: number })?.statusCode ?? 500;
     // A 4xx is the caller's mistake, not a server failure — logging those at
@@ -297,6 +301,8 @@ export async function createFastifyApp(
       code: codeForStatus(status),
     });
   }
+
+  await registerFeatureFastify(app, featureContext);
 
   return app;
 }

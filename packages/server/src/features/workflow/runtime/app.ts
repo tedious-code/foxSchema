@@ -9,7 +9,6 @@ import { secretEquals } from '@foxschema/workflow-engine';
 import rateLimit from '@fastify/rate-limit';
 import { WORKFLOW_ENGINE_TOKEN_ENV } from '@foxschema/workflow-contract';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
-import rawBody from 'fastify-raw-body';
 import {
   serializerCompiler,
   validatorCompiler,
@@ -39,8 +38,7 @@ function createServer(): FastifyInstance {
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
   app.register(rateLimit, { global: false });
-  app.register(rawBody, { global: false, encoding: false, runFirst: true });
-  app.get('/health', async () => ({ ok: true, service: 'workflow-server' }));
+  app.get('/health', async () => ({ ok: true, service: 'foxschema' }));
   return app;
 }
 

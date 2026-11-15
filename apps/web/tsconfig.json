@@ -29,5 +29,5 @@
       "@foxschema/server": ["../../packages/server/src/index.ts"]
     }
   },
-  "include": ["src", "../../packages", "../workflow-server/src"]
+  "include": ["src", "../../packages"]
 }

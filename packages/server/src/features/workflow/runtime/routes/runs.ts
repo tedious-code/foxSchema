@@ -21,9 +21,10 @@ const runBodySchema = z.object({
   debug: z.boolean().optional(),
 });
 
-export function runRoutes(ctx: AppContext) {
+export function runRoutes(ctx: AppContext, options: { extra?: boolean } = {}) {
   return async (app: FastifyInstance) => {
     const r = app.withTypeProvider<ZodTypeProvider>();
+    const extra = options.extra !== false;
     /**
      * Live SSE pollers, so shutdown can stop them all at once. Without this a
      * stream's interval could keep querying the event store after onClose has
@@ -112,18 +113,20 @@ export function runRoutes(ctx: AppContext) {
     /**
      * The workflow this run executed. It is not the live document: a later edit
      * or delete leaves the snapshot, and that is what the run's rows came from.
-     * FoxSchema reads it to decide who may see those rows. Kept off the run
-     * record itself — a list of runs must not carry every definition.
+     * FoxSchema reads it in-process to decide who may see those rows, so this
+     * HTTP path is not mounted on the designer prefix.
      */
-    r.get(
-      '/runs/:id/snapshot',
-      { schema: { params: z.object({ id: z.string() }) } },
-      async (req, reply) => {
-        const snapshot = await ctx.runs.getSnapshot(req.params.id);
-        if (!snapshot) return reply.code(404).send({ error: 'not found' });
-        return snapshot;
-      },
-    );
+    if (extra) {
+      r.get(
+        '/runs/:id/snapshot',
+        { schema: { params: z.object({ id: z.string() }) } },
+        async (req, reply) => {
+          const snapshot = await ctx.runs.getSnapshot(req.params.id);
+          if (!snapshot) return reply.code(404).send({ error: 'not found' });
+          return snapshot;
+        },
+      );
+    }
 
     /**
      * Compact failure / outcome summary for agents and the Runs UI

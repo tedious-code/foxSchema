@@ -3692,6 +3692,14 @@ export const TestIds = {
       /** input */
       workflowTriggerConfigWorkflow: (id: string | number) => `workflow-trigger-config-workflow-${id}`,
     },
+    TriggerEndpointCard: {
+      /** div */
+      triggerEndpointCard: 'trigger-endpoint-card',
+      /** button · Copy cURL command */
+      workflowTriggerEndpointCopyCurl: 'workflow-trigger-endpoint-copy-curl',
+      /** button · Copy full URL */
+      workflowTriggerEndpointCopyUrl: 'workflow-trigger-endpoint-copy-url',
+    },
     TriggerInlineSettings: {
       /** select · No catch-up One missed run All missed runs */
       workflowTriggerSettingsCatchUp: 'workflow-trigger-settings-catch-up',
@@ -5335,6 +5343,7 @@ export type TestId =
   | 'toolbar-swap-direction'
   | `toolbar-toggle-object-type-${string}`
   | `toolbar-toggle-type-filter-${string}`
+  | 'trigger-endpoint-card'
   | 'type-drop-confirm-all'
   | 'type-drop-confirm-all-cancel'
   | 'type-drop-copy-all'
@@ -5591,6 +5600,8 @@ export type TestId =
   | 'workflow-trigger-config-retry'
   | `workflow-trigger-config-section-${string}`
   | `workflow-trigger-config-workflow-${string}`
+  | 'workflow-trigger-endpoint-copy-curl'
+  | 'workflow-trigger-endpoint-copy-url'
   | 'workflow-trigger-settings-catch-up'
   | 'workflow-trigger-settings-cron'
   | 'workflow-trigger-settings-execution-type'

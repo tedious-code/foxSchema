@@ -88,6 +88,7 @@ export function TriggerEndpointCard({
           {endpointPath}
         </code>
         <button
+          data-testid="workflow-trigger-endpoint-copy-url"
           type="button"
           className="trigger-endpoint-btn"
           onClick={copyUrl}
@@ -111,6 +112,7 @@ export function TriggerEndpointCard({
               <Terminal size={11} /> cURL Command
             </span>
             <button
+              data-testid="workflow-trigger-endpoint-copy-curl"
               type="button"
               className="trigger-endpoint-btn"
               onClick={copyCurl}

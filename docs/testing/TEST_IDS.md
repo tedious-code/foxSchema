@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1057** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1059** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1953,6 +1953,10 @@ Every control has a test ID: **1057** buttons, text boxes, selects and textareas
   - `workflow-trigger-config-retry` · input
   - `workflow-trigger-config-section-{item}` · button
   - `workflow-trigger-config-workflow-{id}` · input
+- **TriggerEndpointCard** · `features/workflow/components/TriggerEndpointCard.tsx`
+  - `trigger-endpoint-card` · div
+  - `workflow-trigger-endpoint-copy-curl` · button · Copy cURL command
+  - `workflow-trigger-endpoint-copy-url` · button · Copy full URL
 - **TriggerInlineSettings** · `features/workflow/components/TriggerInlineSettings.tsx`
   - `workflow-trigger-settings-catch-up` · select · No catch-up One missed run All missed runs
   - `workflow-trigger-settings-cron` · input

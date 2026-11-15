@@ -6,8 +6,18 @@
  * Built-in Workflow samples. Install via Workflows → "Add samples".
  * Stable ids so re-install updates the same rows.
  *
- * None of these need a database, file, or credential. Test run works once the
- * engine is Enabled.
+ * Test run works once the engine is Enabled. What each sample needs:
+ *
+ * - Hello records, Orders branch, Regions join: nothing.
+ * - SQL CRUD: nothing (SQLite in memory).
+ * - The others: internet access (Open-Meteo APIs) and PostgreSQL. Their SQL
+ *   steps carry no credential, so they use the POSTGRES_* variables, or in
+ *   development the `docker compose` database (see `connectionFor` in
+ *   packages/workflow-engine/src/pipes/db/sql.ts). In production, add a
+ *   credential to those steps or set POSTGRES_HOST/USER/PASSWORD.
+ *
+ * Re-running a sample updates its rows rather than adding more: every row
+ * written to PostgreSQL carries a stable `id`, and inserts upsert on it.
  */
 
 /** Same demo people as the SQL Editor samples — no user tables required. */
@@ -48,6 +58,7 @@ export const SAMPLE_ENRICH_CITIES = [
 
 export const SAMPLE_ETL_ACCOUNTS = [
   {
+    id: 101,
     account_code: 'ACC-101',
     customer_name: 'Acme Robotics',
     email: 'ops@acmerobotics.example',
@@ -57,6 +68,7 @@ export const SAMPLE_ETL_ACCOUNTS = [
     status: 'active',
   },
   {
+    id: 102,
     account_code: 'ACC-102',
     customer_name: 'Northstar Bio',
     email: 'data@northstar.example',
@@ -66,6 +78,7 @@ export const SAMPLE_ETL_ACCOUNTS = [
     status: 'active',
   },
   {
+    id: 103,
     account_code: 'ACC-103',
     customer_name: 'Bluebell Retail',
     email: 'billing@bluebell.example',
@@ -75,6 +88,7 @@ export const SAMPLE_ETL_ACCOUNTS = [
     status: 'active',
   },
   {
+    id: 104,
     account_code: 'ACC-104',
     customer_name: 'Cedar Logistics',
     email: 'admin@cedar.example',
@@ -84,6 +98,7 @@ export const SAMPLE_ETL_ACCOUNTS = [
     status: 'trial',
   },
   {
+    id: 105,
     account_code: 'ACC-105',
     customer_name: 'Solstice Media',
     email: 'team@solstice.example',
@@ -560,7 +575,7 @@ const CITIES_POSTGRES: SampleWorkflow = {
               dialect: 'postgres',
               mode: 'insert',
               table: 'public.cities',
-              columns: ['name', 'country', 'country_code', 'latitude', 'longitude', 'timezone'],
+              columns: ['id', 'name', 'country', 'country_code', 'latitude', 'longitude', 'timezone'],
             },
           },
           {
@@ -708,6 +723,7 @@ const API_ENRICH_MULTI_DB: SampleWorkflow = {
             intent: 'Flatten city, country, population, temp_c, wind_kmh',
             config: {
               mappings: {
+                id: 'id',
                 city: 'name',
                 country: 'country',
                 population: 'population',
@@ -885,19 +901,19 @@ const FILE_CSV_MULTI_PIPELINE: SampleWorkflow = {
     id: SAMPLE_FILE_CSV_MULTI_PIPELINE_WORKFLOW_ID,
     name: '★ Sample · Multi-Pipeline: API → CSV File → Verify → Multi-DB',
     description:
-      '3-stage multi-pipeline workflow: Pipeline 1 fetches global places from Open-Meteo Geocoding API into sample_countries.csv; Pipeline 2 reads the CSV file, verifies rules (sending small towns to rejects CSV), and loads Postgres & SQLite; Pipeline 3 audits both DBs.',
+      '3-stage multi-pipeline workflow: Pipeline 1 searches the Open-Meteo Geocoding API for places whose name starts with Port into sample_port_cities.csv; Pipeline 2 reads the CSV file, verifies rules (sending small towns to rejects CSV), and loads Postgres & SQLite; Pipeline 3 audits both DBs.',
     purpose:
       'Demonstrate file sink -> file source handoff across dependent pipelines with validation rejects and dual Postgres/SQLite persistence.',
     tags: ['sample', 'csv', 'file', 'api', 'verify', 'postgres', 'sqlite', 'multi-pipeline'],
     expectedResult:
-      'Creates sample_countries.csv in Pipeline 1, verifies and splits valid cities vs small towns in Pipeline 2 into Postgres/SQLite + sample_countries_rejects.csv, and writes DB read-back audits in Pipeline 3.',
+      'Creates sample_port_cities.csv in Pipeline 1, verifies and splits cities of 100,000+ from smaller places in Pipeline 2 into Postgres/SQLite + sample_port_cities_rejects.csv, and writes DB read-back audits in Pipeline 3.',
     origin: 'authored',
     triggers: [{ id: 'manual', kind: 'manual', enabled: true }],
     pipelines: [
       {
         id: 'ingest_to_csv',
         name: '1. API → CSV File Export',
-        task: 'Fetch places from Open-Meteo Geocoding API and export normalized rows to sample_countries.csv.',
+        task: 'Fetch places from Open-Meteo Geocoding API and export normalized rows to sample_port_cities.csv.',
         pipes: [
           {
             id: 'trigger_manual',
@@ -907,7 +923,7 @@ const FILE_CSV_MULTI_PIPELINE: SampleWorkflow = {
             config: { triggerId: 'manual' },
           },
           {
-            id: 'fetch_countries',
+            id: 'fetch_port_cities',
             role: 'source',
             type: 'source.api.http',
             intent: 'Fetch global port cities from Open-Meteo Geocoding API',
@@ -924,23 +940,23 @@ const FILE_CSV_MULTI_PIPELINE: SampleWorkflow = {
             },
           },
           {
-            id: 'normalize_country',
+            id: 'normalize_city',
             role: 'transform',
             type: 'transform.script',
-            intent: 'Flatten & pick 2 smallest settlements + 6 largest cities',
+            intent: 'Keep populated places only (the search also returns the country Portugal), flatten, keep the 2 smallest and 6 largest',
             config: {
               script:
-                "const rows = records.map((r) => ({ code: String(r.country_code ?? 'XX'), name: String(r.name ?? ''), capital: String(r.admin1 ?? r.timezone ?? 'Main'), region: String(r.country ?? r.country_code ?? 'Global'), population: Number(r.population ?? 0) })).filter((r) => r.name && r.capital).sort((a, b) => a.population - b.population); return [...rows.slice(0, 2), ...rows.slice(-6)];",
+                "const rows = records.filter((r) => String(r.feature_code ?? '').startsWith('PPL')).map((r) => ({ id: r.id, country_code: String(r.country_code ?? ''), city: String(r.name ?? ''), state: String(r.admin1 ?? ''), country: String(r.country ?? ''), population: Number(r.population ?? 0) })).filter((r) => r.id && r.city).sort((a, b) => a.population - b.population); return [...rows.slice(0, 2), ...rows.slice(-6)];",
             },
           },
           {
-            id: 'write_countries_csv',
+            id: 'write_cities_csv',
             role: 'sink',
             type: 'sink.file.delimited',
-            intent: 'Export normalized countries to sample_countries.csv',
+            intent: 'Export port cities to sample_port_cities.csv',
             config: {
-              path: 'sample_countries.csv',
-              columns: ['code', 'name', 'capital', 'region', 'population'],
+              path: 'sample_port_cities.csv',
+              columns: ['id', 'country_code', 'city', 'state', 'country', 'population'],
               delimiter: ',',
               header: true,
               mode: 'overwrite',
@@ -948,47 +964,46 @@ const FILE_CSV_MULTI_PIPELINE: SampleWorkflow = {
           },
         ],
         edges: [
-          { from: 'trigger_manual', to: 'fetch_countries' },
-          { from: 'fetch_countries', to: 'normalize_country' },
-          { from: 'normalize_country', to: 'write_countries_csv' },
+          { from: 'trigger_manual', to: 'fetch_port_cities' },
+          { from: 'fetch_port_cities', to: 'normalize_city' },
+          { from: 'normalize_city', to: 'write_cities_csv' },
         ],
       },
       {
         id: 'csv_to_multi_db',
         name: '2. CSV File → Verify → Multi-DB',
-        task: 'Ingest sample_countries.csv, verify population >= 100,000, write rejects CSV, and insert valid countries to Postgres & SQLite.',
+        task: 'Read sample_port_cities.csv, verify population >= 100,000, write rejects CSV, and upsert the cities into Postgres & SQLite.',
         pipes: [
           {
-            id: 'read_countries_csv',
+            id: 'read_cities_csv',
             role: 'source',
             type: 'source.file.csv',
-            intent: 'Read sample_countries.csv written by Pipeline 1',
+            intent: 'Read sample_port_cities.csv written by Pipeline 1',
             config: {
-              path: 'sample_countries.csv',
+              path: 'sample_port_cities.csv',
               delimiter: ',',
               batchSize: 50,
             },
           },
           {
-            id: 'cast_country_rows',
+            id: 'cast_city_rows',
             role: 'transform',
             type: 'transform.script',
-            intent: 'Cast numeric population string from CSV',
+            intent: 'Cast the id and population strings from CSV to numbers',
             config: {
-              script: 'return records.map((r) => ({ ...r, population: Number(r.population || 0) }));',
+              script: 'return records.map((r) => ({ ...r, id: Number(r.id), population: Number(r.population || 0) }));',
             },
           },
           {
-            id: 'verify_country',
+            id: 'verify_city',
             role: 'transform',
             type: 'transform.verify',
-            intent: 'Verify code, name, capital present and population >= 100,000',
+            intent: 'Verify country code and city are present and population >= 100,000',
             config: {
               rules: [
-                { field: 'code', op: 'notEmpty', message: 'Country code is required' },
-                { field: 'name', op: 'notEmpty', message: 'Country name is required' },
-                { field: 'capital', op: 'notEmpty', message: 'Capital is required' },
-                {
+                { field: 'country_code', op: 'notEmpty', message: 'Country code is required' },
+                { field: 'city', op: 'notEmpty', message: 'City is required' },
+                                {
                   field: 'population',
                   op: 'gte',
                   value: 100000,
@@ -1004,10 +1019,10 @@ const FILE_CSV_MULTI_PIPELINE: SampleWorkflow = {
             id: 'write_rejects_csv',
             role: 'sink',
             type: 'sink.file.delimited',
-            intent: 'Save microstates & failed rows to sample_countries_rejects.csv',
+            intent: 'Save places under 100,000 people to sample_port_cities_rejects.csv',
             config: {
-              path: 'sample_countries_rejects.csv',
-              columns: ['code', 'name', 'capital', 'population'],
+              path: 'sample_port_cities_rejects.csv',
+              columns: ['id', 'country_code', 'city', 'state', 'country', 'population'],
               delimiter: ',',
               header: true,
               mode: 'overwrite',
@@ -1020,10 +1035,11 @@ const FILE_CSV_MULTI_PIPELINE: SampleWorkflow = {
             intent: 'Keep clean DB columns without nested verification payload',
             config: {
               mappings: {
-                code: 'code',
-                name: 'name',
-                capital: 'capital',
-                region: 'region',
+                id: 'id',
+                country_code: 'country_code',
+                city: 'city',
+                state: 'state',
+                country: 'country',
                 population: 'population',
               },
               includeOriginal: false,
@@ -1033,30 +1049,30 @@ const FILE_CSV_MULTI_PIPELINE: SampleWorkflow = {
             id: 'insert_postgres',
             role: 'sink',
             type: 'sink.db.sql',
-            intent: 'Insert valid countries into PostgreSQL wf_csv_countries',
+            intent: 'Upsert verified cities into PostgreSQL wf_csv_port_cities',
             config: {
               dialect: 'postgres',
               mode: 'insert',
-              table: 'wf_csv_countries',
+              table: 'wf_csv_port_cities',
             },
           },
           {
             id: 'insert_sqlite',
             role: 'sink',
             type: 'sink.db.sql',
-            intent: 'Insert valid countries into SQLite wf_csv_countries',
+            intent: 'Upsert verified cities into SQLite wf_csv_port_cities',
             config: {
               dialect: 'sqlite',
               mode: 'insert',
-              table: 'wf_csv_countries',
+              table: 'wf_csv_port_cities',
             },
           },
         ],
         edges: [
-          { from: 'read_countries_csv', to: 'cast_country_rows' },
-          { from: 'cast_country_rows', to: 'verify_country' },
-          { from: 'verify_country', fromPort: 'rejects', to: 'write_rejects_csv' },
-          { from: 'verify_country', fromPort: 'out', to: 'format_valid' },
+          { from: 'read_cities_csv', to: 'cast_city_rows' },
+          { from: 'cast_city_rows', to: 'verify_city' },
+          { from: 'verify_city', fromPort: 'rejects', to: 'write_rejects_csv' },
+          { from: 'verify_city', fromPort: 'out', to: 'format_valid' },
           { from: 'format_valid', to: 'insert_postgres' },
           { from: 'format_valid', to: 'insert_sqlite' },
         ],
@@ -1064,26 +1080,26 @@ const FILE_CSV_MULTI_PIPELINE: SampleWorkflow = {
       {
         id: 'verify_db_sync',
         name: '3. Verify DB Sync',
-        task: 'Query wf_csv_countries back from both PostgreSQL and SQLite to confirm parity.',
+        task: 'Query wf_csv_port_cities back from both PostgreSQL and SQLite to confirm parity.',
         pipes: [
           {
             id: 'select_postgres',
             role: 'source',
             type: 'source.db.sql',
-            intent: 'Select saved countries from PostgreSQL',
+            intent: 'Select saved cities from PostgreSQL',
             config: {
               dialect: 'postgres',
-              sql: 'SELECT code, name, capital, region, population FROM wf_csv_countries ORDER BY population DESC LIMIT 10;',
+              sql: 'SELECT id, country_code, city, state, country, population FROM wf_csv_port_cities ORDER BY population DESC LIMIT 10;',
             },
           },
           {
             id: 'audit_pg_csv',
             role: 'sink',
             type: 'sink.file.delimited',
-            intent: 'Write PostgreSQL read-back snapshot to countries_postgres_audit.csv',
+            intent: 'Write PostgreSQL read-back snapshot to port_cities_postgres_audit.csv',
             config: {
-              path: 'countries_postgres_audit.csv',
-              columns: ['code', 'name', 'capital', 'region', 'population'],
+              path: 'port_cities_postgres_audit.csv',
+              columns: ['id', 'country_code', 'city', 'state', 'country', 'population'],
               delimiter: ',',
               header: true,
               mode: 'overwrite',
@@ -1093,20 +1109,20 @@ const FILE_CSV_MULTI_PIPELINE: SampleWorkflow = {
             id: 'select_sqlite',
             role: 'source',
             type: 'source.db.sql',
-            intent: 'Select saved countries from SQLite',
+            intent: 'Select saved cities from SQLite',
             config: {
               dialect: 'sqlite',
-              sql: 'SELECT code, name, capital, region, population FROM wf_csv_countries ORDER BY population DESC LIMIT 10;',
+              sql: 'SELECT id, country_code, city, state, country, population FROM wf_csv_port_cities ORDER BY population DESC LIMIT 10;',
             },
           },
           {
             id: 'audit_sqlite_csv',
             role: 'sink',
             type: 'sink.file.delimited',
-            intent: 'Write SQLite read-back snapshot to countries_sqlite_audit.csv',
+            intent: 'Write SQLite read-back snapshot to port_cities_sqlite_audit.csv',
             config: {
-              path: 'countries_sqlite_audit.csv',
-              columns: ['code', 'name', 'capital', 'region', 'population'],
+              path: 'port_cities_sqlite_audit.csv',
+              columns: ['id', 'country_code', 'city', 'state', 'country', 'population'],
               delimiter: ',',
               header: true,
               mode: 'overwrite',
@@ -1222,7 +1238,7 @@ const MULTI_API_FANOUT: SampleWorkflow = {
             intent: 'Normalize hub id, coordinates, temp_c, wind_kmh, observed_at',
             config: {
               script:
-                "return records.map((r) => ({ hub: String(r._endpoint ?? 'unknown'), latitude: Number(r.latitude ?? 0), longitude: Number(r.longitude ?? 0), temp_c: Number(r.current_weather?.temperature ?? 0), wind_kmh: Number(r.current_weather?.windspeed ?? 0), observed_at: String(r.current_weather?.time ?? '') }));",
+                "const HUB_IDS = { tokyo: 1001, london: 1002, sydney: 1003, nyc: 1004 }; return records.map((r) => ({ id: HUB_IDS[r._endpoint] ?? null, hub: String(r._endpoint ?? 'unknown'), latitude: Number(r.latitude ?? 0), longitude: Number(r.longitude ?? 0), temp_c: Number(r.current_weather?.temperature ?? 0), wind_kmh: Number(r.current_weather?.windspeed ?? 0), observed_at: String(r.current_weather?.time ?? '') }));",
             },
           },
           {
@@ -1284,6 +1300,7 @@ const MULTI_API_FANOUT: SampleWorkflow = {
             intent: 'Drop nested verification object prior to SQL insert',
             config: {
               mappings: {
+                id: 'id',
                 hub: 'hub',
                 latitude: 'latitude',
                 longitude: 'longitude',
@@ -1456,7 +1473,7 @@ const CROSS_DB_ETL_SPLIT: SampleWorkflow = {
             intent: 'Fetch latest 5 customer accounts from PostgreSQL source table',
             config: {
               dialect: 'postgres',
-              sql: 'SELECT account_code, customer_name, email, region, plan_tier, monthly_spend, status FROM wf_etl_source_accounts ORDER BY id DESC LIMIT 5;',
+              sql: 'SELECT id, account_code, customer_name, email, region, plan_tier, monthly_spend, status FROM wf_etl_source_accounts ORDER BY id DESC LIMIT 5;',
             },
           },
           {
@@ -1466,6 +1483,7 @@ const CROSS_DB_ETL_SPLIT: SampleWorkflow = {
             intent: 'Map source columns into canonical analytics schema',
             config: {
               mappings: {
+                id: 'id',
                 account_id: 'account_code',
                 full_name: 'customer_name',
                 contact_email: 'email',
@@ -1510,6 +1528,7 @@ const CROSS_DB_ETL_SPLIT: SampleWorkflow = {
             intent: 'Project clean verified columns without nested verification payload',
             config: {
               mappings: {
+                id: 'id',
                 account_id: 'account_id',
                 full_name: 'full_name',
                 contact_email: 'contact_email',
@@ -1620,7 +1639,7 @@ const CROSS_DB_ETL_SPLIT: SampleWorkflow = {
             intent: 'Extract Growth accounts back from SQLite wf_etl_sqlite_growth_mart',
             config: {
               dialect: 'sqlite',
-              sql: 'SELECT account_id, full_name, territory, tier, arr_usd, health_tier, target_db FROM wf_etl_sqlite_growth_mart ORDER BY id DESC LIMIT 10;',
+              sql: 'SELECT id, account_id, full_name, territory, tier, arr_usd, health_tier, target_db FROM wf_etl_sqlite_growth_mart ORDER BY id DESC LIMIT 10;',
             },
           },
           {
@@ -1630,7 +1649,7 @@ const CROSS_DB_ETL_SPLIT: SampleWorkflow = {
             intent: 'Extract VIP accounts back from PostgreSQL wf_etl_pg_vip_mart',
             config: {
               dialect: 'postgres',
-              sql: 'SELECT account_id, full_name, territory, tier, arr_usd, health_tier, target_db FROM wf_etl_pg_vip_mart ORDER BY id DESC LIMIT 10;',
+              sql: 'SELECT id, account_id, full_name, territory, tier, arr_usd, health_tier, target_db FROM wf_etl_pg_vip_mart ORDER BY id DESC LIMIT 10;',
             },
           },
           {
@@ -1656,6 +1675,7 @@ const CROSS_DB_ETL_SPLIT: SampleWorkflow = {
             intent: 'Project reconciled ledger columns with target_db mapped to routed_to_db',
             config: {
               mappings: {
+                id: 'id',
                 account_id: 'account_id',
                 full_name: 'full_name',
                 territory: 'territory',

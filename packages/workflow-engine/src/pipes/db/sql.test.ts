@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import type { CredentialStore } from '../../common/index.js';
 import type { PipeContext, RecordBatch } from '../../registry/index.js';
 import {
+  credentiallessPostgresOption,
   SqlSinkPipe,
   SqlSourcePipe,
   ensureAutoTable,
@@ -377,5 +378,38 @@ describe('sink.db.sql', () => {
       { sql: 'SELECT pg_advisory_xact_lock(hashtext($1))', params: ['public.wf_etl_reconciled_ledger'] },
       { sql: 'SELECT pg_advisory_xact_lock(hashtext($1))', params: ['public.wf_etl_reconciled_ledger'] },
     ]);
+  });
+});
+
+describe('a Postgres step without a credential', () => {
+  it('uses the development database when nothing is set', () => {
+    expect(credentiallessPostgresOption({})).toMatchObject({
+      host: '127.0.0.1',
+      port: 5432,
+      user: 'foxuser',
+      database: 'foxdb',
+    });
+  });
+
+  it('refuses the development defaults in production', () => {
+    expect(() => credentiallessPostgresOption({ NODE_ENV: 'production' })).toThrow(
+      /no database credential.*POSTGRES_HOST, POSTGRES_USER, POSTGRES_PASSWORD/,
+    );
+    expect(() =>
+      credentiallessPostgresOption({ NODE_ENV: 'production', POSTGRES_HOST: 'db', POSTGRES_USER: 'app' }),
+    ).toThrow(/set POSTGRES_PASSWORD on the server/);
+  });
+
+  it('connects in production when the operator names the database', () => {
+    const option = credentiallessPostgresOption({
+      NODE_ENV: 'production',
+      POSTGRES_HOST: 'db.internal',
+      POSTGRES_USER: 'app',
+      POSTGRES_PASSWORD: 'p@ss:word/1',
+      POSTGRES_DB: 'flows',
+    });
+    expect(option).toMatchObject({ host: 'db.internal', user: 'app', database: 'flows' });
+    // A password with URL characters must not break the connection string.
+    expect(option.connectionString).toBe('postgresql://app:p%40ss%3Aword%2F1@db.internal:5432/flows');
   });
 });

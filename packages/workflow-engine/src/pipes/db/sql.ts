@@ -98,6 +98,49 @@ const connectionFields = {
   schema: z.string().min(1).optional(),
 };
 
+/** The local development database from `docker compose up` (docker-compose.yml). */
+const DEV_POSTGRES = {
+  POSTGRES_HOST: '127.0.0.1',
+  POSTGRES_PORT: '5432',
+  POSTGRES_USER: 'foxuser',
+  POSTGRES_PASSWORD: 'foxpass',
+  POSTGRES_DB: 'foxdb',
+} as const;
+
+/**
+ * Where a Postgres step with no credential connects: the `POSTGRES_*`
+ * variables, falling back to the development container's defaults.
+ *
+ * The defaults are development-only. In production a step without a
+ * credential would otherwise try a database on this host with well-known
+ * credentials, so there it connects only when the operator has named the
+ * host, user and password; otherwise the step fails and says what to set.
+ */
+export function credentiallessPostgresOption(env: NodeJS.ProcessEnv): Record<string, unknown> {
+  if (env.NODE_ENV === 'production') {
+    const missing = (['POSTGRES_HOST', 'POSTGRES_USER', 'POSTGRES_PASSWORD'] as const).filter((name) => !env[name]);
+    if (missing.length > 0) {
+      throw new Error(
+        `This SQL step has no database credential. Add one to the step, or set ${missing.join(', ')} on the server.`,
+      );
+    }
+  }
+  const host = env.POSTGRES_HOST || DEV_POSTGRES.POSTGRES_HOST;
+  const port = Number(env.POSTGRES_PORT || DEV_POSTGRES.POSTGRES_PORT);
+  const username = env.POSTGRES_USER || DEV_POSTGRES.POSTGRES_USER;
+  const password = env.POSTGRES_PASSWORD || DEV_POSTGRES.POSTGRES_PASSWORD;
+  const database = env.POSTGRES_DB || DEV_POSTGRES.POSTGRES_DB;
+  return {
+    host,
+    port,
+    username,
+    user: username,
+    password,
+    database,
+    connectionString: `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}/${encodeURIComponent(database)}`,
+  };
+}
+
 async function connectionFor(
   context: PipeContext,
   config: { dialect?: string; schema?: string },
@@ -110,23 +153,10 @@ async function connectionFor(
     };
   }
   if (!context.pipe.credentialId && config.dialect === 'postgres') {
-    const host = process.env.POSTGRES_HOST ?? '127.0.0.1';
-    const port = Number(process.env.POSTGRES_PORT ?? 5432);
-    const username = process.env.POSTGRES_USER ?? 'foxuser';
-    const password = process.env.POSTGRES_PASSWORD ?? 'foxpass';
-    const database = process.env.POSTGRES_DB ?? 'foxdb';
     return {
       dialect: 'postgres',
       ...(config.schema ? { schema: config.schema } : {}),
-      option: {
-        host,
-        port,
-        username,
-        user: username,
-        password,
-        database,
-        connectionString: `postgresql://${username}:${password}@${host}:${port}/${database}`,
-      },
+      option: credentiallessPostgresOption(process.env),
     };
   }
   const secret = await requirePipeSecret(context, 'a database credential');

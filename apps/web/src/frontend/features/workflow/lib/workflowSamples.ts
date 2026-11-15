@@ -34,6 +34,7 @@ export const SAMPLE_CITIES_POSTGRES_WORKFLOW_ID = 'sample-cities-postgres';
 export const SAMPLE_API_ENRICH_MULTI_DB_WORKFLOW_ID = 'sample-api-enrich-multi-db';
 export const SAMPLE_FILE_CSV_MULTI_PIPELINE_WORKFLOW_ID = 'sample-file-csv-multi-pipeline';
 export const SAMPLE_MULTI_API_FANOUT_WORKFLOW_ID = 'sample-multi-api-fanout';
+export const SAMPLE_CROSS_DB_ETL_SPLIT_WORKFLOW_ID = 'sample-cross-db-etl-split';
 
 /** What "Add samples" opens on the canvas — the branch DAG, not the one-pipe starter. */
 export const SAMPLE_CANVAS_ID = SAMPLE_ORDERS_WORKFLOW_ID;
@@ -43,6 +44,54 @@ export const SAMPLE_ENRICH_CITIES = [
   { city: 'Paris' },
   { city: 'Chicago' },
   { city: 'Longyearbyen' },
+] as const;
+
+export const SAMPLE_ETL_ACCOUNTS = [
+  {
+    account_code: 'ACC-101',
+    customer_name: 'Acme Robotics',
+    email: 'ops@acmerobotics.example',
+    region: 'NA',
+    plan_tier: 'enterprise',
+    monthly_spend: 450,
+    status: 'active',
+  },
+  {
+    account_code: 'ACC-102',
+    customer_name: 'Northstar Bio',
+    email: 'data@northstar.example',
+    region: 'EU',
+    plan_tier: 'enterprise',
+    monthly_spend: 320,
+    status: 'active',
+  },
+  {
+    account_code: 'ACC-103',
+    customer_name: 'Bluebell Retail',
+    email: 'billing@bluebell.example',
+    region: 'APAC',
+    plan_tier: 'pro',
+    monthly_spend: 125,
+    status: 'active',
+  },
+  {
+    account_code: 'ACC-104',
+    customer_name: 'Cedar Logistics',
+    email: 'admin@cedar.example',
+    region: 'NA',
+    plan_tier: 'pro',
+    monthly_spend: 180,
+    status: 'trial',
+  },
+  {
+    account_code: 'ACC-105',
+    customer_name: 'Solstice Media',
+    email: 'team@solstice.example',
+    region: 'EU',
+    plan_tier: 'starter',
+    monthly_spend: 49,
+    status: 'active',
+  },
 ] as const;
 
 export const SAMPLE_CITIES_ROWS = [
@@ -1346,6 +1395,319 @@ const MULTI_API_FANOUT: SampleWorkflow = {
   },
 };
 
+const CROSS_DB_ETL_SPLIT: SampleWorkflow = {
+  id: SAMPLE_CROSS_DB_ETL_SPLIT_WORKFLOW_ID,
+  name: '★ Sample · Cross-DB ETL: Postgres ⇄ SQLite Map, Transform & Split to 2 DBs',
+  document: {
+    id: SAMPLE_CROSS_DB_ETL_SPLIT_WORKFLOW_ID,
+    name: '★ Sample · Cross-DB ETL: Postgres ⇄ SQLite Map, Transform & Split to 2 DBs',
+    description:
+      'Pure database-to-database ETL across 3 pipelines: Pipeline 1 seeds PostgreSQL source accounts; Pipeline 2 fetches from PostgreSQL, maps schema, calculates ARR, verifies contract, replicates to SQLite warehouse, and splits VIP vs Growth rows into separate Postgres and SQLite data marts; Pipeline 3 fetches from BOTH databases, merges, and reconciles to PostgreSQL + CSV.',
+    purpose:
+      'Demonstrate cross-database ETL extraction, schema mapping, calculated transforms, conditional splitting across 2 databases, and multi-DB reconciliation.',
+    tags: ['sample', 'etl', 'postgres', 'sqlite', 'map', 'split', 'merge', 'multi-db', 'multi-pipeline'],
+    expectedResult:
+      'Seeds 5 accounts into Postgres wf_etl_source_accounts, loads 5 rows into SQLite wf_etl_sqlite_warehouse, splits ARR >= $2,400 (2 VIP accounts) to Postgres wf_etl_pg_vip_mart and 3 Growth accounts to SQLite wf_etl_sqlite_growth_mart, then merges both DB marts into Postgres wf_etl_reconciled_ledger and etl_cross_db_reconciled.csv.',
+    origin: 'authored',
+    triggers: [
+      {
+        id: 'manual',
+        kind: 'manual',
+        enabled: true,
+        inputData: cloneRecords(SAMPLE_ETL_ACCOUNTS),
+      },
+    ],
+    pipelines: [
+      {
+        id: 'seed_source_db',
+        name: '1. Seed Source Database (PostgreSQL)',
+        task: 'Insert source customer accounts into PostgreSQL wf_etl_source_accounts.',
+        pipes: [
+          {
+            id: 'trigger_manual',
+            role: 'source',
+            type: 'source.trigger.manual',
+            intent: 'Emit sample customer accounts from Manual trigger',
+            config: { triggerId: 'manual' },
+          },
+          {
+            id: 'seed_pg_accounts',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Insert source accounts into PostgreSQL wf_etl_source_accounts',
+            config: {
+              dialect: 'postgres',
+              mode: 'insert',
+              table: 'wf_etl_source_accounts',
+            },
+          },
+        ],
+        edges: [{ from: 'trigger_manual', to: 'seed_pg_accounts' }],
+      },
+      {
+        id: 'etl_pg_to_sqlite_and_split',
+        name: '2. Cross-DB ETL: Fetch Postgres → Map/Transform → SQLite & Split 2 DBs',
+        task: 'Extract from PostgreSQL, map fields, compute ARR metrics, verify contract, write SQLite warehouse, and split VIP vs Growth across Postgres & SQLite.',
+        pipes: [
+          {
+            id: 'extract_postgres_source',
+            role: 'source',
+            type: 'source.db.sql',
+            intent: 'Fetch latest 5 customer accounts from PostgreSQL source table',
+            config: {
+              dialect: 'postgres',
+              sql: 'SELECT account_code, customer_name, email, region, plan_tier, monthly_spend, status FROM wf_etl_source_accounts ORDER BY id DESC LIMIT 5;',
+            },
+          },
+          {
+            id: 'map_canonical_schema',
+            role: 'transform',
+            type: 'transform.map',
+            intent: 'Map source columns into canonical analytics schema',
+            config: {
+              mappings: {
+                account_id: 'account_code',
+                full_name: 'customer_name',
+                contact_email: 'email',
+                territory: 'region',
+                tier: 'plan_tier',
+                mrr_usd: 'monthly_spend',
+                account_status: 'status',
+              },
+              includeOriginal: false,
+            },
+          },
+          {
+            id: 'enrich_arr_metrics',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Compute annual recurring revenue (arr_usd) and health_tier',
+            config: {
+              script:
+                "return records.map((r) => { const mrr = Number(r.mrr_usd ?? 0); return { ...r, mrr_usd: mrr, arr_usd: mrr * 12, health_tier: mrr >= 200 ? 'enterprise_vip' : 'growth_standard', etl_source_db: 'postgres' }; });",
+            },
+          },
+          {
+            id: 'verify_etl_contract',
+            role: 'transform',
+            type: 'transform.verify',
+            intent: 'Verify account_id, contact_email, and positive arr_usd',
+            config: {
+              rules: [
+                { field: 'account_id', op: 'notEmpty', message: 'Account id is required' },
+                { field: 'contact_email', op: 'notEmpty', message: 'Contact email is required' },
+                { field: 'arr_usd', op: 'gt', value: 0, message: 'ARR must be > 0' },
+              ],
+              minScore: 1,
+              onInvalid: 'reject',
+              outputField: 'verification',
+            },
+          },
+          {
+            id: 'clean_verified',
+            role: 'transform',
+            type: 'transform.map',
+            intent: 'Project clean verified columns without nested verification payload',
+            config: {
+              mappings: {
+                account_id: 'account_id',
+                full_name: 'full_name',
+                contact_email: 'contact_email',
+                territory: 'territory',
+                tier: 'tier',
+                mrr_usd: 'mrr_usd',
+                arr_usd: 'arr_usd',
+                account_status: 'account_status',
+                health_tier: 'health_tier',
+                etl_source_db: 'etl_source_db',
+              },
+              includeOriginal: false,
+            },
+          },
+          {
+            id: 'load_sqlite_warehouse',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Replicate all mapped accounts into SQLite wf_etl_sqlite_warehouse',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'wf_etl_sqlite_warehouse',
+            },
+          },
+          {
+            id: 'split_by_territory',
+            role: 'transform',
+            type: 'transform.split',
+            intent: 'Partition batch by territory before routing tiers',
+            config: { field: 'territory' },
+          },
+          {
+            id: 'branch_vip_vs_growth',
+            role: 'transform',
+            type: 'transform.condition',
+            intent: 'Split accounts with arr_usd >= 2400 to Postgres VIP mart vs SQLite Growth mart',
+            config: {
+              field: 'arr_usd',
+              operator: 'greaterThanOrEqual',
+              value: 2400,
+            },
+          },
+          {
+            id: 'tag_pg_vip',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Tag destination as postgres_vip_mart',
+            config: {
+              script: "return records.map((r) => ({ ...r, target_db: 'postgres_vip_mart' }));",
+            },
+          },
+          {
+            id: 'sink_postgres_vip_mart',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Insert VIP accounts into PostgreSQL wf_etl_pg_vip_mart',
+            config: {
+              dialect: 'postgres',
+              mode: 'insert',
+              table: 'wf_etl_pg_vip_mart',
+            },
+          },
+          {
+            id: 'tag_sqlite_growth',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Tag destination as sqlite_growth_mart',
+            config: {
+              script: "return records.map((r) => ({ ...r, target_db: 'sqlite_growth_mart' }));",
+            },
+          },
+          {
+            id: 'sink_sqlite_growth_mart',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Insert Growth accounts into SQLite wf_etl_sqlite_growth_mart',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'wf_etl_sqlite_growth_mart',
+            },
+          },
+        ],
+        edges: [
+          { from: 'extract_postgres_source', to: 'map_canonical_schema' },
+          { from: 'map_canonical_schema', to: 'enrich_arr_metrics' },
+          { from: 'enrich_arr_metrics', to: 'verify_etl_contract' },
+          { from: 'verify_etl_contract', fromPort: 'out', to: 'clean_verified' },
+          { from: 'clean_verified', to: 'load_sqlite_warehouse' },
+          { from: 'clean_verified', to: 'split_by_territory' },
+          { from: 'split_by_territory', to: 'branch_vip_vs_growth' },
+          { from: 'branch_vip_vs_growth', fromPort: 'true', to: 'tag_pg_vip' },
+          { from: 'tag_pg_vip', to: 'sink_postgres_vip_mart' },
+          { from: 'branch_vip_vs_growth', fromPort: 'false', to: 'tag_sqlite_growth' },
+          { from: 'tag_sqlite_growth', to: 'sink_sqlite_growth_mart' },
+        ],
+      },
+      {
+        id: 'etl_reverse_sqlite_to_pg_audit',
+        name: '3. Multi-DB Fetch (SQLite + Postgres) → Merge → Reconcile DB',
+        task: 'Fetch rows from SQLite growth mart and PostgreSQL VIP mart, merge both DB streams, insert reconciled ledger in Postgres, and export CSV audit.',
+        pipes: [
+          {
+            id: 'fetch_from_sqlite_mart',
+            role: 'source',
+            type: 'source.db.sql',
+            intent: 'Extract Growth accounts back from SQLite wf_etl_sqlite_growth_mart',
+            config: {
+              dialect: 'sqlite',
+              sql: 'SELECT account_id, full_name, territory, tier, arr_usd, health_tier, target_db FROM wf_etl_sqlite_growth_mart ORDER BY id DESC LIMIT 10;',
+            },
+          },
+          {
+            id: 'fetch_from_postgres_mart',
+            role: 'source',
+            type: 'source.db.sql',
+            intent: 'Extract VIP accounts back from PostgreSQL wf_etl_pg_vip_mart',
+            config: {
+              dialect: 'postgres',
+              sql: 'SELECT account_id, full_name, territory, tier, arr_usd, health_tier, target_db FROM wf_etl_pg_vip_mart ORDER BY id DESC LIMIT 10;',
+            },
+          },
+          {
+            id: 'merge_both_databases',
+            role: 'transform',
+            type: 'transform.merge',
+            intent: 'Combine SQLite and PostgreSQL extract streams into one ledger',
+            config: {},
+          },
+          {
+            id: 'normalize_reconciled',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Coerce Postgres NUMERIC string arr_usd to numeric type before final mapping',
+            config: {
+              script: 'return records.map((r) => ({ ...r, arr_usd: Number(r.arr_usd ?? 0) }));',
+            },
+          },
+          {
+            id: 'map_reconciled_audit',
+            role: 'transform',
+            type: 'transform.map',
+            intent: 'Project reconciled ledger columns with target_db mapped to routed_to_db',
+            config: {
+              mappings: {
+                account_id: 'account_id',
+                full_name: 'full_name',
+                territory: 'territory',
+                tier: 'tier',
+                arr_usd: 'arr_usd',
+                routed_to_db: 'target_db',
+              },
+              includeOriginal: false,
+            },
+          },
+          {
+            id: 'insert_pg_reconciled_ledger',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Write merged cross-DB ledger into PostgreSQL wf_etl_reconciled_ledger',
+            config: {
+              dialect: 'postgres',
+              mode: 'insert',
+              table: 'wf_etl_reconciled_ledger',
+            },
+          },
+          {
+            id: 'export_reconciled_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Export reconciled cross-DB ledger snapshot to etl_cross_db_reconciled.csv',
+            config: {
+              path: 'etl_cross_db_reconciled.csv',
+              columns: ['account_id', 'full_name', 'territory', 'tier', 'arr_usd', 'routed_to_db'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+        ],
+        edges: [
+          { from: 'fetch_from_sqlite_mart', to: 'merge_both_databases' },
+          { from: 'fetch_from_postgres_mart', to: 'merge_both_databases' },
+          { from: 'merge_both_databases', to: 'normalize_reconciled' },
+          { from: 'normalize_reconciled', to: 'map_reconciled_audit' },
+          { from: 'map_reconciled_audit', to: 'insert_pg_reconciled_ledger' },
+          { from: 'map_reconciled_audit', to: 'export_reconciled_csv' },
+        ],
+      },
+    ],
+    dependencies: [
+      { from: 'seed_source_db', to: 'etl_pg_to_sqlite_and_split', on: 'success' },
+      { from: 'etl_pg_to_sqlite_and_split', to: 'etl_reverse_sqlite_to_pg_audit', on: 'success' },
+    ],
+  },
+};
+
 export const WORKFLOW_SAMPLES: SampleWorkflow[] = [
   HELLO,
   ORDERS,
@@ -1355,6 +1717,7 @@ export const WORKFLOW_SAMPLES: SampleWorkflow[] = [
   API_ENRICH_MULTI_DB,
   FILE_CSV_MULTI_PIPELINE,
   MULTI_API_FANOUT,
+  CROSS_DB_ETL_SPLIT,
 ];
 
 export function sampleWorkflowIds(): string[] {

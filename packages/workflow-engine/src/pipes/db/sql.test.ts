@@ -12,7 +12,9 @@ import type { PipeContext, RecordBatch } from '../../registry/index.js';
 import {
   SqlSinkPipe,
   SqlSourcePipe,
+  ensureAutoTable,
   postgresCreateTableSql,
+  postgresUpsertSql,
   sqliteCreateTableSql,
   type SqlConnection,
   type SqlRunner,
@@ -312,5 +314,68 @@ describe('sink.db.sql', () => {
     );
     expect(pgWithIdDdl.create).toContain('"id" BIGINT PRIMARY KEY');
     expect(pgWithIdDdl.create).toContain('"amount" NUMERIC');
+  });
+
+  it('adds idempotent ON CONFLICT upsert clause for PostgreSQL inserts carrying id', () => {
+    expect(
+      postgresUpsertSql(
+        'INSERT INTO "workflow_orders" ("id", "customer", "amount") VALUES ($1, $2, $3)',
+        ['id', 'customer', 'amount'],
+      ),
+    ).toBe(
+      'INSERT INTO "workflow_orders" ("id", "customer", "amount") VALUES ($1, $2, $3) ON CONFLICT ("id") DO UPDATE SET "customer" = EXCLUDED."customer", "amount" = EXCLUDED."amount"',
+    );
+    expect(
+      postgresUpsertSql('INSERT INTO "ids" ("id") VALUES ($1)', ['id']),
+    ).toBe('INSERT INTO "ids" ("id") VALUES ($1) ON CONFLICT ("id") DO NOTHING');
+    expect(
+      postgresUpsertSql(
+        'INSERT INTO "events" ("name") VALUES ($1)',
+        ['name'],
+      ),
+    ).toBe('INSERT INTO "events" ("name") VALUES ($1)');
+  });
+
+  it('serializes concurrent Postgres auto-table DDL and uses an advisory transaction lock', async () => {
+    let activeSessions = 0;
+    let maxConcurrentSessions = 0;
+    const queries: Array<{ sql: string; params: unknown[] }> = [];
+
+    const open: SqlRunner = async (_connection, options) => {
+      expect(options.dedicated).toBe(true);
+      return {
+        async query(sql, params) {
+          queries.push({ sql, params: [...params] });
+          await Promise.resolve();
+          return [];
+        },
+        async transaction(work) {
+          activeSessions += 1;
+          maxConcurrentSessions = Math.max(maxConcurrentSessions, activeSessions);
+          try {
+            return await work();
+          } finally {
+            activeSessions -= 1;
+          }
+        },
+        async close() {},
+      };
+    };
+
+    const connection: SqlConnection = {
+      dialect: 'postgres',
+      option: { host: '127.0.0.1', port: 5432, database: 'foxdb' },
+    };
+
+    await Promise.all([
+      ensureAutoTable(open, connection, 'wf_etl_reconciled_ledger', [{ account_id: 'ACC-1' }], []),
+      ensureAutoTable(open, connection, 'wf_etl_reconciled_ledger', [{ account_id: 'ACC-2' }], []),
+    ]);
+
+    expect(maxConcurrentSessions).toBe(1);
+    expect(queries.filter((q) => q.sql.includes('pg_advisory_xact_lock'))).toEqual([
+      { sql: 'SELECT pg_advisory_xact_lock(hashtext($1))', params: ['public.wf_etl_reconciled_ledger'] },
+      { sql: 'SELECT pg_advisory_xact_lock(hashtext($1))', params: ['public.wf_etl_reconciled_ledger'] },
+    ]);
   });
 });

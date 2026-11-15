@@ -393,6 +393,96 @@ const sinkConfigSchema = z
     path: ['sql'],
   });
 
+export function postgresUpsertSql(sqlText: string, columns: string[]): string {
+  if (!columns.includes('id') || !sqlText.startsWith('INSERT INTO ')) return sqlText;
+  const nonIdCols = columns.filter((col) => col !== 'id');
+  if (nonIdCols.length === 0) {
+    return `${sqlText} ON CONFLICT ("id") DO NOTHING`;
+  }
+  const updates = nonIdCols
+    .map((col) => {
+      const quoted = quoteQualifiedName(col, 'postgres');
+      return `${quoted} = EXCLUDED.${quoted}`;
+    })
+    .join(', ');
+  return `${sqlText} ON CONFLICT ("id") DO UPDATE SET ${updates}`;
+}
+
+const ddlLocks = new Map<string, Promise<void>>();
+
+async function withDdlLock<T>(key: string, work: () => Promise<T>): Promise<T> {
+  const prev = ddlLocks.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const next = prev.then(() => gate);
+  ddlLocks.set(key, next);
+  await prev;
+  try {
+    return await work();
+  } finally {
+    release();
+    if (ddlLocks.get(key) === next) {
+      ddlLocks.delete(key);
+    }
+  }
+}
+
+function autoTableLockKey(connection: SqlConnection, table: string): string {
+  return [
+    connection.dialect,
+    connection.schema ?? '',
+    String(connection.option.host ?? ''),
+    String(connection.option.port ?? ''),
+    String(connection.option.database ?? ''),
+    String(connection.option.connectionString ?? ''),
+    table,
+  ].join(':');
+}
+
+/**
+ * Ensures the auto-created target table and columns exist before batch writes.
+ * Serialized per target table and guarded in PostgreSQL by a transaction-scoped
+ * advisory lock so concurrent pipeline batches never collide on `pg_type`.
+ */
+export async function ensureAutoTable(
+  open: SqlRunner,
+  connection: SqlConnection,
+  table: string,
+  records: Record<string, unknown>[],
+  columns: string[],
+): Promise<void> {
+  if (connection.dialect !== 'sqlite' && connection.dialect !== 'postgres') return;
+  const key = autoTableLockKey(connection, table);
+  await withDdlLock(key, async () => {
+    if (connection.dialect === 'sqlite') {
+      const ddl = sqliteCreateTableSql(records, table, columns);
+      await withSession(open, connection, false, async (session) => {
+        await session.query(ddl.create, []);
+        for (const alterSql of ddl.alterColumns) {
+          try {
+            await session.query(alterSql, []);
+          } catch {
+            // SQLite has no ADD COLUMN IF NOT EXISTS; ignore duplicate-column errors.
+          }
+        }
+      });
+      return;
+    }
+
+    const ddl = postgresCreateTableSql(records, table, columns);
+    const advisoryKey = `${connection.schema ?? 'public'}.${table}`;
+    await withSession(open, connection, true, async (session) => {
+      await session.query('SELECT pg_advisory_xact_lock(hashtext($1))', [advisoryKey]);
+      await session.query(ddl.create, []);
+      for (const alterSql of ddl.alterColumns) {
+        await session.query(alterSql, []);
+      }
+    });
+  });
+}
+
 export class SqlSinkPipe implements SinkPipe {
   readonly type = 'sink.db.sql';
   readonly role = 'sink';
@@ -428,34 +518,32 @@ export class SqlSinkPipe implements SinkPipe {
         ? insertStatements(batch.records, config.table!, config.columns, connection.dialect)
         : recordStatements(batch.records, config.sql!, scope, connection.dialect);
 
+    if (
+      this.open === foxSchemaDrivers &&
+      config.mode === 'insert' &&
+      config.table &&
+      (connection.dialect === 'sqlite' || connection.dialect === 'postgres')
+    ) {
+      await ensureAutoTable(this.open, connection, config.table, batch.records, config.columns);
+    }
+
     const returnedRows = await withSession(this.open, connection, config.transaction, async (session) => {
-      if (this.open === foxSchemaDrivers && connection.dialect === 'sqlite' && config.mode === 'insert' && config.table) {
-        const ddl = sqliteCreateTableSql(batch.records, config.table, config.columns);
-        await session.query(ddl.create, []);
-        for (const alterSql of ddl.alterColumns) {
-          try {
-            await session.query(alterSql, []);
-          } catch {
-            // SQLite has no ADD COLUMN IF NOT EXISTS; ignore duplicate-column errors.
-          }
-        }
-      }
-      if (this.open === foxSchemaDrivers && connection.dialect === 'postgres' && config.mode === 'insert' && config.table) {
-        const ddl = postgresCreateTableSql(batch.records, config.table, config.columns);
-        await session.query(ddl.create, []);
-        for (const alterSql of ddl.alterColumns) {
-          await session.query(alterSql, []);
-        }
-      }
+      const insertColumns =
+        config.mode === 'insert'
+          ? config.columns.length > 0
+            ? config.columns
+            : Object.keys(batch.records[0]!)
+          : [];
       const rows: Record<string, unknown>[] = [];
       for (const statement of statements) {
-        const sqlText =
-          this.open === foxSchemaDrivers &&
-          connection.dialect === 'sqlite' &&
-          config.mode === 'insert' &&
-          statement.text.startsWith('INSERT INTO ')
-            ? statement.text.replace(/^INSERT INTO /, 'INSERT OR REPLACE INTO ')
-            : statement.text;
+        let sqlText = statement.text;
+        if (this.open === foxSchemaDrivers && config.mode === 'insert' && sqlText.startsWith('INSERT INTO ')) {
+          if (connection.dialect === 'sqlite') {
+            sqlText = sqlText.replace(/^INSERT INTO /, 'INSERT OR REPLACE INTO ');
+          } else if (connection.dialect === 'postgres') {
+            sqlText = postgresUpsertSql(sqlText, insertColumns);
+          }
+        }
         const result = await session.query(sqlText, statement.params);
         if (result.length > 0) rows.push(...result);
       }

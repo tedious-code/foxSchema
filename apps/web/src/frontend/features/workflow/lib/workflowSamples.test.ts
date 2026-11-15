@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { parseWorkflow } from '@foxschema/workflow-engine/definitions';
 import {
   SAMPLE_API_ENRICH_MULTI_DB_WORKFLOW_ID,
+  SAMPLE_CROSS_DB_ETL_SPLIT_WORKFLOW_ID,
   SAMPLE_FILE_CSV_MULTI_PIPELINE_WORKFLOW_ID,
   SAMPLE_HELLO_PEOPLE,
   SAMPLE_HELLO_WORKFLOW_ID,
@@ -113,7 +114,7 @@ describe('workflow samples', () => {
   });
 
   it('each sample parses as a workflow the engine would accept', () => {
-    expect(WORKFLOW_SAMPLES.length).toBeGreaterThanOrEqual(8);
+    expect(WORKFLOW_SAMPLES.length).toBeGreaterThanOrEqual(9);
     for (const entry of WORKFLOW_SAMPLES) {
       const parsed = parseWorkflow(entry.document);
       expect(parsed.id).toBe(entry.id);
@@ -199,10 +200,26 @@ describe('workflow samples', () => {
       ]),
     );
 
+    const crossDb = byId.get(SAMPLE_CROSS_DB_ETL_SPLIT_WORKFLOW_ID)!;
+    expect(crossDb).toBeDefined();
+    expect(crossDb.document.pipelines).toHaveLength(3);
+    expect(crossDb.document.dependencies).toEqual([
+      { from: 'seed_source_db', to: 'etl_pg_to_sqlite_and_split', on: 'success' },
+      { from: 'etl_pg_to_sqlite_and_split', to: 'etl_reverse_sqlite_to_pg_audit', on: 'success' },
+    ]);
+    const crossDbSourceDialects = new Set(
+      crossDb.document.pipelines
+        .flatMap((p) => p.pipes)
+        .filter((pipe) => pipe.type === 'source.db.sql')
+        .map((pipe) => pipe.config.dialect),
+    );
+    expect(crossDbSourceDialects).toEqual(new Set(['postgres', 'sqlite']));
+
     for (const id of [
       SAMPLE_API_ENRICH_MULTI_DB_WORKFLOW_ID,
       SAMPLE_FILE_CSV_MULTI_PIPELINE_WORKFLOW_ID,
       SAMPLE_MULTI_API_FANOUT_WORKFLOW_ID,
+      SAMPLE_CROSS_DB_ETL_SPLIT_WORKFLOW_ID,
     ]) {
       const dialects = new Set(
         byId

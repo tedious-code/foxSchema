@@ -4,7 +4,7 @@ FoxSchema designs and administers workflows in the web UI. The engine runs
 **in the FoxSchema API process** (`packages/server/src/features/workflow/runtime`).
 
 User walkthrough: [user-guide.md](user-guide.md#workflow). Deploy env vars:
-[DEPLOYMENT.md](DEPLOYMENT.md#workflow-engine). Folder map: [CODE_MAP.md](CODE_MAP.md).
+[DEPLOYMENT.md](DEPLOYMENT.md#workflow-engine). Folder map: [CODE_MAP.md](../architecture/CODE_MAP.md).
 
 ## Architecture
 
@@ -171,7 +171,7 @@ them on save and re-reads them every **30 seconds**.
   `not_configured` when the key is missing, or `unreachable` if boot failed.
   A running engine that is Disabled in Workflow settings still reports
   `running`, with `detail` “Not taking new runs”. There is no Start / Stop
-  from the card yet ([plan](plans/2026-11-01-service-status.md)).
+  from the card yet ([plan](../plans/2026-11-01-service-status.md)).
 - **Docker.** Set `FOXFLOW_ENCRYPTION_KEY` on the FoxSchema process. The image
   defaults `FOXFLOW_DB_PATH` to `/data/workflow-engine.sqlite`. See
   [DEPLOYMENT.md](DEPLOYMENT.md#workflow-engine).

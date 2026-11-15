@@ -4,8 +4,8 @@
 > the Web UI and the Workflow engine. Engine states are `running`,
 > `not_configured` and `unreachable` — there is no Stopped row, no Start /
 > Stop, and no `admin.services` yet. Living docs:
-> [user-guide.md](../user-guide.md#first-run), [workflow.md](../workflow.md),
-> [CODE_MAP.md](../CODE_MAP.md). Start and stop remain steps 2–3 below.
+> [user-guide.md](../guides/user-guide.md#first-run), [workflow.md](../guides/workflow.md),
+> [CODE_MAP.md](../architecture/CODE_MAP.md). Start and stop remain steps 2–3 below.
 
 Board card: `dashboard-service-control`. Decided on 2026-11-01: v1 shows the
 status of all three services and lets an admin start and stop the Workflow
@@ -59,7 +59,7 @@ A **Services** card on Home with one row per service:
   own is wrong.
 - The child stops when the API stops.
 - Its stdout and stderr go to the API log under `component: "workflow-engine"`,
-  following the logging contract in `docs/BACKEND_ARCHITECTURE.md`.
+  following the logging contract in `docs/architecture/BACKEND_ARCHITECTURE.md`.
 
 **Permission:** a new install-wide `admin.services`, which admins have by
 default and no workspace role can grant. This is the same pattern as

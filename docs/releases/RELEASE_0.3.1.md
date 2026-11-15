@@ -77,7 +77,7 @@ loading a schema). The **Demo** role is the role without it and without
 **Manage own account** — a published demo's shared login. Strip `app.write`
 from any role and those accounts read only too. A new POST is closed to such
 an account until its route declares `reads`. See
-[DEPLOYMENT.md](../DEPLOYMENT.md#publishing-a-demo).
+[DEPLOYMENT.md](../guides/DEPLOYMENT.md#publishing-a-demo).
 
 ## Personal workspaces lend no more than the account holds
 
@@ -215,7 +215,7 @@ flagged before anything leaves.
 `npm run dev` allows this machine's own literal IPs on ports 5173 / 5199 / 3210 /
 3211, so a Vite **Network:** URL works. Arbitrary hostnames are still refused.
 Production stays same-origin; set `FOX_ALLOWED_ORIGINS` for a split hostname.
-See [DEPLOYMENT.md](../DEPLOYMENT.md#origin-policy).
+See [DEPLOYMENT.md](../guides/DEPLOYMENT.md#origin-policy).
 
 ## Schema history (Lokee): definitions are compared the way Compare compares them
 
@@ -377,7 +377,7 @@ for the credential at the top of the workspace.
   backups they recorded; pick one and the restore reads it. Restores still only
   open in the SQL Editor.
 
-See [user-guide.md](../user-guide.md#utilities).
+See [user-guide.md](../guides/user-guide.md#utilities).
 
 ## Access: Grants show what is held
 

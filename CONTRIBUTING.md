@@ -13,8 +13,8 @@ fresh clone to a running app with a passing test suite.
   develop on).
 - **Docker** — for the test databases and the end-to-end suite.
 
-User install channels: [docs/install.md](docs/install.md). Release publish:
-[docs/publish.md](docs/publish.md). The rest of the docs, one file per topic:
+User install channels: [docs/guides/install.md](docs/guides/install.md). Release publish:
+[docs/guides/publish.md](docs/guides/publish.md). The rest of the docs, one file per topic:
 [docs/README.md](docs/README.md).
 
 ## First-time setup
@@ -36,7 +36,7 @@ see the script output).
 
 The workflow engine runs in the API process. `npm run dev` sets a local
 `FOXFLOW_ENCRYPTION_KEY`. Production needs a real 32-byte key. Runbook:
-[docs/workflow.md](docs/workflow.md).
+[docs/guides/workflow.md](docs/guides/workflow.md).
 
 For the advanced test schemas (`demo_c` / `demo_d` — FK chains, cross-dialect type
 matrix, materialized views, etc.): `bash scripts/seed/seed-advanced.sh all`.
@@ -64,7 +64,7 @@ the Playwright E2E suite (see below).
 | [`apps/e2e`](apps/e2e) | Playwright E2E tests against the dockerized databases. |
 
 The design, the migration pipeline, and the dialect system are described in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — read it before non-trivial changes.
+[docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) — read it before non-trivial changes.
 Workspace-owned rows (`connections`, secrets, history, runs) are read and written
 through a `WorkspaceScope`; see **Workspaces** there. Route unit tests use
 `routeHandler` / `fakeReply` from `packages/server/src/platform/http/route-doubles.ts`.
@@ -136,7 +136,7 @@ Each dialect spans both packages: `sql-dialect.ts` / `settings.ts` under
 optional hooks, cross-cutting invariants (casing, index/FK naming, DROP ordering),
 and per-dialect gotchas — is documented in
 [`packages/sql/src/providers/DIALECTS.md`](packages/sql/src/providers/DIALECTS.md),
-with the step-by-step checklist in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+with the step-by-step checklist in [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md).
 Read `DIALECTS.md` before touching any `*.sql-dialect.ts` or `sql-generator.module.ts`.
 Wire-compatible relatives (MariaDB/TiDB, Cockroach/Yugabyte/Redshift, Azure SQL)
 must go through `dialectFamily()` in `packages/sql/src/providers/provider-settings.ts`
@@ -177,7 +177,7 @@ A few rules that have bitten people before (the full set is in [CLAUDE.md](CLAUD
    **not** paste long internal implementation plans, agent transcripts, or
    speculative design dumps into public PR bodies.
 5. Keep copyright / `NOTICE` / `LICENSE` intact. Prefer the SPDX header in
-   [docs/COPYRIGHT_HEADER.txt](docs/COPYRIGHT_HEADER.txt) on new source files.
+   [docs/conventions/COPYRIGHT_HEADER.txt](docs/conventions/COPYRIGHT_HEADER.txt) on new source files.
    Authorship: Huy Phan `<huyplb@gmail.com>` (see [NOTICE](NOTICE)).
 
 Bug reports and feature ideas → open a GitHub issue. Security vulnerabilities →

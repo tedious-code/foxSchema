@@ -8,7 +8,7 @@
 #   docker compose -f docker-compose.app.yml up -d --build
 #
 # Optional: set APP_ENCRYPTION_KEY in .env to pin the key yourself.
-# Open http://localhost:${PORT}  (default 3210). See docs/DEPLOYMENT.md.
+# Open http://localhost:${PORT}  (default 3210). See docs/guides/DEPLOYMENT.md.
 #
 # Workflow engine runs in this process. Set FOXFLOW_ENCRYPTION_KEY (32 bytes
 # hex or base64) to enable it.

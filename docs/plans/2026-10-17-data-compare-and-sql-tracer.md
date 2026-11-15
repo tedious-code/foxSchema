@@ -4,9 +4,9 @@
 `useCompareWindow` / `COMPARE_WINDOW_ROWS`) and **migrate up to 2,000 ops**
 (#560, one shared `DATA_MIGRATE_MAX_OPS`). Part 3 is built: Redis keys as
 tables (`packages/db/src/providers/redis/redis.keyspace.ts`). **Part 2 (SQL
-Tracer) is not built.** Living usage is in [user-guide.md](../user-guide.md);
+Tracer) is not built.** Living usage is in [user-guide.md](../guides/user-guide.md);
 this page is the design record. Remaining test-and-fix passes are tracked in
-[the feature and dialect test plan](2026-10-25-feature-and-dialect-test-plan.md).
+[the feature and dialect test plan](../testing/test-plans/2026-10-25-feature-and-dialect-test-plan.md).
 
 Three requests, planned for every dialect Fox ships:
 
@@ -198,7 +198,7 @@ rendering cost.
 - `dba-utility-remedy.ts` already turns "permission denied" into the grant the
   user is missing. The tracer needs the same.
 - `ConnectionFactory` times every query Fox runs, but by contract never records
-  SQL text (see `docs/BACKEND_ARCHITECTURE.md`). That contract stays; see the
+  SQL text (see `docs/architecture/BACKEND_ARCHITECTURE.md`). That contract stays; see the
   Fox activity log below.
 
 ### Four modes

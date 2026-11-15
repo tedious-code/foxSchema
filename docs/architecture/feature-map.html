@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<!-- Generated from docs/FEATURE_MAP.md and the feature inventory. The live planning board is a shared page;
+<!-- Generated from docs/architecture/FEATURE_MAP.md and the feature inventory. The live planning board is a shared page;
      this copy shows the map, workflows, schema, engines and coverage. Open it in a browser. -->
 <style>body{margin:0}[hidden]{display:none!important}</style>
 <title>Fox Feature Map</title>
@@ -238,7 +238,7 @@ td.no { color: var(--muted); }
   <div class="wrap">
     <div class="titlerow">
       <h1>Fox <span>Feature Map</span></h1>
-      <div class="stamp">Measured on <code>main</code> · <code>f39dca3ee1</code> · 2026-11-08, with Rename Column from <code>feat/column-change-direct-alter</code> · mirrors <code>docs/FEATURE_MAP.md</code></div>
+      <div class="stamp">Measured on <code>main</code> · <code>f39dca3ee1</code> · 2026-11-08, with Rename Column from <code>feat/column-change-direct-alter</code> · mirrors <code>docs/architecture/FEATURE_MAP.md</code></div>
     </div>
     <ul class="stats" aria-label="Inventory">
       <li><b>35</b> features</li>
@@ -662,7 +662,7 @@ td.no { color: var(--muted); }
 
 <script>
 // Reference data: the inventory of what Fox Schema ships, measured from the
-// codebase on main d7ae1cf2 (2026-11-09). Mirrors docs/FEATURE_MAP.md.
+// codebase on main d7ae1cf2 (2026-11-09). Mirrors docs/architecture/FEATURE_MAP.md.
 // Work items are not here: they live in the page's shared store.
 const AREAS = [
   { id: 'platform', name: 'Platform' },
@@ -967,7 +967,7 @@ for (const [id, name, dir, e2e, watch] of DIALECTS) {
     { id: 'partial', label: 'Partial', cls: 'progress' },
     { id: 'fail', label: 'Fail', cls: 'blocked' },
   ];
-  // The copy kept in the repo (docs/feature-map.html) has no shared board.
+  // The copy kept in the repo (docs/architecture/feature-map.html) has no shared board.
   const STATIC = Boolean(window.FOX_MAP_STATIC);
   const TABS = STATIC ? ['features', 'workflows', 'schema', 'engines', 'coverage'] : ['plan', 'features', 'workflows', 'schema', 'engines', 'coverage'];
   const FEATURE_BY_ID = Object.fromEntries(FEATURES.map((f) => [f.id, f]));

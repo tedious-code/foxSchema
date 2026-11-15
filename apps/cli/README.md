@@ -38,7 +38,7 @@ What's new: [0.3.1 release notes](https://github.com/tedious-code/foxschema/blob
 | Access | Database accounts, GRANT / REVOKE builder, who-holds-what inspector |
 | Workspaces & sign-in | Team workspaces, invites, Google / Microsoft / GitHub sign-in, roles |
 
-All features: [FEATURE_MAP.md](https://github.com/tedious-code/foxschema/blob/main/docs/FEATURE_MAP.md).
+All features: [FEATURE_MAP.md](https://github.com/tedious-code/foxschema/blob/main/docs/architecture/FEATURE_MAP.md).
 
 ## SQL Editor
 
@@ -97,8 +97,8 @@ foxschema tui
 
 ## Docs
 
-- [User guide](https://github.com/tedious-code/foxschema/blob/main/docs/user-guide.md)
-- [Install](https://github.com/tedious-code/foxschema/blob/main/docs/install.md)
+- [User guide](https://github.com/tedious-code/foxschema/blob/main/docs/guides/user-guide.md)
+- [Install](https://github.com/tedious-code/foxschema/blob/main/docs/guides/install.md)
 - [Site](https://foxschema.com)
 
 ## License

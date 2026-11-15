@@ -7,7 +7,7 @@
 # this image targets linux/amd64:
 #   docker build --platform=linux/amd64 -t foxschema .
 #
-# See docs/DEPLOYMENT.md and docker-compose.app.yml.
+# See docs/guides/DEPLOYMENT.md and docker-compose.app.yml.
 
 # ─────────────────────────── build stage ───────────────────────────
 FROM node:24-slim AS build
@@ -39,7 +39,7 @@ RUN if [ "$WITH_DB2" = "true" ]; then \
 #   - the WITH_DB2=false path above rewrites package.json to drop ibm_db, and
 #     `npm ci` fails by design when package.json and the lockfile disagree;
 #   - .dockerignore excludes package-lock.json from the build context anyway.
-# Everywhere else (CI, local) installs the locked tree. See docs/DEPENDENCY_POLICY.md.
+# Everywhere else (CI, local) installs the locked tree. See docs/conventions/DEPENDENCY_POLICY.md.
 RUN npm install
 
 # Produce the frontend bundle at apps/web/dist (root build -> @foxschema/web).

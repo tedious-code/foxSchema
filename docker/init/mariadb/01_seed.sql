@@ -198,7 +198,7 @@ DELIMITER ;
 
 -- ============================================================
 -- EXTENDED TEST CASES — one object set per generator path
--- (see docs/plans/2026-07-01-seed-test-matrix.md)
+-- (see docs/testing/test-plans/2026-07-01-seed-test-matrix.md)
 -- ============================================================
 
 USE demo_a;

@@ -3,13 +3,13 @@
 Fox Schema (`foxschema`) is a database schema diff & migration tool: an npm-workspaces
 monorepo delivered as a web app (`apps/web` = React/Vite UI + `packages/server`
 Fastify API), a CLI (`apps/cli`), and the dialect engine (`packages/sql` +
-`packages/db`). The workflow engine runs in-process in `packages/server` ([docs/workflow.md](docs/workflow.md)).
+`packages/db`). The workflow engine runs in-process in `packages/server` ([docs/guides/workflow.md](docs/guides/workflow.md)).
 See `README.md` and `CONTRIBUTING.md` for the product overview and the canonical
 dev/test/build commands.
 
 ## Naming conventions
 
-`docs/CONVENTIONS.md` records the TypeScript naming rules — kebab-case in
+`docs/conventions/CONVENTIONS.md` records the TypeScript naming rules — kebab-case in
 `packages/*`, camelCase in the `apps/web` frontend, PascalCase components, the
 `<subject>.<role>.ts` server suffixes, and the `<dialect>.<concern>.ts` provider
 layout. They are enforced by `packages/shared/src/naming.test.ts`, so a file
@@ -48,7 +48,7 @@ Standard commands live in `CONTRIBUTING.md` and `package.json` scripts (`npm run
   UI at http://localhost:5173. API liveness: `GET http://localhost:3210/api/health`
   → `{"ok":true}`. Every install requires sign-in; first open runs admin setup.
   The workflow engine starts in the API process (`FOXFLOW_ENCRYPTION_KEY` —
-  [docs/workflow.md](docs/workflow.md)).
+  [docs/guides/workflow.md](docs/guides/workflow.md)).
 - Vite is configured with `server.host: true`, `server.strictPort: true`, and
   `server.allowedHosts: true` so `http://127.0.0.1:5173` works (not only IPv6
   localhost), the port does not silently hop to 5174+, and Cursor/cloud

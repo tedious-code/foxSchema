@@ -26,7 +26,7 @@ note says otherwise.
 | TiDB | Pass (10-26) | Utilities 4/4 including clone, database access 9/9, access assistant 4/4 |
 | SQL Server | Pass | Access (with DENY), accounts, backup and utilities suites as well |
 | Azure SQL | Pass | Against the SQL Server container |
-| Db2 | Pass (10-26) | Utilities 4/4, database access 9/9, access assistant 4/4, after clearing the leftover `newrole` role ([runbook](../testing/RUNNING_E2E.md#failures-that-are-not-bugs)) |
+| Db2 | Pass (10-26) | Utilities 4/4, database access 9/9, access assistant 4/4, after clearing the leftover `newrole` role ([runbook](../RUNNING_E2E.md#failures-that-are-not-bugs)) |
 | SQLite | Pass | Most feature suites run on SQLite too |
 | DuckDB | Pass | |
 | ClickHouse | Pass | Utilities 4/4 |

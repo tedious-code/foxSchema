@@ -5,7 +5,7 @@
  *
  * The repository's naming conventions, checked automatically.
  *
- * Written down in `docs/CONVENTIONS.md`; enforced here so a new file that
+ * Written down in `docs/conventions/CONVENTIONS.md`; enforced here so a new file that
  * breaks a rule fails a test instead of waiting for someone to notice in
  * review. Several people and several agents write in this repo, and a
  * convention nothing checks drifts within a few weeks.
@@ -111,7 +111,7 @@ describe('file naming', () => {
 
   it('frontend non-component files are camelCase, except facades', () => {
     // A thin re-export over @foxschema/sql keeps the package's kebab name so
-    // the two line up by sight — see docs/CONVENTIONS.md. The frontend reaches
+    // the two line up by sight — see docs/conventions/CONVENTIONS.md. The frontend reaches
     // @foxschema/sql only through @foxschema/ui-shared, so that import is what
     // marks a facade.
     const offenders = frontendFiles

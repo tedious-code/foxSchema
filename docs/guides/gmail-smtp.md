@@ -233,7 +233,7 @@ Without a relay, invite and reset codes go to the server log (and to the admin
 who issued them), and `foxschema reset-password [email]` prints a fresh reset
 code on the server. Email-verification codes go through the Fox mail service
 instead (`FOX_VERIFY_MAIL_URL`; set it to `off` to send nothing outside the
-install). See [DEPLOYMENT.md](../DEPLOYMENT.md#email-for-invites-and-resets).
+install). See [DEPLOYMENT.md](DEPLOYMENT.md#email-for-invites-and-resets).
 
 ## Checklist before you commit
 

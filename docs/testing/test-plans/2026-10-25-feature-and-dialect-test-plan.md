@@ -2,7 +2,7 @@
 
 Results of the first round: [2026-10-26-feature-and-dialect-test-results.md](2026-10-26-feature-and-dialect-test-results.md).
 
-Every feature in [FEATURE_MAP.md](../FEATURE_MAP.md) and every one of the 16
+Every feature in [FEATURE_MAP.md](../../architecture/FEATURE_MAP.md) and every one of the 16
 engines gets one **test-and-fix pass**, tracked as a work item on the planning
 board (kind *test*, one item per feature ID and per `dialect.*` ID). Bugs a pass
 finds become their own *bug* items, linked from the pass.
@@ -23,7 +23,7 @@ A pass is done when all five hold:
 4. **Every fix tested first.** A test that fails without the fix and passes with
    it (A/B), then the fix. No fix without the test that would have caught it.
 5. **Docs follow.** User-visible behaviour that changed is reflected in
-   `docs/user-guide.md`; a dialect gotcha goes into
+   `docs/guides/user-guide.md`; a dialect gotcha goes into
    `packages/sql/src/providers/DIALECTS.md`.
 
 ## Order
@@ -75,7 +75,7 @@ skips what it can:
 - Keep the machine awake for long runs: a sleeping laptop stretches timers and
   fails tests that are not broken.
 - The full list of environment traps and their fixes:
-  [testing/RUNNING_E2E.md](../testing/RUNNING_E2E.md).
+  [testing/RUNNING_E2E.md](../RUNNING_E2E.md).
 
 ## Cadence
 

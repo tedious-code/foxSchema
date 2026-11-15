@@ -5,7 +5,7 @@ There is **no** separate `homebrew-foxschema` tap.
 
 ## Install (users)
 
-User install for every channel, including Homebrew, is [docs/install.md](../../docs/install.md). This file is only how to refresh the formula after a release.
+User install for every channel, including Homebrew, is [docs/guides/install.md](../../docs/guides/install.md). This file is only how to refresh the formula after a release.
 
 ## Updating after an npm release
 

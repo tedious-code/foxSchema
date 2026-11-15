@@ -73,13 +73,13 @@ time the trigger statement runs.
 The real issue: `generateMigrationSql` (the **display** function) regroups
 the flat `steps` array from `generateMigrationPlan` into three fixed sections
 — DROP, CREATE, ALTER — for human readability
-([sql-generator.module.ts:696-713](../../packages/core/src/modules/sql-generator.module.ts#L696-L713)).
+([sql-generator.module.ts:696-713](../../../packages/core/src/modules/sql-generator.module.ts#L696-L713)).
 Since both structural creates (tables) and procedural creates (functions)
 share `action: 'CREATE'`, they get merged into one "CREATE" bucket and shown
 *before* the "ALTER" bucket — even though the **true** execution order
 (the raw `steps` array, which is what `MigrationModule.execute` actually
 iterates —
-[migration.module.ts:40](../../packages/core/src/modules/migration.module.ts#L40))
+[migration.module.ts:40](../../../packages/core/src/modules/migration.module.ts#L40))
 is:
 
 ```
@@ -88,10 +88,10 @@ DROP → CREATE (structural: tables/sequences/types/roles) → ALTER (modified) 
 
 `generateMigrationPlan` deliberately puts procedural ADDED objects **last**
 so views can see columns added by ALTER
-([sql-generator.module.ts:626-628](../../packages/core/src/modules/sql-generator.module.ts#L626-L628)).
+([sql-generator.module.ts:626-628](../../../packages/core/src/modules/sql-generator.module.ts#L626-L628)).
 But `alterObjectStatements` for a MODIFIED table can itself create a **new
 trigger** as part of that same ALTER step
-([sql-generator.module.ts:469-474](../../packages/core/src/modules/sql-generator.module.ts#L469-L474)),
+([sql-generator.module.ts:469-474](../../../packages/core/src/modules/sql-generator.module.ts#L469-L474)),
 and that trigger's `EXECUTE FUNCTION` can reference a function that is only
 created in the later procedural-CREATE phase. Confirmed exactly this: `CUSTOMERS`
 is a MODIFIED table whose ALTER step adds `trg_customer_created`, which calls
@@ -144,7 +144,7 @@ ALTER (modified) → CREATE (views/triggers)`.
 
 ## Fix applied and verified
 
-Implemented in [sql-generator.module.ts](../../packages/core/src/modules/sql-generator.module.ts):
+Implemented in [sql-generator.module.ts](../../../packages/core/src/modules/sql-generator.module.ts):
 split the "procedural ADDED" phase into `ROUTINE_TYPES` (FUNCTION, PROCEDURE —
 now created right after structural ADDED objects, before MODIFIED/ALTER) and
 the remaining VIEW/TRIGGER (still after ALTER, unchanged). Extracted the

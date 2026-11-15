@@ -21,7 +21,7 @@ out of `apps/web/src/backend/` into `packages/server/src/`, and through a
 `modules/` naming that has since gone back to `features/`. Today
 `features/compare/service.ts` is
 `packages/server/src/features/compare/compare.service.ts`. The current layout is
-`docs/CODE_MAP.md`, and section 5 of `docs/BACKEND_ARCHITECTURE.md`. The
+`docs/architecture/CODE_MAP.md`, and section 5 of `docs/architecture/BACKEND_ARCHITECTURE.md`. The
 reasoning below is kept unedited — it is the record of why, not a map of where.
 
 Open question 4 is still unanswered and blocks the cache design: **can two

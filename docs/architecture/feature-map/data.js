@@ -1,5 +1,5 @@
 // Reference data: the inventory of what Fox Schema ships, measured from the
-// codebase on main d7ae1cf2 (2026-11-09). Mirrors docs/FEATURE_MAP.md.
+// codebase on main d7ae1cf2 (2026-11-09). Mirrors docs/architecture/FEATURE_MAP.md.
 // Work items are not here: they live in the page's shared store.
 const AREAS = [
   { id: 'platform', name: 'Platform' },

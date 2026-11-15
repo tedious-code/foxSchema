@@ -4,7 +4,7 @@
 > `app/` + `features/` + `shared/`, and `architecture.test.ts` enforces the
 > `app -> features -> shared` direction. This document is the record of the
 > reasoning and of which parts of the original plan were rejected — not a map
-> of where anything is. For that see `docs/CODE_MAP.md`.
+> of where anything is. For that see `docs/architecture/CODE_MAP.md`.
 
 Review of `frontend-feature-domain-refactor-plan.md`, measured against the
 actual frontend rather than against the plan's generic example.

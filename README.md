@@ -7,7 +7,7 @@
 Install once, then open the local web UI (`foxschema`) for **Compare**, the
 **SQL Editor**, **Utils**, **Snapshots**, and optional **Workflow**. Self-host with Docker when you need a server.
 
-[foxschema.com](https://foxschema.com) · [Install](docs/install.md) · [User guide](docs/user-guide.md) · [Workflow](docs/workflow.md) · [Docs](docs/README.md) · [Contributing](CONTRIBUTING.md)
+[foxschema.com](https://foxschema.com) · [Install](docs/guides/install.md) · [User guide](docs/guides/user-guide.md) · [Workflow](docs/guides/workflow.md) · [Docs](docs/README.md) · [Contributing](CONTRIBUTING.md)
 
 <p>
   <a href="https://www.npmjs.com/package/foxschema"><img alt="npm" src="https://img.shields.io/npm/v/foxschema.svg?logo=npm" /></a>
@@ -43,7 +43,7 @@ winget install OpenJS.NodeJS.LTS
 npm install -g foxschema
 ```
 
-Full matrix: **[docs/install.md](docs/install.md)**.
+Full matrix: **[docs/guides/install.md](docs/guides/install.md)**.
 
 ## Update
 
@@ -88,7 +88,7 @@ foxschema tui
 | **Workspaces & sign-in** | Personal and team workspaces, invites, Google / Microsoft / GitHub sign-in, admin roles and a role → permission matrix |
 | **Workflow** | Optional designer and engine for scheduled and triggered jobs (below) |
 
-Every feature, where it lives and how it is tested: [docs/FEATURE_MAP.md](docs/FEATURE_MAP.md).
+Every feature, where it lives and how it is tested: [docs/architecture/FEATURE_MAP.md](docs/architecture/FEATURE_MAP.md).
 
 ## SQL Editor
 
@@ -109,7 +109,7 @@ A full query workbench next to Schema Sync — not a thin prompt.
 | **Safe mode** | Confirm writes; bookmarks & samples included |
 | **Access control** | Sign-in on every install; `admin` / `editor` / `viewer` roles and per-workspace roles |
 
-Walkthrough: [User guide → SQL Editor](docs/user-guide.md#sql-editor).
+Walkthrough: [User guide → SQL Editor](docs/guides/user-guide.md#sql-editor).
 
 ## Workflow
 
@@ -123,8 +123,8 @@ export FOXFLOW_ENCRYPTION_KEY="$(openssl rand -hex 32)"
 npm run dev:with-workflow
 ```
 
-Then **Workflow → Engine → Enabled**. Runbook: [docs/workflow.md](docs/workflow.md).
-User steps: [User guide → Workflow](docs/user-guide.md#workflow).
+Then **Workflow → Engine → Enabled**. Runbook: [docs/guides/workflow.md](docs/guides/workflow.md).
+User steps: [User guide → Workflow](docs/guides/user-guide.md#workflow).
 
 ## Schema Sync
 
@@ -152,7 +152,7 @@ docker run -d --name foxschema \
   5nickels/foxschema:latest
 ```
 
-Open **http://localhost:3210**. Guide: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+Open **http://localhost:3210**. Guide: [docs/guides/DEPLOYMENT.md](docs/guides/DEPLOYMENT.md).
 
 ## Supported dialects
 
@@ -182,7 +182,7 @@ CommonJS at runtime. Requires **Node ≥ 22.5**.
 | `apps/workflow-server` | Workflow engine HTTP process (`:8081`) |
 | `apps/e2e` | Playwright tests against dockerized databases |
 
-Maintainers: [docs/publish.md](docs/publish.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Maintainers: [docs/guides/publish.md](docs/guides/publish.md) · [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md).
 
 ## License
 

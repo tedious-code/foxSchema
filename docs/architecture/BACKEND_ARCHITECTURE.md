@@ -5,7 +5,7 @@ backend *is*, why it is that way, and which of the plan's ideas were tried and
 rejected — so the same ground is not re-covered.
 
 Companion to `IMPLEMENTATION_STATE.md` (feature-level handoff) and
-`docs/ARCHITECTURE.md` (repo layout, dialect system).
+`docs/architecture/ARCHITECTURE.md` (repo layout, dialect system).
 
 ---
 
@@ -166,7 +166,7 @@ has not been done. Database lines correlate by time, not by `reqId`.
 
 Layers, top to bottom; each imports only the ones below it
 (`packages/server/src/architecture.test.ts` enforces it, and
-[architecture/FEATURE-DEPENDENCY-RULES.md](architecture/FEATURE-DEPENDENCY-RULES.md)
+[architecture/FEATURE-DEPENDENCY-RULES.md](FEATURE-DEPENDENCY-RULES.md)
 explains it):
 
 ```
@@ -216,7 +216,7 @@ backend/
 A feature's `index.ts` exports its `ServerFeatureModule` (id, mounts with
 `access` = `public` | `internal` | `user` | `registered`, and `rateLimited`)
 plus whatever other features may call. Mounting is
-[architecture/FEATURE-MODULE-GUIDE.md](architecture/FEATURE-MODULE-GUIDE.md).
+[architecture/FEATURE-MODULE-GUIDE.md](FEATURE-MODULE-GUIDE.md).
 
 ### The layers inside a module
 

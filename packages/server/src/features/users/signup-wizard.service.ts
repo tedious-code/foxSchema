@@ -9,7 +9,7 @@ const WEBHOOK_TIMEOUT_MS = 5000;
 /**
  * First-run "stay in the loop" wizard: captures an email, forwards it to the
  * WordPress signup webhook (foxschema.com owns storage/export/notification —
- * see docs/DEPLOYMENT.md), and remembers (via app_settings) that the wizard
+ * see docs/guides/DEPLOYMENT.md), and remembers (via app_settings) that the wizard
  * has been resolved (submitted OR skipped) so it never shows again.
  */
 export class SignupModule {

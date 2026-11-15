@@ -57,7 +57,7 @@ foxschema doctor
 
 ## Publish checklist (maintainers)
 
-See [publish.md](../publish.md). Short path:
+See [publish.md](../guides/publish.md). Short path:
 
 ```bash
 git fetch origin main && git checkout main && git pull

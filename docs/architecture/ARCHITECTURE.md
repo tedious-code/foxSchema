@@ -1,7 +1,7 @@
 # Architecture reference
 
 Stable orientation for FoxSchema. For where a change belongs see
-[CODE_MAP.md](CODE_MAP.md). Workflow engine runbook: [workflow.md](workflow.md).
+[CODE_MAP.md](CODE_MAP.md). Workflow engine runbook: [workflow.md](../guides/workflow.md).
 
 ## What this is
 
@@ -51,9 +51,9 @@ Backend changes (`packages/server`, `packages/sql`, `packages/db`) hot-reload vi
 ## E2E tests (apps/e2e)
 
 Playwright + Vitest against the Docker dialect containers. See
-[testing/RUNNING_E2E.md](testing/RUNNING_E2E.md) for running it (reseed before every run,
+[testing/RUNNING_E2E.md](../testing/RUNNING_E2E.md) for running it (reseed before every run,
 restart the API before reseeding Oracle/Db2, failures that come from the machine) and
-`docs/plans/2026-07-01-seed-test-matrix.md` for the seed matrix.
+`docs/testing/test-plans/2026-07-01-seed-test-matrix.md` for the seed matrix.
 
 ```bash
 # One-command reset: compose up + wait healthy + restart dev + reseed
@@ -108,7 +108,7 @@ apps/e2e/               Playwright tests that drive the running application
 packaging/homebrew/     Scripts to refresh Formula/foxschema.rb (Homebrew, same repo)
 ```
 
-`docs/CODE_MAP.md` says what each of those folders covers, and where a
+`docs/architecture/CODE_MAP.md` says what each of those folders covers, and where a
 change belongs.
 
 ```
@@ -130,8 +130,8 @@ folder per feature, composed in one static, typed registry per side.
 `npm run feature:new -- <id>` scaffolds both sides and registers them. The HTTP contract test
 compares its table with what the registry serves, so a new route is listed with what it
 answers. The conventions are in
-[docs/architecture/FEATURE-MODULE-GUIDE.md](architecture/FEATURE-MODULE-GUIDE.md), the import
-rules in [docs/architecture/FEATURE-DEPENDENCY-RULES.md](architecture/FEATURE-DEPENDENCY-RULES.md).
+[docs/architecture/FEATURE-MODULE-GUIDE.md](FEATURE-MODULE-GUIDE.md), the import
+rules in [docs/architecture/FEATURE-DEPENDENCY-RULES.md](FEATURE-DEPENDENCY-RULES.md).
 
 ## Workspaces
 

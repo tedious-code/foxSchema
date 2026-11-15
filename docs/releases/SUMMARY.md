@@ -2,7 +2,7 @@
 
 One page for every version that has ship notes. The full text of a version stays in its own file; those files are history and are not rewritten after the version ships.
 
-Current map of the product: [CODE_MAP.md](../CODE_MAP.md). How to install: [install.md](../install.md).
+Current map of the product: [CODE_MAP.md](../architecture/CODE_MAP.md). How to install: [install.md](../guides/install.md).
 
 ## Not yet shipped
 

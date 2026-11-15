@@ -191,7 +191,7 @@ describe('Markdown is tracked unless it is a personal note', () => {
   const ignored = (file: string) => spawnSync('git', ['check-ignore', '-q', file], { cwd: repoRoot }).status === 0;
 
   it('does not ignore a new doc, wherever it lives', () => {
-    for (const file of ['docs/a-new-guide.md', 'docs/examples/a-new-example.md', 'packages/sql/NOTES.md', 'README.md']) {
+    for (const file of ['docs/a-new-guide.md', 'docs/guides/examples/a-new-example.md', 'packages/sql/NOTES.md', 'README.md']) {
       expect(ignored(file), file).toBe(false);
     }
   });

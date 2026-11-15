@@ -2,9 +2,9 @@
 
 > **Shipped.** Planner (#588), Utilities → **Rename Column** (#589), Run /
 > Execute all (#595), in-place type change as the default (#600), and all 14
-> SQL engines (2026-11-08). Living docs: [user-guide.md](../user-guide.md#utilities),
-> [FEATURE_MAP.md](../FEATURE_MAP.md) (`utilities.columns`),
-> [CODE_MAP.md](../CODE_MAP.md), [ARCHITECTURE.md](../ARCHITECTURE.md).
+> SQL engines (2026-11-08). Living docs: [user-guide.md](../guides/user-guide.md#utilities),
+> [FEATURE_MAP.md](../architecture/FEATURE_MAP.md) (`utilities.columns`),
+> [CODE_MAP.md](../architecture/CODE_MAP.md), [ARCHITECTURE.md](../architecture/ARCHITECTURE.md).
 > The “Fox runs nothing” / “engines in v1” lines below are history; the
 > current behaviour is **Direct by default** and **Every SQL engine**.
 
@@ -81,7 +81,7 @@ it comes later as its own plan.
   shaped like `CloneTableModal`, reading schema through the existing schema API.
 - No server route in v1: the plan is computed in the browser from the schema
   Fox already loads, and nothing runs.
-- Add `utilities.columns` to `docs/feature-map/data.js` and `FEATURE_MAP.md`.
+- Add `utilities.columns` to `docs/architecture/feature-map/data.js` and `FEATURE_MAP.md`.
 - A permission? None new: generating SQL is reading. Running it goes through
   the editor and its existing `editor.dml` / Safe-mode gates.
 

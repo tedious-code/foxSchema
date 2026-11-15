@@ -203,7 +203,7 @@ Also see the project root `NOTICE` file.
 ## How to Apply This License to Your Files
 
 Add the following boilerplate notice at the top of each source file
-(also in `docs/COPYRIGHT_HEADER.txt`):
+(also in `docs/conventions/COPYRIGHT_HEADER.txt`):
 
 ```
 /*

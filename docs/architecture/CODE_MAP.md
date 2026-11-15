@@ -53,7 +53,7 @@ apps/workflow-server        The workflow engine's HTTP process (port 8081), plus
                             the server's engine proxy (WORKFLOW_ENGINE_TOKEN);
                             trigger ingress can take a port of its own
                             (INGRESS_PORT). Pulls engine settings from the server.
-                            Runbook: docs/workflow.md.
+                            Runbook: docs/guides/workflow.md.
 apps/e2e                    Browser tests that drive the running application.
 ```
 
@@ -171,7 +171,7 @@ database/    The metadata store and its migrations.
 | `connections` | Routes for saved database connections, driver check/install and connection tests; the store is `platform/connections` (`authMethod` / `domain` on encrypted `ConnectionOptions`; `none` for Redis/MongoDB with no auth; NTLM is adapter-side). Create and update share `checkConnectionName` (`packages/shared`): free text, 120 characters, no control characters — a narrower form-only rule used to rewrite saved names on edit. |
 | `data-migrate` | Moving data between databases. The route and the editor share `DATA_MIGRATE_MAX_OPS` (2,000) from `@foxschema/shared`. |
 | `files` | File uploads, querying an uploaded file, the import machinery (parsers, column detection, the parse worker pool) and the database-file picker |
-| `git` | Git repositories migrations are committed to: bare local copies through isomorphic-git, branches, fetch / pull / push, and the guarded HTTP client that refuses private addresses. Plan: [plans/2026-10-02-migrations-in-git.md](plans/2026-10-02-migrations-in-git.md) |
+| `git` | Git repositories migrations are committed to: bare local copies through isomorphic-git, branches, fetch / pull / push, and the guarded HTTP client that refuses private addresses. Plan: [plans/2026-10-02-migrations-in-git.md](../plans/2026-10-02-migrations-in-git.md) |
 | `history` | Schema history and revert (Lokee Weave) |
 | `migration` | Applying DDL migrations, and their run history |
 | `schema` | Reading a schema |
@@ -179,7 +179,7 @@ database/    The metadata store and its migrations.
 | `sql-trace` | SQL Tracer sessions: start / events / stop. Live reads the engine's session list; Fox activity is statements this install ran on a saved connection (`platform/sql-activity`). Redacted; 15 min / 10,000 statements. |
 | `users` | Profile, preferences, first-run wizard |
 | `workspaces` | Shared workspaces: create, switch, members, invites, public or private (`/api/workspaces`). Which workspace a request acts in is `platform/workspaces`. A personal workspace's invites and memberships are capped at the account's role (`workspace-role-ceiling.test.ts`). Admins list every workspace (`GET /all`) and open one only by joining. |
-| `workflow` | Workflow engine settings and health; the engine proxy (an allowlist of engine routes, each behind a `workflow.*` permission); saved-connection grants; and the token-guarded internal routes the engine calls to resolve a granted connection and read its settings. Save, run, and steering (cancel / resume / answer a paused run) refuse a connection the caller cannot use in this workspace (`WorkflowConnectionGrants.notUsableBy`). Runbook: [workflow.md](workflow.md). |
+| `workflow` | Workflow engine settings and health; the engine proxy (an allowlist of engine routes, each behind a `workflow.*` permission); saved-connection grants; and the token-guarded internal routes the engine calls to resolve a granted connection and read its settings. Save, run, and steering (cancel / resume / answer a paused run) refuse a connection the caller cannot use in this workspace (`WorkflowConnectionGrants.notUsableBy`). Runbook: [workflow.md](../guides/workflow.md). |
 
 Every feature folder has an `index.ts` exporting its `ServerFeatureModule`
 and its public API; other features import only that
@@ -283,7 +283,7 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | Change | Where |
 |---|---|
 | New API endpoint | `packages/server/src/features/<domain>/`, mounted in that feature's `index.ts` |
-| A new feature | `npm run feature:new -- <id>`: scaffolds the server module and the web feature and registers both ([FEATURE-MODULE-GUIDE.md](architecture/FEATURE-MODULE-GUIDE.md)) |
+| A new feature | `npm run feature:new -- <id>`: scaffolds the server module and the web feature and registers both ([FEATURE-MODULE-GUIDE.md](FEATURE-MODULE-GUIDE.md)) |
 | A new server feature by hand | its folder + `index.ts`, then one line in `packages/server/src/app/feature-registry.ts` |
 | Dialect-specific SQL | `packages/sql/src/providers/<dialect>/` |
 | A new driver | `packages/db/src/providers/<dialect>/` |
@@ -302,7 +302,7 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | Guard or cross-cutting HTTP concern | `packages/server/src/platform/` |
 | How a dialect lexes SQL (permission gates, splitter) | `packages/sql/src/modules/sql-text/sql-readings.ts` + `sql-tokens.ts`. Do not add a second scanner. |
 | Workspace membership, invites, public / private | `packages/server/src/features/workspaces/`; request scope is `platform/workspaces`. Services take `WorkspaceScope` (`scopeOf(req)`). |
-| Workflow pipe, runtime, or store | `packages/workflow-engine/` — HTTP process in `apps/workflow-server/` ([workflow.md](workflow.md)) |
+| Workflow pipe, runtime, or store | `packages/workflow-engine/` — HTTP process in `apps/workflow-server/` ([workflow.md](../guides/workflow.md)) |
 
 ## Checks to run
 
@@ -316,7 +316,7 @@ npm run bundle:first-load           # first-visit download vs its budget (after 
 ```
 
 A new static import of something heavy on the first page shows up in
-`bundle:first-load`. Load it on demand instead; docs/ARCHITECTURE.md
+`bundle:first-load`. Load it on demand instead; docs/architecture/ARCHITECTURE.md
 ("Frontend loading and delivery") lists the helpers for each case.
 
 Run `npx vitest run` from the repository root. Running it from `apps/web`

@@ -569,7 +569,7 @@ Tips:
   `{ columns, rows }` or an array of plain objects. Python is not available yet.
 
   In the SQL Editor sidebar, **Bookmarks → Add samples** installs ready-made ★ Sample
-  scripts (also under `docs/examples/sql-editor/`) — including API POST with
+  scripts (also under `docs/guides/examples/sql-editor/`) — including API POST with
   headers/query/body and Bearer from `vars.apiToken`.
 
   > **`-- @node` cells run code on the FoxSchema server.** They execute in a worker

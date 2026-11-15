@@ -9,7 +9,7 @@ feature is** and **what it touches**. Plan work against the feature IDs below
 (`editor.run`, `schema.compare`, …) and the `dialect.<engine>` IDs: the planning
 board uses the same IDs. [feature-map.html](feature-map.html) is the same map as
 an interactive page (open it in a browser), and
-[the test and fix plan](plans/2026-10-25-feature-and-dialect-test-plan.md) sets
+[the test and fix plan](../testing/test-plans/2026-10-25-feature-and-dialect-test-plan.md) sets
 the order every feature and dialect is tested in.
 
 Measured on `main` at `d7ae1cf2` (2026-11-09): 35 features, 18 server
@@ -600,7 +600,7 @@ The planning board (a shared page) holds one row per work item. A work item is:
 
 Every feature and every engine (`dialect.postgres` … `dialect.mongodb`) has a
 test-and-fix pass on the board, in the waves the
-[test and fix plan](plans/2026-10-25-feature-and-dialect-test-plan.md) sets.
+[test and fix plan](../testing/test-plans/2026-10-25-feature-and-dialect-test-plan.md) sets.
 
 Before starting an item, read its row in the [Feature catalog](#feature-catalog):
 the **Tests** column names the specs that must still pass, the **Perms** column
@@ -629,7 +629,7 @@ A new feature adds a catalog row, a tree node and, if it stores anything, its
 tables in the schema diagram.
 
 The interactive page, [feature-map.html](feature-map.html), is generated. Edit
-its inventory in `docs/feature-map/data.js` (its layout in `template.html`, its
+its inventory in `docs/architecture/feature-map/data.js` (its layout in `template.html`, its
 script in `app.js`; the diagrams come from this page), then rebuild it. Never
 edit the page itself: `feature-map-build.test.ts` fails while it differs from
 the build.

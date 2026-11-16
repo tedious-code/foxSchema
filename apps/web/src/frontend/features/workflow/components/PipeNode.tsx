@@ -6,7 +6,8 @@
  * Workflow designer — ported from FoxAgent (components/PipeNode.tsx).
  */
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
-import { ArrowDownToLine, ArrowUpFromLine, Shuffle, Zap } from 'lucide-react';
+import { AlertTriangle, ArrowDownToLine, ArrowUpFromLine, Shuffle, Zap } from 'lucide-react';
+import type { PipeIssue } from '../lib/pipeIssues';
 import { portLabel } from '../lib/ports';
 import type { z } from 'zod';
 import type { retrySchema } from '@foxschema/workflow-engine/definitions';
@@ -30,6 +31,13 @@ export type PipeData = {
   retry?: z.input<typeof retrySchema>;
   inputs: PortInfo[];
   outputs: PortInfo[];
+  /**
+   * Canvas-only decoration, never saved: the pipe's status in the last Test
+   * run, and the problem to flag on it (failed run, validation error naming
+   * it, or config that is not valid JSON).
+   */
+  runStatus?: string;
+  issue?: PipeIssue | null;
 };
 
 export type PipeNodeType = Node<PipeData, 'pipe'>;
@@ -46,6 +54,13 @@ const ROLE_ICON: Record<PipeData['role'], typeof Zap> = {
   source: ArrowDownToLine,
   transform: Shuffle,
   sink: ArrowUpFromLine,
+};
+
+const ISSUE_LABEL: Record<PipeIssue['kind'], string> = {
+  'run-failed': 'Failed',
+  'run-stopped': 'Stopped',
+  invalid: 'Invalid',
+  config: 'Bad config',
 };
 
 const DEFAULT_IN: PortInfo = { name: 'in', type: 'records' };
@@ -206,10 +221,14 @@ export function PipeNode({ id, data, selected }: NodeProps<PipeNodeType>) {
   const RoleIcon = trigger ? Zap : ROLE_ICON[data.role];
   const multiOut = outputs.length > 1;
   const summary = pipeSummary(data.type, data.config, data.intent);
+  const issue = data.issue ?? null;
+  const runTone = data.runStatus ? ` run-${data.runStatus}` : '';
 
   return (
     <div
-      className={`pipe-node ${visualRole}${selected ? ' selected' : ''}${multiOut ? ' multi-out' : ''}`}
+      className={`pipe-node ${visualRole}${selected ? ' selected' : ''}${multiOut ? ' multi-out' : ''}${issue ? ' has-issue' : ''}${runTone}`}
+      data-testid={`workflow-pipe-node-${data.pipeId || id}`}
+      data-issue={issue?.kind}
     >
       {inputs.map((port, index) => (
         <Handle
@@ -232,12 +251,23 @@ export function PipeNode({ id, data, selected }: NodeProps<PipeNodeType>) {
         {data.concurrency > 1 && (
           <span className="conc">×{data.concurrency}</span>
         )}
+        {issue && (
+          <span className="pipe-issue-badge" title={issue.message} aria-label={`Problem: ${issue.message}`}>
+            <AlertTriangle size={11} strokeWidth={2.5} aria-hidden />
+            {ISSUE_LABEL[issue.kind]}
+          </span>
+        )}
       </div>
       <div className="title">{data.pipeId || id}</div>
       <div className="sub">{shortType}</div>
       {summary && (
         <div className="pipe-summary" title={data.intent || summary}>
           {summary}
+        </div>
+      )}
+      {issue && (
+        <div className="pipe-issue-text" title={issue.message}>
+          {issue.message}
         </div>
       )}
       {multiOut && (

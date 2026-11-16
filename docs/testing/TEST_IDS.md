@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1068** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1069** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1926,6 +1926,7 @@ Every control has a test ID: **1068** buttons, text boxes, selects and textareas
   - `workflow-inspector-http-retry-attempts` · input
   - `workflow-inspector-intent` · input
   - `workflow-inspector-json-{name}` · textarea
+  - `workflow-inspector-multi-selection` · p
   - `workflow-inspector-open-in-trigger` · button · Open in trigger dialog
   - `workflow-inspector-pipe-id` · input
   - `workflow-inspector-retry-attempts` · input
@@ -1941,6 +1942,8 @@ Every control has a test ID: **1068** buttons, text boxes, selects and textareas
 - **Palette** · `features/workflow/components/Palette.tsx`
   - `workflow-palette-search-pipes` · input · Search pipes
   - `workflow-palette-show-advanced` · input
+- **PipeNode** · `features/workflow/components/PipeNode.tsx`
+  - `workflow-pipe-node-{value}` · div
 - **RunsPanel** · `features/workflow/components/RunsPanel.tsx`
   - `workflow-run-answer` · Button
   - `workflow-run-answer-{key}` · input
@@ -1981,17 +1984,27 @@ Every control has a test ID: **1068** buttons, text boxes, selects and textareas
   - `workflow-trigger-settings-min-backoff-duration` · input
   - `workflow-trigger-settings-required-fields` · input
   - `workflow-trigger-settings-retry` · input
+  - `workflow-trigger-settings-run` · Button
   - `workflow-trigger-settings-webhook-credential` · select · Select credential
   - `workflow-trigger-settings-workflow-{id}` · input
 - **VariablesPanel** · `features/workflow/components/VariablesPanel.tsx`
   - `workflow-variables-environment-{id}` · button
 - **WorkflowDesigner** · `features/workflow/components/WorkflowDesigner.tsx`
   - `workflow-designer-add-sample` · Button
+  - `workflow-designer-auto-layout` · Button · Arrange this stage's pipes left to right, in the order records flow
   - `workflow-designer-breadcrumb-workflows` · button · Workflows
   - `workflow-designer-id` · Input · Workflow id
+  - `workflow-designer-issue-{key}` · button
+  - `workflow-designer-issues` · div
+  - `workflow-designer-issues-dismiss` · Button
   - `workflow-designer-load` · Button
+  - `workflow-designer-pipe-select` · Select · Pipe
   - `workflow-designer-save` · Button
-  - `workflow-designer-switch-pipeline-{id}` · button
+  - `workflow-designer-selection-bar` · div
+  - `workflow-designer-selection-clear` · Button · Clear selection
+  - `workflow-designer-selection-delete` · Button · Delete the selected pipes and their connections
+  - `workflow-designer-stage-overview-{id}` · button · pipes
+  - `workflow-designer-stage-select` · Select · Stage
   - `workflow-designer-triggers` · Button
 - **WorkflowsPanel** · `features/workflow/components/WorkflowsPanel.tsx`
   - `workflow-add-sample` · Button · Install built-in sample workflows you can Test run without a database

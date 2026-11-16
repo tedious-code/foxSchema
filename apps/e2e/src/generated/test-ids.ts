@@ -3637,6 +3637,8 @@ export const TestIds = {
       workflowInspectorIntent: 'workflow-inspector-intent',
       /** textarea */
       workflowInspectorJson: (name: string | number) => `workflow-inspector-json-${name}`,
+      /** p */
+      workflowInspectorMultiSelection: 'workflow-inspector-multi-selection',
       /** button · Open in trigger dialog */
       workflowInspectorOpenInTrigger: 'workflow-inspector-open-in-trigger',
       /** input */
@@ -3667,6 +3669,10 @@ export const TestIds = {
       workflowPaletteSearchPipes: 'workflow-palette-search-pipes',
       /** input */
       workflowPaletteShowAdvanced: 'workflow-palette-show-advanced',
+    },
+    PipeNode: {
+      /** div */
+      workflowPipeNode: (value: string | number) => `workflow-pipe-node-${value}`,
     },
     RunsPanel: {
       /** Button */
@@ -3747,6 +3753,8 @@ export const TestIds = {
       workflowTriggerSettingsRequiredFields: 'workflow-trigger-settings-required-fields',
       /** input */
       workflowTriggerSettingsRetry: 'workflow-trigger-settings-retry',
+      /** Button */
+      workflowTriggerSettingsRun: 'workflow-trigger-settings-run',
       /** select · Select credential */
       workflowTriggerSettingsWebhookCredential: 'workflow-trigger-settings-webhook-credential',
       /** input */
@@ -3759,16 +3767,34 @@ export const TestIds = {
     WorkflowDesigner: {
       /** Button */
       workflowDesignerAddSample: 'workflow-designer-add-sample',
+      /** Button · Arrange this stage's pipes left to right, in the order records flow */
+      workflowDesignerAutoLayout: 'workflow-designer-auto-layout',
       /** button · Workflows */
       workflowDesignerBreadcrumbWorkflows: 'workflow-designer-breadcrumb-workflows',
       /** Input · Workflow id */
       workflowDesignerId: 'workflow-designer-id',
+      /** button */
+      workflowDesignerIssue: (key: string | number) => `workflow-designer-issue-${key}`,
+      /** div */
+      workflowDesignerIssues: 'workflow-designer-issues',
+      /** Button */
+      workflowDesignerIssuesDismiss: 'workflow-designer-issues-dismiss',
       /** Button */
       workflowDesignerLoad: 'workflow-designer-load',
+      /** Select · Pipe */
+      workflowDesignerPipeSelect: 'workflow-designer-pipe-select',
       /** Button */
       workflowDesignerSave: 'workflow-designer-save',
-      /** button */
-      workflowDesignerSwitchPipeline: (id: string | number) => `workflow-designer-switch-pipeline-${id}`,
+      /** div */
+      workflowDesignerSelectionBar: 'workflow-designer-selection-bar',
+      /** Button · Clear selection */
+      workflowDesignerSelectionClear: 'workflow-designer-selection-clear',
+      /** Button · Delete the selected pipes and their connections */
+      workflowDesignerSelectionDelete: 'workflow-designer-selection-delete',
+      /** button · pipes */
+      workflowDesignerStageOverview: (id: string | number) => `workflow-designer-stage-overview-${id}`,
+      /** Select · Stage */
+      workflowDesignerStageSelect: 'workflow-designer-stage-select',
       /** Button */
       workflowDesignerTriggers: 'workflow-designer-triggers',
     },
@@ -5510,11 +5536,20 @@ export type TestId =
   | 'warning-banner'
   | 'workflow-add-sample'
   | 'workflow-designer-add-sample'
+  | 'workflow-designer-auto-layout'
   | 'workflow-designer-breadcrumb-workflows'
   | 'workflow-designer-id'
+  | `workflow-designer-issue-${string}`
+  | 'workflow-designer-issues'
+  | 'workflow-designer-issues-dismiss'
   | 'workflow-designer-load'
+  | 'workflow-designer-pipe-select'
   | 'workflow-designer-save'
-  | `workflow-designer-switch-pipeline-${string}`
+  | 'workflow-designer-selection-bar'
+  | 'workflow-designer-selection-clear'
+  | 'workflow-designer-selection-delete'
+  | `workflow-designer-stage-overview-${string}`
+  | 'workflow-designer-stage-select'
   | 'workflow-designer-triggers'
   | 'workflow-engine'
   | `workflow-engine-${string}`
@@ -5566,6 +5601,7 @@ export type TestId =
   | 'workflow-inspector-http-retry-attempts'
   | 'workflow-inspector-intent'
   | `workflow-inspector-json-${string}`
+  | 'workflow-inspector-multi-selection'
   | 'workflow-inspector-open-in-trigger'
   | 'workflow-inspector-pipe-id'
   | 'workflow-inspector-retry-attempts'
@@ -5583,6 +5619,7 @@ export type TestId =
   | 'workflow-no-panes'
   | 'workflow-palette-search-pipes'
   | 'workflow-palette-show-advanced'
+  | `workflow-pipe-node-${string}`
   | 'workflow-run-answer'
   | `workflow-run-answer-${string}`
   | 'workflow-run-cancel'
@@ -5645,6 +5682,7 @@ export type TestId =
   | 'workflow-trigger-settings-min-backoff-duration'
   | 'workflow-trigger-settings-required-fields'
   | 'workflow-trigger-settings-retry'
+  | 'workflow-trigger-settings-run'
   | 'workflow-trigger-settings-webhook-credential'
   | `workflow-trigger-settings-workflow-${string}`
   | `workflow-variables-environment-${string}`

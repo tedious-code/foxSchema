@@ -221,6 +221,23 @@ export class PipelineExecutor {
    * updates ordered without serialising unrelated pipes.
    */
   private readonly pipeUpdates = new Map<string, Promise<void>>();
+  /**
+   * Which pipe an error was recorded against, so the pipes upstream of it do
+   * not record it as their own failure.
+   *
+   * A pipe hands its output downstream inside its own `try`, so when a pipe it
+   * feeds throws, the same error passes back up through every pipe on the
+   * path. Each of them used to mark itself `failed` with that error: a run
+   * where one sink threw listed its source and every transform before it as
+   * failed too, and a source applied its own retry or skip policy to the
+   * sink's error. Weakly keyed by the error object; matched on run and
+   * pipeline so an error coming out of a sub-workflow is not mistaken for one
+   * from this pipeline.
+   */
+  private readonly failureOwners = new WeakMap<
+    object,
+    { workflowRunId: string; pipelineId: string; pipeId: string }
+  >();
   /** Log lines recorded per run:pipeline:pipe, evicted with the records above. */
   private readonly logCounts = new Map<string, number>();
   /** Revealed secrets per run:pipeline — see {@link cacheRevealedSecrets}. */
@@ -390,12 +407,16 @@ export class PipelineExecutor {
         await this.saveCheckpoint(pipeline.id, pipe.id, execution, batch);
         await this.markPipe(context, 'success', completedBatch);
       } catch (error) {
-        await this.markPipe(
-          context,
-          isAbort(error) ? 'cancelled' : 'failed',
-          batch,
-          error,
-        );
+        const failedPipe = this.failedDownstream(context, error);
+        if (failedPipe) {
+          // A pipe this one fed failed. That failure is recorded on that pipe
+          // and still fails the run; this one was only stopped by it.
+          await this.markPipe(context, 'cancelled', undefined, stoppedBy(failedPipe));
+          throw error;
+        }
+        const status = isAbort(error) ? 'cancelled' : 'failed';
+        if (status === 'failed') this.recordFailure(context, error);
+        await this.markPipe(context, status, batch, error);
         throw error;
       }
     };
@@ -526,6 +547,14 @@ export class PipelineExecutor {
         if (inFlight.length > 0) {
           await Promise.all(inFlight.splice(0).map((entry) => entry.settled));
         }
+        const failedPipe = this.failedDownstream(context, error);
+        if (failedPipe) {
+          // Not this source's failure: its retry and skip policy are for
+          // errors reading it, so neither applies. Re-reading the source
+          // because a sink failed would also write everything again.
+          await this.markPipe(context, 'cancelled', undefined, stoppedBy(failedPipe));
+          throw error;
+        }
         const action = await this.resolveErrorAction(
           pipe,
           connector,
@@ -538,12 +567,9 @@ export class PipelineExecutor {
           return;
         }
         if (action !== 'retry') {
-          await this.markPipe(
-            context,
-            isAbort(error) ? 'cancelled' : 'failed',
-            undefined,
-            error,
-          );
+          const status = isAbort(error) ? 'cancelled' : 'failed';
+          if (status === 'failed') this.recordFailure(context, error);
+          await this.markPipe(context, status, undefined, error);
           throw error;
         }
         failures++;
@@ -908,6 +934,35 @@ export class PipelineExecutor {
     });
   }
 
+  /** Remember that `error` is this pipe's own failure. */
+  private recordFailure(context: PipeContext, error: unknown): void {
+    if (typeof error !== 'object' || error === null) return;
+    if (this.failureOwners.has(error)) return;
+    this.failureOwners.set(error, {
+      workflowRunId: context.workflowRunId,
+      pipelineId: context.pipelineId,
+      pipeId: context.pipe.id,
+    });
+  }
+
+  /**
+   * The id of the pipe downstream of this one that `error` was recorded
+   * against, or undefined when the error is this pipe's own.
+   */
+  private failedDownstream(context: PipeContext, error: unknown): string | undefined {
+    if (typeof error !== 'object' || error === null) return undefined;
+    const owner = this.failureOwners.get(error);
+    if (
+      !owner ||
+      owner.workflowRunId !== context.workflowRunId ||
+      owner.pipelineId !== context.pipelineId ||
+      owner.pipeId === context.pipe.id
+    ) {
+      return undefined;
+    }
+    return owner.pipeId;
+  }
+
   private markPipe(
     context: PipeContext,
     status: PipeRunRecord['status'],
@@ -988,6 +1043,11 @@ export class PipelineExecutor {
       message: error ? errorMessage(error) : undefined,
     });
   }
+}
+
+/** What a pipe upstream of a failure records: it stopped, it did not fail. */
+function stoppedBy(pipeId: string): Error {
+  return new Error(`Stopped because pipe ${pipeId} failed.`);
 }
 
 function validateBatch(batch: RecordBatch, pipeId: string): void {

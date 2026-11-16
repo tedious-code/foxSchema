@@ -1042,10 +1042,14 @@ const SideBySideStatementSection: React.FC<{
   const destGrid = okGrids.find((g) => g.connectionId === destId);
 
   /** A new result object means a new run, even when duration and row count happen to match. */
-  const windowResetKey = useMemo(
-    () => Symbol('compare-result-pair'),
-    [statementIndex, sourceGrid?.result, destGrid?.result]
-  );
+  const sourceResult = sourceGrid?.result;
+  const destResult = destGrid?.result;
+  const windowResetKey = useMemo(() => {
+    void statementIndex;
+    void sourceResult;
+    void destResult;
+    return Symbol('compare-result-pair');
+  }, [statementIndex, sourceResult, destResult]);
   const compareWindow = useCompareWindow(windowResetKey);
   const [compareFilter, setCompareFilter] = useState<CompareFilter>('all');
   const [comparePageIndex, setComparePageIndex] = useState(0);

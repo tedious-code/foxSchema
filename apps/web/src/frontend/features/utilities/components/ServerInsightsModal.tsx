@@ -13,17 +13,42 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Activity,
+  AlertTriangle,
   Cpu,
   Database,
   HardDrive,
+  HeartPulse,
   Loader2,
   Network,
   RefreshCw,
+  ShieldAlert,
+  Sparkles,
   Users,
   X,
 } from 'lucide-react';
-import { dialectSupportsDbaUtility, formatBytes, formatPct, type DbaUtilityKind } from '@foxschema/ui-shared';
-import { fetchDbaUtility, type DbaUtilityResponse } from '@/shared/api/schemaApi';
+import {
+  buildSessionControlSql,
+  buildTableMaintenanceSql,
+  dialectSupportsDbaUtility,
+  dialectSupportsSessionLocks,
+  dialectSupportsTableMaintenance,
+  formatBytes,
+  formatPct,
+  formatRowCount,
+  type DbaUtilityKind,
+  type SessionControlAction,
+  type TableMaintenanceAction,
+} from '@foxschema/ui-shared';
+import {
+  fetchDbaUtility,
+  fetchSessionLocks,
+  fetchTableHealth,
+  runSessionControl,
+  runTableMaintenance,
+  type DbaUtilityResponse,
+  type SessionLocksResponse,
+  type TableHealthResponse,
+} from '@/shared/api/schemaApi';
 import { useSyncStore } from '@/features/compare';
 import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { PROVIDER_SETTINGS, needsSessionPassword } from '@/shared/lib/provider-settings';
@@ -31,7 +56,7 @@ import { IndexManagementModal } from './IndexManagementModal';
 import { sectionLabelCls } from '@/shared/components/surfaces';
 import { connectionOptionLabel } from '@/shared/lib/dialectLabel';
 
-export type ServerInsightsTab = DbaUtilityKind;
+export type ServerInsightsTab = DbaUtilityKind | 'health';
 
 interface Props {
   open: boolean;
@@ -50,6 +75,7 @@ const TABS: Array<{ id: ServerInsightsTab; label: string; icon: React.ReactNode 
   { id: 'sessions', label: 'User Connections', icon: <Users className="w-3.5 h-3.5" /> },
   { id: 'system', label: 'System Info', icon: <Cpu className="w-3.5 h-3.5" /> },
   { id: 'sizes', label: 'Table & Index Size', icon: <HardDrive className="w-3.5 h-3.5" /> },
+  { id: 'health', label: 'Table Health', icon: <HeartPulse className="w-3.5 h-3.5" /> },
 ];
 
 function MetricCard({ label, value }: { label: string; value: string }) {
@@ -90,6 +116,20 @@ export const ServerInsightsModal: React.FC<Props> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DbaUtilityResponse | null>(null);
+  const [locksData, setLocksData] = useState<SessionLocksResponse | null>(null);
+  const [healthData, setHealthData] = useState<TableHealthResponse | null>(null);
+  const [pendingAction, setPendingAction] = useState<{
+    kind: 'session' | 'table';
+    sql: string;
+    description: string;
+    sessionAction?: SessionControlAction;
+    sessionId?: string;
+    tableAction?: TableMaintenanceAction;
+    schema?: string;
+    table?: string;
+  } | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -104,6 +144,10 @@ export const ServerInsightsModal: React.FC<Props> = ({
     setTab(initialTab);
     setError(null);
     setData(null);
+    setLocksData(null);
+    setHealthData(null);
+    setPendingAction(null);
+    setActionNotice(null);
     setPasswordDraft('');
   }, [open, connections, initialTab, lockedConnectionId]);
 
@@ -112,10 +156,24 @@ export const ServerInsightsModal: React.FC<Props> = ({
   const needsPassword = Boolean(
     conn && needsSessionPassword(conn, sessionPasswords[connectionId])
   );
-  const support = useMemo(
-    () => dialectSupportsDbaUtility(conn?.dialect || '', tab),
-    [conn?.dialect, tab]
+  const lockSupport = useMemo(
+    () => dialectSupportsSessionLocks(conn?.dialect || ''),
+    [conn?.dialect],
   );
+  const healthSupport = useMemo(
+    () => dialectSupportsTableMaintenance(conn?.dialect || ''),
+    [conn?.dialect],
+  );
+  const support = useMemo(() => {
+    if (tab === 'health') {
+      return {
+        mode: healthSupport.canInspectHealth ? ('native' as const) : ('unsupported' as const),
+        query: healthSupport.canInspectHealth,
+        hint: healthSupport.hint,
+      };
+    }
+    return dialectSupportsDbaUtility(conn?.dialect || '', tab);
+  }, [conn?.dialect, tab, healthSupport]);
 
   const load = useCallback(async () => {
     if (!connectionId || !conn) {
@@ -128,17 +186,38 @@ export const ServerInsightsModal: React.FC<Props> = ({
     }
     setLoading(true);
     setError(null);
+    setActionNotice(null);
     try {
       await ensureConnectionSelected(connectionId);
       localStorage.setItem(LS_CONN, connectionId);
       const password = sessionPasswords[connectionId];
-      const result = await fetchDbaUtility(
-        { connectionId, password },
-        { kind: tab, schema: conn.schema }
-      );
-      setData(result);
+      if (tab === 'health') {
+        const result = await fetchTableHealth({ connectionId, password }, { schema: conn.schema });
+        setHealthData(result);
+        setData(null);
+        setLocksData(null);
+      } else {
+        const result = await fetchDbaUtility(
+          { connectionId, password },
+          { kind: tab, schema: conn.schema }
+        );
+        setData(result);
+        setHealthData(null);
+        if (tab === 'sessions' && lockSupport.supported) {
+          try {
+            const locks = await fetchSessionLocks({ connectionId, password }, { schema: conn.schema });
+            setLocksData(locks);
+          } catch {
+            setLocksData(null);
+          }
+        } else {
+          setLocksData(null);
+        }
+      }
     } catch (err) {
       setData(null);
+      setLocksData(null);
+      setHealthData(null);
       setError(err instanceof Error ? err.message : 'Failed to load utility data');
     } finally {
       setLoading(false);
@@ -150,7 +229,73 @@ export const ServerInsightsModal: React.FC<Props> = ({
     ensureConnectionSelected,
     sessionPasswords,
     tab,
+    lockSupport.supported,
   ]);
+
+  const queueSessionAction = (action: SessionControlAction, sessionId: string) => {
+    if (!conn) return;
+    const built = buildSessionControlSql(conn.dialect, action, sessionId);
+    if ('error' in built) {
+      setError(built.error);
+      return;
+    }
+    setPendingAction({
+      kind: 'session',
+      sql: built.sql,
+      description: built.description,
+      sessionAction: action,
+      sessionId,
+    });
+  };
+
+  const queueTableAction = (action: TableMaintenanceAction, schema: string | null, table: string) => {
+    if (!conn) return;
+    const built = buildTableMaintenanceSql(conn.dialect, action, { schema, table });
+    if ('error' in built) {
+      setError(built.error);
+      return;
+    }
+    setPendingAction({
+      kind: 'table',
+      sql: built.sql,
+      description: built.description,
+      tableAction: action,
+      schema: schema || conn.schema || undefined,
+      table,
+    });
+  };
+
+  const confirmPendingAction = async () => {
+    if (!pendingAction || !connectionId || !conn) return;
+    setActionBusy(true);
+    setError(null);
+    try {
+      const password = sessionPasswords[connectionId];
+      if (pendingAction.kind === 'session' && pendingAction.sessionAction && pendingAction.sessionId) {
+        const res = await runSessionControl(
+          { connectionId, password },
+          { action: pendingAction.sessionAction, sessionId: pendingAction.sessionId },
+        );
+        setActionNotice(res.description);
+      } else if (pendingAction.kind === 'table' && pendingAction.tableAction && pendingAction.table) {
+        const res = await runTableMaintenance(
+          { connectionId, password },
+          {
+            action: pendingAction.tableAction,
+            schema: pendingAction.schema,
+            table: pendingAction.table,
+          },
+        );
+        setActionNotice(res.description);
+      }
+      setPendingAction(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Action failed');
+    } finally {
+      setActionBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (!open || !connectionId || needsPassword || tab === 'sizes') return;
@@ -343,39 +488,248 @@ export const ServerInsightsModal: React.FC<Props> = ({
             </div>
           )}
 
+          {pendingAction && (
+            <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-[12px] text-amber-100">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 font-bold">
+                  <ShieldAlert className="h-4 w-4 text-amber-300" />
+                  <span>{pendingAction.description}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    data-testid="server-insights-cancel-action"
+                    disabled={actionBusy}
+                    onClick={() => setPendingAction(null)}
+                    className="rounded border border-slate-600 px-2.5 py-1 text-[11px] font-semibold text-slate-300 hover:bg-slate-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="server-insights-confirm-action"
+                    disabled={actionBusy}
+                    onClick={() => void confirmPendingAction()}
+                    className="rounded border border-rose-500/50 bg-rose-500/20 px-2.5 py-1 text-[11px] font-bold text-rose-100 hover:bg-rose-500/30 disabled:opacity-50"
+                  >
+                    {actionBusy ? 'Running…' : 'Execute SQL'}
+                  </button>
+                </div>
+              </div>
+              <pre className="mt-2 overflow-x-auto rounded bg-slate-950/70 px-2.5 py-1.5 font-mono text-[11px] text-amber-200">
+                {pendingAction.sql}
+              </pre>
+            </div>
+          )}
+          {actionNotice && (
+            <div className="mb-3 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-[12px] text-emerald-200">
+              {actionNotice}
+            </div>
+          )}
           {!loading && data?.kind === 'sessions' && (
+            <div className="space-y-3">
+              {locksData && locksData.chains.length > 0 && (
+                <div className="rounded-lg border border-rose-500/40 bg-rose-500/10 p-3">
+                  <div className="mb-2 flex items-center gap-2 text-[12px] font-bold text-rose-200">
+                    <AlertTriangle className="h-4 w-4 text-rose-400" />
+                    <span>Blocking Lock Chains ({locksData.chains.length})</span>
+                  </div>
+                  <div className="space-y-2">
+                    {locksData.chains.map((chain) => (
+                      <div
+                        key={chain.rootBlockerSessionId}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded border border-rose-500/30 bg-slate-950/60 px-3 py-2 text-[12px]"
+                      >
+                        <div className="min-w-0">
+                          <span className="font-mono font-bold text-rose-200">
+                            Blocker #{chain.rootBlockerSessionId}
+                          </span>
+                          {chain.blockerUser && (
+                            <span className="ml-2 text-slate-300">({chain.blockerUser})</span>
+                          )}
+                          <span className="ml-2 text-amber-300">
+                            blocking {chain.blockedCount} session{chain.blockedCount === 1 ? '' : 's'}
+                            {chain.maxWaitSeconds != null ? ` · max wait ${chain.maxWaitSeconds}s` : ''}
+                          </span>
+                          {chain.blockerQuery && (
+                            <div className="mt-0.5 max-w-xl truncate font-mono text-[11px] text-slate-400">
+                              {chain.blockerQuery}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {lockSupport.canCancelQuery && (
+                            <button
+                              type="button"
+                              data-testid={`server-insights-blocker-cancel-${chain.rootBlockerSessionId}`}
+                              onClick={() => queueSessionAction('cancel', chain.rootBlockerSessionId)}
+                              className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-1 text-[11px] font-bold text-amber-100 hover:bg-amber-500/25"
+                            >
+                              Cancel Query
+                            </button>
+                          )}
+                          {lockSupport.canTerminateSession && (
+                            <button
+                              type="button"
+                              data-testid={`server-insights-blocker-kill-${chain.rootBlockerSessionId}`}
+                              onClick={() => queueSessionAction('terminate', chain.rootBlockerSessionId)}
+                              className="rounded border border-rose-500/40 bg-rose-500/20 px-2 py-1 text-[11px] font-bold text-rose-100 hover:bg-rose-500/30"
+                            >
+                              Kill Session
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="overflow-auto rounded-lg border border-slate-700">
+                <table className="min-w-full text-left text-[12px]">
+                  <thead className="bg-slate-950/60 text-slate-400">
+                    <tr>
+                      <th className="px-3 py-2 font-bold">Session</th>
+                      <th className="px-3 py-2 font-bold">User</th>
+                      <th className="px-3 py-2 font-bold">Host</th>
+                      <th className="px-3 py-2 font-bold">DB</th>
+                      <th className="px-3 py-2 font-bold">State</th>
+                      <th className="px-3 py-2 font-bold">Query</th>
+                      {lockSupport.supported && <th className="px-3 py-2 font-bold text-right">Control</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(data.sessions ?? []).length === 0 ? (
+                      <tr>
+                        <td colSpan={lockSupport.supported ? 7 : 6} className="px-3 py-6 text-center text-slate-500">
+                          No sessions returned.
+                        </td>
+                      </tr>
+                    ) : (
+                      (data.sessions ?? []).map((s) => (
+                        <tr key={s.sessionId} className="border-t border-slate-800 align-top">
+                          <td className="px-3 py-1.5 font-mono text-slate-200">{s.sessionId}</td>
+                          <td className="px-3 py-1.5 font-semibold text-slate-100">{s.userName || '—'}</td>
+                          <td className="px-3 py-1.5 text-slate-400">{s.clientHost || '—'}</td>
+                          <td className="px-3 py-1.5 text-slate-400">{s.databaseName || '—'}</td>
+                          <td className="px-3 py-1.5 text-slate-300">{s.state || '—'}</td>
+                          <td
+                            className="max-w-[280px] truncate px-3 py-1.5 font-mono text-slate-400"
+                            title={s.queryText || ''}
+                          >
+                            {s.queryText || '—'}
+                          </td>
+                          {lockSupport.supported && (
+                            <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                              <div className="inline-flex items-center gap-1">
+                                {lockSupport.canCancelQuery && (
+                                  <button
+                                    type="button"
+                                    data-testid={`server-insights-session-cancel-${s.sessionId}`}
+                                    onClick={() => queueSessionAction('cancel', s.sessionId)}
+                                    className="rounded border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-amber-200 hover:bg-amber-500/15"
+                                  >
+                                    Cancel
+                                  </button>
+                                )}
+                                {lockSupport.canTerminateSession && (
+                                  <button
+                                    type="button"
+                                    data-testid={`server-insights-session-kill-${s.sessionId}`}
+                                    onClick={() => queueSessionAction('terminate', s.sessionId)}
+                                    className="rounded border border-rose-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-rose-200 hover:bg-rose-500/15"
+                                  >
+                                    Kill
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {!loading && tab === 'health' && healthData && (
             <div className="overflow-auto rounded-lg border border-slate-700">
               <table className="min-w-full text-left text-[12px]">
                 <thead className="bg-slate-950/60 text-slate-400">
                   <tr>
-                    <th className="px-3 py-2 font-bold">Session</th>
-                    <th className="px-3 py-2 font-bold">User</th>
-                    <th className="px-3 py-2 font-bold">Host</th>
-                    <th className="px-3 py-2 font-bold">DB</th>
-                    <th className="px-3 py-2 font-bold">State</th>
-                    <th className="px-3 py-2 font-bold">Query</th>
+                    <th className="px-3 py-2 font-bold">Table</th>
+                    <th className="px-3 py-2 font-bold text-right">Live rows</th>
+                    <th className="px-3 py-2 font-bold text-right">Dead / Mods</th>
+                    <th className="px-3 py-2 font-bold text-right">Bloat</th>
+                    <th className="px-3 py-2 font-bold">Last Analyzed</th>
+                    <th className="px-3 py-2 font-bold text-right">Maintenance</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(data.sessions ?? []).length === 0 ? (
+                  {healthData.tables.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
-                        No sessions returned.
+                        No tables returned.
                       </td>
                     </tr>
                   ) : (
-                    (data.sessions ?? []).map((s) => (
-                      <tr key={s.sessionId} className="border-t border-slate-800 align-top">
-                        <td className="px-3 py-1.5 font-mono text-slate-200">{s.sessionId}</td>
-                        <td className="px-3 py-1.5 font-semibold text-slate-100">{s.userName || '—'}</td>
-                        <td className="px-3 py-1.5 text-slate-400">{s.clientHost || '—'}</td>
-                        <td className="px-3 py-1.5 text-slate-400">{s.databaseName || '—'}</td>
-                        <td className="px-3 py-1.5 text-slate-300">{s.state || '—'}</td>
-                        <td
-                          className="max-w-[280px] truncate px-3 py-1.5 font-mono text-slate-400"
-                          title={s.queryText || ''}
-                        >
-                          {s.queryText || '—'}
+                    healthData.tables.map((row) => (
+                      <tr key={`${row.schemaName ?? ''}.${row.tableName}`} className="border-t border-slate-800">
+                        <td className="px-3 py-1.5 font-mono text-slate-100">
+                          {row.schemaName ? `${row.schemaName}.${row.tableName}` : row.tableName}
+                          {row.staleStats && (
+                            <span className="ml-2 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-200">
+                              STALE STATS
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-1.5 text-right tabular-nums text-slate-200">
+                          {formatRowCount(row.liveRows)}
+                        </td>
+                        <td className="px-3 py-1.5 text-right tabular-nums text-slate-300">
+                          {row.deadRows != null
+                            ? `${formatRowCount(row.deadRows)}${row.deadRatioPct != null ? ` (${row.deadRatioPct}%)` : ''}`
+                            : '—'}
+                        </td>
+                        <td className="px-3 py-1.5 text-right tabular-nums text-slate-300">
+                          {formatBytes(row.bloatBytes)}
+                        </td>
+                        <td className="px-3 py-1.5 text-slate-400">{row.lastAnalyzed || '—'}</td>
+                        <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                          <div className="inline-flex items-center gap-1">
+                            {healthSupport.canAnalyze && (
+                              <button
+                                type="button"
+                                data-testid={`server-insights-health-analyze-${row.tableName}`}
+                                onClick={() => queueTableAction('analyze', row.schemaName, row.tableName)}
+                                className="inline-flex items-center gap-1 rounded border border-sky-500/40 bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold text-sky-100 hover:bg-sky-500/25"
+                              >
+                                <Sparkles className="h-3 w-3" /> Analyze
+                              </button>
+                            )}
+                            {healthSupport.canVacuum && (
+                              <button
+                                type="button"
+                                data-testid={`server-insights-health-vacuum-${row.tableName}`}
+                                onClick={() => queueTableAction('vacuum', row.schemaName, row.tableName)}
+                                className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25"
+                              >
+                                Vacuum
+                              </button>
+                            )}
+                            {healthSupport.canOptimize && (
+                              <button
+                                type="button"
+                                data-testid={`server-insights-health-optimize-${row.tableName}`}
+                                onClick={() => queueTableAction('optimize', row.schemaName, row.tableName)}
+                                className="rounded border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-100 hover:bg-amber-500/25"
+                              >
+                                Optimize
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))

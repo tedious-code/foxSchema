@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1059** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1068** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1754,11 +1754,20 @@ Every control has a test ID: **1059** buttons, text boxes, selects and textareas
   - `server-insights-size-filter` · label
   - `server-insights-size-groups` · div
 - **ServerInsightsModal** · `features/utilities/components/ServerInsightsModal.tsx`
+  - `server-insights-blocker-cancel-{rootBlockerSessionId}` · button · Cancel Query
+  - `server-insights-blocker-kill-{rootBlockerSessionId}` · button · Kill Session
+  - `server-insights-cancel-action` · button · Cancel
   - `server-insights-close` · button · Close
+  - `server-insights-confirm-action` · button
   - `server-insights-connection` · select
+  - `server-insights-health-analyze-{tableName}` · button · Analyze
+  - `server-insights-health-optimize-{tableName}` · button · Optimize
+  - `server-insights-health-vacuum-{tableName}` · button · Vacuum
   - `server-insights-modal` · div
   - `server-insights-password-draft` · input · ••••••••
   - `server-insights-refresh` · button · Refresh
+  - `server-insights-session-cancel-{sessionId}` · button · Cancel
+  - `server-insights-session-kill-{sessionId}` · button · Kill
   - `server-insights-tab-{id}` · button
   - `server-insights-unlock` · button · Unlock
 - **SqlTracerPanel** · `features/utilities/components/SqlTracerPanel.tsx`
@@ -1818,6 +1827,7 @@ Every control has a test ID: **1059** buttons, text boxes, selects and textareas
   - `utilities-query-files` · data · Query files
   - `utilities-sql-tracer` · data · SQL Tracer
   - `utilities-system-info` · data · System Info
+  - `utilities-table-health` · data · Table Health & Stats
   - `utilities-user-connections` · data · User Connections
   - `utilities-view` · div
 

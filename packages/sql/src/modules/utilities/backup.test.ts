@@ -334,11 +334,13 @@ describe('backups the server recorded', () => {
     expect(
       normalizeBackupHistory([
         { FINISHED_AT: '20261004093000', LOCATION: '/backups', SIZE_BYTES: null, RESTORE_KEY: '20261004093000' },
+        { finished_at: '20261004093500', location: '/backups', size_bytes: '   ', restore_key: '20261004093500' },
         { finished_at: new Date('2026-10-05T01:02:03Z'), location: '/x.bak', size_bytes: '2048', restore_key: '/x.bak' },
         { finished_at: 'later', location: '?', size_bytes: 1, restore_key: '' },
       ])
     ).toEqual([
       { finishedAt: '20261004093000', location: '/backups', sizeBytes: null, restoreKey: '20261004093000' },
+      { finishedAt: '20261004093500', location: '/backups', sizeBytes: null, restoreKey: '20261004093500' },
       { finishedAt: '2026-10-05T01:02:03.000Z', location: '/x.bak', sizeBytes: 2048, restoreKey: '/x.bak' },
     ]);
   });

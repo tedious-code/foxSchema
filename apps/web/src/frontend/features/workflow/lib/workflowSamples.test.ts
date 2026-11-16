@@ -30,6 +30,20 @@ function sample(id: string) {
 }
 
 describe('workflow samples', () => {
+  it('gives every SQL insert step an upsertKey, so a second Test run replaces rows instead of duplicating them', () => {
+    const missing: string[] = [];
+    for (const entry of WORKFLOW_SAMPLES) {
+      for (const pipeline of entry.document.pipelines) {
+        for (const pipe of pipeline.pipes) {
+          if (pipe.type === 'sink.db.sql' && pipe.config.mode === 'insert' && !pipe.config.upsertKey) {
+            missing.push(`${entry.id} / ${pipe.id}`);
+          }
+        }
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
   it('exposes stable ids and ★ Sample names', () => {
     const ids = new Set(WORKFLOW_SAMPLES.map((entry) => entry.id));
     expect(ids.size).toBe(WORKFLOW_SAMPLES.length);

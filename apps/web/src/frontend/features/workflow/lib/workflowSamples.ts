@@ -683,7 +683,7 @@ const API_ENRICH_MULTI_DB: SampleWorkflow = {
             intent: 'Format rejected cities with failure reason for audit table',
             config: {
               script:
-                "return records.map((r) => ({ city: String(r.name ?? 'unknown'), country: String(r.country ?? 'unknown'), population: Number(r.population ?? 0), reason: Array.isArray(r.verification?.failures) ? r.verification.failures.map((f) => f.message).join('; ') : 'verification failed', status: 'rejected' }));",
+                "return records.map((r) => ({ id: Number(r.id), city: String(r.name ?? 'unknown'), country: String(r.country ?? 'unknown'), population: Number(r.population ?? 0), reason: Array.isArray(r.verification?.failures) ? r.verification.failures.map((f) => f.message).join('; ') : 'verification failed', status: 'rejected' }));",
             },
           },
           {
@@ -695,6 +695,7 @@ const API_ENRICH_MULTI_DB: SampleWorkflow = {
               dialect: 'sqlite',
               mode: 'insert',
               table: 'wf_rejected_cities',
+              upsertKey: 'id',
             },
           },
           {

@@ -3301,16 +3301,34 @@ export const TestIds = {
       serverInsightsSizeGroups: 'server-insights-size-groups',
     },
     ServerInsightsModal: {
+      /** button · Cancel Query */
+      serverInsightsBlockerCancel: (rootBlockerSessionId: string | number) => `server-insights-blocker-cancel-${rootBlockerSessionId}`,
+      /** button · Kill Session */
+      serverInsightsBlockerKill: (rootBlockerSessionId: string | number) => `server-insights-blocker-kill-${rootBlockerSessionId}`,
+      /** button · Cancel */
+      serverInsightsCancelAction: 'server-insights-cancel-action',
       /** button · Close */
       serverInsightsClose: 'server-insights-close',
+      /** button */
+      serverInsightsConfirmAction: 'server-insights-confirm-action',
       /** select */
       serverInsightsConnection: 'server-insights-connection',
+      /** button · Analyze */
+      serverInsightsHealthAnalyze: (tableName: string | number) => `server-insights-health-analyze-${tableName}`,
+      /** button · Optimize */
+      serverInsightsHealthOptimize: (tableName: string | number) => `server-insights-health-optimize-${tableName}`,
+      /** button · Vacuum */
+      serverInsightsHealthVacuum: (tableName: string | number) => `server-insights-health-vacuum-${tableName}`,
       /** div */
       serverInsightsModal: 'server-insights-modal',
       /** input · •••••••• */
       serverInsightsPasswordDraft: 'server-insights-password-draft',
       /** button · Refresh */
       serverInsightsRefresh: 'server-insights-refresh',
+      /** button · Cancel */
+      serverInsightsSessionCancel: (sessionId: string | number) => `server-insights-session-cancel-${sessionId}`,
+      /** button · Kill */
+      serverInsightsSessionKill: (sessionId: string | number) => `server-insights-session-kill-${sessionId}`,
       /** button */
       serverInsightsTab: (id: string | number) => `server-insights-tab-${id}`,
       /** button · Unlock */
@@ -3425,6 +3443,8 @@ export const TestIds = {
       utilitiesSqlTracer: 'utilities-sql-tracer',
       /** data · System Info */
       utilitiesSystemInfo: 'utilities-system-info',
+      /** data · Table Health & Stats */
+      utilitiesTableHealth: 'utilities-table-health',
       /** data · User Connections */
       utilitiesUserConnections: 'utilities-user-connections',
       /** div */
@@ -4910,11 +4930,20 @@ export type TestId =
   | `schema-status-filter-${string}`
   | 'schema-tree'
   | 'schema-tree-empty'
+  | `server-insights-blocker-cancel-${string}`
+  | `server-insights-blocker-kill-${string}`
+  | 'server-insights-cancel-action'
   | 'server-insights-close'
+  | 'server-insights-confirm-action'
   | 'server-insights-connection'
+  | `server-insights-health-analyze-${string}`
+  | `server-insights-health-optimize-${string}`
+  | `server-insights-health-vacuum-${string}`
   | 'server-insights-modal'
   | 'server-insights-password-draft'
   | 'server-insights-refresh'
+  | `server-insights-session-cancel-${string}`
+  | `server-insights-session-kill-${string}`
   | 'server-insights-size-filter'
   | 'server-insights-size-groups'
   | `server-insights-tab-${string}`
@@ -5469,6 +5498,7 @@ export type TestId =
   | 'utilities-query-files'
   | 'utilities-sql-tracer'
   | 'utilities-system-info'
+  | 'utilities-table-health'
   | 'utilities-user-connections'
   | 'utilities-view'
   | 'view-access-btn'

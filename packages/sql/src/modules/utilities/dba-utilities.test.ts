@@ -372,4 +372,12 @@ describe('DuckDB probes', () => {
     expect(sql).toMatch(/estimated_size AS row_count/);
     expect(sql).not.toMatch(/estimated_size AS (total|data)_bytes/);
   });
+
+  it('does not duplicate version in system info details', () => {
+    const info = normalizeSystemInfoRows([
+      { cpu_count: 8, version: 'PostgreSQL 16.4', uptime_seconds: 1200, os_name: 'Linux' },
+    ]);
+    expect(info.serverVersion).toBe('PostgreSQL 16.4');
+    expect(info.details).toEqual([{ key: 'os_name', value: 'Linux' }]);
+  });
 });

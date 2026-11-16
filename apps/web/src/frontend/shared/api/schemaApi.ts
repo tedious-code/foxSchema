@@ -391,6 +391,135 @@ export async function fetchDbaUtility(
   return data;
 }
 
+export type SessionLocksResponse = {
+  dialect?: string;
+  schema?: string;
+  support: { supported: boolean; canCancelQuery: boolean; canTerminateSession: boolean; hint: string };
+  locks: Array<{
+    blockedSessionId: string;
+    blockingSessionId: string;
+    blockedUser: string | null;
+    blockingUser: string | null;
+    lockMode: string | null;
+    lockedObject: string | null;
+    waitSeconds: number | null;
+    blockedQuery: string | null;
+    blockingQuery: string | null;
+  }>;
+  chains: Array<{
+    rootBlockerSessionId: string;
+    blockerUser: string | null;
+    blockerQuery: string | null;
+    directBlockedIds: string[];
+    allBlockedIds: string[];
+    blockedCount: number;
+    maxWaitSeconds: number | null;
+  }>;
+  error?: string;
+};
+
+/** Utilities -> User Connections: active lock waits and blocking trees. */
+export async function fetchSessionLocks(
+  ref: ConnectionRef,
+  opts?: { schema?: string },
+): Promise<SessionLocksResponse> {
+  const res = await fetch(`${getApiBase()}/schema/session-locks`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...ref, schema: opts?.schema }),
+  });
+  const data = await parseJsonBody<SessionLocksResponse & { error?: string }>(res);
+  if (!res.ok) {
+    throw new Error(data.error || `Session lock probe failed (${res.status})`);
+  }
+  return data;
+}
+
+/** Utilities -> User Connections: cancel a running query or terminate a blocking session. */
+export async function runSessionControl(
+  ref: ConnectionRef,
+  opts: { action: 'cancel' | 'terminate'; sessionId: string },
+): Promise<{ ok: true; sql: string; description: string }> {
+  const res = await fetch(`${getApiBase()}/schema/session-control`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...ref, action: opts.action, sessionId: opts.sessionId }),
+  });
+  const data = await parseJsonBody<{ ok?: true; sql?: string; description?: string; error?: string }>(res);
+  if (!res.ok) {
+    throw new Error(data.error || `Session control failed (${res.status})`);
+  }
+  return { ok: true, sql: data.sql || '', description: data.description || '' };
+}
+
+export type TableHealthResponse = {
+  dialect?: string;
+  schema?: string;
+  support: {
+    supported: boolean;
+    canAnalyze: boolean;
+    canVacuum: boolean;
+    canOptimize: boolean;
+    canInspectHealth: boolean;
+    hint: string;
+  };
+  tables: Array<{
+    schemaName: string | null;
+    tableName: string;
+    liveRows: number | null;
+    deadRows: number | null;
+    deadRatioPct: number | null;
+    bloatBytes: number | null;
+    staleStats: boolean | null;
+    lastAnalyzed: string | null;
+    lastVacuumed: string | null;
+  }>;
+  error?: string;
+};
+
+/** Utilities -> Table Health: dead tuples, bloat bytes, and stale stats. */
+export async function fetchTableHealth(
+  ref: ConnectionRef,
+  opts?: { schema?: string },
+): Promise<TableHealthResponse> {
+  const res = await fetch(`${getApiBase()}/schema/table-health`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...ref, schema: opts?.schema }),
+  });
+  const data = await parseJsonBody<TableHealthResponse & { error?: string }>(res);
+  if (!res.ok) {
+    throw new Error(data.error || `Table health probe failed (${res.status})`);
+  }
+  return data;
+}
+
+/** Utilities -> Table Health: run ANALYZE, VACUUM, or OPTIMIZE on a table. */
+export async function runTableMaintenance(
+  ref: ConnectionRef,
+  opts: { action: 'analyze' | 'vacuum' | 'optimize'; schema?: string; table: string },
+): Promise<{ ok: true; sql: string; description: string }> {
+  const res = await fetch(`${getApiBase()}/schema/table-maintenance`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...ref,
+      action: opts.action,
+      schema: opts.schema,
+      table: opts.table,
+    }),
+  });
+  const data = await parseJsonBody<{ ok?: true; sql?: string; description?: string; error?: string }>(res);
+  if (!res.ok) {
+    throw new Error(data.error || `Table maintenance failed (${res.status})`);
+  }
+  return { ok: true, sql: data.sql || '', description: data.description || '' };
+}
+
 export type TableInsightResponse = {
   table: string;
   schema: string;

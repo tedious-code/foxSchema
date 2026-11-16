@@ -166,7 +166,9 @@ export function normalizeSystemInfoRows(rows: Record<string, unknown>[]): System
       key.includes('memory') ||
       key.includes('storage') ||
       key.includes('uptime') ||
-      key.includes('server_version')
+      key.includes('server_version') ||
+      key === 'serverversion' ||
+      key === 'version'
     ) {
       continue;
     }

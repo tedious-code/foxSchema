@@ -116,6 +116,26 @@ export class FileSinkPipe implements SinkPipe {
    * multi-batch run writes a header line between every chunk.
    */
   private readonly started = new Set<string>();
+  private readonly writeLocks = new Map<string, Promise<void>>();
+
+  private async withWriteLock(key: string, work: () => Promise<void>): Promise<void> {
+    const prev = this.writeLocks.get(key) ?? Promise.resolve();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const next = prev.then(() => gate);
+    this.writeLocks.set(key, next);
+    await prev;
+    try {
+      await work();
+    } finally {
+      release();
+      if (this.writeLocks.get(key) === next) {
+        this.writeLocks.delete(key);
+      }
+    }
+  }
 
   metadata(): PipeMetadata {
     return definePipeMetadata({
@@ -151,9 +171,6 @@ export class FileSinkPipe implements SinkPipe {
     const file = await openWorkflowFile(config.path);
 
     const key = `${context.workflowRunId}:${file.path}`;
-    const first = !this.started.has(key);
-    if (first) this.started.add(key);
-
     const body =
       batch.records.map((record) => toRow(record, config)).join(config.newline) +
       config.newline;
@@ -163,16 +180,21 @@ export class FileSinkPipe implements SinkPipe {
           .join(config.delimiter) + config.newline
       : '';
 
-    // Overwrite truncates once per run, not once per batch — otherwise batch
-    // two erases batch one and the file only ever holds the last chunk.
-    if (first && config.mode === 'overwrite') {
-      await file.write(header + body);
-      return;
-    }
+    await this.withWriteLock(file.path, async () => {
+      const first = !this.started.has(key);
+      if (first) this.started.add(key);
 
-    // Appending to a file that does not exist yet still needs its header;
-    // appending to one that already has rows must not get a second.
-    const lead = first && header && (await file.isEmpty()) ? header : '';
-    await file.append(lead + body);
+      // Overwrite truncates once per run, not once per batch — otherwise batch
+      // two erases batch one and the file only ever holds the last chunk.
+      if (first && config.mode === 'overwrite') {
+        await file.write(header + body);
+        return;
+      }
+
+      // Appending to a file that does not exist yet still needs its header;
+      // appending to one that already has rows must not get a second.
+      const lead = first && header && (await file.isEmpty()) ? header : '';
+      await file.append(lead + body);
+    });
   }
 }

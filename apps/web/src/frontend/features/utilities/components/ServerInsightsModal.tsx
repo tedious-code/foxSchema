@@ -51,6 +51,7 @@ import {
 } from '@/shared/api/schemaApi';
 import { useSyncStore } from '@/features/compare';
 import { useSqlEditorStore } from '@/features/sql-editor/state';
+import { useAuthStore } from '@/platform/authStore';
 import { PROVIDER_SETTINGS, needsSessionPassword } from '@/shared/lib/provider-settings';
 import { IndexManagementModal } from './IndexManagementModal';
 import { sectionLabelCls } from '@/shared/components/surfaces';
@@ -109,6 +110,9 @@ export const ServerInsightsModal: React.FC<Props> = ({
   const ensureConnectionSelected = useSqlEditorStore((s) => s.ensureConnectionSelected);
   const submitSessionPassword = useSqlEditorStore((s) => s.submitSessionPassword);
   const sessionPasswords = useSqlEditorStore((s) => s.sessionPasswords);
+  // Cancel / kill and table maintenance change the server, so they need more
+  // than utility.access; the server enforces the same permission.
+  const canControl = useAuthStore((s) => s.can('utility.dba.control'));
 
   const [connectionId, setConnectionId] = useState('');
   const [passwordDraft, setPasswordDraft] = useState('');
@@ -160,6 +164,8 @@ export const ServerInsightsModal: React.FC<Props> = ({
     () => dialectSupportsSessionLocks(conn?.dialect || ''),
     [conn?.dialect],
   );
+  const showSessionControls =
+    canControl && (lockSupport.canCancelQuery || lockSupport.canTerminateSession);
   const healthSupport = useMemo(
     () => dialectSupportsTableMaintenance(conn?.dialect || ''),
     [conn?.dialect],
@@ -250,7 +256,10 @@ export const ServerInsightsModal: React.FC<Props> = ({
 
   const queueTableAction = (action: TableMaintenanceAction, schema: string | null, table: string) => {
     if (!conn) return;
-    const built = buildTableMaintenanceSql(conn.dialect, action, { schema, table });
+    // Build with the schema the server will use, so the SQL shown for
+    // confirmation is the SQL that runs.
+    const effectiveSchema = schema || conn.schema || undefined;
+    const built = buildTableMaintenanceSql(conn.dialect, action, { schema: effectiveSchema, table });
     if ('error' in built) {
       setError(built.error);
       return;
@@ -260,7 +269,7 @@ export const ServerInsightsModal: React.FC<Props> = ({
       sql: built.sql,
       description: built.description,
       tableAction: action,
-      schema: schema || conn.schema || undefined,
+      schema: effectiveSchema,
       table,
     });
   };
@@ -558,7 +567,7 @@ export const ServerInsightsModal: React.FC<Props> = ({
                           )}
                         </div>
                         <div className="flex items-center gap-1.5">
-                          {lockSupport.canCancelQuery && (
+                          {canControl && lockSupport.canCancelQuery && (
                             <button
                               type="button"
                               data-testid={`server-insights-blocker-cancel-${chain.rootBlockerSessionId}`}
@@ -568,7 +577,7 @@ export const ServerInsightsModal: React.FC<Props> = ({
                               Cancel Query
                             </button>
                           )}
-                          {lockSupport.canTerminateSession && (
+                          {canControl && lockSupport.canTerminateSession && (
                             <button
                               type="button"
                               data-testid={`server-insights-blocker-kill-${chain.rootBlockerSessionId}`}
@@ -595,13 +604,13 @@ export const ServerInsightsModal: React.FC<Props> = ({
                       <th className="px-3 py-2 font-bold">DB</th>
                       <th className="px-3 py-2 font-bold">State</th>
                       <th className="px-3 py-2 font-bold">Query</th>
-                      {lockSupport.supported && <th className="px-3 py-2 font-bold text-right">Control</th>}
+                      {showSessionControls && <th className="px-3 py-2 font-bold text-right">Control</th>}
                     </tr>
                   </thead>
                   <tbody>
                     {(data.sessions ?? []).length === 0 ? (
                       <tr>
-                        <td colSpan={lockSupport.supported ? 7 : 6} className="px-3 py-6 text-center text-slate-500">
+                        <td colSpan={showSessionControls ? 7 : 6} className="px-3 py-6 text-center text-slate-500">
                           No sessions returned.
                         </td>
                       </tr>
@@ -619,10 +628,10 @@ export const ServerInsightsModal: React.FC<Props> = ({
                           >
                             {s.queryText || '—'}
                           </td>
-                          {lockSupport.supported && (
+                          {showSessionControls && (
                             <td className="px-3 py-1.5 text-right whitespace-nowrap">
                               <div className="inline-flex items-center gap-1">
-                                {lockSupport.canCancelQuery && (
+                                {canControl && lockSupport.canCancelQuery && (
                                   <button
                                     type="button"
                                     data-testid={`server-insights-session-cancel-${s.sessionId}`}
@@ -632,7 +641,7 @@ export const ServerInsightsModal: React.FC<Props> = ({
                                     Cancel
                                   </button>
                                 )}
-                                {lockSupport.canTerminateSession && (
+                                {canControl && lockSupport.canTerminateSession && (
                                   <button
                                     type="button"
                                     data-testid={`server-insights-session-kill-${s.sessionId}`}
@@ -699,7 +708,7 @@ export const ServerInsightsModal: React.FC<Props> = ({
                         <td className="px-3 py-1.5 text-slate-400">{row.lastAnalyzed || '—'}</td>
                         <td className="px-3 py-1.5 text-right whitespace-nowrap">
                           <div className="inline-flex items-center gap-1">
-                            {healthSupport.canAnalyze && (
+                            {canControl && healthSupport.canAnalyze && (
                               <button
                                 type="button"
                                 data-testid={`server-insights-health-analyze-${row.tableName}`}
@@ -709,7 +718,7 @@ export const ServerInsightsModal: React.FC<Props> = ({
                                 <Sparkles className="h-3 w-3" /> Analyze
                               </button>
                             )}
-                            {healthSupport.canVacuum && (
+                            {canControl && healthSupport.canVacuum && (
                               <button
                                 type="button"
                                 data-testid={`server-insights-health-vacuum-${row.tableName}`}
@@ -719,7 +728,7 @@ export const ServerInsightsModal: React.FC<Props> = ({
                                 Vacuum
                               </button>
                             )}
-                            {healthSupport.canOptimize && (
+                            {canControl && healthSupport.canOptimize && (
                               <button
                                 type="button"
                                 data-testid={`server-insights-health-optimize-${row.tableName}`}

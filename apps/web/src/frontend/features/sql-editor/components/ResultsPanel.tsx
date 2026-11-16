@@ -1044,6 +1044,8 @@ const SideBySideStatementSection: React.FC<{
   /** A new result object means a new run, even when duration and row count happen to match. */
   const sourceResult = sourceGrid?.result;
   const destResult = destGrid?.result;
+  // A fresh key whenever the statement or either result changes. The inputs
+  // are only read to make that dependency explicit to the hooks lint rule.
   const windowResetKey = useMemo(() => {
     void statementIndex;
     void sourceResult;

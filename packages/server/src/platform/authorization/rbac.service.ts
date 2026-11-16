@@ -290,6 +290,14 @@ const ONE_TIME_GRANTS: Array<{
     perms: ['utility.trace'],
     when: (p) => p.has('schema.migrate'),
   },
+  {
+    // Server Insights kill / cancel and table maintenance: owner-like roles
+    // only. Ending any session or rebuilding a table reaches past one user's
+    // own statements, like deploying a migration.
+    key: 'rbac.grant.utility.dba.control',
+    perms: ['utility.dba.control'],
+    when: (p) => p.has('schema.migrate'),
+  },
 ];
 
 async function applyOneTimeGrants(store: MetadataStore): Promise<void> {

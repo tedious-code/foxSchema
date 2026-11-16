@@ -189,8 +189,10 @@ SELECT
   TABLE_ROWS AS live_rows,
   NULL AS dead_rows,
   DATA_FREE AS bloat_bytes,
-  (UPDATE_TIME IS NULL) AS stale_stats,
-  CAST(UPDATE_TIME AS CHAR) AS last_analyzed,
+  -- UPDATE_TIME is the last data change, not the last ANALYZE, and
+  -- information_schema has no analyze timestamp to report instead.
+  NULL AS stale_stats,
+  NULL AS last_analyzed,
   NULL AS last_vacuumed
 FROM information_schema.TABLES
 WHERE TABLE_TYPE = 'BASE TABLE'
@@ -207,20 +209,29 @@ LIMIT 200;`.trim(),
 SELECT TOP 200
   s.name AS schema_name,
   t.name AS table_name,
-  SUM(p.rows) AS live_rows,
-  MAX(sp.modification_counter) AS dead_rows,
+  rc.live_rows,
+  sx.modifications AS dead_rows,
   NULL AS bloat_bytes,
-  CASE WHEN MAX(sp.modification_counter) > 500 THEN 1 ELSE 0 END AS stale_stats,
-  CONVERT(VARCHAR(30), MAX(sp.last_updated), 126) AS last_analyzed,
+  CASE WHEN sx.modifications > 500 THEN 1 ELSE 0 END AS stale_stats,
+  CONVERT(VARCHAR(30), sx.last_updated, 126) AS last_analyzed,
   NULL AS last_vacuumed
 FROM sys.tables t
 JOIN sys.schemas s ON s.schema_id = t.schema_id
-JOIN sys.partitions p ON p.object_id = t.object_id AND p.index_id IN (0, 1)
-LEFT JOIN sys.stats st ON st.object_id = t.object_id
-OUTER APPLY sys.dm_db_stats_properties(st.object_id, st.stats_id) sp
+-- Row count and statistics are aggregated separately: joining sys.stats to
+-- sys.partitions repeats every partition row once per statistics object.
+OUTER APPLY (
+  SELECT SUM(p.rows) AS live_rows
+  FROM sys.partitions p
+  WHERE p.object_id = t.object_id AND p.index_id IN (0, 1)
+) rc
+OUTER APPLY (
+  SELECT MAX(sp.modification_counter) AS modifications, MAX(sp.last_updated) AS last_updated
+  FROM sys.stats st
+  CROSS APPLY sys.dm_db_stats_properties(st.object_id, st.stats_id) sp
+  WHERE st.object_id = t.object_id
+) sx
 ${s ? 'WHERE s.name = @p0' : ''}
-GROUP BY s.name, t.name
-ORDER BY MAX(sp.modification_counter) DESC, SUM(p.rows) DESC;`.trim(),
+ORDER BY sx.modifications DESC, rc.live_rows DESC;`.trim(),
       params: s ? [s] : [],
     };
   }
@@ -321,7 +332,7 @@ SELECT
   NULL AS last_vacuumed
 FROM system.tables
 WHERE engine NOT IN ('View', 'MaterializedView', 'Memory')
-  ${s ? 'AND database = ?' : "AND database NOT IN ('system', 'INFORMATION_SCHEMA', 'information_schema')"}
+  ${s ? 'AND database = $1' :"AND database NOT IN ('system', 'INFORMATION_SCHEMA', 'information_schema')"}
 ORDER BY total_rows DESC
 LIMIT 200;`.trim(),
     params: s ? [s] : [],
@@ -460,26 +471,42 @@ export function buildTableMaintenanceSql(
   }
 
   if (d === 'oracle') {
+    // node-oracledb runs one statement per call and rejects a trailing `;` on
+    // plain SQL, so everything Oracle gets here is a single PL/SQL block.
     if (action === 'vacuum') {
+      const literal = qualified.replace(/'/g, "''");
       return {
-        sql: `ALTER TABLE ${qualified} ENABLE ROW MOVEMENT;\nALTER TABLE ${qualified} SHRINK SPACE COMPACT;`,
-        description: `Shrink unused space on ${rawTable}.`,
+        sql:
+          `BEGIN EXECUTE IMMEDIATE 'ALTER TABLE ${literal} ENABLE ROW MOVEMENT'; ` +
+          `EXECUTE IMMEDIATE 'ALTER TABLE ${literal} SHRINK SPACE COMPACT'; END;`,
+        description: `Compact rows in ${rawTable} to defragment its segment.`,
       };
     }
-    const ownerLiteral = `'${(rawSchema || 'USER').replace(/'/g, "''").toUpperCase()}'`;
-    const tableLiteral = `'${rawTable.replace(/'/g, "''").toUpperCase()}'`;
+    // Double-quoted names keep their case; DBMS_STATS uppercases bare ones.
+    // With no schema, USER (the session user) is the owner — not a schema
+    // literally named 'USER'.
+    const ownerArg = rawSchema ? `'"${rawSchema.replace(/"/g, '').replace(/'/g, "''")}"'` : 'USER';
+    const tableArg = `'"${rawTable.replace(/"/g, '').replace(/'/g, "''")}"'`;
     return {
-      sql: `BEGIN DBMS_STATS.GATHER_TABLE_STATS(ownname => ${ownerLiteral}, tabname => ${tableLiteral}); END;`,
+      sql: `BEGIN DBMS_STATS.GATHER_TABLE_STATS(ownname => ${ownerArg}, tabname => ${tableArg}); END;`,
       description: `Gather Oracle optimizer statistics on ${rawTable}.`,
     };
   }
 
   if (d === 'db2') {
-    const db2Target = rawSchema ? `${rawSchema}.${rawTable}` : rawTable;
+    // REORG and RUNSTATS are CLP commands, not SQL: through a driver they only
+    // run via SYSPROC.ADMIN_CMD, which also needs a schema-qualified name.
+    if (!rawSchema) {
+      return { error: 'DB2 table maintenance needs a schema-qualified table.' };
+    }
+    const literal = qualified.replace(/'/g, "''");
     return action === 'optimize'
-      ? { sql: `REORG TABLE ${qualified};`, description: `Reorganize table ${rawTable}.` }
+      ? {
+          sql: `CALL SYSPROC.ADMIN_CMD('REORG TABLE ${literal}')`,
+          description: `Reorganize table ${rawTable}.`,
+        }
       : {
-          sql: `RUNSTATS ON TABLE ${db2Target} WITH DISTRIBUTION AND DETAILED INDEXES ALL;`,
+          sql: `CALL SYSPROC.ADMIN_CMD('RUNSTATS ON TABLE ${literal} WITH DISTRIBUTION AND DETAILED INDEXES ALL')`,
           description: `Collect DB2 RUNSTATS on ${rawTable}.`,
         };
   }

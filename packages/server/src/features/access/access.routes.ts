@@ -228,7 +228,7 @@ export function createAccessRoutes(deps: AccessRouteDeps): Router {
   router.post(
     '/schema/session-control',
     dbaUtilityLimiter,
-    requirePermissions('utility.access'),
+    requirePermissions('utility.access', 'utility.dba.control'),
     async (req: AppRequest, res: FastifyReply) => {
       const body = req.body as ConnectionRef & { action?: unknown; sessionId?: unknown };
       const action = typeof body.action === 'string' ? body.action.trim() : '';
@@ -290,7 +290,7 @@ export function createAccessRoutes(deps: AccessRouteDeps): Router {
   router.post(
     '/schema/table-maintenance',
     dbaUtilityLimiter,
-    requirePermissions('utility.access'),
+    requirePermissions('utility.access', 'utility.dba.control'),
     async (req: AppRequest, res: FastifyReply) => {
       const body = req.body as ConnectionRef & {
         action?: unknown;

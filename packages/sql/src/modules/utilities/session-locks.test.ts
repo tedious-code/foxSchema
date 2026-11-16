@@ -117,15 +117,37 @@ describe('session-locks utility', () => {
       sql: 'KILL 55;',
     });
     expect('error' in buildSessionControlSql('sqlserver', 'cancel', '55')).toBe(true);
+    // node-oracledb rejects a trailing `;` on plain SQL.
     expect(buildSessionControlSql('oracle', 'terminate', '128,4431')).toMatchObject({
-      sql: "ALTER SYSTEM KILL SESSION '128,4431' IMMEDIATE;",
+      sql: "ALTER SYSTEM KILL SESSION '128,4431' IMMEDIATE",
     });
+    expect(buildSessionControlSql('oracle', 'cancel', '128,4431')).toMatchObject({
+      sql: "ALTER SYSTEM CANCEL SQL '128, 4431'",
+    });
+    // FORCE APPLICATION is a CLP command; drivers run it through ADMIN_CMD.
     expect(buildSessionControlSql('db2', 'terminate', '77')).toMatchObject({
-      sql: 'FORCE APPLICATION (77);',
+      sql: "CALL SYSPROC.ADMIN_CMD('FORCE APPLICATION (77)')",
     });
 
     // Injection rejection
     expect('error' in buildSessionControlSql('postgres', 'terminate', '1); DROP TABLE users; --')).toBe(true);
     expect('error' in buildSessionControlSql('oracle', 'terminate', "1,2' OR '1'='1")).toBe(true);
+    expect('error' in buildSessionControlSql('db2', 'terminate', "77)') --")).toBe(true);
+  });
+
+  it('does not offer CockroachDB lock chains or kill, whose ids it cannot match', () => {
+    const support = dialectSupportsSessionLocks('cockroachdb');
+    expect(support).toMatchObject({ supported: false, canCancelQuery: false, canTerminateSession: false });
+    expect('error' in buildLockWaitProbeQuery('cockroachdb')).toBe(true);
+    expect('error' in buildSessionControlSql('cockroachdb', 'terminate', 'abc123')).toBe(true);
+  });
+
+  it('reads TiDB lock waits from its own tables, not InnoDB ones', () => {
+    const tidb = buildLockWaitProbeQuery('tidb');
+    expect('sql' in tidb && tidb.sql).toContain('information_schema.DATA_LOCK_WAITS');
+    expect('sql' in tidb && tidb.sql).toContain('information_schema.TIDB_TRX');
+    expect('sql' in tidb && tidb.sql).not.toMatch(/INNODB_/i);
+    const mariadb = buildLockWaitProbeQuery('mariadb');
+    expect('sql' in mariadb && mariadb.sql).toContain('INNODB_LOCK_WAITS');
   });
 });

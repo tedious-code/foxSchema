@@ -64,11 +64,12 @@ export function dialectSupportsSessionLocks(dialect: string): SessionLocksSuppor
         hint: 'PostgreSQL: pg_blocking_pids() lock wait probe + pg_cancel_backend / pg_terminate_backend.',
       };
     case 'cockroachdb':
+      // Not wired yet: lock waits live in crdb_internal.cluster_locks, and
+      // CANCEL QUERY / CANCEL SESSION take CockroachDB's own hex query and
+      // session IDs, not the pg_stat_activity ids the Sessions tab lists.
       return {
-        supported: true,
-        canCancelQuery: true,
-        canTerminateSession: true,
-        hint: 'CockroachDB: crdb_internal.cluster_locks / queries + CANCEL QUERY / CANCEL SESSION.',
+        ...UNSUPPORTED,
+        hint: 'CockroachDB: lock wait chains and cancel/kill are not supported here yet.',
       };
     case 'mysql':
     case 'mariadb':
@@ -150,26 +151,31 @@ ORDER BY wait_seconds DESC NULLS LAST;`.trim(),
     };
   }
 
-  if (d === 'cockroachdb') {
+  if (d === 'tidb') {
+    // TiDB has no InnoDB lock tables; pessimistic lock waits are in
+    // DATA_LOCK_WAITS, keyed by TiDB transaction ids that TIDB_TRX maps to
+    // the connection ids KILL takes.
     return {
       sql: `
 SELECT
-  session_id::text AS blocked_session_id,
-  '' AS blocking_session_id,
-  user_name AS blocked_user,
-  NULL AS blocking_user,
-  'lock_wait' AS lock_mode,
-  database_name AS locked_object,
-  EXTRACT(EPOCH FROM (NOW() - start))::int AS wait_seconds,
-  LEFT(query, 500) AS blocked_query,
-  NULL AS blocking_query
-FROM crdb_internal.cluster_queries
+  CAST(r.SESSION_ID AS CHAR) AS blocked_session_id,
+  CAST(b.SESSION_ID AS CHAR) AS blocking_session_id,
+  r.USER AS blocked_user,
+  b.USER AS blocking_user,
+  'LOCK_WAIT' AS lock_mode,
+  r.DB AS locked_object,
+  TIMESTAMPDIFF(SECOND, r.WAITING_START_TIME, NOW()) AS wait_seconds,
+  LEFT(w.SQL_DIGEST_TEXT, 500) AS blocked_query,
+  LEFT(b.CURRENT_SQL_DIGEST_TEXT, 500) AS blocking_query
+FROM information_schema.DATA_LOCK_WAITS w
+JOIN information_schema.TIDB_TRX r ON r.ID = w.TRX_ID
+JOIN information_schema.TIDB_TRX b ON b.ID = w.CURRENT_HOLDING_TRX_ID
 ORDER BY wait_seconds DESC;`.trim(),
       params: [],
     };
   }
 
-  if (d === 'mysql' || d === 'mariadb' || d === 'tidb') {
+  if (d === 'mysql' || d === 'mariadb') {
     const waitTable =
       d === 'mysql'
         ? 'performance_schema.data_lock_waits'
@@ -442,24 +448,16 @@ export function buildSessionControlSql(
     const [, sid, serial] = match;
     if (action === 'cancel') {
       return {
-        sql: `ALTER SYSTEM CANCEL SQL '${sid}, ${serial}';`,
+        sql: `ALTER SYSTEM CANCEL SQL '${sid}, ${serial}'`,
         description: `Cancel active SQL in Oracle session ${sid},${serial}.`,
       };
     }
     return {
-      sql: `ALTER SYSTEM KILL SESSION '${sid},${serial}' IMMEDIATE;`,
+      sql: `ALTER SYSTEM KILL SESSION '${sid},${serial}' IMMEDIATE`,
       description: `Terminate Oracle session ${sid},${serial}.`,
     };
   }
 
-  if (d === 'cockroachdb') {
-    if (!/^[A-Za-z0-9_-]{1,64}$/.test(rawId)) {
-      return { error: 'CockroachDB session ID must contain only alphanumeric, underscore, or hyphen characters.' };
-    }
-    return action === 'cancel'
-      ? { sql: `CANCEL QUERY '${rawId}';`, description: `Cancel query ${rawId} on CockroachDB.` }
-      : { sql: `CANCEL SESSION '${rawId}';`, description: `Terminate session ${rawId} on CockroachDB.` };
-  }
 
   if (!/^\d{1,12}$/.test(rawId)) {
     return { error: `Session ID for ${d} must be a positive integer.` };
@@ -491,7 +489,7 @@ export function buildSessionControlSql(
 
   if (d === 'db2') {
     return {
-      sql: `FORCE APPLICATION (${rawId});`,
+      sql: `CALL SYSPROC.ADMIN_CMD('FORCE APPLICATION (${rawId})')`,
       description: `Force off DB2 application handle ${rawId}.`,
     };
   }

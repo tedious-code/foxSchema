@@ -48,6 +48,7 @@ describe('role ladder', () => {
     expect(editor.has('editor.grant')).toBe(false);
     expect(editor.has('schema.migrate')).toBe(false);
     expect(editor.has('utility.index.drop')).toBe(true);
+    expect(editor.has('utility.dba.control')).toBe(false);
   });
 
   it('owner adds privileges and migrations but not app administration', () => {
@@ -55,6 +56,7 @@ describe('role ladder', () => {
     expect(owner.has('editor.grant')).toBe(true);
     expect(owner.has('schema.migrate')).toBe(true);
     expect(owner.has('utility.index.drop')).toBe(true);
+    expect(owner.has('utility.dba.control')).toBe(true);
     expect(owner.has('admin.users')).toBe(false);
     expect(owner.has('admin.roles')).toBe(false);
   });

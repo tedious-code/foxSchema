@@ -93,4 +93,55 @@ describe('table-maintenance utility', () => {
     });
     expect('error' in buildTableMaintenanceSql('postgres', 'analyze', { table: 'bad\nname' })).toBe(true);
   });
+
+  it('sends Oracle one PL/SQL block per action, keeping identifier case', () => {
+    // node-oracledb runs one statement per call and rejects `;` after plain SQL.
+    const shrink = buildTableMaintenanceSql('oracle', 'vacuum', { schema: 'HR', table: 'Orders' });
+    expect(shrink).toMatchObject({
+      sql:
+        `BEGIN EXECUTE IMMEDIATE 'ALTER TABLE "HR"."Orders" ENABLE ROW MOVEMENT'; ` +
+        `EXECUTE IMMEDIATE 'ALTER TABLE "HR"."Orders" SHRINK SPACE COMPACT'; END;`,
+    });
+    expect(buildTableMaintenanceSql('oracle', 'analyze', { schema: 'HR', table: 'Orders' })).toMatchObject({
+      sql: `BEGIN DBMS_STATS.GATHER_TABLE_STATS(ownname => '"HR"', tabname => '"Orders"'); END;`,
+    });
+    // No schema: the session user, not a schema named 'USER'.
+    expect(buildTableMaintenanceSql('oracle', 'analyze', { table: 'ORDERS' })).toMatchObject({
+      sql: `BEGIN DBMS_STATS.GATHER_TABLE_STATS(ownname => USER, tabname => '"ORDERS"'); END;`,
+    });
+    const quoted = buildTableMaintenanceSql('oracle', 'analyze', { schema: 'HR', table: "o'rders" });
+    expect('sql' in quoted && quoted.sql).toContain(`tabname => '"o''rders"'`);
+  });
+
+  it('runs DB2 REORG and RUNSTATS through ADMIN_CMD with a quoted, escaped name', () => {
+    expect(buildTableMaintenanceSql('db2', 'optimize', { schema: 'SHOP', table: 'ORDERS' })).toMatchObject({
+      sql: `CALL SYSPROC.ADMIN_CMD('REORG TABLE "SHOP"."ORDERS"')`,
+    });
+    expect(buildTableMaintenanceSql('db2', 'analyze', { schema: 'SHOP', table: 'ORDERS' })).toMatchObject({
+      sql: `CALL SYSPROC.ADMIN_CMD('RUNSTATS ON TABLE "SHOP"."ORDERS" WITH DISTRIBUTION AND DETAILED INDEXES ALL')`,
+    });
+    const hostile = buildTableMaintenanceSql('db2', 'analyze', { schema: 'SHOP', table: "X'); DROP TABLE T; --" });
+    expect('sql' in hostile && hostile.sql).toContain(`"X''); DROP TABLE T; --"`);
+    expect('error' in buildTableMaintenanceSql('db2', 'analyze', { table: 'ORDERS' })).toBe(true);
+  });
+
+  it('uses the $1 placeholder the ClickHouse adapter substitutes', () => {
+    const ch = buildTableHealthProbeQuery('clickhouse', 'analytics');
+    expect('sql' in ch && ch.sql).toContain('database = $1');
+    expect('sql' in ch && ch.sql).not.toContain('?');
+  });
+
+  it('counts SQL Server rows without repeating them per statistics object', () => {
+    const mssql = buildTableHealthProbeQuery('sqlserver', 'dbo');
+    // The live-row sum must not share a FROM with sys.stats (#613 review: a
+    // 3-row table with two extra statistics reported 9 rows).
+    expect('sql' in mssql && mssql.sql).toMatch(/SELECT SUM\(p\.rows\) AS live_rows\s+FROM sys\.partitions p\s+WHERE/);
+    expect('sql' in mssql && mssql.sql).not.toMatch(/GROUP BY s\.name, t\.name/);
+  });
+
+  it('does not present MySQL UPDATE_TIME as the last analyze', () => {
+    const mysql = buildTableHealthProbeQuery('mysql', 'shop');
+    expect('sql' in mysql && mysql.sql).toContain('NULL AS last_analyzed');
+    expect('sql' in mysql && mysql.sql).not.toMatch(/UPDATE_TIME[^\n]*\bAS\b/);
+  });
 });

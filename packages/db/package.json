@@ -12,12 +12,12 @@
     "@foxschema/sql": "*"
   },
   "optionalDependencies": {
-    "ibm_db": "4.1.0"
+    "ibm_db": "4.1.1"
   },
   "peerDependencies": {
     "@clickhouse/client": "1.25.0",
     "@duckdb/node-api": "^1.5.4-r.1",
-    "better-sqlite3": ">=12",
+    "better-sqlite3": "13.1.1",
     "ibm_db": "^4.1.0",
     "mongodb": ">=6",
     "mssql": "12.7.14",

@@ -6,7 +6,9 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
-import { DataPeekPanel } from './DataPeekPanel';
+import { useSyncStore } from '@/features/compare';
+import { effectiveConnectionIds } from '@/features/sql-editor/state/sqlEditorTabLogic';
+import { DataPeekPanel, inlineBoundParams } from './DataPeekPanel';
 
 const fetchTableInsight = vi.fn();
 vi.mock('@/shared/api/schemaApi', async (importOriginal) => {
@@ -104,11 +106,6 @@ describe('DataPeekPanel Insight tab', () => {
   });
 });
 
-vi.mock('@/features/compare/state/useSyncStore', () => ({
-  useSyncStore: (sel: (s: Record<string, unknown>) => unknown) =>
-    sel({ connections: [{ id: 'c1', name: 'pg', dialect: 'postgres', schema: 'public' }] }),
-}));
-
 describe('reference keys on a qualified table name', () => {
   // An FK drill opens the next panel with `demo_a.customers`, while the schema
   // cache holds tables bare as `customers`. The panel used to give up on any
@@ -153,6 +150,9 @@ describe('reference keys on a qualified table name', () => {
   };
 
   beforeEach(() => {
+    useSyncStore.setState({
+      connections: [{ id: 'c1', name: 'pg', dialect: 'postgres', schema: 'public', hasPassword: true }] as never,
+    });
     useSqlEditorStore.setState({
       dataPeek: { connectionId: 'c1', dialect: 'postgres', entries: [withFk] },
       schemaCache: cache as never,
@@ -183,5 +183,93 @@ describe('reference keys on a qualified table name', () => {
     });
     render(<DataPeekPanel />);
     expect(screen.queryByText(/foreign keys/i)).toBeNull();
+  });
+
+  it('inlines bound parameters across SQL dialects without LIMIT in openInSqlEditor', () => {
+    expect(
+      inlineBoundParams('SELECT * FROM "orders" WHERE "id" = $1 AND "customer" = $2', [42, "O'Connor"], 'postgres')
+    ).toBe('SELECT * FROM "orders" WHERE "id" = 42 AND "customer" = \'O\'\'Connor\'');
+
+    expect(
+      inlineBoundParams('SELECT * FROM `orders` WHERE `id` = ? AND `customer` = ?', [10, 'Acme'], 'mysql')
+    ).toBe("SELECT * FROM `orders` WHERE `id` = 10 AND `customer` = 'Acme'");
+
+    expect(
+      inlineBoundParams('SELECT * FROM [orders] WHERE [id] = @p0', [99], 'sqlserver')
+    ).toBe('SELECT * FROM [orders] WHERE [id] = 99');
+
+    expect(
+      inlineBoundParams('SELECT * FROM orders WHERE id = :1', [7], 'oracle')
+    ).toBe('SELECT * FROM orders WHERE id = 7');
+  });
+
+  it('promotes to SQL editor with inlined params and targets connection', () => {
+    const parameterizedEntry = {
+      ...entry,
+      id: 'e-param',
+      baseSql: 'SELECT * FROM "public"."orders" WHERE "customer_id" = $1',
+      baseParams: [100],
+      sql: 'SELECT * FROM "public"."orders" WHERE "customer_id" = $1',
+      params: [100],
+    };
+    useSqlEditorStore.setState({
+      dataPeek: { connectionId: 'c1', dialect: 'postgres', entries: [parameterizedEntry] },
+      activeTabId: 'tab-1',
+      tabs: [{
+        id: 'tab-1',
+        title: 'Query 1',
+        sql: '',
+        selectedConnectionIds: [],
+        checkedStatements: [],
+        statementCount: 1,
+        layout: 'byCredential',
+      }],
+      sessionPasswords: { c1: 'secret' },
+    });
+
+    render(<DataPeekPanel />);
+    const openBtn = screen.getByTestId('data-peek-open-sql-e-param');
+    fireEvent.click(openBtn);
+
+    const state = useSqlEditorStore.getState();
+    expect(state.dataPeek).toBeNull();
+    const activeTab = state.tabs.find((t) => t.id === state.activeTabId);
+    expect(activeTab).toBeDefined();
+    expect(activeTab?.sql).toBe('SELECT * FROM "public"."orders" WHERE "customer_id" = 100;');
+    expect(activeTab?.sql).not.toContain('$1');
+    expect(activeTab?.sql).not.toContain('LIMIT');
+    expect(effectiveConnectionIds(activeTab!, state.shareDestinations, state.sharedConnectionIds)).toContain('c1');
+  });
+
+  it('displays error and does not create tab if filter composition fails', () => {
+    const brokenEntry = {
+      ...entry,
+      id: 'e-broken',
+      whereClause: 'status = 1; DROP TABLE users',
+    };
+    useSqlEditorStore.setState({
+      dataPeek: { connectionId: 'c1', dialect: 'postgres', entries: [brokenEntry] },
+      activeTabId: 'tab-1',
+      tabs: [{
+        id: 'tab-1',
+        title: 'Query 1',
+        sql: '',
+        selectedConnectionIds: [],
+        checkedStatements: [],
+        statementCount: 1,
+        layout: 'byCredential',
+      }],
+    });
+
+    render(<DataPeekPanel />);
+    const openBtn = screen.getByTestId('data-peek-open-sql-e-broken');
+    fireEvent.click(openBtn);
+
+    expect(screen.getByTestId('data-peek-open-error-e-broken')).toBeTruthy();
+    expect(screen.getByText(/WHERE cannot contain ;/i)).toBeTruthy();
+
+    const state = useSqlEditorStore.getState();
+    expect(state.dataPeek).not.toBeNull();
+    expect(state.tabs.length).toBe(1);
   });
 });

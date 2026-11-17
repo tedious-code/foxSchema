@@ -4,20 +4,30 @@ import type { SqlTab } from '@/features/sql-editor/state/sqlEditorTabLogic';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import { useSyncStore } from '@/features/compare';
 
+const DIALECT_BADGES: Record<string, string> = {
+  postgres: 'PG',
+  cockroachdb: 'CRDB',
+  yugabytedb: 'YB',
+  mysql: 'MY',
+  mariadb: 'MARIA',
+  tidb: 'TIDB',
+  db2: 'DB2',
+  sqlserver: 'MS',
+  mssql: 'MS',
+  azuresql: 'AZURE',
+  oracle: 'ORA',
+  sqlite: 'LITE',
+  duckdb: 'DUCK',
+  clickhouse: 'CH',
+  redshift: 'RS',
+  redis: 'RDS',
+  mongodb: 'MGO',
+};
+
 function dialectBadgeText(dialect?: string): string {
   if (!dialect) return 'SQL';
-  const d = dialect.toLowerCase();
-  if (d.includes('postgres') || d === 'pg') return 'PG';
-  if (d.includes('mysql')) return 'MY';
-  if (d.includes('mariadb')) return 'MARIA';
-  if (d.includes('mssql') || d.includes('sqlserver')) return 'MS';
-  if (d.includes('oracle')) return 'ORA';
-  if (d.includes('sqlite')) return 'LITE';
-  if (d.includes('snowflake')) return 'SF';
-  if (d.includes('clickhouse')) return 'CH';
-  if (d.includes('mongo')) return 'MGO';
-  if (d.includes('redis')) return 'RDS';
-  return 'SQL';
+  const d = dialect.toLowerCase().trim();
+  return DIALECT_BADGES[d] ?? 'SQL';
 }
 
 interface Props {
@@ -205,16 +215,6 @@ export const EditorTabBar: React.FC<Props> = ({
             ) : (
               <span className="truncate min-w-0" title={tab.title}>
                 {tab.title}
-              </span>
-            )}
-
-            {/* Unsaved indicator */}
-            {tab.sql.trim().length > 0 && (
-              <span
-                className="text-[8px] text-cyan-400 leading-none shrink-0 select-none"
-                title="Unsaved changes"
-              >
-                ●
               </span>
             )}
 

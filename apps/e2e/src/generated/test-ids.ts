@@ -2073,6 +2073,8 @@ export const TestIds = {
       dataPeekGrid: (id: string | number) => `data-peek-grid-${id}`,
       /** input */
       dataPeekLimit: (id: string | number) => `data-peek-limit-${id}`,
+      /** div */
+      dataPeekOpenError: (id: string | number) => `data-peek-open-error-${id}`,
       /** button · Open query in a new SQL Editor tab */
       dataPeekOpenSql: (id: string | number) => `data-peek-open-sql-${id}`,
       /** input · created_at */
@@ -2465,12 +2467,8 @@ export const TestIds = {
       sqlRunsDrawerBtn: 'sql-runs-drawer-btn',
       /** input */
       sqlSafeMode: 'sql-safe-mode',
-      /** button · Execution & Safety Policy (Safe mode, Transaction, Multi-table threshold) */
-      sqlSafetyPolicyBtn: 'sql-safety-policy-btn',
-      /** button · Close safety popover */
-      sqlSafetyPolicyClose: 'sql-safety-policy-close',
       /** div */
-      sqlSafetyPolicyPopover: 'sql-safety-policy-popover',
+      sqlSafetyPolicyGroup: 'sql-safety-policy-group',
       /** button · Create table — opens blueprint to add columns */
       sqlSchemaNewTable: 'sql-schema-new-table',
       /** button · Re-fetch cloud secrets into Variables */
@@ -4442,6 +4440,7 @@ export type TestId =
   | `data-peek-insight-peek-orphans-${string}`
   | 'data-peek-insight-rows'
   | `data-peek-limit-${string}`
+  | `data-peek-open-error-${string}`
   | `data-peek-open-sql-${string}`
   | `data-peek-order-${string}`
   | `data-peek-order-${string}-${string}`
@@ -5275,9 +5274,7 @@ export type TestId =
   | 'sql-safe-no-where-ack'
   | 'sql-safe-no-where-ack-check'
   | 'sql-safe-no-where-warn'
-  | 'sql-safety-policy-btn'
-  | 'sql-safety-policy-close'
-  | 'sql-safety-policy-popover'
+  | 'sql-safety-policy-group'
   | 'sql-schema-connection-backdrop'
   | 'sql-schema-connection-clear'
   | 'sql-schema-connection-filter'

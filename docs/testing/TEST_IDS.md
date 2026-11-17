@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1075** buttons, text boxes, selects and textareas.
+Controls with a test ID: **1073 of 1074** (99.9%). Without one: 1, listed at the end.
 
 ## access
 
@@ -1118,6 +1118,7 @@ Every control has a test ID: **1075** buttons, text boxes, selects and textareas
   - `data-peek-filters-{id}` · div
   - `data-peek-grid-{id}` · div
   - `data-peek-limit-{id}` · input
+  - `data-peek-open-error-{id}` · div
   - `data-peek-open-sql-{id}` · button · Open query in a new SQL Editor tab
   - `data-peek-order-{id}` · input · created_at
   - `data-peek-order-{id}-{index}` · input · created_at
@@ -1320,9 +1321,7 @@ Every control has a test ID: **1075** buttons, text boxes, selects and textareas
   - `sql-run-btn` · button
   - `sql-runs-drawer-btn` · button · Recent runs
   - `sql-safe-mode` · input
-  - `sql-safety-policy-btn` · button · Execution & Safety Policy (Safe mode, Transaction, Multi-table threshold)
-  - `sql-safety-policy-close` · button · Close safety popover
-  - `sql-safety-policy-popover` · div
+  - `sql-safety-policy-group` · div
   - `sql-schema-new-table` · button · Create table — opens blueprint to add columns
   - `sql-secrets-refresh` · button · Re-fetch cloud secrets into Variables
   - `sql-sidebar` · aside
@@ -2084,3 +2083,8 @@ Every control has a test ID: **1075** buttons, text boxes, selects and textareas
 One thing on screen, drawn by whichever component is showing.
 
 - `lokee-summary`: the history header: LokeeWeavePage draws it in graph mode, VersionTimeline otherwise
+
+## Controls without a test ID
+
+- `features/sql-editor/components/DataPeekPanel.tsx`
+  - line 747 · button · Dismiss error

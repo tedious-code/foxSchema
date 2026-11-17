@@ -2,10 +2,7 @@ import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useStat
 import {
   Loader2,
   Play,
-  Eraser,
   AlignLeft,
-  Columns2,
-  Rows3,
   RefreshCw,
   BookmarkPlus,
   Database,
@@ -18,8 +15,6 @@ import {
   PanelLeftOpen,
   Plus,
   History,
-  ChevronDown,
-  X,
 } from 'lucide-react';
 import { useSyncStore } from '@/features/compare';
 import { SCHEMA_ROUTINE_SCOPE, useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
@@ -181,31 +176,6 @@ export const SqlEditorView: React.FC = () => {
   const [explorerCanCreateTable, setExplorerCanCreateTable] = useState(true);
   const [secretsRefreshing, setSecretsRefreshing] = useState(false);
   const [runsOpen, setRunsOpen] = useState(false);
-  const [safetyOpen, setSafetyOpen] = useState(false);
-  const safetyBtnRef = useRef<HTMLButtonElement>(null);
-  const safetyPopoverRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!safetyOpen) return;
-    const onDocClick = (e: MouseEvent) => {
-      if (
-        safetyPopoverRef.current &&
-        !safetyPopoverRef.current.contains(e.target as Node) &&
-        !safetyBtnRef.current?.contains(e.target as Node)
-      ) {
-        setSafetyOpen(false);
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSafetyOpen(false);
-    };
-    document.addEventListener('mousedown', onDocClick, true);
-    document.addEventListener('keydown', onKey, true);
-    return () => {
-      document.removeEventListener('mousedown', onDocClick, true);
-      document.removeEventListener('keydown', onKey, true);
-    };
-  }, [safetyOpen]);
 
   const cursorPosition = useMemo(() => {
     if (caretOffset == null || caretOffset < 0) return { line: 1, col: 1 };
@@ -859,120 +829,74 @@ export const SqlEditorView: React.FC = () => {
             <History className="w-3.5 h-3.5 text-cyan-400" strokeWidth={SQL_ICON_STROKE} /> Runs
           </button>
 
-          <div className="relative shrink-0">
-            <button
-              type="button"
-              data-testid="sql-safety-policy-btn"
-              ref={safetyBtnRef}
-              onClick={() => setSafetyOpen((v) => !v)}
-              title="Execution & Safety Policy (Safe mode, Transaction, Multi-table threshold)"
-              className={`flex shrink-0 items-center gap-1.5 px-2.5 py-1.5 rounded text-[11px] font-semibold border transition ${
-                safeMode || oneTransaction
-                  ? 'border-amber-800/60 bg-amber-950/30 text-amber-200 hover:bg-amber-900/40'
-                  : 'border-slate-800 bg-slate-900/40 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
+          {/* Inline Safety & Transaction policy group */}
+          <div
+            data-testid="sql-safety-policy-group"
+            className="flex items-center gap-2 px-2 py-1 rounded border border-slate-800 bg-slate-900/40 text-[11px] shrink-0"
+          >
+            <label
+              className="flex items-center gap-1.5 cursor-pointer select-none text-slate-300 hover:text-slate-100"
+              title="When on, UPDATE / DELETE / MERGE (and other writes) require confirmation before Run"
             >
+              <input
+                type="checkbox"
+                data-testid="sql-safe-mode"
+                checked={safeMode}
+                onChange={(e) => setSafeMode(e.target.checked)}
+                className="w-3.5 h-3.5 accent-rose-500 cursor-pointer rounded"
+              />
               <Shield
-                className={`w-3.5 h-3.5 ${safeMode ? 'text-rose-400' : 'text-slate-500'}`}
+                className={`w-3.5 h-3.5 shrink-0 ${safeMode ? 'text-rose-400' : 'text-slate-500'}`}
                 strokeWidth={SQL_ICON_STROKE}
               />
-              <span>
-                {safeMode && oneTransaction
-                  ? 'Safe Mode · 1-Tx'
-                  : safeMode
-                    ? 'Safe Mode'
-                    : oneTransaction
-                      ? '1-Tx'
-                      : 'Safety Policy'}
+              <span className={safeMode ? 'text-rose-300 font-semibold' : 'text-slate-400 font-medium'}>
+                Safe mode
               </span>
-              <ChevronDown className="w-3 h-3 text-slate-400" strokeWidth={SQL_ICON_STROKE} />
-            </button>
+            </label>
 
-            <div
-              data-testid="sql-safety-policy-popover"
-              ref={safetyPopoverRef}
-              className={`${
-                safetyOpen ? 'flex' : 'hidden'
-              } absolute left-0 top-full mt-1.5 z-50 flex-col gap-2.5 rounded-lg border border-slate-700 bg-slate-900 p-3 shadow-2xl text-xs w-72`}
+            <span className="w-px h-3.5 bg-slate-800 shrink-0" />
+
+            <label
+              className="flex items-center gap-1.5 cursor-pointer select-none text-slate-300 hover:text-slate-100"
+              title="Run every SQL statement in one transaction per destination. A failure rolls the batch back. Code cells and @set stay statement by statement."
             >
-              <div className="flex items-center justify-between pb-1.5 border-b border-slate-800 text-[11px] font-bold text-slate-300">
-                <span>Execution Policy</span>
-                <button
-                  type="button"
-                  data-testid="sql-safety-policy-close"
-                  onClick={() => setSafetyOpen(false)}
-                  className="p-0.5 text-slate-500 hover:text-slate-200 rounded"
-                  title="Close safety popover"
-                >
-                  <X className="w-3.5 h-3.5" strokeWidth={SQL_ICON_STROKE} />
-                </button>
-              </div>
-              <label
-                className="flex items-center gap-2 cursor-pointer select-none rounded p-1 hover:bg-slate-800/60"
-                title="When on, UPDATE / DELETE / MERGE (and other writes) require confirmation before Run"
+              <input
+                type="checkbox"
+                data-testid="sql-one-transaction"
+                checked={oneTransaction}
+                onChange={(e) => setOneTransaction(e.target.checked)}
+                className="w-3.5 h-3.5 accent-cyan-500 cursor-pointer rounded"
+              />
+              <span
+                className={
+                  oneTransaction ? 'text-cyan-300 font-semibold' : 'text-slate-400 font-medium'
+                }
               >
-                <input
-                  type="checkbox"
-                  data-testid="sql-safe-mode"
-                  checked={safeMode}
-                  onChange={(e) => setSafeMode(e.target.checked)}
-                  className="w-3.5 h-3.5 accent-rose-500 cursor-pointer"
-                />
-                <Shield
-                  className={`w-3.5 h-3.5 shrink-0 ${safeMode ? 'text-rose-400' : 'text-slate-500'}`}
-                  strokeWidth={SQL_ICON_STROKE}
-                />
-                <div className="flex flex-col">
-                  <span className={safeMode ? 'text-rose-300 font-bold' : 'text-slate-300 font-semibold'}>
-                    Safe mode
-                  </span>
-                  <span className="text-[10px] text-slate-500">Warn before write statements</span>
-                </div>
-              </label>
+                1-Tx
+              </span>
+            </label>
 
-              <label
-                className="flex items-center gap-2 cursor-pointer select-none rounded p-1 hover:bg-slate-800/60"
-                title="Run every SQL statement in one transaction per destination. A failure rolls the batch back. Code cells and @set stay statement by statement."
-              >
-                <input
-                  type="checkbox"
-                  data-testid="sql-one-transaction"
-                  checked={oneTransaction}
-                  onChange={(e) => setOneTransaction(e.target.checked)}
-                  className="w-3.5 h-3.5 accent-cyan-500 cursor-pointer"
-                />
-                <div className="flex flex-col">
-                  <span
-                    className={
-                      oneTransaction ? 'text-cyan-300 font-bold' : 'text-slate-300 font-semibold'
-                    }
-                  >
-                    One transaction
-                  </span>
-                  <span className="text-[10px] text-slate-500">Atomic batch per destination</span>
-                </div>
-              </label>
+            <span className="w-px h-3.5 bg-slate-800 shrink-0" />
 
-              <label
-                className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800 text-[11px] text-slate-400 cursor-pointer select-none px-1"
-                title="When Safe mode is on, confirm writes that reference this many tables in one statement (0 = off). SELECT / JOIN reads skip this check. Suggests wrapping related writes in a transaction."
-              >
-                <span className="font-semibold">Confirm writes tables ≥</span>
-                <input
-                  data-testid="sql-multi-table-threshold"
-                  type="number"
-                  min={0}
-                  max={50}
-                  value={multiTableConfirmThreshold}
-                  onChange={(e) => {
-                    const n = Number(e.target.value);
-                    if (!Number.isFinite(n)) return;
-                    setMultiTableConfirmThreshold(n);
-                  }}
-                  className="w-12 bg-slate-950 border border-slate-700 rounded px-1.5 py-1 text-xs text-slate-200 font-mono outline-none accent-focus text-right"
-                />
-              </label>
-            </div>
+            <label
+              className="flex items-center gap-1 cursor-pointer select-none text-slate-400 hover:text-slate-200"
+              title="When Safe mode is on, confirm writes that reference this many tables in one statement (0 = off). SELECT / JOIN reads skip this check. Suggests wrapping related writes in a transaction."
+            >
+              <span className="text-[10px] font-medium text-slate-400 whitespace-nowrap">Tables≥</span>
+              <input
+                data-testid="sql-multi-table-threshold"
+                type="number"
+                min={0}
+                max={50}
+                value={multiTableConfirmThreshold}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  if (!Number.isFinite(n)) return;
+                  setMultiTableConfirmThreshold(n);
+                }}
+                className="w-8 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-[11px] text-slate-200 font-mono outline-none accent-focus text-center"
+              />
+            </label>
           </div>
         </div>
 

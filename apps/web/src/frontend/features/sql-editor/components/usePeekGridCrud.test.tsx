@@ -109,7 +109,9 @@ describe('usePeekGridCrud Escape ownership', () => {
 
     fireEvent.click(insertBtn);
     expect(writeText).toHaveBeenCalledWith(
-      expect.stringContaining('INSERT INTO "public"."items"')
+      'INSERT INTO "public"."items" ("id", "label") VALUES (1, \'seed\');'
     );
+    expect(writeText.mock.calls[1][0]).not.toContain('$1');
+    expect(writeText.mock.calls[1][0]).toContain("(1, 'seed')");
   });
 });

@@ -10,6 +10,7 @@ import {
   buildPeekInsert,
   buildPeekUpdate,
   draftToArray,
+  formatSqlLiteral,
   originalRowForPeekEdit,
   firstCaseFoldedDuplicate,
   resolvePeekKeyColumns,
@@ -258,5 +259,50 @@ describe('rowDml', () => {
     expect(resolvePeekKeyColumns(solidUnique, ['id', 'email', 'name']).map((k) => k.name)).toEqual([
       'email',
     ]);
+  });
+
+  describe('formatSqlLiteral', () => {
+    it('formats null and undefined as NULL', () => {
+      expect(formatSqlLiteral(null)).toBe('NULL');
+      expect(formatSqlLiteral(undefined)).toBe('NULL');
+    });
+
+    it('formats numbers bare and booleans as TRUE/FALSE', () => {
+      expect(formatSqlLiteral(42)).toBe('42');
+      expect(formatSqlLiteral(3.14)).toBe('3.14');
+      expect(formatSqlLiteral(true)).toBe('TRUE');
+      expect(formatSqlLiteral(false)).toBe('FALSE');
+      expect(formatSqlLiteral(NaN)).toBe('NULL');
+      expect(formatSqlLiteral(Infinity)).toBe('NULL');
+    });
+
+    it('escapes single quotes by doubling them', () => {
+      expect(formatSqlLiteral('hello')).toBe("'hello'");
+      expect(formatSqlLiteral("O'Reilly")).toBe("'O''Reilly'");
+      expect(formatSqlLiteral("it's a 'test'")).toBe("'it''s a ''test'''");
+    });
+
+    it('formats bigints bare', () => {
+      expect(formatSqlLiteral(BigInt('9007199254740993'))).toBe('9007199254740993');
+    });
+  });
+
+  describe('buildPeekInsert', () => {
+    it('produces bound sql and inlined literal displaySql', () => {
+      const plan = buildPeekInsert({
+        tableName: 'public.users',
+        dialect: 'postgres',
+        values: { id: 1, email: "o'reilly@test.com", name: 'User 1' },
+      });
+      expect('error' in plan).toBe(false);
+      if ('error' in plan) return;
+      expect(plan.kind).toBe('insert');
+      expect(plan.sql).toBe('INSERT INTO "public"."users" ("id", "email", "name") VALUES ($1, $2, $3)');
+      expect(plan.params).toEqual([1, "o'reilly@test.com", 'User 1']);
+      expect(plan.displaySql).toBe(
+        'INSERT INTO "public"."users" ("id", "email", "name") VALUES (1, \'o\'\'reilly@test.com\', \'User 1\');'
+      );
+      expect(plan.displaySql).not.toContain('$1');
+    });
   });
 });

@@ -37,6 +37,42 @@ import { PeekInsight } from './PeekInsight';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import type { TableSchema } from '@/shared/lib/types';
 import { useSyncStore } from '@/features/compare';
+import { formatSqlLiteral } from '@/features/sql-editor/lib/rowDml';
+import { placeholderStyleFor } from '@/shared/lib/sql-splitter';
+
+export function inlineBoundParams(sqlText: string, params: unknown[], dialect: string): string {
+  if (!params || params.length === 0) return sqlText;
+  const style = placeholderStyleFor(dialect);
+  let res = sqlText;
+  if (style === 'dollar') {
+    res = res.replace(/\$([1-9]\d*)\b/g, (match, num) => {
+      const idx = parseInt(num, 10) - 1;
+      return idx in params ? formatSqlLiteral(params[idx]) : match;
+    });
+  } else if (style === 'colon') {
+    res = res.replace(/:([1-9]\d*)\b/g, (match, num) => {
+      const idx = parseInt(num, 10) - 1;
+      return idx in params ? formatSqlLiteral(params[idx]) : match;
+    });
+  } else if (style === 'at') {
+    res = res.replace(/@p(\d+)\b/gi, (match, num) => {
+      const idx = parseInt(num, 10);
+      return idx in params ? formatSqlLiteral(params[idx]) : match;
+    });
+  }
+  if (res.includes('?')) {
+    let paramIdx = 0;
+    res = res.replace(/\?/g, (match) => {
+      if (paramIdx < params.length) {
+        const val = formatSqlLiteral(params[paramIdx]);
+        paramIdx++;
+        return val;
+      }
+      return match;
+    });
+  }
+  return res;
+}
 
 /**
  * The height of a panel's body — the rows grid or Insight — not of the whole
@@ -565,20 +601,28 @@ const PeekGrid: React.FC<{
     onOverlayOpenChange?.(crud.overlayOpen);
   }, [crud.overlayOpen, onOverlayOpenChange]);
 
+  const [openError, setOpenError] = useState<string | null>(null);
+
   const openInSqlEditor = useCallback(() => {
     const composed = composePeekSql(entry.baseSql, entry.baseParams, {
       where: entry.whereClause,
       orderBy: entry.orderByClause,
     });
-    const baseSql = 'error' in composed ? entry.baseSql : composed.sql;
-    const finalSql = `${baseSql.replace(/;+\s*$/, '')} LIMIT ${entry.limit};`;
+    if ('error' in composed) {
+      setOpenError(composed.error);
+      return;
+    }
+    setOpenError(null);
+    const inlined = inlineBoundParams(composed.sql, composed.params, dialect || 'postgres');
+    const finalSql = `${inlined.replace(/;+\s*$/, '')};`;
     const state = useSqlEditorStore.getState();
     state.addTab();
     const newTabId = useSqlEditorStore.getState().activeTabId;
     state.renameTab(newTabId, entry.tableName);
+    state.ensureConnectionSelected(connectionId);
     state.setSql(finalSql);
     state.closeDataPeek();
-  }, [entry]);
+  }, [entry, connectionId, dialect]);
 
   return (
     <div
@@ -692,6 +736,24 @@ const PeekGrid: React.FC<{
 
       {/* Keep filters editable while a page reloads so clearing WHERE can apply. */}
       {tab === 'rows' && <PeekFilterBar entry={entry} />}
+
+      {openError && (
+        <div
+          role="alert"
+          data-testid={`data-peek-open-error-${entry.id}`}
+          className="mx-0.5 my-1 rounded border border-rose-500/40 bg-rose-950/30 px-3 py-2 text-xs font-semibold text-rose-300 flex items-center justify-between"
+        >
+          <span>{openError}</span>
+          <button
+            type="button"
+            onClick={() => setOpenError(null)}
+            className="text-rose-400 hover:text-rose-200 p-0.5"
+            title="Dismiss error"
+          >
+            <X className="w-3.5 h-3.5" strokeWidth={SQL_ICON_STROKE} />
+          </button>
+        </div>
+      )}
 
       {crud.writeErrorBanner}
 

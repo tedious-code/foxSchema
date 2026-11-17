@@ -2226,19 +2226,8 @@ const ResultsPanelView: React.FC<Props> = ({
   onChangeMaxRows,
   onClearResults,
 }) => {
-  const storeLayout = useSqlEditorStore(
-    (s) => s.tabs.find((t) => t.id === s.activeTabId)?.layout ?? 'byCredential'
-  );
-  const setLayout = useSqlEditorStore((s) => s.setLayout);
-  const storeMaxRows = useSqlEditorStore((s) => s.maxRows);
-  const setMaxRows = useSqlEditorStore((s) => s.setMaxRows);
-  const clearResults = useSqlEditorStore((s) => s.clearResults);
-
-  const activeLayout = layout ?? storeLayout;
-  const handleSetLayout = onChangeLayout ?? setLayout;
-  const effectiveMaxRows = maxRows ?? storeMaxRows;
-  const handleSetMaxRows = onChangeMaxRows ?? setMaxRows;
-  const handleClearResults = onClearResults ?? clearResults;
+  const activeLayout = layout ?? 'byCredential';
+  const effectiveMaxRows = maxRows ?? 200;
 
   // Engine SQL for peek / compare / edit. Must stay above the empty-runs return.
   const pageSqlByConnection = useSqlEditorStore(
@@ -2266,12 +2255,13 @@ const ResultsPanelView: React.FC<Props> = ({
             type="button"
             title="By credential — statements stacked vertically"
             data-testid="sql-layout-by-credential"
-            onClick={() => handleSetLayout('byCredential')}
+            disabled={!onChangeLayout}
+            onClick={() => onChangeLayout?.('byCredential')}
             className={`flex items-center gap-1 whitespace-nowrap px-2 py-1 text-[10px] font-bold transition ${
               activeLayout === 'byCredential'
                 ? 'bg-slate-800 text-cyan-400'
                 : 'text-slate-500 hover:text-slate-300'
-            }`}
+            } disabled:opacity-50`}
           >
             <Rows3 className="w-3 h-3 text-cyan-400" strokeWidth={SQL_ICON_STROKE} /> By cred
           </button>
@@ -2279,12 +2269,13 @@ const ResultsPanelView: React.FC<Props> = ({
             type="button"
             title="Side by side (per statement) — compare cell values across servers"
             data-testid="sql-layout-side-by-side"
-            onClick={() => handleSetLayout('sideBySide')}
+            disabled={!onChangeLayout}
+            onClick={() => onChangeLayout?.('sideBySide')}
             className={`flex items-center gap-1 whitespace-nowrap px-2 py-1 text-[10px] font-bold transition border-l border-slate-800 ${
               activeLayout === 'sideBySide'
                 ? 'bg-slate-800 text-cyan-400'
                 : 'text-slate-500 hover:text-slate-300'
-            }`}
+            } disabled:opacity-50`}
           >
             <Columns2 className="w-3 h-3 text-sky-400" strokeWidth={SQL_ICON_STROKE} /> Side-by-side
           </button>
@@ -2301,20 +2292,21 @@ const ResultsPanelView: React.FC<Props> = ({
             min={1}
             max={5000}
             value={effectiveMaxRows}
+            disabled={!onChangeMaxRows}
             onChange={(e) => {
               const n = Number(e.target.value);
-              if (!Number.isFinite(n)) return;
-              handleSetMaxRows(Math.min(5000, Math.max(1, Math.floor(n))));
+              if (!Number.isFinite(n) || !onChangeMaxRows) return;
+              onChangeMaxRows(Math.min(5000, Math.max(1, Math.floor(n))));
             }}
-            className="w-14 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-[11px] text-slate-200 font-mono outline-none accent-focus"
+            className="w-14 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-[11px] text-slate-200 font-mono outline-none accent-focus disabled:opacity-50"
           />
         </label>
 
-        {runs.length > 0 && (
+        {runs.length > 0 && onClearResults && (
           <button
             type="button"
             data-testid="sql-clear-results"
-            onClick={handleClearResults}
+            onClick={onClearResults}
             className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-semibold text-slate-500 hover:text-slate-300 transition"
           >
             <Eraser className="w-3 h-3 text-orange-400" strokeWidth={SQL_ICON_STROKE} /> Clear results

@@ -320,6 +320,89 @@ describe('PipelineExecutor', () => {
     expect(values).toEqual([2]);
   });
 
+  describe('a failure downstream', () => {
+    /** Last status (and message) each pipe reported, from the event log. */
+    function finalStatuses(events: MemoryEvents): Record<string, { status: unknown; message?: string }> {
+      const out: Record<string, { status: unknown; message?: string }> = {};
+      for (const event of events.events) {
+        if (!event.pipeId || (event.type !== 'pipe.status' && event.type !== 'batch.progress')) continue;
+        out[event.pipeId] = { status: event.data?.status, ...(event.message ? { message: event.message } : {}) };
+      }
+      return out;
+    }
+
+    function chain(sourceExtra: Partial<PipeDef> = {}) {
+      return pipeline(
+        [
+          { ...sourcePipe, ...sourceExtra },
+          { id: 'shape', role: 'transform', type: 'test.transform', config: {}, concurrency: 1 },
+          { id: 'sink', role: 'sink', type: 'test.sink', config: {}, concurrency: 1 },
+        ],
+        [
+          { from: 'source', to: 'shape' },
+          { from: 'shape', to: 'sink' },
+        ],
+      );
+    }
+
+    function registry(reads: { count: number }, sourceOnError?: () => 'skip') {
+      return new PipeRegistry([
+        {
+          type: 'test.source',
+          role: 'source',
+          async *read() {
+            reads.count++;
+            yield batch('a', 1);
+          },
+          ...(sourceOnError ? { onError: sourceOnError } : {}),
+        },
+        { type: 'test.transform', role: 'transform', async transform(input: RecordBatch) { return input; } },
+        {
+          type: 'test.sink',
+          role: 'sink',
+          async write() {
+            throw new Error('boom: sink failed');
+          },
+        },
+      ]);
+    }
+
+    it('is recorded on the pipe that failed; the pipes upstream are stopped, not failed', async () => {
+      const events = new MemoryEvents();
+      await expect(
+        new PipelineExecutor({ registry: registry({ count: 0 }), events }).execute(chain(), {
+          workflowRunId: 'run-downstream',
+        }),
+      ).rejects.toThrow('boom: sink failed');
+
+      expect(finalStatuses(events)).toEqual({
+        sink: { status: 'failed', message: 'boom: sink failed' },
+        shape: { status: 'cancelled', message: 'Stopped because pipe sink failed.' },
+        source: { status: 'cancelled', message: 'Stopped because pipe sink failed.' },
+      });
+    });
+
+    it("does not trigger the source's own retry policy", async () => {
+      const reads = { count: 0 };
+      await expect(
+        new PipelineExecutor({ registry: registry(reads) }).execute(
+          chain({ retry: { attempts: 3, backoff: 'fixed', maxDelayMs: 0, jitter: false, on: 'all' } }),
+          { workflowRunId: 'run-no-reread' },
+        ),
+      ).rejects.toThrow('boom: sink failed');
+      // Re-reading the source because the sink failed would write it all again.
+      expect(reads.count).toBe(1);
+    });
+
+    it("is not swallowed by the source's onError skip", async () => {
+      await expect(
+        new PipelineExecutor({ registry: registry({ count: 0 }, () => 'skip') }).execute(chain(), {
+          workflowRunId: 'run-no-skip',
+        }),
+      ).rejects.toThrow('boom: sink failed');
+    });
+  });
+
   it('honors connector onError skip without failing the pipeline', async () => {
     const written: RecordBatch[] = [];
     const registry = new PipeRegistry([

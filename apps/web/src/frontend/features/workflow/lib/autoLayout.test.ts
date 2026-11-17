@@ -5,7 +5,14 @@
  */
 import { describe, expect, it } from 'vitest';
 import { layoutPipeline } from './autoLayout';
-import { configProblem, failureOrigins, isFailedStatus, validationTarget } from './pipeIssues';
+import {
+  configProblem,
+  failureOrigins,
+  isFailedStatus,
+  isStoppedStatus,
+  stoppedByPipe,
+  validationTarget,
+} from './pipeIssues';
 
 const n = (...ids: string[]) => ids.map((id) => ({ id }));
 const e = (source: string, target: string, sourceHandle?: string) => ({ source, target, sourceHandle });
@@ -93,6 +100,11 @@ describe('pipe issues', () => {
     expect(isFailedStatus('failed')).toBe(true);
     expect(isFailedStatus('success')).toBe(false);
     expect(isFailedStatus(undefined)).toBe(false);
+    // The engine records a pipe stopped by a downstream failure as cancelled.
+    expect(isFailedStatus('cancelled')).toBe(false);
+    expect(isStoppedStatus('cancelled')).toBe(true);
+    expect(stoppedByPipe('Stopped because pipe paid failed.')).toBe('paid');
+    expect(stoppedByPipe('The operation was aborted.')).toBeUndefined();
     expect(configProblem('{"a":1}')).toBeNull();
     expect(configProblem('{"a":')).toMatch(/not valid JSON/);
     expect(configProblem('[1]')).toBe('Config must be a JSON object.');

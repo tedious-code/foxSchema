@@ -11,8 +11,11 @@
 /** What the canvas shows on a pipe; `null` when there is nothing to flag. */
 export type PipeIssue =
   | { kind: 'run-failed'; message: string }
-  /** Recorded as failed only because a pipe downstream of it failed. */
-  | { kind: 'run-stopped'; message: string; causeId: string }
+  /**
+   * Stopped rather than failed: cut short by a pipe downstream that failed,
+   * or by the run being cancelled. `causeId` names the failed pipe when known.
+   */
+  | { kind: 'run-stopped'; message: string; causeId?: string }
   | { kind: 'invalid'; message: string }
   | { kind: 'config'; message: string };
 
@@ -33,11 +36,24 @@ export function validationTarget(
   return pipeline ? { pipelineId: pipeline[1]!, detail: rest(pipeline) } : null;
 }
 
-/** Statuses the engine reports for a pipe that did not finish cleanly. */
-const FAILED = new Set(['failed', 'error', 'cancelled', 'timeout', 'timed_out']);
+/**
+ * Statuses the engine reports for a pipe that failed. `cancelled` is not one:
+ * the engine records it for a pipe stopped by a failure downstream ("Stopped
+ * because pipe X failed.") or by a cancelled run.
+ */
+const FAILED = new Set(['failed', 'error', 'timeout', 'timed_out']);
 
 export function isFailedStatus(status: string | undefined): boolean {
   return status !== undefined && FAILED.has(status);
+}
+
+export function isStoppedStatus(status: string | undefined): boolean {
+  return status === 'cancelled';
+}
+
+/** The pipe a "Stopped because pipe X failed." message names, if any. */
+export function stoppedByPipe(message: string | undefined): string | undefined {
+  return message ? /^Stopped because pipe ([\w.-]+) failed\.$/.exec(message)?.[1] : undefined;
 }
 
 /** Whether a pipe's raw config would fail to save, and why. */
@@ -55,9 +71,10 @@ export function configProblem(raw: string): string | null {
 /**
  * Tell the pipe that failed from the ones that only stopped because of it.
  *
- * When a pipe throws, the engine also records every pipe upstream of it as
- * failed, with the same error: a run where only `paid` threw lists `start`,
- * `check` and `route` as failed too. A failed pipe is the origin when none of
+ * Before the engine recorded upstream pipes as stopped, a pipe that threw
+ * left every pipe upstream of it recorded as failed with the same error: a
+ * run where only `paid` threw listed `start`, `check` and `route` as failed
+ * too. Runs recorded then still read that way, so the canvas still traces it. A failed pipe is the origin when none of
  * the pipes it feeds failed with the same message; any other failed pipe is
  * traced downstream, along pipes that failed with that message, to its origin.
  *

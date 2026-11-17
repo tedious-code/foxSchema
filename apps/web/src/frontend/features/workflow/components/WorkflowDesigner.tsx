@@ -93,6 +93,8 @@ import {
   configProblem,
   failureOrigins,
   isFailedStatus,
+  isStoppedStatus,
+  stoppedByPipe,
   validationTarget,
   type PipeIssue,
 } from '../lib/pipeIssues';
@@ -1174,8 +1176,9 @@ function Designer() {
   /** One problem per pipe, most fixable first: bad config, then validation, then the run. */
   const issuesByNode = useMemo(() => {
     const issues = new Map<string, PipeIssue>();
-    // The engine marks every pipe upstream of a failure failed too; work out
-    // which pipe actually failed so only that one is blamed.
+    // Runs recorded before the engine marked upstream pipes as stopped list
+    // every pipe upstream of a failure as failed too; trace those back so
+    // only the pipe that failed is blamed.
     const failed = new Map<string, string>();
     for (const node of nodes) {
       const state = debugPipeStates[node.id];
@@ -1196,6 +1199,23 @@ function Designer() {
         validationIssue.pipeId === node.data.pipeId
       ) {
         issues.set(node.id, { kind: 'invalid', message: validationIssue.message });
+        continue;
+      }
+      const state = debugPipeStates[node.id];
+      if (isStoppedStatus(state?.status)) {
+        const causePipeId = stoppedByPipe(state?.error);
+        const cause = causePipeId
+          ? nodes.find(
+              (candidate) =>
+                candidate.data.pipelineId === node.data.pipelineId &&
+                candidate.data.pipeId === causePipeId,
+            )
+          : undefined;
+        issues.set(node.id, {
+          kind: 'run-stopped',
+          message: state?.error || 'Stopped before it finished.',
+          ...(cause ? { causeId: cause.id } : {}),
+        });
         continue;
       }
       const message = failed.get(node.id);

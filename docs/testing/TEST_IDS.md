@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1069** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1075** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1113,10 +1113,12 @@ Every control has a test ID: **1069** buttons, text boxes, selects and textareas
   - `data-peek-close` · button · Close data peek
   - `data-peek-close-panel-{id}` · button · Close this panel
   - `data-peek-crumb-close-{id}` · button · Close panel
+  - `data-peek-crumb-jump-{id}` · button
   - `data-peek-drag-{id}` · button · Drag to rearrange panels
   - `data-peek-filters-{id}` · div
   - `data-peek-grid-{id}` · div
   - `data-peek-limit-{id}` · input
+  - `data-peek-open-sql-{id}` · button · Open query in a new SQL Editor tab
   - `data-peek-order-{id}` · input · created_at
   - `data-peek-order-{id}-{index}` · input · created_at
   - `data-peek-order-add-{id}` · button · Add sort
@@ -1140,6 +1142,7 @@ Every control has a test ID: **1069** buttons, text boxes, selects and textareas
   - `sql-editor-tabs` · div
   - `sql-tab-add` · button · New tab
   - `sql-tab-close-{id}` · button
+  - `sql-tab-dialect-{id}` · span
   - `sql-tab-rename` · input
   - `sql-tab-rename-btn-{id}` · button · Rename query
 - **FileImportsPanel** · `features/sql-editor/components/FileImportsPanel.tsx`
@@ -1209,9 +1212,13 @@ Every control has a test ID: **1069** buttons, text boxes, selects and textareas
   - `{testId}` · div · passed in by the parent
   - `{testId}-bar-{i}` · rect · passed in by the parent
 - **ResultsPanel** · `features/sql-editor/components/ResultsPanel.tsx`
+  - `sql-clear-results` · button · Clear results
   - `sql-cred-refresh` · button · Refresh this server
   - `sql-install-driver-{connectionId}` · button in MissingDriverBanner · Install the driver package on the server
   - `sql-install-driver-{connectionId}-banner` · div in MissingDriverBanner
+  - `sql-layout-by-credential` · button · By credential — statements stacked vertically
+  - `sql-layout-side-by-side` · button · Side by side (per statement) — compare cell values across servers
+  - `sql-max-rows` · input
   - `sql-pane-install-driver-{connectionId}` · button in MissingDriverBanner · Install the driver package on the server
   - `sql-pane-install-driver-{connectionId}-banner` · div in MissingDriverBanner
   - `sql-pane-resize` · div · Drag to resize this table
@@ -1271,6 +1278,7 @@ Every control has a test ID: **1069** buttons, text boxes, selects and textareas
   - `sql-results-peek-instruction` · p
   - `sql-results-running` · div
   - `sql-results-side-by-side` · div
+  - `sql-results-toolbar` · div
   - `sql-results-warnings` · div
   - `sql-run-error` · div
 - **SelectColumnPicker** · `features/sql-editor/components/SelectColumnPicker.tsx`
@@ -1300,21 +1308,21 @@ Every control has a test ID: **1069** buttons, text boxes, selects and textareas
 - **SqlEditorView** · `features/sql-editor/components/SqlEditorView.tsx`
   - `sql-bookmark-save` · button · Save current query as a bookmark (uses the tab title)
   - `sql-bookmark-save-toolbar` · button · Bookmark this query (uses the tab title)
-  - `sql-clear-results` · button · Clear results
   - `sql-editor-loading` · div
   - `sql-editor-resize` · div · Resize editor and results
+  - `sql-editor-status-bar` · div
   - `sql-editor-view` · div
   - `sql-format-btn` · button · Pretty-print SQL (sql-formatter) and JS/TS/Node cells (Prettier)
   - `sql-format-note` · span
-  - `sql-layout-by-credential` · button · By credential — statements stacked vertically
-  - `sql-layout-side-by-side` · button · Side by side (per statement) — compare cell values across servers
-  - `sql-max-rows` · input
   - `sql-multi-table-threshold` · input
   - `sql-one-transaction` · input
   - `sql-refresh-btn` · button · Refresh
   - `sql-run-btn` · button
   - `sql-runs-drawer-btn` · button · Recent runs
   - `sql-safe-mode` · input
+  - `sql-safety-policy-btn` · button · Execution & Safety Policy (Safe mode, Transaction, Multi-table threshold)
+  - `sql-safety-policy-close` · button · Close safety popover
+  - `sql-safety-policy-popover` · div
   - `sql-schema-new-table` · button · Create table — opens blueprint to add columns
   - `sql-secrets-refresh` · button · Re-fetch cloud secrets into Variables
   - `sql-sidebar` · aside
@@ -1517,6 +1525,8 @@ Every control has a test ID: **1069** buttons, text boxes, selects and textareas
 - **usePeekGridCrud** · `features/sql-editor/components/usePeekGridCrud.tsx`
   - `{testId('add')}` · button · Add row · passed in by the parent
   - `{testId('clone')}` · button · Clone selected row · passed in by the parent
+  - `{testId('copy-insert')}` · button · Copy selected row as SQL INSERT · passed in by the parent
+  - `{testId('copy-json')}` · button · Copy selected row as JSON · passed in by the parent
   - `{testId('crud')}` · div · passed in by the parent
   - `{testId('delete')}` · button · Delete selected row · passed in by the parent
   - `{testId('edit')}` · button · Edit selected row · passed in by the parent

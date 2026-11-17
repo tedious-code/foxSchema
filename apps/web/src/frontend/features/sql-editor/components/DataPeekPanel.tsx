@@ -14,9 +14,10 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { GripVertical, Loader2, Plus, X } from 'lucide-react';
+import { Code2, GripVertical, Loader2, Plus, X } from 'lucide-react';
 import { useSqlEditorStore, type DataPeekEntry } from '@/features/sql-editor/state/useSqlEditorStore';
 import {
+  composePeekSql,
   foreignKeyLinksFor,
   fkDrillTableName,
   fkKey,
@@ -187,7 +188,13 @@ const PeekFilterBar: React.FC<{
           </span>
         </div>
       )}
-      <div className="flex min-w-0 flex-[2] basis-full flex-col gap-1">
+      <div
+        className={`flex min-w-0 flex-col gap-1 ${
+          wheres.length === 1 && orders.length === 1
+            ? 'basis-auto flex-[2] min-w-[14rem]'
+            : 'basis-full flex-[2]'
+        }`}
+      >
         {wheres.map((row, index) => (
           <label key={`where-${index}`} className="flex items-center gap-1 min-w-0">
             <span className="w-14 shrink-0 text-xs font-bold uppercase tracking-wide text-slate-400">
@@ -240,7 +247,13 @@ const PeekFilterBar: React.FC<{
           Add condition
         </button>
       </div>
-      <div className="flex min-w-0 flex-1 basis-full flex-col gap-1">
+      <div
+        className={`flex min-w-0 flex-col gap-1 ${
+          wheres.length === 1 && orders.length === 1
+            ? 'basis-auto flex-1 min-w-[12rem]'
+            : 'basis-full flex-1'
+        }`}
+      >
         {orders.map((row, index) => (
           <label key={`order-${index}`} className="flex items-center gap-1 min-w-0">
             <span className="w-14 shrink-0 text-xs font-bold uppercase tracking-wide text-slate-400">
@@ -552,6 +565,21 @@ const PeekGrid: React.FC<{
     onOverlayOpenChange?.(crud.overlayOpen);
   }, [crud.overlayOpen, onOverlayOpenChange]);
 
+  const openInSqlEditor = useCallback(() => {
+    const composed = composePeekSql(entry.baseSql, entry.baseParams, {
+      where: entry.whereClause,
+      orderBy: entry.orderByClause,
+    });
+    const baseSql = 'error' in composed ? entry.baseSql : composed.sql;
+    const finalSql = `${baseSql.replace(/;+\s*$/, '')} LIMIT ${entry.limit};`;
+    const state = useSqlEditorStore.getState();
+    state.addTab();
+    const newTabId = useSqlEditorStore.getState().activeTabId;
+    state.renameTab(newTabId, entry.tableName);
+    state.setSql(finalSql);
+    state.closeDataPeek();
+  }, [entry]);
+
   return (
     <div
       className={`px-2 pb-1 flex flex-col w-full shrink-0 transition-opacity ${
@@ -602,6 +630,17 @@ const PeekGrid: React.FC<{
             All rows
           </button>
         )}
+        <button
+          type="button"
+          data-testid={`data-peek-open-sql-${entry.id}`}
+          title="Open query in a new SQL Editor tab"
+          aria-label={`Open ${entry.title} query in SQL Editor`}
+          onClick={openInSqlEditor}
+          className="inline-flex items-center gap-1 shrink-0 rounded border border-cyan-800/70 bg-cyan-950/30 px-2 py-0.5 text-xs font-bold text-cyan-200 hover:bg-cyan-900/50 hover:text-cyan-100 hover:border-cyan-600 transition-colors"
+        >
+          <Code2 className="w-3 h-3" strokeWidth={SQL_ICON_STROKE} />
+          <span>Open in SQL</span>
+        </button>
         {crud.crudButtons}
         {!crud.editability.editable && crud.editability.reason && entry.result?.ok && (
           <span
@@ -800,6 +839,11 @@ export const DataPeekPanel: React.FC = () => {
   const tables = schemaCache[dataPeek.connectionId]?.tables;
   const entries = dataPeek.entries;
 
+  const scrollToPanel = (id: string) => {
+    const el = scrollRef.current?.querySelector(`[data-testid="data-peek-grid-${id}"]`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return createPortal(
     <div
       /*
@@ -836,7 +880,15 @@ export const DataPeekPanel: React.FC = () => {
                 className="inline-flex items-center gap-1 shrink-0 max-w-[16rem] rounded-md border border-slate-700 bg-slate-950/60 px-2 py-1"
                 title={e.title}
               >
-                <span className="truncate text-sm font-bold text-slate-200">{e.title}</span>
+                <button
+                  type="button"
+                  data-testid={`data-peek-crumb-jump-${e.id}`}
+                  onClick={() => scrollToPanel(e.id)}
+                  title={`Jump to ${e.title} panel`}
+                  className="truncate text-sm font-bold text-slate-200 hover:text-cyan-300 text-left focus:outline-none"
+                >
+                  {e.title}
+                </button>
                 {e.parentId && (
                   <button
                     type="button"

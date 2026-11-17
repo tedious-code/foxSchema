@@ -8,7 +8,7 @@
  * the extra prompt.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { CopyPlus, Pencil, Plus, Trash2 } from 'lucide-react';
+import { CopyPlus, FileCode2, FileJson, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { useSyncStore } from '@/features/compare';
 import { useAuthStore } from '@/platform/authStore';
@@ -66,8 +66,8 @@ export interface PeekGridCrudArgs {
   /** Soft reset selection when the result payload refreshes. */
   resultEpoch: unknown;
   onAfterWrite: () => void | Promise<void>;
-  /** Build data-testid for crud / add / edit / clone / delete / write-error. */
-  testId: (action: 'crud' | 'add' | 'edit' | 'clone' | 'delete' | 'write-error') => string;
+  /** Build data-testid for crud / add / edit / clone / delete / copy-json / copy-insert / write-error. */
+  testId: (action: 'crud' | 'add' | 'edit' | 'clone' | 'delete' | 'write-error' | 'copy-json' | 'copy-insert') => string;
 }
 
 export interface PeekGridCrud {
@@ -318,12 +318,48 @@ export function usePeekGridCrud(args: PeekGridCrudArgs): PeekGridCrud {
     queueOrRun(plan);
   };
 
+  const copyToClipboard = async (text: string) => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      }
+    } catch {
+      // Insecure context or clipboard write denied
+    }
+  };
+
+  const copyRowJson = () => {
+    if (selectedRowIndex == null || !rows[selectedRowIndex]) return;
+    const row = rows[selectedRowIndex];
+    const obj = Object.fromEntries(columns.map((c, i) => [c, row[i]]));
+    void copyToClipboard(JSON.stringify(obj, null, 2));
+  };
+
+  const copyRowInsert = () => {
+    if (selectedRowIndex == null || !rows[selectedRowIndex]) return;
+    const row = rows[selectedRowIndex];
+    const values = Object.fromEntries(columns.map((c, i) => [c, row[i]]));
+    const plan = buildPeekInsert({
+      tableName,
+      dialect,
+      values,
+      identityColumns: editability.identityColumns,
+    });
+    const sql = 'error' in plan ? '' : plan.displaySql || plan.sql;
+    if (sql) {
+      void copyToClipboard(sql);
+    }
+  };
+
   const btn =
     'p-1 rounded text-slate-400 hover:bg-slate-800 disabled:opacity-40';
 
-  const crudButtons = showCrud ? (
+  const showRowCopy = resultOk && selectedRowIndex != null && Boolean(selectedRow);
+  const showCrudBar = showCrud || showRowCopy;
+
+  const crudButtons = showCrudBar ? (
     <div className="flex items-center gap-0.5 shrink-0" data-testid={testId('crud')}>
-      {canInsert && (
+      {showCrud && canInsert && (
         <button
           type="button"
           data-testid={testId('add')}
@@ -336,7 +372,7 @@ export function usePeekGridCrud(args: PeekGridCrudArgs): PeekGridCrud {
           <Plus className="w-3.5 h-3.5" strokeWidth={SQL_ICON_STROKE} />
         </button>
       )}
-      {canUpdate && (
+      {showCrud && canUpdate && (
         <button
           type="button"
           data-testid={testId('edit')}
@@ -349,7 +385,7 @@ export function usePeekGridCrud(args: PeekGridCrudArgs): PeekGridCrud {
           <Pencil className="w-3.5 h-3.5" strokeWidth={SQL_ICON_STROKE} />
         </button>
       )}
-      {canInsert && (
+      {showCrud && canInsert && (
         <button
           type="button"
           data-testid={testId('clone')}
@@ -364,7 +400,7 @@ export function usePeekGridCrud(args: PeekGridCrudArgs): PeekGridCrud {
           <CopyPlus className="w-3.5 h-3.5" strokeWidth={SQL_ICON_STROKE} />
         </button>
       )}
-      {canDelete && (
+      {showCrud && canDelete && (
         <button
           type="button"
           data-testid={testId('delete')}
@@ -376,6 +412,30 @@ export function usePeekGridCrud(args: PeekGridCrudArgs): PeekGridCrud {
         >
           <Trash2 className="w-3.5 h-3.5" strokeWidth={SQL_ICON_STROKE} />
         </button>
+      )}
+      {showRowCopy && (
+        <>
+          <button
+            type="button"
+            data-testid={testId('copy-json')}
+            title="Copy selected row as JSON"
+            aria-label="Copy selected row as JSON"
+            onClick={copyRowJson}
+            className={`${btn} hover:text-sky-300`}
+          >
+            <FileJson className="w-3.5 h-3.5" strokeWidth={SQL_ICON_STROKE} />
+          </button>
+          <button
+            type="button"
+            data-testid={testId('copy-insert')}
+            title="Copy selected row as SQL INSERT"
+            aria-label="Copy selected row as SQL INSERT"
+            onClick={copyRowInsert}
+            className={`${btn} hover:text-indigo-300`}
+          >
+            <FileCode2 className="w-3.5 h-3.5" strokeWidth={SQL_ICON_STROKE} />
+          </button>
+        </>
       )}
     </div>
   ) : null;

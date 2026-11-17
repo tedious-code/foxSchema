@@ -8,7 +8,8 @@
 import { useLoaded } from '@/shared/lib/useLoaded';
 import { useMemo, useState } from 'react';
 import type { CredentialMeta, WorkflowSummary } from '../api/engineClient';
-import { TimezoneSelect } from './controls';
+import { Play } from 'lucide-react';
+import { Button, TimezoneSelect } from './controls';
 import {
   CRON_EXECUTION_TYPES,
   LOCAL_TIMEZONE,
@@ -35,6 +36,12 @@ interface Props {
   workflows?: WorkflowSummary[];
   currentWorkflowId?: string;
   onChange: (next: WorkflowTrigger) => void;
+  /**
+   * Manual triggers only: save and Test run with the input data above. Absent
+   * when the designer cannot run; `runBlocked` says why the button is off.
+   */
+  onRun?: () => void;
+  runBlocked?: string | null;
 }
 
 /**
@@ -48,6 +55,8 @@ export function TriggerInlineSettings({
   workflows = [],
   currentWorkflowId,
   onChange,
+  onRun,
+  runBlocked,
 }: Props): React.JSX.Element | null {
   const manual = trigger.kind === 'manual' ? trigger : null;
   const cron = trigger.kind === 'cron' ? trigger : null;
@@ -101,6 +110,21 @@ export function TriggerInlineSettings({
           <div className="hint">
             Pre-start parameters for debug or test runs — sent as the run
             payload; an array of objects becomes one record per item.
+          </div>
+        )}
+        {onRun && (
+          <div className="trigger-run-row">
+            <Button
+              variant="primary"
+              data-testid="workflow-trigger-settings-run"
+              disabled={Boolean(inputError) || Boolean(runBlocked)}
+              title={inputError ? 'Fix the input data first' : (runBlocked ?? 'Save, then Test run with this input')}
+              onClick={onRun}
+            >
+              <Play />
+              Run with this input
+            </Button>
+            {runBlocked && <span className="hint">{runBlocked}</span>}
           </div>
         )}
       </>

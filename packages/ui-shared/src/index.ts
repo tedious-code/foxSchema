@@ -156,14 +156,18 @@ export type {
 // DBA utilities: index maintenance, sizes, backup and restore commands.
 export {
   backupFileName, backupHistoryQuery, backupSupport, buildBackupCommands, buildIndexDefragSql,
-  buildIndexDropSql, buildIndexFragmentationCustomTemplate, defaultBackupSettings,
-  dialectSupportsDbaUtility, dialectSupportsIndexFragmentation, formatBytes, formatPct,
+  buildIndexDropSql, buildIndexFragmentationCustomTemplate, buildLockWaitProbeQuery,
+  buildSessionControlSql, buildTableHealthProbeQuery, buildTableMaintenanceSql,
+  defaultBackupSettings, dialectSupportsDbaUtility, dialectSupportsIndexFragmentation,
+  dialectSupportsSessionLocks, dialectSupportsTableMaintenance, formatBytes, formatPct,
   formatRowCount, fragmentationSeverity, groupObjectSizes, indexMaintenanceVerb,
-  indexTableSizeGroups, lookupIndexSizeRow, normalizeBackupHistory, parseTableList,
+  indexTableSizeGroups, lookupIndexSizeRow, normalizeBackupHistory, normalizeLockWaitRows,
+  normalizeTableHealthRows, buildBlockingChains, parseTableList,
 } from '@foxschema/sql';
 export type {
-  BackupCommands, BackupHistoryEntry, BackupRunsOn, BackupScope, BackupSettings, DbaUtilityKind,
-  TableSizeGroup,
+  BackupCommands, BackupHistoryEntry, BackupRunsOn, BackupScope, BackupSettings,
+  BlockingChain, DbaUtilityKind, LockWaitRow, SessionControlAction, SessionLocksSupport,
+  TableHealthRow, TableMaintenanceAction, TableMaintenanceSupport, TableSizeGroup,
 } from '@foxschema/sql';
 
 // Safe column change: what a rename or type change touches, and its steps as SQL to review.

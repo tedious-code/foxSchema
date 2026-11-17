@@ -21,7 +21,25 @@ import {
   type SystemInfoMetric,
   type UserSessionRow,
 } from '@foxschema/db';
-import { dbaPrivilegeRemedy } from '@foxschema/sql';
+import {
+  buildBlockingChains,
+  buildLockWaitProbeQuery,
+  buildSessionControlSql,
+  buildTableHealthProbeQuery,
+  buildTableMaintenanceSql,
+  dbaPrivilegeRemedy,
+  dialectSupportsSessionLocks,
+  dialectSupportsTableMaintenance,
+  normalizeLockWaitRows,
+  normalizeTableHealthRows,
+  type BlockingChain,
+  type LockWaitRow,
+  type SessionControlAction,
+  type SessionLocksSupport,
+  type TableHealthRow,
+  type TableMaintenanceAction,
+  type TableMaintenanceSupport,
+} from '@foxschema/sql';
 
 export type DbaUtilityProbeSuccess = {
   kind: DbaUtilityKind;
@@ -111,5 +129,122 @@ export async function probeDbaUtility(opts: {
         support,
       },
     };
+  }
+}
+
+export async function probeSessionLocks(opts: {
+  dialect: string;
+  option: ConnectionOptions;
+}): Promise<
+  | { ok: true; value: { support: SessionLocksSupport; locks: LockWaitRow[]; chains: BlockingChain[] } }
+  | { ok: false; failure: { status: number; error: string; support: SessionLocksSupport } }
+> {
+  const support = dialectSupportsSessionLocks(opts.dialect);
+  if (!support.supported) {
+    return { ok: false, failure: { status: 400, error: support.hint, support } };
+  }
+  const built = buildLockWaitProbeQuery(opts.dialect);
+  if ('error' in built) {
+    return { ok: false, failure: { status: 400, error: built.error, support } };
+  }
+  try {
+    const raw = await ConnectionFactory.executeQuery<Record<string, unknown>>(
+      opts.dialect,
+      opts.option,
+      built.sql,
+      built.params,
+    );
+    const locks = normalizeLockWaitRows(raw);
+    const chains = buildBlockingChains(locks);
+    return { ok: true, value: { support, locks, chains } };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Session lock probe failed';
+    const remedy = dbaPrivilegeRemedy(opts.dialect, 'sessions', message);
+    return {
+      ok: false,
+      failure: {
+        status: remedy ? 403 : 500,
+        error: remedy ? `${message} — ${remedy}` : `${message} — ${support.hint}`,
+        support,
+      },
+    };
+  }
+}
+
+export async function executeSessionControl(opts: {
+  dialect: string;
+  option: ConnectionOptions;
+  action: SessionControlAction;
+  sessionId: string;
+}): Promise<
+  | { ok: true; value: { ok: true; sql: string; description: string } }
+  | { ok: false; failure: { status: number; error: string } }
+> {
+  const built = buildSessionControlSql(opts.dialect, opts.action, opts.sessionId);
+  if ('error' in built) {
+    return { ok: false, failure: { status: 400, error: built.error } };
+  }
+  try {
+    await ConnectionFactory.executeQuery(opts.dialect, opts.option, built.sql, []);
+    return { ok: true, value: { ok: true, sql: built.sql, description: built.description } };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Session control failed';
+    return { ok: false, failure: { status: 500, error: message } };
+  }
+}
+
+export async function probeTableHealth(opts: {
+  dialect: string;
+  option: ConnectionOptions;
+  schema?: string;
+}): Promise<
+  | { ok: true; value: { support: TableMaintenanceSupport; tables: TableHealthRow[] } }
+  | { ok: false; failure: { status: number; error: string; support: TableMaintenanceSupport } }
+> {
+  const support = dialectSupportsTableMaintenance(opts.dialect);
+  if (!support.canInspectHealth) {
+    return { ok: false, failure: { status: 400, error: support.hint, support } };
+  }
+  const built = buildTableHealthProbeQuery(opts.dialect, opts.schema);
+  if ('error' in built) {
+    return { ok: false, failure: { status: 400, error: built.error, support } };
+  }
+  try {
+    const raw = await ConnectionFactory.executeQuery<Record<string, unknown>>(
+      opts.dialect,
+      opts.option,
+      built.sql,
+      built.params,
+    );
+    return { ok: true, value: { support, tables: normalizeTableHealthRows(raw) } };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Table health probe failed';
+    return { ok: false, failure: { status: 500, error: `${message} — ${support.hint}`, support } };
+  }
+}
+
+export async function executeTableMaintenance(opts: {
+  dialect: string;
+  option: ConnectionOptions;
+  action: TableMaintenanceAction;
+  schema?: string;
+  table: string;
+}): Promise<
+  | { ok: true; value: { ok: true; sql: string; description: string } }
+  | { ok: false; failure: { status: number; error: string } }
+> {
+  const built = buildTableMaintenanceSql(opts.dialect, opts.action, {
+    schema: opts.schema,
+    table: opts.table,
+  });
+  if ('error' in built) {
+    return { ok: false, failure: { status: 400, error: built.error } };
+  }
+  try {
+    await ConnectionFactory.executeQuery(opts.dialect, opts.option, built.sql, []);
+    return { ok: true, value: { ok: true, sql: built.sql, description: built.description } };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Table maintenance failed';
+    return { ok: false, failure: { status: 500, error: message } };
   }
 }

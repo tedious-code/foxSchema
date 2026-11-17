@@ -14,7 +14,9 @@ import {
   MarkerType,
   MiniMap,
   ReactFlow,
+  SelectionMode,
   useEdgesState,
+  useNodesInitialized,
   useNodesState,
   useReactFlow,
   ReactFlowProvider,
@@ -26,12 +28,15 @@ import {
   ChevronRight,
   FolderOpen,
   GitBranch,
+  Network,
   Play,
   Radio,
   Save,
   Settings2,
   Sparkles,
   Split,
+  Trash2,
+  X,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
@@ -83,6 +88,14 @@ import { Button, Input, Select } from './controls';
 import { useDebugSamples } from '../hooks/useDebugSamples';
 import { usePaneResize } from '../hooks/usePaneResize';
 import { pipeKey } from '../lib/ports';
+import { layoutPipeline } from '../lib/autoLayout';
+import {
+  configProblem,
+  failureOrigins,
+  isFailedStatus,
+  validationTarget,
+  type PipeIssue,
+} from '../lib/pipeIssues';
 import {
   createTrigger,
   nextTriggerId,
@@ -136,6 +149,10 @@ function edgePresentation(sourceHandle?: string | null): Partial<Edge<PipeEdgeDa
 // Module-level so React Flow sees one identity; an inline object was a new
 // options value on every render.
 const DEFAULT_EDGE_OPTIONS = edgePresentation();
+// Shift-click adds to the selection as well as Cmd/Ctrl-click; Shift-drag
+// draws a selection box (React Flow's default). Module-level for one identity.
+const MULTI_SELECT_KEYS = ['Meta', 'Control', 'Shift'];
+const DELETE_KEYS = ['Backspace', 'Delete'];
 
 const DEFAULT_PIPE_CONFIGS: Record<string, Record<string, unknown>> = {
   'source.db.sql': {
@@ -349,23 +366,29 @@ function serializePipeline(pipeline: PipelineCanvas) {
 
 function toPipelineCanvas(
   pipeline: SavedWorkflow['pipelines'][number],
-  pipelineIndex: number,
   portsByType: Map<string, PipePorts>,
 ): PipelineCanvas {
   const nodeId = (pipeId: string) => pipeKey(pipeline.id, pipeId);
+  // Saved workflows carry no positions: lay the pipeline out by its edges.
+  // Sizes are estimates here; the canvas re-lays it out once measured.
+  const positions = layoutPipeline(
+    pipeline.pipes.map((pipe) => ({ id: nodeId(pipe.id) })),
+    (pipeline.edges ?? []).map((edge) => ({
+      source: nodeId(edge.from),
+      target: nodeId(edge.to),
+      sourceHandle: edge.fromPort ?? null,
+    })),
+  );
   return {
     id: pipeline.id,
     name: pipeline.name,
     ...(pipeline.task ? { task: pipeline.task } : {}),
-    nodes: pipeline.pipes.map((pipe, index): PipeNodeType => {
+    nodes: pipeline.pipes.map((pipe): PipeNodeType => {
       const ports = portsByType.get(pipe.type);
       return {
         id: nodeId(pipe.id),
         type: 'pipe',
-        position: {
-          x: 100 + (index % 4) * 190,
-          y: 90 + pipelineIndex * 210 + Math.floor(index / 4) * 100,
-        },
+        position: positions.get(nodeId(pipe.id)) ?? { x: 0, y: 0 },
         data: {
           pipelineId: pipeline.id,
           pipeId: pipe.id,
@@ -445,6 +468,18 @@ function Designer() {
   });
   /** Last Test run with debug capture — feeds Inspector Input/Output. */
   const [debugRunId, setDebugRunId] = useState<string | null>(null);
+  /** Pipes selected on the canvas (Shift/Cmd-click, or Shift-drag a box). */
+  const [selectionCount, setSelectionCount] = useState(0);
+  /** The stage or pipe the last failed validation or save named. */
+  const [validationIssue, setValidationIssue] = useState<{
+    pipelineId: string;
+    pipeId?: string;
+    message: string;
+  } | null>(null);
+  /** Stages not yet laid out with measured node sizes since the workflow opened. */
+  const [layoutPending, setLayoutPending] = useState<ReadonlySet<string>>(() => new Set());
+  /** Problems list keys the user closed; it reopens when the problems change. */
+  const [dismissedIssues, setDismissedIssues] = useState('');
 
   const { categories, catalog } = useCatalog();
   const { credentials, refresh: refreshCredentials } = useCredentials();
@@ -460,8 +495,13 @@ function Designer() {
   } = useDebugSamples(debugRunId);
 
   const counter = useRef(1);
-  const { screenToFlowPosition, fitView, zoomIn, zoomOut } = useReactFlow();
+  const { screenToFlowPosition, fitView, zoomIn, zoomOut, deleteElements } = useReactFlow();
+  const nodesInitialized = useNodesInitialized();
 
+  // The canvas element exists only in the designer view. Re-run when the view
+  // changes: with an empty dependency list, a designer that first mounted on
+  // the Workflows list never observed the canvas, and opening a workflow from
+  // that list left the canvas blank.
   useEffect(() => {
     const element = canvasElementRef.current;
     if (!element) return;
@@ -472,7 +512,7 @@ function Designer() {
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [view]);
 
   const pipelineSnapshots = useCallback(
     () => groupPipelineCanvas(pipelines, nodes, edges),
@@ -517,8 +557,14 @@ function Designer() {
       if (!pipelines.some((pipeline) => pipeline.id === id)) return;
       setActivePipelineId(id);
       setSelectedId(null);
+      setSelectionCount(0);
+      setNodes((current) =>
+        current.some((node) => node.selected)
+          ? current.map((node) => (node.selected ? { ...node, selected: false } : node))
+          : current,
+      );
     },
-    [pipelines],
+    [pipelines, setNodes],
   );
 
   const addPipeline = useCallback(() => {
@@ -613,7 +659,10 @@ function Designer() {
           },
         };
         setSelectedId(nextNodeId);
-        return [...current, node];
+        return [
+          ...current.map((other) => (other.selected ? { ...other, selected: false } : other)),
+          { ...node, selected: true },
+        ];
       });
       setView('designer');
     },
@@ -660,10 +709,98 @@ function Designer() {
   // Stable identity — React Flow subscribes to this; a new function per render
   // churns its internal store during drag interactions.
   const onSelectionChange = useCallback(
-    ({ nodes: sel }: { nodes: { id: string }[] }) =>
-      setSelectedId(sel[0]?.id ?? null),
+    ({ nodes: sel }: { nodes: { id: string }[] }) => {
+      setSelectionCount(sel.length);
+      // The inspector edits one pipe; with several selected it shows none.
+      setSelectedId(sel.length === 1 ? sel[0]!.id : null);
+    },
     [],
   );
+
+  /** Pan and zoom to one pipe, once its stage is on the canvas and measured. */
+  const focusNode = useCallback(
+    (id: string) => {
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          void fitView({ nodes: [{ id }], duration: 300, maxZoom: 1.25, padding: 0.8 });
+        }),
+      );
+    },
+    [fitView],
+  );
+
+  /**
+   * Select exactly one pipe (or none), switching to its stage when it is on
+   * another one. Keeps React Flow's own selection in step, so the canvas, the
+   * pipe dropdown, the inspector and the execution panel agree.
+   */
+  const selectNode = useCallback(
+    (id: string | null, options: { focus?: boolean } = {}) => {
+      const target = id ? nodes.find((node) => node.id === id) : undefined;
+      if (target && target.data.pipelineId !== activePipelineId) {
+        setActivePipelineId(target.data.pipelineId);
+      }
+      setNodes((current) =>
+        current.map((node) => {
+          const selected = node.id === target?.id;
+          return Boolean(node.selected) === selected ? node : { ...node, selected };
+        }),
+      );
+      setSelectedId(target?.id ?? null);
+      setSelectionCount(target ? 1 : 0);
+      if (target && options.focus) focusNode(target.id);
+    },
+    [activePipelineId, focusNode, nodes, setNodes],
+  );
+
+  /**
+   * Arrange one stage left to right in the order records flow, using the
+   * sizes React Flow measured where it has them.
+   */
+  const layoutStage = useCallback(
+    (pipelineId: string, options: { fit?: boolean } = {}) => {
+      setNodes((current) => {
+        const members = current.filter((node) => node.data.pipelineId === pipelineId);
+        if (members.length === 0) return current;
+        const ids = new Set(members.map((node) => node.id));
+        const positions = layoutPipeline(
+          members.map((node) => ({
+            id: node.id,
+            ...(node.measured?.width ? { width: node.measured.width } : {}),
+            ...(node.measured?.height ? { height: node.measured.height } : {}),
+          })),
+          edges
+            .filter((edge) => ids.has(edge.source) && ids.has(edge.target))
+            .map((edge) => ({
+              source: edge.source,
+              target: edge.target,
+              sourceHandle: edge.sourceHandle ?? null,
+            })),
+        );
+        return current.map((node) => {
+          const position = positions.get(node.id);
+          return position ? { ...node, position } : node;
+        });
+      });
+      if (options.fit) {
+        requestAnimationFrame(() => void fitView({ duration: 250, padding: 0.15 }));
+      }
+    },
+    [edges, fitView, setNodes],
+  );
+
+  // A stage opened from a saved workflow was laid out with estimated sizes.
+  // The first time it is shown and measured, lay it out again for real; after
+  // that it keeps whatever the user moves.
+  useEffect(() => {
+    if (!canvasReady || !nodesInitialized || !layoutPending.has(activePipelineId)) return;
+    setLayoutPending((pending) => {
+      const next = new Set(pending);
+      next.delete(activePipelineId);
+      return next;
+    });
+    layoutStage(activePipelineId, { fit: true });
+  }, [activePipelineId, canvasReady, layoutPending, layoutStage, nodesInitialized]);
 
   const renamePipe = useCallback(
     (oldId: string, newId: string): string | null => {
@@ -707,6 +844,11 @@ function Designer() {
 
   const patchPipe = useCallback(
     (pipeId: string, patch: Partial<PipeData>) => {
+      // Editing the pipe a validation error named takes its mark off until
+      // the next Validate or Save says otherwise.
+      setValidationIssue((issue) =>
+        issue?.pipeId && pipeKey(issue.pipelineId, issue.pipeId) === pipeId ? null : issue,
+      );
       setNodes((ns) =>
         ns.map((n) =>
           n.id === pipeId ? { ...n, data: { ...n.data, ...patch } } : n,
@@ -729,10 +871,37 @@ function Designer() {
     };
   }, [carried, dependencies, workflowSettings, workflowId, overlapPolicy, pipelineSnapshots, triggers]);
 
+  /**
+   * Remember which stage or pipe a validation or save error names, so the
+   * canvas can mark it, and bring that pipe into view.
+   */
+  const noteValidation = useCallback(
+    (message: string | null) => {
+      const target = message ? validationTarget(message) : null;
+      if (!message || !target) {
+        setValidationIssue(null);
+        return;
+      }
+      setValidationIssue({
+        pipelineId: target.pipelineId,
+        ...(target.pipeId ? { pipeId: target.pipeId } : {}),
+        message: target.detail,
+      });
+      if (target.pipeId) {
+        const nodeId = pipeKey(target.pipelineId, target.pipeId);
+        if (nodes.some((node) => node.id === nodeId)) selectNode(nodeId, { focus: true });
+      } else if (target.pipelineId !== activePipelineId) {
+        switchPipeline(target.pipelineId);
+      }
+    },
+    [activePipelineId, nodes, selectNode, switchPipeline],
+  );
+
   const validate = useCallback(async () => {
     setBusy(true);
     try {
       const result = await api.validate(toDocument());
+      noteValidation(result.valid ? null : (result.error ?? null));
       if (result.valid && result.plan) {
         const waves = result.plan.pipelines[activePipelineId]?.waves ?? [];
         toast.success('Workflow is valid', {
@@ -748,7 +917,7 @@ function Designer() {
     } finally {
       setBusy(false);
     }
-  }, [toDocument, activePipelineId, setBusy]);
+  }, [toDocument, activePipelineId, setBusy, noteValidation]);
 
   const portsByType = useMemo(() => buildPortsByType(catalog), [catalog]);
 
@@ -784,8 +953,8 @@ function Designer() {
       if (!Array.isArray(workflow.pipelines) || workflow.pipelines.length === 0) {
         throw new Error('Workflow has no pipelines.');
       }
-      const canvases = workflow.pipelines.map((pipeline, index) =>
-        toPipelineCanvas(pipeline, index, portsByType),
+      const canvases = workflow.pipelines.map((pipeline) =>
+        toPipelineCanvas(pipeline, portsByType),
       );
       const first = canvases[0]!;
       setWorkflowId(workflow.id);
@@ -810,6 +979,11 @@ function Designer() {
       setNodes(canvases.flatMap((pipeline) => pipeline.nodes));
       setEdges(canvases.flatMap((pipeline) => pipeline.edges));
       setSelectedId(null);
+      setSelectionCount(0);
+      // A run or validation of the previous workflow says nothing about this one.
+      setDebugRunId(null);
+      setValidationIssue(null);
+      setLayoutPending(new Set(canvases.map((pipeline) => pipeline.id)));
       setView('designer');
     },
     [portsByType, setEdges, setNodes, setView, setWorkflowId],
@@ -834,15 +1008,17 @@ function Designer() {
     setBusy(true);
     try {
       await api.save(workflowId, toDocument());
+      setValidationIssue(null);
       toast.success(`Saved workflow "${workflowId}"`);
       return true;
     } catch (err) {
+      noteValidation((err as Error).message);
       toast.error('Save failed', { description: (err as Error).message });
       return false;
     } finally {
       setBusy(false);
     }
-  }, [toDocument, workflowId, setBusy]);
+  }, [toDocument, workflowId, setBusy, noteValidation]);
 
   const extractActivePipeline = useCallback(async () => {
     const active = pipelines.find(
@@ -976,6 +1152,149 @@ function Designer() {
     }
   }, [save, workflowId, refreshRuns, setBusy]);
 
+  /** The manual trigger a Test run fires: the first one that is enabled. */
+  const runnableManualTriggerId =
+    triggers.find((trigger) => trigger.kind === 'manual' && trigger.enabled)?.id ?? null;
+
+  /** Why a manual trigger's Run button is off, or null when it can run. */
+  const manualRunBlocked = useCallback(
+    (triggerId: string): string | null => {
+      if (!canDesign || !canRun) return 'Running saves first, so it needs the workflow design and run permissions.';
+      const trigger = triggers.find((candidate) => candidate.id === triggerId);
+      if (trigger && !trigger.enabled) return 'This trigger is turned off.';
+      if (runnableManualTriggerId !== triggerId) {
+        return `A Test run starts the first enabled manual trigger (${runnableManualTriggerId ?? 'none'}).`;
+      }
+      if (busy) return 'Saving and starting…';
+      return null;
+    },
+    [busy, canDesign, canRun, runnableManualTriggerId, triggers],
+  );
+
+  /** One problem per pipe, most fixable first: bad config, then validation, then the run. */
+  const issuesByNode = useMemo(() => {
+    const issues = new Map<string, PipeIssue>();
+    // The engine marks every pipe upstream of a failure failed too; work out
+    // which pipe actually failed so only that one is blamed.
+    const failed = new Map<string, string>();
+    for (const node of nodes) {
+      const state = debugPipeStates[node.id];
+      if (isFailedStatus(state?.status)) {
+        failed.set(node.id, state?.error || 'Failed in the last Test run.');
+      }
+    }
+    const origins = failureOrigins(failed, edges);
+    for (const node of nodes) {
+      const config = configProblem(node.data.config);
+      if (config) {
+        issues.set(node.id, { kind: 'config', message: config });
+        continue;
+      }
+      if (
+        validationIssue?.pipeId &&
+        validationIssue.pipelineId === node.data.pipelineId &&
+        validationIssue.pipeId === node.data.pipeId
+      ) {
+        issues.set(node.id, { kind: 'invalid', message: validationIssue.message });
+        continue;
+      }
+      const message = failed.get(node.id);
+      if (message === undefined) continue;
+      const origin = origins.get(node.id) ?? node.id;
+      if (origin === node.id) {
+        issues.set(node.id, { kind: 'run-failed', message });
+      } else {
+        const cause = nodes.find((candidate) => candidate.id === origin);
+        issues.set(node.id, {
+          kind: 'run-stopped',
+          causeId: origin,
+          message: `Stopped because ${cause?.data.pipeId ?? origin} failed.`,
+        });
+      }
+    }
+    return issues;
+  }, [nodes, edges, validationIssue, debugPipeStates]);
+
+  /** Every problem in the workflow, for the list over the canvas. */
+  const issueList = useMemo(() => {
+    const list: Array<{ key: string; nodeId?: string; pipelineId: string; label: string; message: string }> = [];
+    for (const node of nodes) {
+      const issue = issuesByNode.get(node.id);
+      // Pipes that only stopped because of another failure are not problems
+      // of their own; the list names the pipe that failed.
+      if (issue && issue.kind !== 'run-stopped') {
+        list.push({
+          key: node.id,
+          nodeId: node.id,
+          pipelineId: node.data.pipelineId,
+          label: node.data.pipeId,
+          message: issue.message,
+        });
+      }
+    }
+    const pinned =
+      validationIssue?.pipeId &&
+      nodes.some(
+        (node) =>
+          node.data.pipelineId === validationIssue.pipelineId &&
+          node.data.pipeId === validationIssue.pipeId,
+      );
+    if (validationIssue && !pinned) {
+      list.push({
+        key: `stage:${validationIssue.pipelineId}`,
+        pipelineId: validationIssue.pipelineId,
+        label:
+          pipelines.find((pipeline) => pipeline.id === validationIssue.pipelineId)?.name ??
+          validationIssue.pipelineId,
+        message: validationIssue.message,
+      });
+    }
+    return list;
+  }, [issuesByNode, nodes, pipelines, validationIssue]);
+  const issueKeys = issueList.map((issue) => issue.key).join('|');
+
+  const issueCountByPipeline = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const issue of issueList) {
+      counts.set(issue.pipelineId, (counts.get(issue.pipelineId) ?? 0) + 1);
+    }
+    return counts;
+  }, [issueList]);
+
+  /** What the canvas draws: the active stage, marked with run status and problems. */
+  const canvasNodes = useMemo(
+    () =>
+      focusedNodes.map((node) => {
+        const issue = issuesByNode.get(node.id) ?? null;
+        const runStatus = debugPipeStates[node.id]?.status;
+        if (!issue && !runStatus) return node;
+        return {
+          ...node,
+          data: { ...node.data, issue, ...(runStatus ? { runStatus } : {}) },
+        };
+      }),
+    [focusedNodes, issuesByNode, debugPipeStates],
+  );
+
+  /** Pipe dropdown entries: the active stage in the order it reads on the canvas. */
+  const pipeOptions = useMemo(
+    () =>
+      [...focusedNodes].sort(
+        (a, b) => a.position.x - b.position.x || a.position.y - b.position.y,
+      ),
+    [focusedNodes],
+  );
+
+  // When a Test run fails, bring the first failed pipe into view once.
+  const focusedFailureRun = useRef<string | null>(null);
+  useEffect(() => {
+    if (!debugRunId || focusedFailureRun.current === debugRunId) return;
+    const failed = nodes.find((node) => issuesByNode.get(node.id)?.kind === 'run-failed');
+    if (!failed) return;
+    focusedFailureRun.current = debugRunId;
+    selectNode(failed.id, { focus: true });
+  }, [debugRunId, issuesByNode, nodes, selectNode]);
+
   const selected = nodes.find((n) => n.id === selectedId);
 
   return (
@@ -1073,23 +1392,54 @@ function Designer() {
               <Button size="icon" onClick={() => void zoomIn()} aria-label="Zoom in"><ZoomIn /></Button>
               <Button size="icon" onClick={() => void zoomOut()} aria-label="Zoom out"><ZoomOut /></Button>
               <Button onClick={() => void fitView()} title="Fit the pipeline to the canvas">Fit</Button>
+              <Button
+                data-testid="workflow-designer-auto-layout"
+                onClick={() => layoutStage(activePipelineId, { fit: true })}
+                disabled={focusedNodes.length === 0}
+                title="Arrange this stage's pipes left to right, in the order records flow"
+              >
+                <Network /> Auto layout
+              </Button>
+              <span className="toolbar-separator" />
+              <span className="pipeline-context-label">Stage</span>
+              <Select
+                className="stage-select"
+                data-testid="workflow-designer-stage-select"
+                aria-label="Stage"
+                value={activePipelineId}
+                onChange={(event) => switchPipeline(event.target.value)}
+              >
+                {pipelines.map((pipeline, index) => {
+                  const count = pipelineNodeCounts.get(pipeline.id) ?? 0;
+                  const problems = issueCountByPipeline.get(pipeline.id) ?? 0;
+                  return (
+                    <option key={pipeline.id} value={pipeline.id}>
+                      {`${index + 1}. ${pipeline.name} · ${count} pipe${count === 1 ? '' : 's'}${problems ? ` · ⚠ ${problems}` : ''}`}
+                    </option>
+                  );
+                })}
+              </Select>
+              <Select
+                className="pipe-select"
+                data-testid="workflow-designer-pipe-select"
+                aria-label="Pipe"
+                value={selectedId ?? ''}
+                disabled={focusedNodes.length === 0}
+                onChange={(event) => {
+                  if (event.target.value) selectNode(event.target.value, { focus: true });
+                }}
+              >
+                <option value="">
+                  {selectionCount > 1 ? `${selectionCount} pipes selected` : 'Go to pipe…'}
+                </option>
+                {pipeOptions.map((node) => (
+                  <option key={node.id} value={node.id}>
+                    {`${issuesByNode.has(node.id) && issuesByNode.get(node.id)!.kind !== 'run-stopped' ? '⚠ ' : ''}${node.data.pipeId} — ${node.data.type.split('.').slice(-2).join('.')}`}
+                  </option>
+                ))}
+              </Select>
               {pipelines.length > 1 && (
                 <>
-                  <span className="toolbar-separator" />
-                  <span className="pipeline-context-label">Stage</span>
-                  <div className="pipeline-chips" role="group" aria-label="Target pipeline">
-                    {pipelines.map((pipeline) => (
-                      <button data-testid={`workflow-designer-switch-pipeline-${pipeline.id}`}
-                        key={pipeline.id}
-                        className={pipeline.id === activePipelineId ? 'active' : ''}
-                        onClick={() => switchPipeline(pipeline.id)}
-                      >
-                        <span className="pipeline-chip-dot" />
-                        {pipeline.name}
-                        <small>{pipelineNodeCounts.get(pipeline.id) ?? 0}</small>
-                      </button>
-                    ))}
-                  </div>
                   <Button
                     onClick={() => void extractActivePipeline()}
                     disabled={busy || !canDesign || (pipelineNodeCounts.get(activePipelineId) ?? 0) === 0}
@@ -1179,14 +1529,21 @@ function Designer() {
                 {pipelines.length > 1 && (
                   <div className="pipeline-overview" aria-label="Workflow pipelines">
                     {pipelines.map((pipeline, index) => (
-                      <div
+                      <button
+                        type="button"
                         key={pipeline.id}
+                        data-testid={`workflow-designer-stage-overview-${pipeline.id}`}
                         className={pipeline.id === activePipelineId ? 'pipeline-overview-item active' : 'pipeline-overview-item'}
+                        onClick={() => switchPipeline(pipeline.id)}
+                        title={`Show stage ${pipeline.name}`}
                       >
                         <span>{index + 1}</span>
                         <strong>{pipeline.name}</strong>
-                        <small>{pipelineNodeCounts.get(pipeline.id) ?? 0} pipes</small>
-                      </div>
+                        <small>
+                          {pipelineNodeCounts.get(pipeline.id) ?? 0} pipes
+                          {issueCountByPipeline.get(pipeline.id) ? ` · ⚠ ${issueCountByPipeline.get(pipeline.id)}` : ''}
+                        </small>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -1198,9 +1555,71 @@ function Designer() {
                     </div>
                   </div>
                 )}
+                {selectionCount > 1 && (
+                  <div className="selection-bar" data-testid="workflow-designer-selection-bar">
+                    <span>{selectionCount} pipes selected</span>
+                    <Button
+                      size="sm"
+                      data-testid="workflow-designer-selection-delete"
+                      disabled={!canDesign}
+                      onClick={() =>
+                        void deleteElements({
+                          nodes: focusedNodes
+                            .filter((node) => node.selected)
+                            .map((node) => ({ id: node.id })),
+                        })
+                      }
+                      title="Delete the selected pipes and their connections"
+                    >
+                      <Trash2 /> Delete
+                    </Button>
+                    <Button
+                      size="sm"
+                      data-testid="workflow-designer-selection-clear"
+                      onClick={() => selectNode(null)}
+                      aria-label="Clear selection"
+                    >
+                      <X />
+                    </Button>
+                  </div>
+                )}
+                {issueList.length > 0 && dismissedIssues !== issueKeys && (
+                  <div className="canvas-issues" role="status" data-testid="workflow-designer-issues">
+                    <strong>
+                      {issueList.length} problem{issueList.length === 1 ? '' : 's'}
+                    </strong>
+                    <ul>
+                      {issueList.slice(0, 6).map((issue) => (
+                        <li key={issue.key}>
+                          <button
+                            type="button"
+                            className="linkish"
+                            data-testid={`workflow-designer-issue-${issue.key}`}
+                            onClick={() =>
+                              issue.nodeId
+                                ? selectNode(issue.nodeId, { focus: true })
+                                : switchPipeline(issue.pipelineId)
+                            }
+                          >
+                            {issue.label}
+                          </button>{' '}
+                          <span className="issue-message">{issue.message}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {issueList.length > 6 && <small>…and {issueList.length - 6} more</small>}
+                    <Button
+                      size="sm"
+                      data-testid="workflow-designer-issues-dismiss"
+                      onClick={() => setDismissedIssues(issueKeys)}
+                    >
+                      Hide
+                    </Button>
+                  </div>
+                )}
                 {canvasReady && (
                   <ReactFlow
-                    nodes={focusedNodes}
+                    nodes={canvasNodes}
                     edges={focusedEdges}
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
@@ -1212,6 +1631,9 @@ function Designer() {
                     fitView
                     connectionLineType={ConnectionLineType.SmoothStep}
                     defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
+                    multiSelectionKeyCode={MULTI_SELECT_KEYS}
+                    deleteKeyCode={DELETE_KEYS}
+                    selectionMode={SelectionMode.Partial}
                   >
                     <Background gap={18} size={1} color={colorMode === 'light' ? '#cbd5e1' : '#334155'} />
                     <Controls />
@@ -1243,6 +1665,9 @@ function Designer() {
                   setFocusTriggerId(triggerId);
                   setTriggerSettingsOpen(true);
                 }}
+                onRunManual={() => void run()}
+                manualRunBlocked={manualRunBlocked}
+                selectionCount={selectionCount}
               />
             </div>
             <div className="panel-handle horizontal" aria-label="Resize execution panel" {...executionPane.separatorProps} />
@@ -1256,7 +1681,7 @@ function Designer() {
               samples={debugSamples}
               log={debugLog}
               selectedNodeId={selected?.id ?? null}
-              onSelectNode={setSelectedId}
+              onSelectNode={(nodeId) => selectNode(nodeId, { focus: true })}
             />
           </div>
         )}

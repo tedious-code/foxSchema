@@ -145,22 +145,32 @@ function clickHousePkReview(tableName: string): string[] {
   return [`-- review: ${tableName}: ClickHouse PRIMARY KEY is part of the ENGINE clause and cannot be altered in place. Recreate the table to change the key.`];
 }
 
+function unwrapClickHouseWrapper(raw: string): string {
+  let current = raw.trim();
+  for (;;) {
+    const match = current.match(/^(?:Nullable|LowCardinality)\s*\(([\s\S]+)\)$/i);
+    if (!match) return current;
+    current = match[1]!.trim();
+  }
+}
+
 function parseClickHouseType(raw: string) {
-  const parsed = types.parseType(raw);
-  const tok = tokenizeType(raw);
+  const inner = unwrapClickHouseWrapper(raw);
+  const parsed = types.parseType(inner);
+  const tok = tokenizeType(inner);
   const name = tok.name;
   const fixed = CH_DECIMAL_PRECISION[name];
   if (fixed !== undefined) {
     // Decimal64(4) tokenizes as length/precision 4 — that value is the *scale*.
     const scale = tok.scale ?? tok.length ?? tok.precision ?? 0;
-    return { ...parsed, base: 'decimal' as const, precision: fixed, scale };
+    return { ...parsed, raw: raw.trim(), base: 'decimal' as const, precision: fixed, scale };
   }
   if (name === 'datetime64' && parsed.length === undefined) {
     // DateTime64(3, 'UTC') — fsp is the first arg (precision after tokenize).
     const fsp = tok.length ?? tok.precision ?? 3;
-    return { ...parsed, length: fsp };
+    return { ...parsed, raw: raw.trim(), length: fsp };
   }
-  return parsed;
+  return { ...parsed, raw: raw.trim() };
 }
 
 export const clickHouseSqlDialect: SqlDialect = {
@@ -228,7 +238,8 @@ export const clickHouseSqlDialect: SqlDialect = {
 
   // ClickHouse uses Nullable(T) wrapper instead of NULL / NOT NULL keywords.
   nullableTypeWrapper(typeSql: string, nullable: boolean): string {
-    return nullable ? `Nullable(${typeSql})` : typeSql;
+    if (!nullable) return typeSql;
+    return /^Nullable\s*\(/i.test(typeSql.trim()) ? typeSql : `Nullable(${typeSql})`;
   },
 
   ...types,

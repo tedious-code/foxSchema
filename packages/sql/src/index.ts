@@ -266,6 +266,32 @@ export type {
   TableSizeLookup,
 } from './modules/utilities/dba-utilities.js';
 export {
+  dialectSupportsSessionLocks,
+  buildLockWaitProbeQuery,
+  normalizeLockWaitRows,
+  buildBlockingChains,
+  buildSessionControlSql,
+} from './modules/utilities/session-locks.js';
+export type {
+  SessionControlAction,
+  SessionLocksSupport,
+  LockWaitProbeQuery,
+  LockWaitRow,
+  BlockingChain,
+} from './modules/utilities/session-locks.js';
+export {
+  dialectSupportsTableMaintenance,
+  buildTableHealthProbeQuery,
+  normalizeTableHealthRows,
+  buildTableMaintenanceSql,
+} from './modules/utilities/table-maintenance.js';
+export type {
+  TableMaintenanceAction,
+  TableMaintenanceSupport,
+  TableHealthProbeQuery,
+  TableHealthRow,
+} from './modules/utilities/table-maintenance.js';
+export {
   dialectSupportsDbAccess,
   buildDbAccessPrincipalQueries,
   buildDbAccessPrivilegeQueries,

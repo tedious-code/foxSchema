@@ -67,11 +67,12 @@ export function normalizeBackupHistory(rows: readonly Record<string, unknown>[])
   const text = (v: unknown) => (v instanceof Date ? v.toISOString() : v == null ? '' : String(v).trim());
   return rows
     .map((row) => {
-      const size = Number(field(row, 'size_bytes'));
+      const rawSize = field(row, 'size_bytes');
+      const size = typeof rawSize === 'string' && rawSize.trim() === '' ? Number.NaN : Number(rawSize);
       return {
         finishedAt: text(field(row, 'finished_at')),
         location: text(field(row, 'location')),
-        sizeBytes: field(row, 'size_bytes') == null || !Number.isFinite(size) ? null : size,
+        sizeBytes: rawSize == null || !Number.isFinite(size) ? null : size,
         restoreKey: text(field(row, 'restore_key')),
       };
     })

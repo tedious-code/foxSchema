@@ -32,7 +32,8 @@ FROM dual
 const SESSIONS_SQL = `
 SELECT * FROM (
   SELECT
-    TO_CHAR(sid) AS session_id,
+    -- SID alone is reused; ALTER SYSTEM KILL / CANCEL SQL need "SID,SERIAL#".
+    sid || ',' || serial# AS session_id,
     username AS user_name,
     machine AS client_host,
     COALESCE(service_name, schemaname) AS database_name,

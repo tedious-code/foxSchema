@@ -3301,16 +3301,34 @@ export const TestIds = {
       serverInsightsSizeGroups: 'server-insights-size-groups',
     },
     ServerInsightsModal: {
+      /** button · Cancel Query */
+      serverInsightsBlockerCancel: (rootBlockerSessionId: string | number) => `server-insights-blocker-cancel-${rootBlockerSessionId}`,
+      /** button · Kill Session */
+      serverInsightsBlockerKill: (rootBlockerSessionId: string | number) => `server-insights-blocker-kill-${rootBlockerSessionId}`,
+      /** button · Cancel */
+      serverInsightsCancelAction: 'server-insights-cancel-action',
       /** button · Close */
       serverInsightsClose: 'server-insights-close',
+      /** button */
+      serverInsightsConfirmAction: 'server-insights-confirm-action',
       /** select */
       serverInsightsConnection: 'server-insights-connection',
+      /** button · Analyze */
+      serverInsightsHealthAnalyze: (tableName: string | number) => `server-insights-health-analyze-${tableName}`,
+      /** button · Optimize */
+      serverInsightsHealthOptimize: (tableName: string | number) => `server-insights-health-optimize-${tableName}`,
+      /** button · Vacuum */
+      serverInsightsHealthVacuum: (tableName: string | number) => `server-insights-health-vacuum-${tableName}`,
       /** div */
       serverInsightsModal: 'server-insights-modal',
       /** input · •••••••• */
       serverInsightsPasswordDraft: 'server-insights-password-draft',
       /** button · Refresh */
       serverInsightsRefresh: 'server-insights-refresh',
+      /** button · Cancel */
+      serverInsightsSessionCancel: (sessionId: string | number) => `server-insights-session-cancel-${sessionId}`,
+      /** button · Kill */
+      serverInsightsSessionKill: (sessionId: string | number) => `server-insights-session-kill-${sessionId}`,
       /** button */
       serverInsightsTab: (id: string | number) => `server-insights-tab-${id}`,
       /** button · Unlock */
@@ -3425,6 +3443,8 @@ export const TestIds = {
       utilitiesSqlTracer: 'utilities-sql-tracer',
       /** data · System Info */
       utilitiesSystemInfo: 'utilities-system-info',
+      /** data · Table Health & Stats */
+      utilitiesTableHealth: 'utilities-table-health',
       /** data · User Connections */
       utilitiesUserConnections: 'utilities-user-connections',
       /** div */
@@ -3617,6 +3637,8 @@ export const TestIds = {
       workflowInspectorIntent: 'workflow-inspector-intent',
       /** textarea */
       workflowInspectorJson: (name: string | number) => `workflow-inspector-json-${name}`,
+      /** p */
+      workflowInspectorMultiSelection: 'workflow-inspector-multi-selection',
       /** button · Open in trigger dialog */
       workflowInspectorOpenInTrigger: 'workflow-inspector-open-in-trigger',
       /** input */
@@ -3647,6 +3669,10 @@ export const TestIds = {
       workflowPaletteSearchPipes: 'workflow-palette-search-pipes',
       /** input */
       workflowPaletteShowAdvanced: 'workflow-palette-show-advanced',
+    },
+    PipeNode: {
+      /** div */
+      workflowPipeNode: (value: string | number) => `workflow-pipe-node-${value}`,
     },
     RunsPanel: {
       /** Button */
@@ -3727,6 +3753,8 @@ export const TestIds = {
       workflowTriggerSettingsRequiredFields: 'workflow-trigger-settings-required-fields',
       /** input */
       workflowTriggerSettingsRetry: 'workflow-trigger-settings-retry',
+      /** Button */
+      workflowTriggerSettingsRun: 'workflow-trigger-settings-run',
       /** select · Select credential */
       workflowTriggerSettingsWebhookCredential: 'workflow-trigger-settings-webhook-credential',
       /** input */
@@ -3739,16 +3767,34 @@ export const TestIds = {
     WorkflowDesigner: {
       /** Button */
       workflowDesignerAddSample: 'workflow-designer-add-sample',
+      /** Button · Arrange this stage's pipes left to right, in the order records flow */
+      workflowDesignerAutoLayout: 'workflow-designer-auto-layout',
       /** button · Workflows */
       workflowDesignerBreadcrumbWorkflows: 'workflow-designer-breadcrumb-workflows',
       /** Input · Workflow id */
       workflowDesignerId: 'workflow-designer-id',
+      /** button */
+      workflowDesignerIssue: (key: string | number) => `workflow-designer-issue-${key}`,
+      /** div */
+      workflowDesignerIssues: 'workflow-designer-issues',
+      /** Button */
+      workflowDesignerIssuesDismiss: 'workflow-designer-issues-dismiss',
       /** Button */
       workflowDesignerLoad: 'workflow-designer-load',
+      /** Select · Pipe */
+      workflowDesignerPipeSelect: 'workflow-designer-pipe-select',
       /** Button */
       workflowDesignerSave: 'workflow-designer-save',
-      /** button */
-      workflowDesignerSwitchPipeline: (id: string | number) => `workflow-designer-switch-pipeline-${id}`,
+      /** div */
+      workflowDesignerSelectionBar: 'workflow-designer-selection-bar',
+      /** Button · Clear selection */
+      workflowDesignerSelectionClear: 'workflow-designer-selection-clear',
+      /** Button · Delete the selected pipes and their connections */
+      workflowDesignerSelectionDelete: 'workflow-designer-selection-delete',
+      /** button · pipes */
+      workflowDesignerStageOverview: (id: string | number) => `workflow-designer-stage-overview-${id}`,
+      /** Select · Stage */
+      workflowDesignerStageSelect: 'workflow-designer-stage-select',
       /** Button */
       workflowDesignerTriggers: 'workflow-designer-triggers',
     },
@@ -4910,11 +4956,20 @@ export type TestId =
   | `schema-status-filter-${string}`
   | 'schema-tree'
   | 'schema-tree-empty'
+  | `server-insights-blocker-cancel-${string}`
+  | `server-insights-blocker-kill-${string}`
+  | 'server-insights-cancel-action'
   | 'server-insights-close'
+  | 'server-insights-confirm-action'
   | 'server-insights-connection'
+  | `server-insights-health-analyze-${string}`
+  | `server-insights-health-optimize-${string}`
+  | `server-insights-health-vacuum-${string}`
   | 'server-insights-modal'
   | 'server-insights-password-draft'
   | 'server-insights-refresh'
+  | `server-insights-session-cancel-${string}`
+  | `server-insights-session-kill-${string}`
   | 'server-insights-size-filter'
   | 'server-insights-size-groups'
   | `server-insights-tab-${string}`
@@ -5469,6 +5524,7 @@ export type TestId =
   | 'utilities-query-files'
   | 'utilities-sql-tracer'
   | 'utilities-system-info'
+  | 'utilities-table-health'
   | 'utilities-user-connections'
   | 'utilities-view'
   | 'view-access-btn'
@@ -5480,11 +5536,20 @@ export type TestId =
   | 'warning-banner'
   | 'workflow-add-sample'
   | 'workflow-designer-add-sample'
+  | 'workflow-designer-auto-layout'
   | 'workflow-designer-breadcrumb-workflows'
   | 'workflow-designer-id'
+  | `workflow-designer-issue-${string}`
+  | 'workflow-designer-issues'
+  | 'workflow-designer-issues-dismiss'
   | 'workflow-designer-load'
+  | 'workflow-designer-pipe-select'
   | 'workflow-designer-save'
-  | `workflow-designer-switch-pipeline-${string}`
+  | 'workflow-designer-selection-bar'
+  | 'workflow-designer-selection-clear'
+  | 'workflow-designer-selection-delete'
+  | `workflow-designer-stage-overview-${string}`
+  | 'workflow-designer-stage-select'
   | 'workflow-designer-triggers'
   | 'workflow-engine'
   | `workflow-engine-${string}`
@@ -5536,6 +5601,7 @@ export type TestId =
   | 'workflow-inspector-http-retry-attempts'
   | 'workflow-inspector-intent'
   | `workflow-inspector-json-${string}`
+  | 'workflow-inspector-multi-selection'
   | 'workflow-inspector-open-in-trigger'
   | 'workflow-inspector-pipe-id'
   | 'workflow-inspector-retry-attempts'
@@ -5553,6 +5619,7 @@ export type TestId =
   | 'workflow-no-panes'
   | 'workflow-palette-search-pipes'
   | 'workflow-palette-show-advanced'
+  | `workflow-pipe-node-${string}`
   | 'workflow-run-answer'
   | `workflow-run-answer-${string}`
   | 'workflow-run-cancel'
@@ -5615,6 +5682,7 @@ export type TestId =
   | 'workflow-trigger-settings-min-backoff-duration'
   | 'workflow-trigger-settings-required-fields'
   | 'workflow-trigger-settings-retry'
+  | 'workflow-trigger-settings-run'
   | 'workflow-trigger-settings-webhook-credential'
   | `workflow-trigger-settings-workflow-${string}`
   | `workflow-variables-environment-${string}`

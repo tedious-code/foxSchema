@@ -20,6 +20,7 @@ import {
   DatabaseBackup,
   FileSpreadsheet,
   HardDrive,
+  HeartPulse,
   KeyRound,
   ScanSearch,
   Users,
@@ -54,6 +55,7 @@ export type UtilityTool =
   | 'sessions'
   | 'system'
   | 'sizes'
+  | 'health'
   | 'trace';
 
 const LS_TOOL = 'foxschema-utilities-tool';
@@ -142,6 +144,14 @@ const TOOLS: {
     icon: HardDrive,
   },
   {
+    id: 'health',
+    testId: 'utilities-table-health',
+    label: 'Table Health & Stats',
+    group: 'Insights',
+    blurb: 'Dead tuples, bloat, stale statistics, and safe ANALYZE / VACUUM / OPTIMIZE.',
+    icon: HeartPulse,
+  },
+  {
     id: 'trace',
     testId: 'utilities-sql-tracer',
     label: 'SQL Tracer',
@@ -191,7 +201,7 @@ function loadConnectionId(connections: { id: string }[]): string {
 }
 
 function insightTab(tool: UtilityTool): ServerInsightsTab | null {
-  if (tool === 'pool' || tool === 'sessions' || tool === 'system' || tool === 'sizes') {
+  if (tool === 'pool' || tool === 'sessions' || tool === 'system' || tool === 'sizes' || tool === 'health') {
     return tool;
   }
   return null;

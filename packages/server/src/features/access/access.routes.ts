@@ -16,7 +16,13 @@ import { rateLimit } from '../../platform/guards/rate-limit';
 import type { AuthedRequest } from '../../platform/http/types';
 import type { ConnectionRef } from '../../platform/connections/resolve';
 import { probeTableFragmentation, mapPool } from './index-fragmentation.service';
-import { probeDbaUtility } from './dba-utilities.service';
+import {
+  executeSessionControl,
+  executeTableMaintenance,
+  probeDbaUtility,
+  probeSessionLocks,
+  probeTableHealth,
+} from './dba-utilities.service';
 import type { DbaUtilityKind } from '@foxschema/db';
 import { probeDbAccess } from './db-access.service';
 import {
@@ -192,6 +198,136 @@ export function createAccessRoutes(deps: AccessRouteDeps): Router {
       sendThrown(res, error, 'Failed to run DBA utility');
     }
   });
+
+  router.post(
+    '/schema/session-locks',
+    dbaUtilityLimiter,
+    requirePermissions('utility.access'),
+    async (req: AppRequest, res: FastifyReply) => {
+      const body = req.body as ConnectionRef & { schema?: unknown };
+      try {
+        const resolved = await deps.resolveRef(scopeOf(req as AuthedRequest), body);
+        const schema =
+          (typeof body.schema === 'string' && body.schema.trim()) || resolved.schema || '';
+        const probed = await probeSessionLocks({
+          dialect: resolved.dialect,
+          option: resolved.option,
+        });
+        if (!probed.ok) {
+          const { status, ...rest } = probed.failure;
+          res.status(status).send(rest);
+          return;
+        }
+        res.send({ ...probed.value, dialect: resolved.dialect, schema });
+      } catch (error: unknown) {
+        sendThrown(res, error, 'Failed to probe session locks');
+      }
+    },
+  );
+
+  router.post(
+    '/schema/session-control',
+    dbaUtilityLimiter,
+    requirePermissions('utility.access', 'utility.dba.control'),
+    async (req: AppRequest, res: FastifyReply) => {
+      const body = req.body as ConnectionRef & { action?: unknown; sessionId?: unknown };
+      const action = typeof body.action === 'string' ? body.action.trim() : '';
+      const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
+      if (action !== 'cancel' && action !== 'terminate') {
+        sendError(res, 'invalid_input', 'action must be cancel or terminate.');
+        return;
+      }
+      if (!sessionId) {
+        sendError(res, 'invalid_input', 'sessionId is required.');
+        return;
+      }
+      try {
+        const resolved = await deps.resolveRef(scopeOf(req as AuthedRequest), body);
+        const result = await executeSessionControl({
+          dialect: resolved.dialect,
+          option: resolved.option,
+          action,
+          sessionId,
+        });
+        if (!result.ok) {
+          res.status(result.failure.status).send({ error: result.failure.error });
+          return;
+        }
+        res.send(result.value);
+      } catch (error: unknown) {
+        sendThrown(res, error, 'Failed to control session');
+      }
+    },
+  );
+
+  router.post(
+    '/schema/table-health',
+    dbaUtilityLimiter,
+    requirePermissions('utility.access'),
+    async (req: AppRequest, res: FastifyReply) => {
+      const body = req.body as ConnectionRef & { schema?: unknown };
+      try {
+        const resolved = await deps.resolveRef(scopeOf(req as AuthedRequest), body);
+        const schema =
+          (typeof body.schema === 'string' && body.schema.trim()) || resolved.schema || '';
+        const probed = await probeTableHealth({
+          dialect: resolved.dialect,
+          option: resolved.option,
+          schema,
+        });
+        if (!probed.ok) {
+          const { status, ...rest } = probed.failure;
+          res.status(status).send(rest);
+          return;
+        }
+        res.send({ ...probed.value, dialect: resolved.dialect, schema });
+      } catch (error: unknown) {
+        sendThrown(res, error, 'Failed to probe table health');
+      }
+    },
+  );
+
+  router.post(
+    '/schema/table-maintenance',
+    dbaUtilityLimiter,
+    requirePermissions('utility.access', 'utility.dba.control'),
+    async (req: AppRequest, res: FastifyReply) => {
+      const body = req.body as ConnectionRef & {
+        action?: unknown;
+        schema?: unknown;
+        table?: unknown;
+      };
+      const action = typeof body.action === 'string' ? body.action.trim() : '';
+      const table = typeof body.table === 'string' ? body.table.trim() : '';
+      if (action !== 'analyze' && action !== 'vacuum' && action !== 'optimize') {
+        sendError(res, 'invalid_input', 'action must be analyze, vacuum, or optimize.');
+        return;
+      }
+      if (!table) {
+        sendError(res, 'invalid_input', 'table is required.');
+        return;
+      }
+      try {
+        const resolved = await deps.resolveRef(scopeOf(req as AuthedRequest), body);
+        const schema =
+          (typeof body.schema === 'string' && body.schema.trim()) || resolved.schema || '';
+        const result = await executeTableMaintenance({
+          dialect: resolved.dialect,
+          option: resolved.option,
+          action,
+          schema,
+          table,
+        });
+        if (!result.ok) {
+          res.status(result.failure.status).send({ error: result.failure.error });
+          return;
+        }
+        res.send(result.value);
+      } catch (error: unknown) {
+        sendThrown(res, error, 'Failed to run table maintenance');
+      }
+    },
+  );
 
   router.post(
     '/schema/db-access',

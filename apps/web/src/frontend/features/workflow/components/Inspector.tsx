@@ -83,6 +83,12 @@ interface Props {
   onTriggersChange: (triggers: WorkflowTrigger[]) => void;
   /** Opens the trigger dialog focused on `triggerId`. */
   onEditTrigger: (triggerId: string) => void;
+  /** Save and Test run from a manual trigger (its input data is the payload). */
+  onRunManual?: (triggerId: string) => void;
+  /** Why a manual trigger cannot run right now, per trigger id; absent when it can. */
+  manualRunBlocked?: (triggerId: string) => string | null;
+  /** Pipes selected on the canvas; above one, the inspector shows none. */
+  selectionCount?: number;
 }
 
 type SchemaProperty = {
@@ -478,6 +484,9 @@ export function Inspector({
   onChange,
   onTriggersChange,
   onEditTrigger,
+  onRunManual,
+  manualRunBlocked,
+  selectionCount = 0,
 }: Props) {
   const [renameError, setRenameError] = useState<string | null>(null);
   const [configError, setConfigError] = useState<string | null>(null);
@@ -569,10 +578,17 @@ export function Inspector({
     return (
       <aside className="inspector">
         <h3>Parameters</h3>
-        <p className="empty">
-          Select a node on the canvas to edit its settings. Drag between handles
-          to connect pipes.
-        </p>
+        {selectionCount > 1 ? (
+          <p className="empty" data-testid="workflow-inspector-multi-selection">
+            {selectionCount} pipes selected. Drag one to move them together,
+            or press Delete to remove them. Select a single pipe to edit it.
+          </p>
+        ) : (
+          <p className="empty">
+            Select a node on the canvas to edit its settings. Drag between handles
+            to connect pipes. Shift-drag to select several pipes.
+          </p>
+        )}
       </aside>
     );
   }
@@ -710,6 +726,12 @@ export function Inspector({
                   ),
                 )
               }
+              {...(onRunManual && boundTrigger.kind === 'manual'
+                ? {
+                    onRun: () => onRunManual(boundTrigger.id),
+                    runBlocked: manualRunBlocked?.(boundTrigger.id) ?? null,
+                  }
+                : {})}
             />
           )}
           <button data-testid="workflow-inspector-open-in-trigger"

@@ -134,3 +134,35 @@ describe('PipeNode', () => {
     expect(screen.getByText('Rejects')).toBeTruthy();
   });
 });
+
+describe('PipeNode problems and run status', () => {
+  it('marks a failed pipe with a badge and its error message', () => {
+    const { container } = renderNode({
+      runStatus: 'failed',
+      issue: { kind: 'run-failed', message: 'sandboxed code failed: boom' },
+    });
+    const node = container.querySelector('.pipe-node')!;
+    expect(node.className).toContain('has-issue');
+    expect(node.getAttribute('data-issue')).toBe('run-failed');
+    expect(screen.getByText('Failed')).toBeTruthy();
+    expect(screen.getByText('sandboxed code failed: boom')).toBeTruthy();
+  });
+
+  it('labels a pipe that only stopped because of another failure', () => {
+    renderNode({
+      runStatus: 'failed',
+      issue: { kind: 'run-stopped', causeId: 'main::paid', message: 'Stopped because paid failed.' },
+    });
+    expect(screen.getByText('Stopped')).toBeTruthy();
+    expect(screen.getByText('Stopped because paid failed.')).toBeTruthy();
+  });
+
+  it('shows run status without a problem, and nothing when there is neither', () => {
+    const { container, unmount } = renderNode({ runStatus: 'success' });
+    expect(container.querySelector('.pipe-node')!.className).toContain('run-success');
+    expect(container.querySelector('.pipe-issue-badge')).toBeNull();
+    unmount();
+    const plain = renderNode();
+    expect(plain.container.querySelector('.pipe-node')!.className).not.toMatch(/has-issue|run-/);
+  });
+});

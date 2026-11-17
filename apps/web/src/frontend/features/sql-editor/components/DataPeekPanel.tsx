@@ -746,6 +746,7 @@ const PeekGrid: React.FC<{
           <span>{openError}</span>
           <button
             type="button"
+            data-testid={`data-peek-open-error-close-${entry.id}`}
             onClick={() => setOpenError(null)}
             className="text-rose-400 hover:text-rose-200 p-0.5"
             title="Dismiss error"

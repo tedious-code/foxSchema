@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Controls with a test ID: **1073 of 1074** (99.9%). Without one: 1, listed at the end.
+Every control has a test ID: **1074** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1119,6 +1119,7 @@ Controls with a test ID: **1073 of 1074** (99.9%). Without one: 1, listed at the
   - `data-peek-grid-{id}` · div
   - `data-peek-limit-{id}` · input
   - `data-peek-open-error-{id}` · div
+  - `data-peek-open-error-close-{id}` · button · Dismiss error
   - `data-peek-open-sql-{id}` · button · Open query in a new SQL Editor tab
   - `data-peek-order-{id}` · input · created_at
   - `data-peek-order-{id}-{index}` · input · created_at
@@ -2083,8 +2084,3 @@ Controls with a test ID: **1073 of 1074** (99.9%). Without one: 1, listed at the
 One thing on screen, drawn by whichever component is showing.
 
 - `lokee-summary`: the history header: LokeeWeavePage draws it in graph mode, VersionTimeline otherwise
-
-## Controls without a test ID
-
-- `features/sql-editor/components/DataPeekPanel.tsx`
-  - line 747 · button · Dismiss error

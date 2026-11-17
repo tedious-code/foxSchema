@@ -2075,6 +2075,8 @@ export const TestIds = {
       dataPeekLimit: (id: string | number) => `data-peek-limit-${id}`,
       /** div */
       dataPeekOpenError: (id: string | number) => `data-peek-open-error-${id}`,
+      /** button · Dismiss error */
+      dataPeekOpenErrorClose: (id: string | number) => `data-peek-open-error-close-${id}`,
       /** button · Open query in a new SQL Editor tab */
       dataPeekOpenSql: (id: string | number) => `data-peek-open-sql-${id}`,
       /** input · created_at */
@@ -4441,6 +4443,7 @@ export type TestId =
   | 'data-peek-insight-rows'
   | `data-peek-limit-${string}`
   | `data-peek-open-error-${string}`
+  | `data-peek-open-error-close-${string}`
   | `data-peek-open-sql-${string}`
   | `data-peek-order-${string}`
   | `data-peek-order-${string}-${string}`

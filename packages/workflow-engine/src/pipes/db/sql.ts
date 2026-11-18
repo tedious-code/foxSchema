@@ -160,14 +160,24 @@ async function connectionFor(
     };
   }
   const secret = await requirePipeSecret(context, 'a database credential');
+  return connectionFromSecret(secret, context.pipe.credentialId ?? '', config);
+}
 
-  // A saved FoxSchema connection resolves to { dialect, schema, option }; a
-  // credential entered in the engine is the option bag itself.
+/**
+ * The connection a revealed database credential describes. A saved FoxSchema
+ * connection resolves to `{ dialect, schema, option }`; a credential entered
+ * in the engine is the option bag itself, and `config.dialect` says what it is.
+ */
+export function connectionFromSecret(
+  secret: Record<string, unknown>,
+  credentialId: string,
+  config: { dialect?: string; schema?: string },
+): SqlConnection {
   const { dialect: secretDialect, schema: secretSchema, option, ...rest } = secret;
   const dialect = typeof secretDialect === 'string' && secretDialect ? secretDialect : config.dialect;
   if (!dialect) {
     throw new Error(
-      `credential ${context.pipe.credentialId} does not say which database it is for; set dialect`,
+      `credential ${credentialId} does not say which database it is for; set dialect`,
     );
   }
   const schema = config.schema ?? (typeof secretSchema === 'string' ? secretSchema : undefined);
@@ -176,6 +186,25 @@ async function connectionFor(
     ...(schema ? { schema } : {}),
     option: option && typeof option === 'object' ? (option as Record<string, unknown>) : rest,
   };
+}
+
+/**
+ * Run a script's statements in order on one session and return the rows the
+ * last one produced. What a SQL schedule does on each fire; `source.db.sql`
+ * does the same with `{{path}}` binding on top.
+ */
+export async function runSqlScript(
+  connection: SqlConnection,
+  script: string,
+  options: { transaction?: boolean; open?: SqlRunner } = {},
+): Promise<Record<string, unknown>[]> {
+  const statements = statementsOf(script);
+  if (statements.length === 0) throw new Error('sql holds no statements');
+  return withSession(options.open ?? foxSchemaDrivers, connection, options.transaction ?? false, async (session) => {
+    let last: Record<string, unknown>[] = [];
+    for (const statement of statements) last = await session.query(statement, []);
+    return last;
+  });
 }
 
 /** A split template with every `{{path}}` bound as a parameter: split once, bound per use. */

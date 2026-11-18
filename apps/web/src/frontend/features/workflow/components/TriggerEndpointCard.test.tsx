@@ -9,24 +9,19 @@ import { render, screen } from '@testing-library/react';
 import { TriggerEndpointCard } from './TriggerEndpointCard';
 
 describe('TriggerEndpointCard', () => {
-  it('renders HTTP API endpoint call details and curl command', () => {
-    render(
-      <TriggerEndpointCard
-        workflowId="sample-cities-postgres"
-        triggerId="api_trigger"
-        kind="http"
-        requiredFields={['city']}
-      />,
-    );
+  it('renders a webhook endpoint and a curl command for it', () => {
+    render(<TriggerEndpointCard workflowId="orders" triggerId="webhook" />);
 
-    expect(screen.getByText('API Endpoint Call')).toBeTruthy();
+    expect(screen.getByText('Webhook endpoint')).toBeTruthy();
     expect(screen.getByText('POST')).toBeTruthy();
-    expect(
-      screen.getByText('/api/triggers/sample-cities-postgres/api_trigger'),
-    ).toBeTruthy();
+    expect(screen.getByText('/api/triggers/orders/webhook')).toBeTruthy();
     expect(screen.getByText(/cURL Command/i)).toBeTruthy();
-    expect(
-      screen.getByText(/curl -X POST.*sample-cities-postgres\/api_trigger/),
-    ).toBeTruthy();
+    expect(screen.getByText(/curl -X POST.*orders\/webhook/)).toBeTruthy();
+  });
+
+  it('uses the vanity path when the webhook has one', () => {
+    render(<TriggerEndpointCard workflowId="orders" triggerId="webhook" path="stripe/events" />);
+
+    expect(screen.getByText('/api/hooks/stripe/events')).toBeTruthy();
   });
 });

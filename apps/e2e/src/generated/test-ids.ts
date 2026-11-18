@@ -3468,6 +3468,30 @@ export const TestIds = {
     },
   },
   workflow: {
+    CronSqlEditor: {
+      /** div */
+      workflowCronSql: 'workflow-cron-sql',
+      /** div · Filter by name, dialect, host… */
+      workflowCronSqlConnectionBackdrop: 'workflow-cron-sql-connection-backdrop',
+      /** button · Filter by name, dialect, host… */
+      workflowCronSqlConnectionClear: 'workflow-cron-sql-connection-clear',
+      /** input · Filter by name, dialect, host… */
+      workflowCronSqlConnectionFilter: 'workflow-cron-sql-connection-filter',
+      /** div · Filter by name, dialect, host… */
+      workflowCronSqlConnectionGroup: (group: string | number) => `workflow-cron-sql-connection-group-${group}`,
+      /** data */
+      workflowCronSqlConnectionOption: (id: string | number) => `workflow-cron-sql-connection-option-${id}`,
+      /** button · Filter by name, dialect, host… */
+      workflowCronSqlConnectionTrigger: 'workflow-cron-sql-connection-trigger',
+      /** input · Max rows per run */
+      workflowCronSqlMaxRows: 'workflow-cron-sql-max-rows',
+      /** input */
+      workflowCronSqlOnlyWhenRows: 'workflow-cron-sql-only-when-rows',
+      /** div */
+      workflowCronSqlScript: 'workflow-cron-sql-script',
+      /** input */
+      workflowCronSqlTransaction: 'workflow-cron-sql-transaction',
+    },
     DelimitedSourceEditor: {
       /** button · Add column */
       workflowSourceAddColumn: 'workflow-source-add-column',
@@ -3749,8 +3773,6 @@ export const TestIds = {
       workflowTriggerSettingsCron: 'workflow-trigger-settings-cron',
       /** select */
       workflowTriggerSettingsExecutionType: 'workflow-trigger-settings-execution-type',
-      /** select · Select credential */
-      workflowTriggerSettingsHttpCredential: 'workflow-trigger-settings-http-credential',
       /** textarea · [{ "id": 1 }] */
       workflowTriggerSettingsInput: 'workflow-trigger-settings-input',
       /** input */
@@ -3765,8 +3787,6 @@ export const TestIds = {
       workflowTriggerSettingsMaxRetryDuration: 'workflow-trigger-settings-max-retry-duration',
       /** input */
       workflowTriggerSettingsMinBackoffDuration: 'workflow-trigger-settings-min-backoff-duration',
-      /** input */
-      workflowTriggerSettingsRequiredFields: 'workflow-trigger-settings-required-fields',
       /** input */
       workflowTriggerSettingsRetry: 'workflow-trigger-settings-retry',
       /** Button */
@@ -5559,6 +5579,17 @@ export type TestId =
   | 'view-workflow-btn'
   | 'warning-banner'
   | 'workflow-add-sample'
+  | 'workflow-cron-sql'
+  | 'workflow-cron-sql-connection-backdrop'
+  | 'workflow-cron-sql-connection-clear'
+  | 'workflow-cron-sql-connection-filter'
+  | `workflow-cron-sql-connection-group-${string}`
+  | `workflow-cron-sql-connection-option-${string}`
+  | 'workflow-cron-sql-connection-trigger'
+  | 'workflow-cron-sql-max-rows'
+  | 'workflow-cron-sql-only-when-rows'
+  | 'workflow-cron-sql-script'
+  | 'workflow-cron-sql-transaction'
   | 'workflow-designer-add-sample'
   | 'workflow-designer-auto-layout'
   | 'workflow-designer-breadcrumb-workflows'
@@ -5696,7 +5727,6 @@ export type TestId =
   | 'workflow-trigger-settings-catch-up'
   | 'workflow-trigger-settings-cron'
   | 'workflow-trigger-settings-execution-type'
-  | 'workflow-trigger-settings-http-credential'
   | 'workflow-trigger-settings-input'
   | 'workflow-trigger-settings-max-backoff-duration'
   | 'workflow-trigger-settings-max-body-bytes'
@@ -5704,7 +5734,6 @@ export type TestId =
   | 'workflow-trigger-settings-max-retry-attempts'
   | 'workflow-trigger-settings-max-retry-duration'
   | 'workflow-trigger-settings-min-backoff-duration'
-  | 'workflow-trigger-settings-required-fields'
   | 'workflow-trigger-settings-retry'
   | 'workflow-trigger-settings-run'
   | 'workflow-trigger-settings-webhook-credential'

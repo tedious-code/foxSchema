@@ -11,11 +11,16 @@ import { loadOnce } from '@/shared/lib/loadOnce';
 export const LOCAL_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 export const CRON_EXECUTION_TYPES: Record<
-  'workflow' | 'http',
+  'workflow' | 'http' | 'sql',
   { label: string; description: string }
 > = {
   workflow: { label: 'Run this workflow', description: 'Start a run of the current workflow on each fire.' },
   http: { label: 'Call an HTTP endpoint', description: 'Send an HTTP request to an external service on each fire.' },
+  sql: {
+    label: 'SQL execute',
+    description:
+      'Run a SQL script on each fire and start the workflow with the rows it returns, one record per row.',
+  },
 };
 
 export function formatInZone(date: Date, timeZone?: string): string {

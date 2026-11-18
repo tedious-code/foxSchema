@@ -62,15 +62,6 @@ async function webhookCredential(ctx: AppContext) {
   });
 }
 
-/** HTTP-trigger auth is a static bearer/api-key header. */
-async function httpCredential(ctx: AppContext) {
-  return ctx.credentials.create({
-    name: 'api',
-    kind: 'http',
-    data: { apiKey: 'key-123' },
-  });
-}
-
 function signedHeaders(body: string, idempotencyKey: string) {
   // Freshness is checked in seconds since epoch, not milliseconds.
   const timestamp = String(Math.floor(Date.now() / 1000));
@@ -112,38 +103,27 @@ describe('trigger ingress by kind (API)', () => {
     await app.close();
   });
 
-  it('enforces http trigger requiredFields', async () => {
-    const { ctx, app } = ctxWithApp();
-    const credential = await httpCredential(ctx);
-    await saveWorkflow(app, 'api-wf', [
+  it('refuses to save the retired API endpoint and API polling triggers', async () => {
+    const { app } = ctxWithApp();
+    for (const trigger of [
+      { id: 'api', kind: 'http', enabled: true, credentialId: 'c' },
       {
-        id: 'api',
-        kind: 'http',
+        id: 'poll',
+        kind: 'poll',
         enabled: true,
-        credentialId: credential.id,
-        requiredFields: ['orderId'],
+        http: { url: 'https://example.com/items' },
+        dedupKey: 'id',
       },
-    ]);
-
-    const send = async (payload: unknown, key: string) =>
-      app.inject({
-        method: 'POST',
-        url: '/api/triggers/api-wf/api',
-        headers: {
-          'content-type': 'application/json',
-          authorization: 'key-123',
-          'x-idempotency-key': key,
-        },
-        payload: JSON.stringify(payload),
+    ]) {
+      const res = await app.inject({
+        method: 'PUT',
+        url: `/api/workflows/retired-${trigger.kind}`,
+        payload: workflowDoc([trigger]),
       });
-
-    const missing = await send({ nope: 1 }, 'r1');
-    expect(missing.statusCode, missing.body).toBe(400);
-    expect(missing.json().error).toContain('orderId');
-    expect((await send({ orderId: 7 }, 'r2')).statusCode).toBe(202);
+      expect(res.statusCode, trigger.kind).toBe(400);
+    }
     await app.close();
   });
-
 
   it('does not expose parent or manual triggers over the ingress route', async () => {
     const { app } = ctxWithApp();
@@ -221,6 +201,45 @@ describe('trigger ingress by kind (API)', () => {
       },
     ]);
     expect(saved.triggers[0].http.url).toBe('https://example.com/ping');
+    await app.close();
+  });
+
+  it('validates cron executionType sql requires a script and saves it with defaults', async () => {
+    const { app } = ctxWithApp();
+    const cron = {
+      id: 'watch',
+      kind: 'cron',
+      enabled: true,
+      cron: '*/5 * * * *',
+      timezone: 'UTC',
+      catchUp: 'none',
+      executionType: 'sql',
+    };
+    const missing = await app.inject({
+      method: 'PUT',
+      url: '/api/workflows/cron-sql-wf',
+      payload: workflowDoc([cron]),
+    });
+    expect(missing.statusCode).toBe(400);
+    expect(missing.json().error).toMatch(/sql config is required/);
+
+    const blank = await app.inject({
+      method: 'PUT',
+      url: '/api/workflows/cron-sql-wf',
+      payload: workflowDoc([{ ...cron, sql: { credentialId: 'db', script: '   ' } }]),
+    });
+    expect(blank.statusCode).toBe(400);
+
+    const saved = await saveWorkflow(app, 'cron-sql-wf', [
+      { ...cron, sql: { credentialId: 'db', script: 'SELECT id FROM orders WHERE shipped = false' } },
+    ]);
+    expect(saved.triggers[0].sql).toEqual({
+      credentialId: 'db',
+      script: 'SELECT id FROM orders WHERE shipped = false',
+      onlyWhenRows: true,
+      transaction: false,
+      maxRows: 1000,
+    });
     await app.close();
   });
 });

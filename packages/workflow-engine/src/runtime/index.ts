@@ -43,11 +43,6 @@ export {
 } from './ports.js';
 
 export { CronCoordinator, type CronCoordinatorOptions } from './scheduler/cron.js';
-export {
-  PollCoordinator,
-  POLL_SEEN_KEYS_LIMIT,
-  type PollCoordinatorOptions,
-} from './scheduler/poll.js';
 
 export {
   createWorkflowServiceFactory,

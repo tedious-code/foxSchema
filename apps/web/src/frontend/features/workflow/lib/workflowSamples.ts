@@ -509,9 +509,9 @@ const CITIES_POSTGRES: SampleWorkflow = {
     id: SAMPLE_CITIES_POSTGRES_WORKFLOW_ID,
     name: '★ Sample · City & Country API → PostgreSQL',
     description:
-      'Dual triggers (Manual + API Endpoint): fetches City and Country from Open-Meteo public geocoding API, then inserts into PostgreSQL. Test run executes the manual trigger, and HTTP POST calls activate the API trigger.',
+      'Manual trigger: fetches City and Country from the Open-Meteo public geocoding API, then inserts into PostgreSQL. Test run executes the manual trigger with its input cities.',
     purpose:
-      'Demonstrate dual triggers (Manual & API Endpoint) fanning into an HTTP API fetch pipe and inserting into PostgreSQL.',
+      'Demonstrate a manual trigger feeding an HTTP API fetch pipe and inserting into PostgreSQL.',
     tags: ['sample', 'api', 'postgres', 'triggers'],
     expectedResult:
       'Cities (Tokyo, Paris, New York) are geocoded from public API and inserted into PostgreSQL public.cities table, then queried back.',
@@ -522,12 +522,6 @@ const CITIES_POSTGRES: SampleWorkflow = {
         kind: 'manual',
         enabled: true,
         inputData: cloneRecords(SAMPLE_CITIES_ROWS),
-      },
-      {
-        id: 'api',
-        kind: 'http',
-        enabled: true,
-        credentialId: 'api-token',
       },
     ],
     pipelines: [
@@ -542,13 +536,6 @@ const CITIES_POSTGRES: SampleWorkflow = {
             type: 'source.trigger.manual',
             intent: 'Manual trigger carrying initial cities (Tokyo, Paris, New York)',
             config: { triggerId: 'manual' },
-          },
-          {
-            id: 'api_trigger',
-            role: 'source',
-            type: 'source.trigger.http',
-            intent: 'API Endpoint trigger accepting POST requests with city payloads',
-            config: { triggerId: 'api' },
           },
           {
             id: 'fetch_city',
@@ -593,7 +580,6 @@ const CITIES_POSTGRES: SampleWorkflow = {
         ],
         edges: [
           { from: 'manual_trigger', to: 'fetch_city', fromPort: 'out' },
-          { from: 'api_trigger', to: 'fetch_city', fromPort: 'out' },
           { from: 'fetch_city', to: 'insert_postgres', fromPort: 'out' },
           { from: 'insert_postgres', to: 'query_postgres', fromPort: 'out' },
         ],

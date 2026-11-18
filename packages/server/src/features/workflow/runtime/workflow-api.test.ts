@@ -17,8 +17,9 @@ function api() {
 }
 
 /**
- * The shape a non-coder builds to publish an API: an HTTP trigger, the request
- * body arriving as records, a map, and `sink.response` as the answer.
+ * The shape a non-coder builds to publish an API: a webhook trigger checking
+ * an API key header, the request body arriving as records, a map, and
+ * `sink.response` as the answer.
  */
 function lookupWorkflow(extra: Record<string, unknown> = {}) {
   return {
@@ -27,9 +28,9 @@ function lookupWorkflow(extra: Record<string, unknown> = {}) {
     triggers: [
       {
         id: 'api',
-        kind: 'http',
+        kind: 'webhook',
         enabled: true,
-        credentialId: 'api-key',
+        auth: { type: 'header', credentialId: 'api-key', header: 'authorization' },
       },
     ],
     pipelines: [
@@ -60,7 +61,7 @@ async function seed(app: Awaited<ReturnType<typeof api>>, doc: unknown) {
   const credential = await app.inject({
     method: 'POST',
     url: '/api/credentials',
-    payload: { name: 'api-key', kind: 'http', data: { apiKey: 'secret-key' } },
+    payload: { name: 'api-key', kind: 'webhook', data: { apiKey: 'secret-key' } },
   });
   expect(credential.statusCode, credential.body).toBe(201);
   const id = credential.json().id as string;

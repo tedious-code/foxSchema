@@ -104,15 +104,14 @@ describe('workflow samples', () => {
     ]);
   });
 
-  it('cities to postgres sample has 2 triggers (manual and http) fanning into fetch_city and writing to postgres', () => {
+  it('cities to postgres sample has a manual trigger feeding fetch_city and writing to postgres', () => {
     const found = sample('sample-cities-postgres');
     const parsed = parseWorkflow(found.document);
-    expect(parsed.triggers.map((t) => t.kind).sort()).toEqual(['http', 'manual']);
+    expect(parsed.triggers.map((t) => t.kind).sort()).toEqual(['manual']);
     const pipeline = parsed.pipelines[0]!;
     const types = Object.fromEntries(pipeline.pipes.map((pipe) => [pipe.id, pipe.type]));
     expect(types).toMatchObject({
       manual_trigger: 'source.trigger.manual',
-      api_trigger: 'source.trigger.http',
       fetch_city: 'source.api.http',
       insert_postgres: 'sink.db.sql',
       query_postgres: 'source.db.sql',
@@ -120,7 +119,6 @@ describe('workflow samples', () => {
     expect(pipeline.edges).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ from: 'manual_trigger', to: 'fetch_city' }),
-        expect.objectContaining({ from: 'api_trigger', to: 'fetch_city' }),
         expect.objectContaining({ from: 'fetch_city', to: 'insert_postgres' }),
         expect.objectContaining({ from: 'insert_postgres', to: 'query_postgres' }),
       ]),

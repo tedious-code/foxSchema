@@ -68,7 +68,7 @@ export const RUN_STREAM_END_EVENT = 'end';
  * compile unless it accepts exactly these. Defined here rather than in the
  * engine so the designer can list them without loading the engine's validators.
  */
-export const TRIGGER_KINDS = ['manual', 'cron', 'webhook', 'http', 'poll', 'parent'] as const;
+export const TRIGGER_KINDS = ['manual', 'cron', 'webhook', 'parent'] as const;
 
 export type TriggerKind = (typeof TRIGGER_KINDS)[number];
 

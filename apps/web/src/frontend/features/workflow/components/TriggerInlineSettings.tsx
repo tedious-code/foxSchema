@@ -23,11 +23,14 @@ import {
 } from './HttpRequestEditor';
 import {
   createCronRetryConfig,
+  createCronSql,
   credentialsForTrigger,
   triggerCredentialId,
+  withExecutionType,
   withTriggerCredentialId,
   type WorkflowTrigger,
 } from '../lib/triggers';
+import { CronSqlEditor } from './CronSqlEditor';
 import { TriggerEndpointCard } from './TriggerEndpointCard';
 
 interface Props {
@@ -62,7 +65,6 @@ export function TriggerInlineSettings({
   const cron = trigger.kind === 'cron' ? trigger : null;
   const parent = trigger.kind === 'parent' ? trigger : null;
   const webhook = trigger.kind === 'webhook' ? trigger : null;
-  const http = trigger.kind === 'http' ? trigger : null;
 
   // Input-data text buffer: half-typed JSON must not be clobbered by the
   // round-trip through the parsed value.
@@ -155,14 +157,7 @@ export function TriggerInlineSettings({
           onChange={(event) => {
             const executionType = event.target
               .value as typeof cron.executionType;
-            onChange({
-              ...cron,
-              executionType,
-              http:
-                executionType === 'http'
-                  ? (cron.http ?? EMPTY_HTTP_REQUEST)
-                  : cron.http,
-            });
+            onChange(withExecutionType(cron, executionType, EMPTY_HTTP_REQUEST));
           }}
         >
           {(
@@ -182,7 +177,7 @@ export function TriggerInlineSettings({
           <>
             <label>Outgoing HTTP Request</label>
             <div className="hint">
-              Outgoing call made when schedule fires. (To trigger this workflow externally via API, use an API Endpoint Trigger instead).
+              Outgoing call made when the schedule fires. (To start this workflow from outside, use a Webhook Trigger.)
             </div>
             <HttpRequestEditor
               key={trigger.id}
@@ -192,6 +187,14 @@ export function TriggerInlineSettings({
               onChange={(http) => onChange({ ...cron, http })}
             />
           </>
+        )}
+        {cron.executionType === 'sql' && (
+          <CronSqlEditor
+            key={trigger.id}
+            editorHeight="140px"
+            value={cron.sql ?? createCronSql()}
+            onChange={(sql) => onChange({ ...cron, sql })}
+          />
         )}
 
         <label>Catch-up behavior</label>
@@ -390,51 +393,7 @@ export function TriggerInlineSettings({
         <TriggerEndpointCard
           workflowId={currentWorkflowId}
           triggerId={webhook.id}
-          kind="webhook"
-          credentialId={triggerCredentialId(webhook)}
           path={webhook.path}
-        />
-      </>
-    );
-  }
-
-  if (http) {
-    return (
-      <>
-        <label>Credential</label>
-        <select data-testid="workflow-trigger-settings-http-credential"
-          value={http.credentialId}
-          onChange={(eventChange) =>
-            onChange({ ...http, credentialId: eventChange.target.value })
-          }
-        >
-          <option value="">Select credential</option>
-          {credentialsForTrigger('http', credentials).map((credential) => (
-            <option key={credential.id} value={credential.id}>
-              {credential.name}
-            </option>
-          ))}
-        </select>
-        <label>Required fields</label>
-        <input data-testid="workflow-trigger-settings-required-fields"
-          value={http.requiredFields.join(', ')}
-          onChange={(eventChange) =>
-            onChange({
-              ...http,
-              requiredFields: eventChange.target.value
-                .split(',')
-                .map((field) => field.trim())
-                .filter(Boolean),
-            })
-          }
-        />
-        <TriggerEndpointCard
-          workflowId={currentWorkflowId}
-          triggerId={http.id}
-          kind="http"
-          credentialId={http.credentialId}
-          authHeader={http.authHeader}
-          requiredFields={http.requiredFields}
         />
       </>
     );

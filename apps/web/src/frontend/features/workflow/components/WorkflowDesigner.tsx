@@ -101,6 +101,7 @@ import {
 import {
   createTrigger,
   nextTriggerId,
+  partitionRetiredTriggers,
   type OverlapPolicy,
   type WorkflowTrigger,
 } from '../lib/triggers';
@@ -968,7 +969,15 @@ function Designer() {
         })),
       );
       setDependencies(workflow.dependencies ?? []);
-      setTriggers(workflow.triggers ?? DEFAULT_TRIGGERS);
+      const { supported, retired } = partitionRetiredTriggers(
+        workflow.triggers ?? DEFAULT_TRIGGERS,
+      );
+      setTriggers(supported);
+      if (retired.length > 0) {
+        toast.warning('Removed triggers this version no longer supports', {
+          description: `${retired.join(', ')} — API endpoint and API polling triggers were retired. Remove their trigger pipes too, then save.`,
+        });
+      }
       setOverlapPolicy(workflow.onOverlap ?? 'skip');
       setCarried({
         name: workflow.name,

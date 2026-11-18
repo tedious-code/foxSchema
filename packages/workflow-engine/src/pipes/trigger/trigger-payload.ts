@@ -122,18 +122,6 @@ export class WebhookTriggerSourcePipe extends TriggerSourcePipe {
   protected readonly displayName = 'Webhook Trigger';
 }
 
-export class HttpTriggerSourcePipe extends TriggerSourcePipe {
-  readonly type = 'source.trigger.http';
-  protected readonly kind = 'http' as const;
-  protected readonly displayName = 'API Endpoint Trigger';
-}
-
-export class PollTriggerSourcePipe extends TriggerSourcePipe {
-  readonly type = 'source.trigger.poll';
-  protected readonly kind = 'poll' as const;
-  protected readonly displayName = 'API Polling Trigger';
-}
-
 export class ParentTriggerSourcePipe extends TriggerSourcePipe {
   readonly type = 'source.trigger.parent';
   protected readonly kind = 'parent' as const;
@@ -161,24 +149,20 @@ function recordsForKind(
       !Array.isArray(invocation.payload)
         ? (invocation.payload as Record<string, unknown>)
         : {};
+    // A SQL schedule carries the rows its script returned: one record each is
+    // what the rest of the pipeline expects, not one record wrapping an array.
+    // No rows (when the schedule runs regardless) falls through to the usual
+    // single schedule record, so the pipeline still sees the tick.
+    const { rows, ...rest } = payload;
+    if (Array.isArray(rows) && rows.length > 0) return normalizePayload(rows);
     return [
       {
         triggerId: invocation.triggerId,
         kind: 'cron',
         acceptedAt: invocation.acceptedAt,
-        ...payload,
+        ...rest,
       },
     ];
-  }
-  if (invocation.kind === 'poll') {
-    // The invocation carries the new items; one record each is what the rest
-    // of the pipeline expects, not a single record wrapping an array.
-    const payload = invocation.payload;
-    const items =
-      payload && typeof payload === 'object' && 'items' in payload
-        ? (payload as { items: unknown }).items
-        : undefined;
-    return normalizePayload(Array.isArray(items) ? items : []);
   }
   if (invocation.kind === 'parent' && invocation.payload == null) {
     return [

@@ -126,6 +126,36 @@ export const webhookAuthSchema = z.discriminatedUnion('type', [
 ]);
 export type WebhookAuth = z.infer<typeof webhookAuthSchema>;
 
+/**
+ * A schedule that runs SQL. On each fire the script runs against a database
+ * credential — one entered in the engine, or a saved FoxSchema connection
+ * granted to workflows — and the rows its last statement returns start the
+ * workflow, one record each.
+ *
+ * The script is not restricted to reads: "every night, archive old rows and
+ * hand me what moved" is a legitimate schedule. The credential is the
+ * boundary, as it is for `source.db.sql`.
+ */
+export const cronSqlSchema = z.object({
+  credentialId: z.string().min(1),
+  /** Which database a credential entered in the engine is for. A saved FoxSchema connection already says. */
+  dialect: z.string().min(1).optional(),
+  /** Overrides the schema the credential names. */
+  schema: z.string().min(1).optional(),
+  /** One statement, or a script whose statements run in order. The last statement's rows are the payload. */
+  script: z.string().trim().min(1).max(100_000),
+  /**
+   * Skip the run when the script returns no rows. On by default: a schedule
+   * watching a table should leave no trace on the ticks where nothing changed.
+   */
+  onlyWhenRows: z.boolean().default(true),
+  /** Run the script all-or-nothing, where the database can roll back. */
+  transaction: z.boolean().default(false),
+  /** Most rows carried into one run. The rest are dropped, not deferred. */
+  maxRows: z.number().int().min(1).max(10_000).default(1_000),
+});
+export type CronSqlConfig = z.infer<typeof cronSqlSchema>;
+
 // How a workflow is activated. These bindings live at workflow level; source
 // pipes decide how a run obtains records after activation.
 export const triggerSchema = z.discriminatedUnion('kind', [
@@ -149,14 +179,17 @@ export const triggerSchema = z.discriminatedUnion('kind', [
       .refine(validTimezone, { message: 'invalid IANA timezone' })
       .default('UTC'),
     catchUp: z.enum(['none', 'one', 'all']).default('none'),
-    // What firing this schedule does: run this workflow (default) or call an
-    // external HTTP endpoint.
-    executionType: z.enum(['workflow', 'http']).default('workflow'),
+    // What firing this schedule does: run this workflow (default), call an
+    // external HTTP endpoint, or run a SQL script and start the workflow with
+    // the rows it returns.
+    executionType: z.enum(['workflow', 'http', 'sql']).default('workflow'),
     /**
      * Outbound request when `executionType === 'http'`. Same shape as
      * `source.api.http` (shared `httpRequestSchema`) — no duplicate fields.
      */
     http: httpRequestSchema.optional(),
+    /** The script to run when `executionType === 'sql'`. */
+    sql: cronSqlSchema.optional(),
     // Optional exponential-backoff retry policy for a failed job. Absent means
     // no retry configuration on the schedule. Durations are strings like
     // "5s" / "1h"; "0s" for max retry duration means unlimited.
@@ -209,48 +242,6 @@ export const triggerSchema = z.discriminatedUnion('kind', [
       .enum(['reject', 'fingerprint'])
       .default(WEBHOOK_DEFAULT_ON_MISSING_KEY),
     maxBodyBytes: z.number().int().positive().max(1_048_576).default(1_048_576),
-  }),
-  z.object({
-    ...triggerCommon,
-    kind: z.literal('http'),
-    credentialId: z.string().min(1),
-    authHeader: z.string().min(1).default('authorization'),
-    idempotencyHeader: z.string().min(1).default('x-idempotency-key'),
-    maxBodyBytes: z.number().int().positive().max(1_048_576).default(1_048_576),
-    requiredFields: z.array(z.string().min(1)).max(100).default([]),
-  }),
-  z.object({
-    ...triggerCommon,
-    kind: z.literal('poll'),
-    /**
-     * How often to call the endpoint. Floored at 10s: this is a courtesy to
-     * the API on the other end, which is usually someone else's.
-     */
-    intervalSeconds: z.number().int().min(10).max(86_400).default(300),
-    /** The request to make. Same shape as `source.api.http` and cron's `http`. */
-    http: httpRequestSchema,
-    /**
-     * Dot path to the array of items in the response body. Empty means the
-     * body *is* the array. A path that misses, or lands on a non-array, is an
-     * error rather than "zero items" — silently polling nothing forever is the
-     * worst failure mode this trigger has.
-     */
-    resultsPath: z.string().default(''),
-    /**
-     * Field on each item that identifies it across polls. Items whose key was
-     * seen on a previous poll are dropped, so a run is created only for new
-     * ones — and not created at all when everything is old.
-     */
-    dedupKey: z.string().min(1),
-    /** Most items to carry into one invocation. Extras wait for the next poll. */
-    maxItems: z.number().int().positive().max(1000).default(100),
-    /**
-     * What the very first poll does, before any cursor exists. 'prime' records
-     * what is already there and creates no run — the usual intent, since the
-     * endpoint's whole backlog is rarely what you meant by "when something new
-     * arrives". 'fire' treats the entire first response as new.
-     */
-    onFirstPoll: z.enum(['prime', 'fire']).default('prime'),
   }),
   z.object({
     ...triggerCommon,
@@ -408,6 +399,17 @@ const normalizedWorkflowSchema = z
           path: ['triggers', index, 'http'],
           message:
             'http request config is required when executionType is http',
+        });
+      }
+      if (
+        trigger.kind === 'cron' &&
+        trigger.executionType === 'sql' &&
+        !trigger.sql
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['triggers', index, 'sql'],
+          message: 'sql config is required when executionType is sql',
         });
       }
     });

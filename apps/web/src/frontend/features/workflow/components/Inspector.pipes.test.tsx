@@ -16,6 +16,7 @@ vi.mock('@monaco-editor/react', () => ({
 }));
 vi.mock('../lib/jsonEditorOptions', () => ({ JSON_EDITOR_OPTIONS: {}, useJsonEditorTheme: () => 'vs' }));
 vi.mock('./SqlPipeEditor', () => ({ SqlPipeEditor: () => <div data-testid="sql-editor" /> }));
+vi.mock('./CronSqlEditor', () => ({ CronSqlEditor: () => <div data-testid="cron-sql-editor" /> }));
 vi.mock('./HttpRequestEditor', () => ({
   EMPTY_HTTP_REQUEST: { method: 'GET', url: '', query: [], headers: [], body: { mode: 'none' }, auth: { type: 'none' } },
   HttpRequestEditor: () => <div data-testid="http-editor" />,

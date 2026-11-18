@@ -7,22 +7,17 @@ import { useState } from 'react';
 import { Check, Copy, Terminal } from 'lucide-react';
 
 interface Props {
+  /** Absent until the workflow is saved; the URL then shows a placeholder. */
   workflowId?: string;
   triggerId: string;
-  kind: 'http' | 'webhook';
-  credentialId?: string;
-  authHeader?: string;
-  requiredFields?: string[];
+  /** The webhook's vanity path, when it has one. */
   path?: string;
 }
 
+/** Where a webhook trigger listens, with a cURL call to try it. */
 export function TriggerEndpointCard({
-  workflowId = 'sample-cities-postgres',
+  workflowId = '<workflow-id>',
   triggerId,
-  kind,
-  credentialId,
-  authHeader,
-  requiredFields,
   path,
 }: Props): React.JSX.Element {
   const [copiedUrl, setCopiedUrl] = useState(false);
@@ -36,32 +31,11 @@ export function TriggerEndpointCard({
   const endpointPath = path ? `/api/hooks/${path}` : `/api/triggers/${workflowId}/${triggerId}`;
   const fullUrl = `${origin}${endpointPath}`;
 
-  const headerLines: string[] = ['Content-Type: application/json'];
-  if (kind === 'http' && credentialId) {
-    headerLines.push(`${authHeader || 'Authorization'}: Bearer <YOUR_TOKEN>`);
-  }
-  headerLines.push('x-idempotency-key: <uuid>');
-
-  const sampleBody =
-    requiredFields && requiredFields.length > 0
-      ? JSON.stringify(
-          [
-            requiredFields.reduce<Record<string, string>>((acc, field) => {
-              acc[field] = field.toLowerCase().includes('city') ? 'Tokyo' : 'value';
-              return acc;
-            }, {}),
-          ],
-          null,
-          2,
-        )
-      : JSON.stringify([{ city: 'Tokyo' }], null, 2);
+  const headerLines: string[] = ['Content-Type: application/json', 'x-idempotency-key: <uuid>'];
+  const sampleBody = JSON.stringify([{ city: 'Tokyo' }], null, 2);
 
   const curlCommand = `curl -X POST "${fullUrl}" \\
-  -H "Content-Type: application/json"${
-    kind === 'http' && credentialId
-      ? ` \\\n  -H "${authHeader || 'Authorization'}: Bearer <YOUR_TOKEN>"`
-      : ''
-  } \\
+  -H "Content-Type: application/json" \\
   -d '${sampleBody.replace(/\n\s*/g, ' ')}'`;
 
   const copyUrl = () => {
@@ -80,7 +54,7 @@ export function TriggerEndpointCard({
     <div className="trigger-endpoint-card" data-testid="trigger-endpoint-card">
       <div className="trigger-endpoint-header">
         <span className="trigger-endpoint-badge">POST</span>
-        <span className="trigger-endpoint-title">API Endpoint Call</span>
+        <span className="trigger-endpoint-title">Webhook endpoint</span>
       </div>
 
       <div className="trigger-endpoint-url-row">

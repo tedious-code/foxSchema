@@ -3701,6 +3701,26 @@ export const TestIds = {
       workflowInspectorType: 'workflow-inspector-type',
     },
     MultiHttpEditor: {
+      /** Button */
+      workflowMultiHttpAddEndpoint: 'workflow-multi-http-add-endpoint',
+      /** Input */
+      workflowMultiHttpBatchSize: 'workflow-multi-http-batch-size',
+      /** Input */
+      workflowMultiHttpConcurrency: 'workflow-multi-http-concurrency',
+      /** Select */
+      workflowMultiHttpExecutionMode: 'workflow-multi-http-execution-mode',
+      /** Input */
+      workflowMultiHttpId: (index: string | number) => `workflow-multi-http-id-${index}`,
+      /** Select */
+      workflowMultiHttpOnError: 'workflow-multi-http-on-error',
+      /** Select */
+      workflowMultiHttpOutputMode: 'workflow-multi-http-output-mode',
+      /** Input */
+      workflowMultiHttpRecordsPath: (index: string | number) => `workflow-multi-http-records-path-${index}`,
+      /** Button · Remove endpoint */
+      workflowMultiHttpRemove: (index: string | number) => `workflow-multi-http-remove-${index}`,
+      /** Input */
+      workflowMultiHttpTagField: 'workflow-multi-http-tag-field',
       /** button */
       workflowMultiHttpToggle: (index: string | number) => `workflow-multi-http-toggle-${index}`,
     },
@@ -5670,6 +5690,16 @@ export type TestId =
   | 'workflow-list-file'
   | `workflow-list-open-in-designer-${string}`
   | 'workflow-menu'
+  | 'workflow-multi-http-add-endpoint'
+  | 'workflow-multi-http-batch-size'
+  | 'workflow-multi-http-concurrency'
+  | 'workflow-multi-http-execution-mode'
+  | `workflow-multi-http-id-${string}`
+  | 'workflow-multi-http-on-error'
+  | 'workflow-multi-http-output-mode'
+  | `workflow-multi-http-records-path-${string}`
+  | `workflow-multi-http-remove-${string}`
+  | 'workflow-multi-http-tag-field'
   | `workflow-multi-http-toggle-${string}`
   | 'workflow-no-panes'
   | 'workflow-palette-search-pipes'

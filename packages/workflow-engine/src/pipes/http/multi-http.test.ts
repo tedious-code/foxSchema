@@ -7,6 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { PipeContext } from '../../registry/index.js';
+import { ScriptTransformPipe } from '../utility/script.js';
 import { MultiHttpSourcePipe } from './multi-http.js';
 
 function context(
@@ -269,5 +270,187 @@ describe('MultiHttpSourcePipe', () => {
     const rest = [];
     for await (const batch of pipe.read(resumed)) rest.push(...batch.records);
     expect(rest).toEqual([{ id: 4, _endpoint: 'bulk' }]);
+  });
+
+  it('runs endpoints linearly in sequence when executionMode is linear', async () => {
+    const events: string[] = [];
+    const pipe = new MultiHttpSourcePipe(async (input) => {
+      const url = String(input);
+      events.push(`start:${url}`);
+      await new Promise((r) => setTimeout(r, 10));
+      events.push(`end:${url}`);
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    await collect(pipe, {
+      executionMode: 'linear',
+      endpoints: [
+        { id: 'first', url: 'https://example.test/first' },
+        { id: 'second', url: 'https://example.test/second' },
+      ],
+    });
+
+    expect(events).toEqual([
+      'start:https://example.test/first',
+      'end:https://example.test/first',
+      'start:https://example.test/second',
+      'end:https://example.test/second',
+    ]);
+  });
+
+  it('merges multi-endpoint responses into a single record in merge outputMode', async () => {
+    const pipe = new MultiHttpSourcePipe(async (input) => {
+      const url = String(input);
+      if (url.includes('users')) {
+        return new Response(
+          JSON.stringify({ items: [{ id: 1, name: 'Alice' }] }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      if (url.includes('orders')) {
+        return new Response(
+          JSON.stringify({ totalCount: 42, active: true }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      return new Response(JSON.stringify({ rate: 1.25 }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    const records = await collect(pipe, {
+      outputMode: 'merge',
+      endpoints: [
+        { id: 'users', url: 'https://example.test/users', recordsPath: 'items' },
+        { id: 'orders', url: 'https://example.test/orders' },
+        { id: 'rates', url: 'https://example.test/rates' },
+      ],
+    });
+
+    expect(records).toEqual([
+      {
+        users: [{ id: 1, name: 'Alice' }],
+        orders: { totalCount: 42, active: true },
+        rates: { rate: 1.25 },
+      },
+    ]);
+  });
+
+  it('captures failed endpoint error in merged record when onError is skip', async () => {
+    const pipe = new MultiHttpSourcePipe(async (input) => {
+      const url = String(input);
+      if (url.includes('failing')) {
+        return new Response('Internal Server Error', { status: 500 });
+      }
+      return new Response(JSON.stringify({ live: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    const records = await collect(pipe, {
+      outputMode: 'merge',
+      onError: 'skip',
+      endpoints: [
+        { id: 'good', url: 'https://example.test/good' },
+        { id: 'bad', url: 'https://example.test/failing' },
+      ],
+    });
+
+    expect(records).toHaveLength(1);
+    expect(records[0]?.good).toEqual({ live: true });
+    expect(records[0]?.bad).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('500'),
+    });
+  });
+
+  it('fails pipe when onError is fail in merge outputMode', async () => {
+    const pipe = new MultiHttpSourcePipe(async (input) => {
+      const url = String(input);
+      if (url.includes('fail')) {
+        return new Response('Not Found', { status: 404 });
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    await expect(
+      collect(pipe, {
+        outputMode: 'merge',
+        onError: 'fail',
+        endpoints: [
+          { id: 'good', url: 'https://example.test/good' },
+          { id: 'bad', url: 'https://example.test/fail' },
+        ],
+      }),
+    ).rejects.toThrow(/HTTP multi endpoint "bad"/);
+  });
+
+  it('pipes merged HTTP output into ScriptTransformPipe for transformation', async () => {
+    const sourcePipe = new MultiHttpSourcePipe(async (input) => {
+      const url = String(input);
+      if (url.includes('users')) {
+        return new Response(
+          JSON.stringify([{ id: 101, name: 'Alice' }, { id: 102, name: 'Bob' }]),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      return new Response(
+        JSON.stringify({ '101': 3, '102': 7 }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    });
+
+    const sourceRecords = await collect(sourcePipe, {
+      outputMode: 'merge',
+      endpoints: [
+        { id: 'users', url: 'https://example.test/users' },
+        { id: 'orderCounts', url: 'https://example.test/orders' },
+      ],
+    });
+
+    // Feed the merged payload directly into ScriptTransformPipe
+    const scriptPipe = new ScriptTransformPipe();
+    const scriptContext: PipeContext = {
+      workflowRunId: 'run-1',
+      pipelineId: 'pipeline-1',
+      pipe: {
+        id: 'script-transform',
+        role: 'transform',
+        type: 'transform.script',
+        concurrency: 1,
+        config: {
+          script: `
+            const { users, orderCounts } = records[0];
+            return users.map(u => ({
+              userId: u.id,
+              userName: u.name,
+              orders: orderCounts[String(u.id)] || 0
+            }));
+          `,
+        },
+      },
+    };
+
+    const outputPorts = await scriptPipe.transform(
+      {
+        id: 'batch-1',
+        partitionId: '0',
+        records: sourceRecords,
+      },
+      scriptContext,
+    );
+
+    expect(outputPorts.get('out')?.records).toEqual([
+      { userId: 101, userName: 'Alice', orders: 3 },
+      { userId: 102, userName: 'Bob', orders: 7 },
+    ]);
   });
 });

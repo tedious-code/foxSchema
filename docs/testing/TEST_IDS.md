@@ -1960,6 +1960,16 @@ Every control has a test ID: **1075** buttons, text boxes, selects and textareas
   - `workflow-inspector-trigger` · select
   - `workflow-inspector-type` · select
 - **MultiHttpEditor** · `features/workflow/components/MultiHttpEditor.tsx`
+  - `workflow-multi-http-add-endpoint` · Button
+  - `workflow-multi-http-batch-size` · Input
+  - `workflow-multi-http-concurrency` · Input
+  - `workflow-multi-http-execution-mode` · Select
+  - `workflow-multi-http-id-{index}` · Input
+  - `workflow-multi-http-on-error` · Select
+  - `workflow-multi-http-output-mode` · Select
+  - `workflow-multi-http-records-path-{index}` · Input
+  - `workflow-multi-http-remove-{index}` · Button · Remove endpoint
+  - `workflow-multi-http-tag-field` · Input
   - `workflow-multi-http-toggle-{index}` · button
 - **Palette** · `features/workflow/components/Palette.tsx`
   - `workflow-palette-search-pipes` · input · Search pipes

@@ -23,6 +23,8 @@ export type MultiHttpEndpoint = HttpRequestValue & {
 
 type MultiHttpConfig = {
   endpoints: MultiHttpEndpoint[];
+  executionMode?: 'parallel' | 'linear';
+  outputMode?: 'records' | 'merge';
   concurrency?: number;
   tagField?: string;
   onError?: 'fail' | 'skip';
@@ -65,6 +67,8 @@ function emptyEndpoint(index: number): MultiHttpEndpoint {
 
 export function MultiHttpEditor({ config, credentials, onChange }: Props) {
   const endpoints = asEndpoints(config.endpoints);
+  const executionMode = config.executionMode === 'linear' ? 'linear' : 'parallel';
+  const outputMode = config.outputMode === 'merge' ? 'merge' : 'records';
   const concurrency =
     typeof config.concurrency === 'number' ? config.concurrency : 0;
   const tagField =
@@ -78,6 +82,8 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
     onChange({
       ...config,
       endpoints,
+      executionMode,
+      outputMode,
       concurrency,
       tagField,
       onError,
@@ -91,6 +97,8 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
     onChange({
       ...config,
       endpoints: [emptyEndpoint(1)],
+      executionMode: 'parallel',
+      outputMode: 'records',
       concurrency: 0,
       tagField: '_endpoint',
       onError: 'fail',
@@ -116,9 +124,9 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
   return (
     <div className="multi-http-editor">
       <p className="hint">
-        All endpoints run in parallel; the pipe waits for every request before
-        emitting records (tagged with the endpoint id). Each endpoint supports
-        the full HTTP request (params, headers, auth, body, session).
+        {outputMode === 'merge'
+          ? 'Calls multiple endpoints with different URLs and merges all response payloads into a single record keyed by endpoint ID, ready for downstream Script transformation.'
+          : 'Runs multiple endpoints and emits individual records (tagged with the endpoint id). Each endpoint supports the full HTTP request (params, headers, auth, body, session).'}
       </p>
 
       {endpoints.length === 0 && (
@@ -153,6 +161,7 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
                 </span>
               </button>
               <Button
+                data-testid={`workflow-multi-http-remove-${index}`}
                 type="button"
                 variant="ghost"
                 size="icon"
@@ -173,6 +182,7 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
                   <div>
                     <Label>Id</Label>
                     <Input
+                      data-testid={`workflow-multi-http-id-${index}`}
                       value={id}
                       onChange={(event) =>
                         patchEndpointMeta(index, { id: event.target.value })
@@ -182,8 +192,9 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
                   <div>
                     <Label>Records path</Label>
                     <Input
+                      data-testid={`workflow-multi-http-records-path-${index}`}
                       value={recordsPath ?? ''}
-                      placeholder="data.items"
+                      placeholder={outputMode === 'merge' ? 'Optional (default: entire response body)' : 'data.items'}
                       onChange={(event) =>
                         patchEndpointMeta(index, {
                           recordsPath: event.target.value,
@@ -212,6 +223,7 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
       })}
 
       <Button
+        data-testid="workflow-multi-http-add-endpoint"
         type="button"
         onClick={() => {
           const nextIndex = endpoints.length;
@@ -224,48 +236,84 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
         <Plus /> Add endpoint
       </Button>
 
-      <Label>Concurrency (0 = all at once)</Label>
-      <Input
-        type="number"
-        min={0}
-        max={64}
-        value={concurrency}
+      <Label>Output mode</Label>
+      <Select
+        data-testid="workflow-multi-http-output-mode"
+        value={outputMode}
         onChange={(event) =>
-          patch({ concurrency: Math.max(0, Number(event.target.value) || 0) })
+          patch({ outputMode: event.target.value as 'records' | 'merge' })
         }
-      />
+      >
+        <option value="records">Individual records (Flattened per endpoint)</option>
+        <option value="merge">Merged payload (Single record for Script transform)</option>
+      </Select>
+
+      <Label>Execution mode</Label>
+      <Select
+        data-testid="workflow-multi-http-execution-mode"
+        value={executionMode}
+        onChange={(event) =>
+          patch({ executionMode: event.target.value as 'parallel' | 'linear' })
+        }
+      >
+        <option value="parallel">Parallel (Concurrent)</option>
+        <option value="linear">Linear (Sequential, one by one)</option>
+      </Select>
+
+      {executionMode === 'parallel' && (
+        <>
+          <Label>Concurrency limit (0 = all at once)</Label>
+          <Input
+            data-testid="workflow-multi-http-concurrency"
+            type="number"
+            min={0}
+            max={64}
+            value={concurrency}
+            onChange={(event) =>
+              patch({ concurrency: Math.max(0, Number(event.target.value) || 0) })
+            }
+          />
+        </>
+      )}
 
       <Label>On error</Label>
       <Select
+        data-testid="workflow-multi-http-on-error"
         value={onError}
         onChange={(event) =>
           patch({ onError: event.target.value as 'fail' | 'skip' })
         }
       >
-        <option value="fail">Fail pipe (wait-for-all)</option>
-        <option value="skip">Skip failed endpoint</option>
+        <option value="fail">Stop to failure (Fail pipe)</option>
+        <option value="skip">Except failure (Continue with other endpoints)</option>
       </Select>
 
-      <Label>Tag field</Label>
-      <Input
-        value={tagField}
-        onChange={(event) =>
-          patch({ tagField: event.target.value || '_endpoint' })
-        }
-      />
+      {outputMode === 'records' && (
+        <>
+          <Label>Tag field</Label>
+          <Input
+            data-testid="workflow-multi-http-tag-field"
+            value={tagField}
+            onChange={(event) =>
+              patch({ tagField: event.target.value || '_endpoint' })
+            }
+          />
 
-      <Label>Batch size</Label>
-      <Input
-        type="number"
-        min={1}
-        max={100000}
-        value={batchSize}
-        onChange={(event) =>
-          patch({
-            batchSize: Math.max(1, Number(event.target.value) || 1000),
-          })
-        }
-      />
+          <Label>Batch size</Label>
+          <Input
+            data-testid="workflow-multi-http-batch-size"
+            type="number"
+            min={1}
+            max={100000}
+            value={batchSize}
+            onChange={(event) =>
+              patch({
+                batchSize: Math.max(1, Number(event.target.value) || 1000),
+              })
+            }
+          />
+        </>
+      )}
     </div>
   );
 }

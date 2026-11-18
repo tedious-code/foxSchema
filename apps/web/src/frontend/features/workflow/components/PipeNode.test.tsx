@@ -68,6 +68,16 @@ describe('pipeSummary', () => {
         JSON.stringify({ endpoints: [{ id: 'a', url: 'https://a.test' }, { id: 'b', url: 'https://b.test' }] }),
       ),
     ).toBe('2 parallel endpoints');
+    expect(
+      pipeSummary(
+        'source.api.http.multi',
+        JSON.stringify({
+          executionMode: 'linear',
+          outputMode: 'merge',
+          endpoints: [{ id: 'a', url: 'https://a.test' }],
+        }),
+      ),
+    ).toBe('1 linear endpoints · merge');
   });
 
   it('summarizes SQL and delimited file pipes', () => {

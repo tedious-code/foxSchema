@@ -139,7 +139,9 @@ export function pipeSummary(
   }
   if (type === 'source.api.http.multi') {
     const count = Array.isArray(cfg.endpoints) ? cfg.endpoints.length : 0;
-    return `${count} parallel endpoints`;
+    const mode = cfg.executionMode === 'linear' ? 'linear' : 'parallel';
+    const output = cfg.outputMode === 'merge' ? ' · merge' : '';
+    return `${count} ${mode} endpoints${output}`;
   }
   if (type === 'source.db.sql') {
     const dialect = typeof cfg.dialect === 'string' ? cfg.dialect : 'sql';

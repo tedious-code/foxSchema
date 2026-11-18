@@ -17,6 +17,7 @@ export type PortInfo = { name: string; type: string };
 export type PipeData = {
   pipelineId: string;
   pipeId: string;
+  name?: string;
   role: 'trigger' | 'source' | 'transform' | 'sink';
   type: string;
   /** Optional one-liner intent (Agentic OS); defaults from pipe metadata name. */
@@ -260,7 +261,12 @@ export function PipeNode({ id, data, selected }: NodeProps<PipeNodeType>) {
           </span>
         )}
       </div>
-      <div className="title">{data.pipeId || id}</div>
+      <div
+        className="title"
+        title={data.name ? `${data.name} (${data.pipeId || id})` : (data.pipeId || id)}
+      >
+        {data.name || data.pipeId || id}
+      </div>
       <div className="sub">{shortType}</div>
       {summary && (
         <div className="pipe-summary" title={data.intent || summary}>

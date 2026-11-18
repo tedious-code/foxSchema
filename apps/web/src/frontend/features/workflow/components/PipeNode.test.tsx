@@ -143,6 +143,19 @@ describe('PipeNode', () => {
     expect(screen.getByText('Out')).toBeTruthy();
     expect(screen.getByText('Rejects')).toBeTruthy();
   });
+
+  it('renders custom pipe name as the title when provided', () => {
+    renderNode({
+      pipeId: 'http_fetch_1',
+      name: 'Fetch Weather Data',
+      role: 'source',
+      type: 'source.api.http',
+      config: JSON.stringify({ url: 'https://example.com/weather' }),
+    });
+
+    expect(screen.getByText('Fetch Weather Data')).toBeTruthy();
+    expect(screen.getByText('api.http')).toBeTruthy();
+  });
 });
 
 describe('PipeNode problems and run status', () => {

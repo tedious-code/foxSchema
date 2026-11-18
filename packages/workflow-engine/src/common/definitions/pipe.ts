@@ -34,6 +34,7 @@ export type PipeRole = z.infer<typeof pipeRoleSchema>;
 // unit of the workflow > pipeline > pipe hierarchy.
 export const pipeSchema = z.object({
   id: z.string().min(1),
+  name: z.string().max(120).optional(),
   role: pipeRoleSchema,
   /** Pipe type id, e.g. "source.file.csv", "transform.mapper", "sink.postgres". */
   type: z.string().min(1),

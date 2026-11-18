@@ -405,6 +405,12 @@
   font-size: 13px;
   font-family: inherit;
 }
+.fox-workflow .inspector input:read-only,
+.fox-workflow .inspector input.read-only {
+  opacity: 0.72;
+  cursor: default;
+  user-select: all;
+}
 .fox-workflow .inspector textarea {
   font-family: var(--mono);
   font-size: 12px;

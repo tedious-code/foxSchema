@@ -3681,8 +3681,10 @@ export const TestIds = {
       workflowInspectorMultiSelection: 'workflow-inspector-multi-selection',
       /** button · Open in trigger dialog */
       workflowInspectorOpenInTrigger: 'workflow-inspector-open-in-trigger',
-      /** input */
+      /** input · Unique system ID for this pipe (read-only) */
       workflowInspectorPipeId: 'workflow-inspector-pipe-id',
+      /** input · Pipe name */
+      workflowInspectorPipeName: 'workflow-inspector-pipe-name',
       /** input */
       workflowInspectorRetryAttempts: 'workflow-inspector-retry-attempts',
       /** button */
@@ -5679,6 +5681,7 @@ export type TestId =
   | 'workflow-inspector-multi-selection'
   | 'workflow-inspector-open-in-trigger'
   | 'workflow-inspector-pipe-id'
+  | 'workflow-inspector-pipe-name'
   | 'workflow-inspector-retry-attempts'
   | `workflow-inspector-sample-port-${string}`
   | 'workflow-inspector-show-raw'

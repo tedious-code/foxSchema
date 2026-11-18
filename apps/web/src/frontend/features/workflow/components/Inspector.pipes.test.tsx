@@ -171,4 +171,22 @@ describe('Inspector pipe editors', () => {
     const checkbox = screen.getByLabelText('Keep original fields on each record') as HTMLInputElement;
     expect(checkbox.checked).toBe(true);
   });
+
+  it('renders read-only Pipe ID and editable Pipe name, calling onChange on blur', () => {
+    const onChange = vi.fn();
+    const data = makeData('transform.map', { mappings: {} });
+    data.name = 'Initial Pipe Name';
+    renderInspector(data, onChange);
+
+    const idInput = screen.getByLabelText('Pipe id') as HTMLInputElement;
+    expect(idInput.value).toBe('node_1');
+    expect(idInput.readOnly).toBe(true);
+
+    const nameInput = screen.getByLabelText('Pipe name') as HTMLInputElement;
+    expect(nameInput.value).toBe('Initial Pipe Name');
+
+    fireEvent.change(nameInput, { target: { value: 'Renamed Pipe' } });
+    fireEvent.blur(nameInput);
+    expect(onChange).toHaveBeenCalledWith('node_1', { name: 'Renamed Pipe' });
+  });
 });

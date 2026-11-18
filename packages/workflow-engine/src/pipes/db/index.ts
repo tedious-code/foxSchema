@@ -13,4 +13,4 @@ export {
 export { PostgresSourcePipe } from './postgres-source.js';
 export { MysqlSourcePipe, type MysqlClient, type MysqlClientFactory } from './mysql-source.js';
 export { MysqlSinkPipe, fallbackMysqlType } from './mysql.js';
-export { SqlSinkPipe, SqlSourcePipe } from './sql.js';
+export { SqlSinkPipe, SqlSourcePipe, connectionFromSecret, runSqlScript, type RunSqlScriptOptions, type SqlConnection, type SqlRunner } from './sql.js';

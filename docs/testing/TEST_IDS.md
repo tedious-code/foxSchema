@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1074** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1076** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1843,6 +1843,18 @@ Every control has a test ID: **1074** buttons, text boxes, selects and textareas
 
 ## workflow
 
+- **CronSqlEditor** · `features/workflow/components/CronSqlEditor.tsx`
+  - `workflow-cron-sql` · div
+  - `workflow-cron-sql-connection-backdrop` · div in FilterPicker · Filter by name, dialect, host…
+  - `workflow-cron-sql-connection-clear` · button in FilterPicker · Filter by name, dialect, host…
+  - `workflow-cron-sql-connection-filter` · input in FilterPicker · Filter by name, dialect, host…
+  - `workflow-cron-sql-connection-group-{group}` · div in FilterPicker · Filter by name, dialect, host…
+  - `workflow-cron-sql-connection-option-{id}` · data
+  - `workflow-cron-sql-connection-trigger` · button in FilterPicker · Filter by name, dialect, host…
+  - `workflow-cron-sql-max-rows` · input · Max rows per run
+  - `workflow-cron-sql-only-when-rows` · input
+  - `workflow-cron-sql-script` · div
+  - `workflow-cron-sql-transaction` · input
 - **DelimitedSourceEditor** · `features/workflow/components/DelimitedSourceEditor.tsx`
   - `workflow-source-add-column` · button · Add column
   - `workflow-source-add-delimiter` · button · Add delimiter
@@ -1938,7 +1950,8 @@ Every control has a test ID: **1074** buttons, text boxes, selects and textareas
   - `workflow-inspector-json-{name}` · textarea
   - `workflow-inspector-multi-selection` · p
   - `workflow-inspector-open-in-trigger` · button · Open in trigger dialog
-  - `workflow-inspector-pipe-id` · input
+  - `workflow-inspector-pipe-id` · input · Unique system ID for this pipe (read-only)
+  - `workflow-inspector-pipe-name` · input · Pipe name
   - `workflow-inspector-retry-attempts` · input
   - `workflow-inspector-sample-port-{port}` · button
   - `workflow-inspector-show-raw` · button
@@ -1948,6 +1961,16 @@ Every control has a test ID: **1074** buttons, text boxes, selects and textareas
   - `workflow-inspector-trigger` · select
   - `workflow-inspector-type` · select
 - **MultiHttpEditor** · `features/workflow/components/MultiHttpEditor.tsx`
+  - `workflow-multi-http-add-endpoint` · Button
+  - `workflow-multi-http-batch-size` · Input
+  - `workflow-multi-http-concurrency` · Input
+  - `workflow-multi-http-execution-mode` · Select
+  - `workflow-multi-http-id-{index}` · Input
+  - `workflow-multi-http-on-error` · Select
+  - `workflow-multi-http-output-mode` · Select
+  - `workflow-multi-http-records-path-{index}` · Input
+  - `workflow-multi-http-remove-{index}` · Button · Remove endpoint
+  - `workflow-multi-http-tag-field` · Input
   - `workflow-multi-http-toggle-{index}` · button
 - **Palette** · `features/workflow/components/Palette.tsx`
   - `workflow-palette-search-pipes` · input · Search pipes
@@ -1984,7 +2007,6 @@ Every control has a test ID: **1074** buttons, text boxes, selects and textareas
   - `workflow-trigger-settings-catch-up` · select · No catch-up One missed run All missed runs
   - `workflow-trigger-settings-cron` · input
   - `workflow-trigger-settings-execution-type` · select
-  - `workflow-trigger-settings-http-credential` · select · Select credential
   - `workflow-trigger-settings-input` · textarea · [{ "id": 1 }]
   - `workflow-trigger-settings-max-backoff-duration` · input
   - `workflow-trigger-settings-max-body-bytes` · input
@@ -1992,7 +2014,6 @@ Every control has a test ID: **1074** buttons, text boxes, selects and textareas
   - `workflow-trigger-settings-max-retry-attempts` · input
   - `workflow-trigger-settings-max-retry-duration` · input
   - `workflow-trigger-settings-min-backoff-duration` · input
-  - `workflow-trigger-settings-required-fields` · input
   - `workflow-trigger-settings-retry` · input
   - `workflow-trigger-settings-run` · Button
   - `workflow-trigger-settings-webhook-credential` · select · Select credential

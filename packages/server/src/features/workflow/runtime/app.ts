@@ -113,13 +113,9 @@ export function buildApp(
     await ctx.scheduler.recover();
     await ctx.cron.recover();
     ctx.cron.start();
-    // No recover() equivalent: a poll has no backlog of missed occurrences to
-    // replay. Whatever the endpoint holds now is what the first tick sees.
-    ctx.poll.start();
   });
   app.addHook('onClose', async () => {
     ctx.cron.stop();
-    ctx.poll.stop();
     // Bounded: a wedged run (e.g. a sub-workflow waiting on a child that never
     // reaches a terminal state) must not block shutdown indefinitely.
     await Promise.race([

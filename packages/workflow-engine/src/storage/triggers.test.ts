@@ -165,7 +165,7 @@ describe('trigger kinds — activation paths', () => {
     engine.close();
   });
 
-  it('runs webhook and http triggers from their ingress invocations', async () => {
+  it('runs webhook triggers from their ingress invocations, one record per array item', async () => {
     const engine = engineFor();
     const secret = await engine.stores.credentials.create({
       name: 'hook',
@@ -179,7 +179,7 @@ describe('trigger kinds — activation paths', () => {
         enabled: true,
         credentialId: secret.id,
       },
-      { id: 'api', kind: 'http', enabled: true, credentialId: secret.id },
+      { id: 'batch', kind: 'webhook', enabled: true, credentialId: secret.id },
     ]);
     await engine.stores.workflows.put(workflow);
 
@@ -190,12 +190,12 @@ describe('trigger kinds — activation paths', () => {
     );
     expect(hook).toEqual({ status: 'succeeded', processedRecords: 1 });
 
-    const api = await runRecords(
+    const batch = await runRecords(
       engine,
       workflow,
-      invocation(workflow, 'api', 'http', [{ a: 1 }, { b: 2 }]),
+      invocation(workflow, 'batch', 'webhook', [{ a: 1 }, { b: 2 }]),
     );
-    expect(api).toEqual({ status: 'succeeded', processedRecords: 2 });
+    expect(batch).toEqual({ status: 'succeeded', processedRecords: 2 });
     engine.close();
   });
 

@@ -189,10 +189,10 @@ async function handleIngress(
 ): Promise<unknown> {
   const waitMs = requestedWait(req.query.wait, req.query.waitMs);
 
-  // `manual`, `cron`, `poll` and `parent` exist but are dispatched internally.
+  // `manual`, `cron` and `parent` exist but are dispatched internally.
   // Saying "not found" here would send integrators hunting for a trigger that
   // is sitting right there in the document.
-  if (trigger.kind !== 'webhook' && trigger.kind !== 'http') {
+  if (trigger.kind !== 'webhook') {
     return reply
       .code(405)
       .send({ error: `${trigger.kind} is not an HTTP ingress trigger` });
@@ -200,8 +200,7 @@ async function handleIngress(
   if (!trigger.enabled) {
     return reply.code(409).send({ error: 'trigger is disabled' });
   }
-  // `http` predates configurable methods and has always been POST-only.
-  const allowed = trigger.kind === 'webhook' ? trigger.methods : ['POST'];
+  const allowed = trigger.methods;
   if (!allowed.includes(method)) {
     return reply
       .header('allow', allowed.join(', '))
@@ -248,15 +247,6 @@ async function handleIngress(
     }
     throw error;
   }
-  if (trigger.kind === 'http') {
-    const missing = missingFields(req.body, trigger.requiredFields);
-    if (missing.length > 0) {
-      return reply.code(400).send({
-        error: `missing required trigger fields: ${missing.join(', ')}`,
-      });
-    }
-  }
-
   // Method and URL join the body: a GET webhook has no body at all, so hashing
   // only that would make every request to it look like the same one and
   // collapse them into a single invocation.
@@ -409,14 +399,4 @@ async function respondWhenFinished(
   }
 
   return reply.code(200).send({ runId, status: run.status, output: records });
-}
-
-function missingFields(payload: unknown, required: string[]): string[] {
-  if (required.length === 0) return [];
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-    return required;
-  }
-  return required.filter(
-    (field) => !(field in (payload as Record<string, unknown>)),
-  );
 }

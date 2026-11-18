@@ -36,6 +36,7 @@ import { JSON_EDITOR_OPTIONS, useJsonEditorTheme } from '../lib/jsonEditorOption
 import { portLabel } from '../lib/ports';
 import type { WorkflowTrigger } from '../lib/triggers';
 import { Button, Input, Select } from './controls';
+import { PIPE_NAME_MAX_LENGTH } from '@foxschema/workflow-contract';
 
 /**
  * Config keys the HTTP request editor owns for `source.api.http`, kept out of
@@ -77,7 +78,6 @@ interface Props {
   debugSamples?: DebugSample[];
   debugRunStatus?: string | null;
   debugRunError?: string | null;
-  onRename: (oldId: string, newId: string) => string | null;
   onChange: (pipeId: string, patch: Partial<PipeData>) => void;
   /** Replaces the workflow trigger list (inline trigger editing). */
   onTriggersChange: (triggers: WorkflowTrigger[]) => void;
@@ -245,6 +245,7 @@ function schemaProperties(
 
 interface InspectorHeaderProps {
   pipeId: string;
+  pipeName?: string;
   pipeLabel: string;
   activeTab: InspectorTab;
   onTabChange: (tab: InspectorTab) => void;
@@ -252,10 +253,12 @@ interface InspectorHeaderProps {
 
 function InspectorHeader({
   pipeId,
+  pipeName,
   pipeLabel,
   activeTab,
   onTabChange,
 }: InspectorHeaderProps) {
+  const displayName = pipeName || pipeId;
   return (
     <>
       <h3>Pipe Configuration</h3>
@@ -264,8 +267,8 @@ function InspectorHeader({
           <Braces size={16} />
         </span>
         <div>
-          <strong>{pipeId}</strong>
-          <small>{pipeLabel}</small>
+          <strong>{displayName}</strong>
+          <small>{pipeLabel} · {pipeId}</small>
         </div>
       </div>
       <div className="inspector-tabs">
@@ -480,7 +483,6 @@ export function Inspector({
   debugSamples = [],
   debugRunStatus,
   debugRunError,
-  onRename,
   onChange,
   onTriggersChange,
   onEditTrigger,
@@ -488,7 +490,6 @@ export function Inspector({
   manualRunBlocked,
   selectionCount = 0,
 }: Props) {
-  const [renameError, setRenameError] = useState<string | null>(null);
   const [configError, setConfigError] = useState<string | null>(null);
   const [showRaw, setShowRaw] = useState(false);
   const [activeTab, setActiveTab] = useState<InspectorTab>('settings');
@@ -596,6 +597,7 @@ export function Inspector({
   const header = (
     <InspectorHeader
       pipeId={data.pipeId}
+      pipeName={data.name}
       pipeLabel={entry?.label ?? data.type}
       activeTab={activeTab}
       onTabChange={setActiveTab}
@@ -684,17 +686,36 @@ export function Inspector({
     <aside className="inspector">
       {header}
 
-      <label>Pipe id</label>
-      <input data-testid="workflow-inspector-pipe-id"
-        key={pipeId}
-        defaultValue={data.pipeId}
+      <label htmlFor="workflow-inspector-pipe-name">Pipe name</label>
+      <input
+        id="workflow-inspector-pipe-name"
+        data-testid="workflow-inspector-pipe-name"
+        key={`name:${pipeId}`}
+        defaultValue={data.name || ''}
+        placeholder={entry?.label ?? data.type}
+        maxLength={PIPE_NAME_MAX_LENGTH}
         onBlur={(ev) => {
           const next = ev.target.value.trim();
-          if (next === data.pipeId) return setRenameError(null);
-          setRenameError(onRename(pipeId, next));
+          if (next !== (data.name ?? '')) {
+            onChange(pipeId, { name: next });
+          }
+        }}
+        onKeyDown={(ev) => {
+          if (ev.key === 'Enter') {
+            ev.currentTarget.blur();
+          }
         }}
       />
-      {renameError && <div className="field-error">{renameError}</div>}
+
+      <label htmlFor="workflow-inspector-pipe-id">Pipe id</label>
+      <input
+        id="workflow-inspector-pipe-id"
+        data-testid="workflow-inspector-pipe-id"
+        value={data.pipeId}
+        readOnly
+        className="read-only"
+        title="Unique system ID for this pipe (read-only)"
+      />
 
       {entry?.triggerKind && (
         <>

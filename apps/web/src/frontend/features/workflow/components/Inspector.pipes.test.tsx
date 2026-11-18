@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CatalogEntry } from '../lib/catalog';
 import { Inspector } from './Inspector';
 import type { PipeData } from './PipeNode';
+import { PIPE_NAME_MAX_LENGTH } from '@foxschema/workflow-contract';
 
 vi.mock('@monaco-editor/react', () => ({
   default: ({ value, onChange }: { value: string; onChange: (value: string) => void }) => (
@@ -16,6 +17,7 @@ vi.mock('@monaco-editor/react', () => ({
 }));
 vi.mock('../lib/jsonEditorOptions', () => ({ JSON_EDITOR_OPTIONS: {}, useJsonEditorTheme: () => 'vs' }));
 vi.mock('./SqlPipeEditor', () => ({ SqlPipeEditor: () => <div data-testid="sql-editor" /> }));
+vi.mock('./CronSqlEditor', () => ({ CronSqlEditor: () => <div data-testid="cron-sql-editor" /> }));
 vi.mock('./HttpRequestEditor', () => ({
   EMPTY_HTTP_REQUEST: { method: 'GET', url: '', query: [], headers: [], body: { mode: 'none' }, auth: { type: 'none' } },
   HttpRequestEditor: () => <div data-testid="http-editor" />,
@@ -95,7 +97,6 @@ function renderInspector(data: PipeData, onChange = vi.fn()) {
         triggers={[{ id: 'manual', kind: 'manual', enabled: true }]}
         workflowId="wf-1"
         workflows={[]}
-        onRename={() => null}
         onChange={onChange}
         onTriggersChange={vi.fn()}
         onEditTrigger={vi.fn()}
@@ -169,5 +170,30 @@ describe('Inspector pipe editors', () => {
     );
     const checkbox = screen.getByLabelText('Keep original fields on each record') as HTMLInputElement;
     expect(checkbox.checked).toBe(true);
+  });
+
+  it('renders read-only Pipe ID and editable Pipe name, calling onChange on blur', () => {
+    const onChange = vi.fn();
+    const data = makeData('transform.map', { mappings: {} });
+    data.name = 'Initial Pipe Name';
+    renderInspector(data, onChange);
+
+    const idInput = screen.getByLabelText('Pipe id') as HTMLInputElement;
+    expect(idInput.value).toBe('node_1');
+    expect(idInput.readOnly).toBe(true);
+
+    const nameInput = screen.getByLabelText('Pipe name') as HTMLInputElement;
+    expect(nameInput.value).toBe('Initial Pipe Name');
+
+    fireEvent.change(nameInput, { target: { value: 'Renamed Pipe' } });
+    fireEvent.blur(nameInput);
+    expect(onChange).toHaveBeenCalledWith('node_1', { name: 'Renamed Pipe' });
+  });
+
+  it('stops the pipe name at the length the engine accepts', () => {
+    renderInspector(makeData('transform.map', { mappings: {} }));
+
+    const nameInput = screen.getByLabelText('Pipe name') as HTMLInputElement;
+    expect(nameInput.maxLength).toBe(PIPE_NAME_MAX_LENGTH);
   });
 });

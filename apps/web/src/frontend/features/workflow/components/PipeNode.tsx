@@ -17,6 +17,7 @@ export type PortInfo = { name: string; type: string };
 export type PipeData = {
   pipelineId: string;
   pipeId: string;
+  name?: string;
   role: 'trigger' | 'source' | 'transform' | 'sink';
   type: string;
   /** Optional one-liner intent (Agentic OS); defaults from pipe metadata name. */
@@ -139,7 +140,9 @@ export function pipeSummary(
   }
   if (type === 'source.api.http.multi') {
     const count = Array.isArray(cfg.endpoints) ? cfg.endpoints.length : 0;
-    return `${count} parallel endpoints`;
+    const mode = cfg.executionMode === 'linear' ? 'linear' : 'parallel';
+    const output = cfg.outputMode === 'merge' ? ' · merge' : '';
+    return `${count} ${mode} endpoints${output}`;
   }
   if (type === 'source.db.sql') {
     const dialect = typeof cfg.dialect === 'string' ? cfg.dialect : 'sql';
@@ -258,7 +261,12 @@ export function PipeNode({ id, data, selected }: NodeProps<PipeNodeType>) {
           </span>
         )}
       </div>
-      <div className="title">{data.pipeId || id}</div>
+      <div
+        className="title"
+        title={data.name ? `${data.name} (${data.pipeId || id})` : (data.pipeId || id)}
+      >
+        {data.name || data.pipeId || id}
+      </div>
       <div className="sub">{shortType}</div>
       {summary && (
         <div className="pipe-summary" title={data.intent || summary}>

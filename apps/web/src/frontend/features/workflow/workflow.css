@@ -405,6 +405,13 @@
   font-size: 13px;
   font-family: inherit;
 }
+/* The class, not :read-only — that pseudo-class also matches every checkbox,
+   radio and disabled input, which would all look dimmed. */
+.fox-workflow .inspector input.read-only {
+  opacity: 0.72;
+  cursor: default;
+  user-select: all;
+}
 .fox-workflow .inspector textarea {
   font-family: var(--mono);
   font-size: 12px;

@@ -50,9 +50,7 @@ export {
   ManualTriggerSourcePipe,
   CronTriggerSourcePipe,
   WebhookTriggerSourcePipe,
-  HttpTriggerSourcePipe,
   ParentTriggerSourcePipe,
-  PollTriggerSourcePipe,
 } from './pipes/trigger/index.js';
 export {
   PostgresSinkPipe,

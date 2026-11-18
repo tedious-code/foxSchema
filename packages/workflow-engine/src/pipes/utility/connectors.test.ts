@@ -189,13 +189,52 @@ describe('built-in connectors', () => {
       scheduledAt: '2026-07-14T00:00:00.000Z',
     });
 
+    // A SQL schedule's rows become the records, one each — not one record
+    // wrapping the array.
+    const sqlCtx = context('source.trigger.cron', 'source', {});
+    sqlCtx.invocation = {
+      ...cronCtx.invocation,
+      id: 'inv-cron-sql',
+      payload: {
+        scheduledAt: '2026-07-14T00:00:00.000Z',
+        rowCount: 2,
+        rows: [{ id: 1, sku: 'A-1' }, { id: 2, sku: 'B-2' }],
+      },
+    };
+    const sqlBatches = [];
+    for await (const batch of new CronTriggerSourcePipe().read(sqlCtx)) sqlBatches.push(batch);
+    expect(sqlBatches[0]?.records).toEqual([
+      { id: 1, sku: 'A-1' },
+      { id: 2, sku: 'B-2' },
+    ]);
+
+    // No rows (a schedule set to run regardless) still gives the pipeline the
+    // tick, without an empty `rows` array riding along.
+    const emptyCtx = context('source.trigger.cron', 'source', {});
+    emptyCtx.invocation = {
+      ...cronCtx.invocation,
+      id: 'inv-cron-sql-empty',
+      payload: { scheduledAt: '2026-07-14T00:00:00.000Z', rowCount: 0, rows: [] },
+    };
+    const emptyBatches = [];
+    for await (const batch of new CronTriggerSourcePipe().read(emptyCtx)) emptyBatches.push(batch);
+    expect(emptyBatches[0]?.records).toEqual([
+      {
+        triggerId: 'nightly',
+        kind: 'cron',
+        acceptedAt: '2026-07-14T00:00:00.000Z',
+        scheduledAt: '2026-07-14T00:00:00.000Z',
+        rowCount: 0,
+      },
+    ]);
+
     const webhook = new WebhookTriggerSourcePipe();
     const wrong = context('source.trigger.webhook', 'source', {});
     wrong.invocation = {
-      id: 'inv-http',
+      id: 'inv-cron-wrong',
       workflowId: 'workflow',
-      triggerId: 'api',
-      kind: 'http',
+      triggerId: 'nightly',
+      kind: 'cron',
       acceptedAt: '2026-07-14T00:00:00.000Z',
       payload: { id: 1 },
       metadata: {},

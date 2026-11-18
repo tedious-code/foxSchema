@@ -8,7 +8,9 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { openSqliteStores } from '../../storage/index.js';
-import { CronCoordinator } from './cron.js';
+import type { TriggerInvocation } from '../../common/index.js';
+import { runSqlScript, type SqlRunner } from '../../pipes/db/sql.js';
+import { CronCoordinator, type CronSqlRunner } from './cron.js';
 
 function fingerprint(trigger: {
   cron: string;
@@ -218,5 +220,367 @@ describe('CronCoordinator', () => {
     ]);
     stores.close();
   });
-});
 
+  describe('executionType sql', () => {
+    const NOW = new Date('2026-07-14T10:05:30.000Z');
+    const DUE = '2026-07-14T10:05:00.000Z';
+
+    async function setup(
+      sqlOverrides: Record<string, unknown> = {},
+      options: {
+        credentialKind?: 'database' | 'http';
+        retry?: boolean;
+        catchUp?: 'one' | 'all';
+      } = {},
+    ) {
+      const stores = openSqliteStores(':memory:', randomBytes(32));
+      const credential = await stores.credentials.create({
+        name: 'warehouse',
+        kind: options.credentialKind ?? 'database',
+        data: { dialect: 'postgres', host: 'db.internal', password: 'pw' },
+      });
+      const cronTrigger = {
+        id: 'watch',
+        kind: 'cron' as const,
+        enabled: true,
+        cron: '* * * * *',
+        timezone: 'UTC',
+        catchUp: options.catchUp ?? ('one' as const),
+        executionType: 'sql' as const,
+        sql: {
+          credentialId: credential.id,
+          script: 'SELECT id, sku FROM orders WHERE shipped = false',
+          onlyWhenRows: true,
+          transaction: false,
+          maxRows: 1000,
+          ...sqlOverrides,
+        },
+        ...(options.retry
+          ? {
+              retryConfig: {
+                maxRetryAttempts: 1,
+                maxRetryDuration: '0s',
+                minBackoffDuration: '0s',
+                maxBackoffDuration: '0s',
+                maxDoublings: 0,
+              },
+            }
+          : {}),
+      };
+      await stores.workflows.put({
+        id: 'sql-scheduled',
+        name: 'sql-scheduled',
+        version: 1,
+        pipelines: [
+          {
+            id: 'load',
+            name: 'load',
+            pipes: [
+              {
+                id: 'source',
+                role: 'source',
+                type: 'source.trigger.cron',
+                config: {},
+                concurrency: 1,
+              },
+            ],
+            edges: [],
+          },
+        ],
+        dependencies: [],
+        middleware: [],
+        triggers: [cronTrigger],
+        onOverlap: 'skip',
+        origin: 'authored',
+      });
+      await stores.schedules.put({
+        workflowId: 'sql-scheduled',
+        triggerId: 'watch',
+        nextFireAt: DUE,
+        scheduleFingerprint: createHash('sha256')
+          .update(
+            JSON.stringify({
+              cron: cronTrigger.cron,
+              timezone: cronTrigger.timezone,
+              executionType: cronTrigger.executionType,
+              http: null,
+              sql: cronTrigger.sql,
+            }),
+          )
+          .digest('hex'),
+      });
+      return { stores, credentialId: credential.id };
+    }
+
+    function coordinatorFor(
+      stores: ReturnType<typeof openSqliteStores>,
+      runSql: CronSqlRunner,
+      enqueueResult: unknown = { accepted: true },
+    ) {
+      const enqueued: TriggerInvocation[] = [];
+      const errors: unknown[] = [];
+      const coordinator = new CronCoordinator({
+        workflows: stores.workflows,
+        schedules: stores.schedules,
+        credentials: stores.credentials,
+        scheduler: {
+          async enqueue(_workflow, invocation) {
+            enqueued.push(invocation);
+            return enqueueResult;
+          },
+        },
+        runSql,
+        onError: (error) => errors.push(error),
+        now: () => NOW,
+      });
+      return { coordinator, enqueued, errors };
+    }
+
+    /** SQL fires are detached from the tick; let them settle. */
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 10));
+
+    /** A runner that connects, then hands `rows` over as the real one does. */
+    const returning =
+      (rows: Record<string, unknown>[]): CronSqlRunner =>
+      async (_connection, _script, options) => {
+        await options.connect(async () => undefined);
+        await options.beforeCommit(rows);
+      };
+
+    it('runs the script against the credential and starts the workflow with the rows', async () => {
+      const { stores } = await setup();
+      const calls: { connection: unknown; script: string; transaction: boolean }[] = [];
+      const { coordinator, enqueued, errors } = coordinatorFor(stores, async (connection, script, options) => {
+        calls.push({ connection, script, transaction: options.transaction });
+        await returning([
+          { id: 1, sku: 'A-1' },
+          { id: 2, sku: 'B-2' },
+        ])(connection, script, options);
+      });
+
+      await coordinator.tick();
+      await settle();
+
+      expect(errors).toEqual([]);
+      expect(calls).toEqual([
+        {
+          // An engine-entered credential is the option bag; its dialect says
+          // which driver to use.
+          connection: { dialect: 'postgres', option: { host: 'db.internal', password: 'pw' } },
+          script: 'SELECT id, sku FROM orders WHERE shipped = false',
+          transaction: false,
+        },
+      ]);
+      expect(enqueued).toEqual([
+        expect.objectContaining({
+          kind: 'cron',
+          idempotencyKey: `cron:${DUE}`,
+          payload: {
+            scheduledAt: DUE,
+            rowCount: 2,
+            rows: [
+              { id: 1, sku: 'A-1' },
+              { id: 2, sku: 'B-2' },
+            ],
+          },
+        }),
+      ]);
+      stores.close();
+    });
+
+    it('creates no run when the script returns nothing and onlyWhenRows is on', async () => {
+      const { stores } = await setup();
+      const { coordinator, enqueued, errors } = coordinatorFor(stores, returning([]));
+
+      await coordinator.tick();
+      await settle();
+
+      expect(errors).toEqual([]);
+      expect(enqueued).toEqual([]);
+      // The schedule still advances: an empty tick is a normal tick.
+      expect((await stores.schedules.get('sql-scheduled', 'watch'))?.nextFireAt).toBe(
+        '2026-07-14T10:06:00.000Z',
+      );
+      stores.close();
+    });
+
+    it('starts a run with no rows when onlyWhenRows is off', async () => {
+      const { stores } = await setup({ onlyWhenRows: false });
+      const { coordinator, enqueued } = coordinatorFor(stores, returning([]));
+
+      await coordinator.tick();
+      await settle();
+
+      expect(enqueued).toEqual([
+        expect.objectContaining({ payload: { scheduledAt: DUE, rowCount: 0, rows: [] } }),
+      ]);
+      stores.close();
+    });
+
+    it('caps the rows carried into the run and says so', async () => {
+      const { stores } = await setup({ maxRows: 2 });
+      const { coordinator, enqueued } = coordinatorFor(
+        stores,
+        returning([{ id: 1 }, { id: 2 }, { id: 3 }]),
+      );
+
+      await coordinator.tick();
+      await settle();
+
+      expect(enqueued[0]?.payload).toEqual({
+        scheduledAt: DUE,
+        rowCount: 3,
+        truncated: true,
+        rows: [{ id: 1 }, { id: 2 }],
+      });
+      stores.close();
+    });
+
+    it('refuses a credential that is not a database credential', async () => {
+      const { stores } = await setup({}, { credentialKind: 'http' });
+      let ran = false;
+      const { coordinator, enqueued, errors } = coordinatorFor(stores, async (...args) => {
+        ran = true;
+        await returning([{ id: 1 }])(...args);
+      });
+
+      await coordinator.tick();
+      await settle();
+
+      expect(ran).toBe(false);
+      expect(enqueued).toEqual([]);
+      expect(String(errors[0])).toMatch(/is not a database credential/);
+      stores.close();
+    });
+
+    it('retries connecting when configured', async () => {
+      const { stores } = await setup({}, { retry: true });
+      let attempts = 0;
+      const { coordinator, enqueued, errors } = coordinatorFor(stores, async (_c, _s, options) => {
+        await options.connect(async () => {
+          attempts += 1;
+          throw new Error('connect ECONNREFUSED');
+        });
+      });
+
+      await coordinator.tick();
+      await settle();
+
+      expect(attempts).toBe(2);
+      expect(enqueued).toEqual([]);
+      expect(String(errors[0])).toMatch(/ECONNREFUSED/);
+      stores.close();
+    });
+
+    it('reports a failing script without running it again, even with retries', async () => {
+      // Statements before the failing one may already have written: running
+      // the script again would repeat those writes.
+      const { stores } = await setup({}, { retry: true });
+      let runs = 0;
+      const { coordinator, enqueued, errors } = coordinatorFor(stores, async (_c, _s, options) => {
+        await options.connect(async () => undefined);
+        runs += 1;
+        throw new Error('relation "orders" does not exist');
+      });
+
+      await coordinator.tick();
+      await settle();
+
+      expect(runs).toBe(1);
+      expect(enqueued).toEqual([]);
+      expect(String(errors[0])).toMatch(/relation "orders" does not exist/);
+      stores.close();
+    });
+
+    it('rolls the script back when the run cannot start', async () => {
+      const { stores } = await setup({ transaction: true });
+      const log: string[] = [];
+      const open: SqlRunner = async () => ({
+        async query(sql) {
+          log.push(sql);
+          return [{ id: 1 }];
+        },
+        async transaction(work) {
+          log.push('BEGIN');
+          try {
+            const result = await work();
+            log.push('COMMIT');
+            return result;
+          } catch (error) {
+            log.push('ROLLBACK');
+            throw error;
+          }
+        },
+        async close() {},
+      });
+      const { coordinator, enqueued, errors } = coordinatorFor(
+        stores,
+        (connection, script, options) => runSqlScript(connection, script, { ...options, open }),
+        { accepted: false, reason: 'disabled', detail: 'the workflow engine is disabled' },
+      );
+
+      await coordinator.tick();
+      await settle();
+
+      expect(enqueued).toHaveLength(1);
+      expect(log).toEqual([
+        'BEGIN',
+        'SELECT id, sku FROM orders WHERE shipped = false',
+        'ROLLBACK',
+      ]);
+      expect(String(errors[0])).toMatch(
+        /the run was not started \(disabled: the workflow engine is disabled\)/,
+      );
+      stores.close();
+    });
+
+    it('runs every missed occurrence in order with catchUp all', async () => {
+      const { stores } = await setup({}, { catchUp: 'all' });
+      await stores.schedules.put({
+        ...(await stores.schedules.get('sql-scheduled', 'watch'))!,
+        nextFireAt: '2026-07-14T10:03:00.000Z',
+      });
+      const { coordinator, enqueued, errors } = coordinatorFor(stores, returning([{ id: 1 }]));
+
+      await coordinator.tick();
+      await settle();
+
+      expect(errors).toEqual([]);
+      expect(enqueued.map((invocation) => invocation.idempotencyKey)).toEqual([
+        'cron:2026-07-14T10:03:00.000Z',
+        'cron:2026-07-14T10:04:00.000Z',
+        'cron:2026-07-14T10:05:00.000Z',
+      ]);
+      stores.close();
+    });
+
+    it('skips a fire while the previous run of the script is still going', async () => {
+      const { stores } = await setup();
+      let release!: () => void;
+      const blocked = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let calls = 0;
+      const { coordinator, enqueued, errors } = coordinatorFor(stores, async (...args) => {
+        calls += 1;
+        await blocked;
+        await returning([{ id: 1 }])(...args);
+      });
+
+      await coordinator.tick();
+      // Make the next occurrence due while the first script still runs.
+      await stores.schedules.put({
+        ...(await stores.schedules.get('sql-scheduled', 'watch'))!,
+        nextFireAt: DUE,
+      });
+      await coordinator.tick();
+      release();
+      await settle();
+
+      expect(calls).toBe(1);
+      expect(enqueued).toHaveLength(1);
+      expect(String(errors[0])).toMatch(/skipped: the previous run of its script has not finished/);
+      stores.close();
+    });
+  });
+});

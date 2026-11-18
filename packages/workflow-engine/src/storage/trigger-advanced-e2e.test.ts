@@ -416,7 +416,7 @@ describe('workflows with several triggers', () => {
       origin: 'authored',
       triggers: [
         { id: 'hook', kind: 'webhook', enabled: true, credentialId: CRED },
-        { id: 'api', kind: 'http', enabled: true, credentialId: CRED },
+        { id: 'other', kind: 'webhook', enabled: true, credentialId: CRED },
       ],
       pipelines: [
         {
@@ -430,10 +430,10 @@ describe('workflows with several triggers', () => {
               config: { triggerId: 'hook' },
             },
             {
-              id: 'from-api',
+              id: 'from-other',
               role: 'source',
-              type: 'source.trigger.http',
-              config: { triggerId: 'api' },
+              type: 'source.trigger.webhook',
+              config: { triggerId: 'other' },
             },
           ],
           edges: [],
@@ -456,10 +456,10 @@ describe('workflows with several triggers', () => {
         { status: pipe.status, records: pipe.processedRecords },
       ]),
     );
-    // The webhook pipe emitted; the http pipe saw a mismatched kind and
-    // ended without records rather than inventing any.
+    // The pipe bound to the trigger that fired emitted; the one bound to the
+    // other webhook stayed idle rather than inventing records.
     expect(pipes['from-hook']).toEqual({ status: 'success', records: 2 });
-    expect(pipes['from-api']?.records ?? 0).toBe(0);
+    expect(pipes['from-other']?.records ?? 0).toBe(0);
     engine.close();
   });
 
@@ -469,7 +469,7 @@ describe('workflows with several triggers', () => {
       'attribution',
       [
         { id: 'hook', kind: 'webhook', enabled: true, credentialId: CRED },
-        { id: 'api', kind: 'http', enabled: true, credentialId: CRED },
+        { id: 'nightly', kind: 'cron', enabled: true, cron: '0 0 * * *' },
         { id: 'evt', kind: 'parent', enabled: true },
       ],
       'source.triggerPayload',
@@ -479,7 +479,7 @@ describe('workflows with several triggers', () => {
 
     for (const [triggerId, kind] of [
       ['hook', 'webhook'],
-      ['api', 'http'],
+      ['nightly', 'cron'],
       ['evt', 'parent'],
     ] as const) {
       await engine.scheduler.enqueue(
@@ -493,7 +493,7 @@ describe('workflows with several triggers', () => {
     expect(runs).toHaveLength(3);
     expect(
       runs.map((run) => `${run.trigger}:${run.triggerId}`).sort(),
-    ).toEqual(['http:api', 'parent:evt', 'webhook:hook']);
+    ).toEqual(['cron:nightly', 'parent:evt', 'webhook:hook']);
     engine.close();
   });
 });

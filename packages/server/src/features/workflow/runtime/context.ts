@@ -13,7 +13,6 @@ import {
   Engine,
   LocalRunScheduler,
   MiddlewareRegistry,
-  PollCoordinator,
   loadPipePlugin,
   parseAllowlist,
   type CheckpointStore,
@@ -48,7 +47,6 @@ export interface AppContext {
   middleware: MiddlewareRegistry;
   scheduler: LocalRunScheduler;
   cron: CronCoordinator;
-  poll: PollCoordinator;
   /** Be told of each run event once it is stored. */
   onEvent: Engine['onEvent'];
   close: () => void;
@@ -73,15 +71,15 @@ export function createEngine(options: Omit<EngineOptions, 'sql'> = {}): Engine {
   return engine;
 }
 
-/** Cron and poll admission for an engine's workflows. */
-export function createTriggerCoordinators(engine: Engine): { cron: CronCoordinator; poll: PollCoordinator } {
+/** Schedule admission for an engine's workflows. */
+export function createTriggerCoordinators(engine: Engine): { cron: CronCoordinator } {
   const options = {
     workflows: engine.stores.workflows,
     schedules: engine.stores.schedules,
     scheduler: engine.scheduler,
     credentials: engine.stores.credentials,
   };
-  return { cron: new CronCoordinator(options), poll: new PollCoordinator(options) };
+  return { cron: new CronCoordinator(options) };
 }
 
 export function createContext(

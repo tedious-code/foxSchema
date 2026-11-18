@@ -456,96 +456,6 @@ describe('foxflow api', () => {
     await app.close();
   });
 
-  it('accepts authenticated HTTP trigger payloads', async () => {
-    const ctx = testContext();
-    const app = buildApp(ctx);
-    const credential = await ctx.credentials.create({
-      name: 'inbound api',
-      kind: 'http',
-      data: { bearerToken: 'test-api-token' },
-    });
-    await ctx.workflows.put({
-      id: 'api-workflow',
-      name: 'api workflow',
-      version: 1,
-      pipelines: [
-        {
-          id: 'receive',
-          name: 'receive',
-          pipes: [
-            {
-              id: 'payload',
-              role: 'source',
-              type: 'source.triggerPayload',
-              config: {},
-              concurrency: 1,
-            },
-          ],
-          edges: [],
-        },
-      ],
-      dependencies: [],
-      middleware: [],
-      triggers: [
-        {
-          id: 'api',
-          kind: 'http',
-          enabled: true,
-          credentialId: credential.id,
-          authHeader: 'authorization',
-          idempotencyHeader: 'x-idempotency-key',
-          maxBodyBytes: 1_048_576,
-          requiredFields: ['id'],
-        },
-      ],
-      onOverlap: 'parallel',
-      origin: 'authored',
-    });
-
-    const response = await app.inject({
-      method: 'POST',
-      url: '/api/triggers/api-workflow/api',
-      headers: {
-        authorization: 'Bearer test-api-token',
-        'x-idempotency-key': 'api-request-1',
-      },
-      payload: { id: 1 },
-    });
-
-    expect(response.statusCode).toBe(202);
-    expect(response.json()).toMatchObject({ accepted: true });
-    const missingKey = await app.inject({
-      method: 'POST',
-      url: '/api/triggers/api-workflow/api',
-      headers: { authorization: 'Bearer test-api-token' },
-      payload: { id: 2 },
-    });
-    expect(missingKey.statusCode).toBe(400);
-    const conflictingKey = await app.inject({
-      method: 'POST',
-      url: '/api/triggers/api-workflow/api',
-      headers: {
-        authorization: 'Bearer test-api-token',
-        'x-idempotency-key': 'api-request-1',
-      },
-      payload: { id: 2 },
-    });
-    expect(conflictingKey.statusCode).toBe(409);
-    expect(conflictingKey.json()).toMatchObject({
-      accepted: false,
-      reason: 'conflict',
-      runId: response.json().runId,
-    });
-    await ctx.scheduler.idle();
-    expect(await ctx.runs.get(response.json().runId)).toMatchObject({
-      status: 'succeeded',
-      trigger: 'http',
-      triggerId: 'api',
-    });
-    await app.close();
-  });
-
-
   it('lists built-in pipe metadata for registry-driven UI', async () => {
     const ctx = testContext();
     const app = buildApp(ctx);
@@ -572,10 +482,8 @@ describe('foxflow api', () => {
       'source.file.json',
       'source.file.text',
       'source.trigger.cron',
-      'source.trigger.http',
       'source.trigger.manual',
       'source.trigger.parent',
-      'source.trigger.poll',
       'source.trigger.webhook',
       'source.triggerPayload',
       'transform.condition',

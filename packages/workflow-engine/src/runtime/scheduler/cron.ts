@@ -15,6 +15,12 @@ import type {
 } from '../../common/index.js';
 import { parseDurationMs } from '../../common/index.js';
 import { executeHttpRequest } from '../../pipes/http/index.js';
+import {
+  connectionFromSecret,
+  runSqlScript,
+  type RunSqlScriptOptions,
+  type SqlConnection,
+} from '../../pipes/db/sql.js';
 import { CronExpressionParser } from 'cron-parser';
 
 interface CronScheduler {
@@ -25,16 +31,31 @@ export interface CronCoordinatorOptions {
   workflows: WorkflowStore;
   schedules: TriggerScheduleStore;
   scheduler: CronScheduler;
-  /** Required for `executionType: 'http'` credential auth. */
+  /** Required for `executionType: 'http'` credential auth and for `executionType: 'sql'`. */
   credentials?: CredentialStore;
   fetch?: typeof fetch;
+  /**
+   * Runs a SQL schedule's script and hands the last statement's rows to
+   * `beforeCommit`. Defaults to FoxSchema's own drivers; a test answers
+   * without a database.
+   */
+  runSql?: CronSqlRunner;
   now?: () => Date;
   pollIntervalMs?: number;
   onError?: (error: unknown) => void;
 }
 
+/** Runs a SQL schedule's script; see `CronCoordinatorOptions.runSql`. */
+export type CronSqlRunner = (
+  connection: SqlConnection,
+  script: string,
+  options: Required<Pick<RunSqlScriptOptions, 'transaction' | 'connect' | 'beforeCommit'>>,
+) => Promise<unknown>;
+
 export class CronCoordinator {
   private timer?: ReturnType<typeof setInterval>;
+  /** SQL schedules whose previous fire is still running, by workflow and trigger. */
+  private readonly sqlInFlight = new Set<string>();
   private readonly now: () => Date;
   private readonly pollIntervalMs: number;
 
@@ -105,11 +126,15 @@ export class CronCoordinator {
 
         const due = dueOccurrences(trigger, state.nextFireAt, now);
         const accepted = acceptedOccurrences(trigger, due, recovering);
-        for (const scheduledAt of accepted) {
-          try {
-            await this.fire(workflow, trigger, scheduledAt, now);
-          } catch (error) {
-            this.onError(error);
+        if (trigger.executionType === 'sql') {
+          this.fireSql(workflow, trigger, accepted, now);
+        } else {
+          for (const scheduledAt of accepted) {
+            try {
+              await this.fire(workflow, trigger, scheduledAt, now);
+            } catch (error) {
+              this.onError(error);
+            }
           }
         }
         const nextFireAt =
@@ -133,8 +158,8 @@ export class CronCoordinator {
     // means re-enabling starts clean rather than resuming a stale nextFireAt.
     //
     // Scope is every *enabled* trigger, not just this coordinator's cron ones
-    // (`active`): PollCoordinator keeps its cursor in the same table, and
-    // reaping by `active` would delete a live poll's cursor on every tick.
+    // (`active`): the table is shared trigger state, and reaping by `active`
+    // would delete a row another trigger kind keeps there.
     const live = new Set(
       workflows.flatMap((workflow) =>
         workflow.triggers
@@ -174,6 +199,111 @@ export class CronCoordinator {
     );
   }
 
+  /**
+   * Detached for the same reason as HTTP: a slow query must not stall the
+   * tick for every other schedule. The occurrences one tick accepts (several
+   * with `catchUp: 'all'`) run one after another. A fire that comes due while
+   * the previous series still runs is skipped: two copies of a script that
+   * moves rows would race over the same rows.
+   */
+  private fireSql(
+    workflow: WorkflowDef,
+    trigger: CronTrigger,
+    occurrences: string[],
+    now: Date,
+  ): void {
+    if (occurrences.length === 0) return;
+    const key = `${workflow.id}\0${trigger.id}`;
+    if (this.sqlInFlight.has(key)) {
+      this.onError(
+        new Error(
+          `cron SQL ${trigger.id} at ${occurrences.join(', ')} skipped: the previous run of its script has not finished`,
+        ),
+      );
+      return;
+    }
+    this.sqlInFlight.add(key);
+    void (async () => {
+      for (const scheduledAt of occurrences) {
+        try {
+          await this.runSqlOccurrence(workflow, trigger, scheduledAt, now);
+        } catch (error) {
+          this.onError(error);
+        }
+      }
+    })().finally(() => this.sqlInFlight.delete(key));
+  }
+
+  /**
+   * Run the schedule's script, then start the workflow with the rows. With
+   * `onlyWhenRows` (the default) an empty result creates no run at all.
+   *
+   * The run is enqueued before the script's transaction commits, so a run
+   * that cannot start rolls the script back instead of losing the rows it
+   * moved. Retries cover connecting only: once a statement has been sent,
+   * running the script again could repeat writes that already happened.
+   */
+  private async runSqlOccurrence(
+    workflow: WorkflowDef,
+    trigger: CronTrigger,
+    scheduledAt: string,
+    now: Date,
+  ): Promise<void> {
+    const sql = trigger.sql;
+    if (!sql) {
+      throw new Error(
+        `cron trigger ${trigger.id}: sql config required for executionType sql`,
+      );
+    }
+    const credentials = this.options.credentials;
+    if (!credentials) {
+      throw new Error(
+        `cron SQL ${trigger.id}: no credential store is wired into the scheduler`,
+      );
+    }
+    const runSql: CronSqlRunner =
+      this.options.runSql ??
+      ((connection, script, options) => runSqlScript(connection, script, options));
+
+    // Kind must match, as for webhooks: an HTTP or webhook secret has no
+    // business being handed to a database driver.
+    const meta = await credentials.get(sql.credentialId);
+    if (!meta || meta.kind !== 'database') {
+      throw new Error(
+        `cron SQL ${trigger.id}: ${sql.credentialId} is not a database credential`,
+      );
+    }
+    const secret = await credentials.revealSecret(sql.credentialId);
+    if (!secret) {
+      throw new Error(
+        `cron SQL ${trigger.id}: credential not found: ${sql.credentialId}`,
+      );
+    }
+    const connection = connectionFromSecret(secret, sql.credentialId, sql);
+    await runSql(connection, sql.script, {
+      transaction: sql.transaction,
+      connect: (open) => withRetry(trigger, open),
+      beforeCommit: async (rows) => {
+        if (sql.onlyWhenRows && rows.length === 0) return;
+        const kept = rows.slice(0, sql.maxRows);
+        const invocation = cronInvocation(workflow.id, trigger.id, scheduledAt, now);
+        invocation.payload = {
+          scheduledAt,
+          rowCount: rows.length,
+          ...(rows.length > kept.length ? { truncated: true } : {}),
+          rows: kept,
+        };
+        const result = await this.options.scheduler.enqueue(workflow, invocation);
+        const refusal = refusedEnqueue(result);
+        if (refusal) {
+          throw new Error(
+            `cron SQL ${trigger.id} at ${scheduledAt}: the run was not started (${refusal})`,
+          );
+        }
+      },
+    });
+  }
+
   private async fireHttp(
     trigger: CronTrigger,
     scheduledAt: string,
@@ -183,43 +313,58 @@ export class CronCoordinator {
         `cron trigger ${trigger.id}: http config required for executionType http`,
       );
     }
-    const attempts = (trigger.retryConfig?.maxRetryAttempts ?? 0) + 1;
-    let lastError: unknown;
-    for (let attempt = 0; attempt < attempts; attempt++) {
-      try {
-        const credentialId =
-          trigger.http.auth.type === 'credential'
-            ? trigger.http.auth.credentialId
-            : undefined;
-        const secret = await resolveRequestSecret(
-          trigger.http,
-          this.options.credentials,
+    const http = trigger.http;
+    await withRetry(trigger, async () => {
+      const credentialId =
+        http.auth.type === 'credential' ? http.auth.credentialId : undefined;
+      const secret = await resolveRequestSecret(http, this.options.credentials);
+      const result = await executeHttpRequest({
+        request: http,
+        secret,
+        credentialId,
+        credentials: this.options.credentials,
+        variables: http.variables,
+        trigger: { scheduledAt, triggerId: trigger.id, kind: 'cron' },
+        fetch: this.options.fetch,
+      });
+      if (!result.ok) {
+        throw new Error(
+          `cron HTTP ${trigger.id} at ${scheduledAt} returned ${result.status}`,
         );
-        const result = await executeHttpRequest({
-          request: trigger.http,
-          secret,
-          credentialId,
-          credentials: this.options.credentials,
-          variables: trigger.http.variables,
-          trigger: { scheduledAt, triggerId: trigger.id, kind: 'cron' },
-          fetch: this.options.fetch,
-        });
-        if (!result.ok) {
-          throw new Error(
-            `cron HTTP ${trigger.id} at ${scheduledAt} returned ${result.status}`,
-          );
-        }
-        return;
-      } catch (error) {
-        lastError = error;
-        if (attempt + 1 >= attempts) break;
-        await sleep(backoffMs(trigger, attempt));
       }
-    }
-    throw lastError instanceof Error
-      ? lastError
-      : new Error(String(lastError));
+    });
   }
+}
+
+/** `work`, retried with the schedule's backoff when it has a retry policy. */
+async function withRetry<T>(
+  trigger: CronTrigger,
+  work: () => Promise<T>,
+): Promise<T> {
+  const attempts = (trigger.retryConfig?.maxRetryAttempts ?? 0) + 1;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      return await work();
+    } catch (error) {
+      lastError = error;
+      if (attempt + 1 >= attempts) break;
+      await sleep(backoffMs(trigger, attempt));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+/** Why the scheduler declined a run, when it reports `{ accepted: false }`. */
+function refusedEnqueue(result: unknown): string | undefined {
+  if (!result || typeof result !== 'object') return undefined;
+  const { accepted, reason, detail } = result as {
+    accepted?: unknown;
+    reason?: unknown;
+    detail?: unknown;
+  };
+  if (accepted !== false) return undefined;
+  return [reason, detail].filter((part) => typeof part === 'string' && part).join(': ') || 'refused';
 }
 
 type CronTrigger = Extract<
@@ -263,6 +408,10 @@ function scheduleFingerprint(trigger: CronTrigger): string {
         timezone: trigger.timezone,
         executionType: trigger.executionType,
         http: trigger.http ?? null,
+        // Only when set: adding a key for every trigger would change every
+        // existing schedule's fingerprint, and a changed fingerprint
+        // reschedules from now — dropping an occurrence that was due.
+        ...(trigger.sql ? { sql: trigger.sql } : {}),
       }),
     )
     .digest('hex');

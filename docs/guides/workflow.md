@@ -15,7 +15,7 @@ Browser  ── /api/workflow/* (session + RBAC) ──►  FoxSchema API  (:321
                                           packages/workflow-engine
                     ┌───────────────────────────────┼──────────────────────────┐
                     │                               │                          │
-              scheduler + cron/poll           SQLite FOXFLOW_DB_PATH     /api/hooks/*
+              scheduler + cron                SQLite FOXFLOW_DB_PATH     /api/hooks/*
               (same process)                  (repo-root default)        (public ingress)
 ```
 
@@ -95,7 +95,7 @@ Transform, Logic, Output** — and every label is unique
 
 | Group | Pipes |
 |-------|--------|
-| Trigger | Manual, Schedule, Webhook, API Endpoint, API Polling, Parent Workflow; Trigger payload |
+| Trigger | Manual, Schedule (run the workflow, call an HTTP endpoint, or **SQL execute**), Webhook, Parent Workflow; Trigger payload |
 | Source | SQL query (any FoxSchema dialect); HTTP API, HTTP Multi; CSV file, JSON file, Text file |
 | Transform | Map fields, Merge, Split, Script; HTTP lookup; Verify |
 | Logic | Condition, Loop, Sub-workflow; Ask a person |
@@ -123,6 +123,38 @@ the stored workflow, or the run snapshot (`ENGINE_ROUTES[].connections`). A
 connection the caller is not a member of is **403** before the handler runs.
 A grant is also ignored once the granter leaves that workspace
 (`resolveForEngine`).
+
+### Schedule: SQL execute
+
+A Schedule trigger's **Execution type** can be **SQL execute**. On each fire the
+engine runs the script against a saved connection (picked the way SQL pipes pick
+one, so the trigger holds a credential id, never a password) and starts the
+workflow with the rows the last statement returns — one record per row, into
+whatever pipes follow the trigger.
+
+- **Start only when rows are returned** (on by default): an empty result
+  creates no run. Off, every fire starts a run; with no rows the pipes get one
+  record carrying `scheduledAt` and `rowCount: 0`.
+- **Max rows per run** (default 1,000, at most 10,000) caps the payload; the
+  run's trigger payload records `rowCount` and `truncated`. It does not limit
+  the query: the driver still reads every row the last statement returns, so
+  give that statement its own `LIMIT`.
+- **Run the script in a transaction**: the run is enqueued before the
+  transaction commits, so a run that cannot start (engine disabled, overlap
+  refused) rolls the script back instead of losing the rows it moved. Without
+  a transaction the script's changes stand and the refusal is reported.
+- **Retries** (the schedule's retry policy) cover connecting only. Once a
+  statement has been sent, a failure is reported, never retried: running the
+  script again could repeat writes that already happened.
+- The script may change data; the connection's account is the boundary.
+- It runs detached from the scheduler tick, and a fire that comes due while the
+  previous one is still running is skipped and reported. With **catch-up: all**
+  the occurrences one tick picks up run one after another.
+
+The API Endpoint and API Polling triggers were removed. Use a **Webhook**
+trigger (with `?wait=1` for a synchronous answer) for inbound calls. A saved
+workflow that still has one loads in the designer without it, with a warning;
+remove its trigger pipe and save.
 
 ## Steering a run
 

@@ -68,6 +68,16 @@ describe('pipeSummary', () => {
         JSON.stringify({ endpoints: [{ id: 'a', url: 'https://a.test' }, { id: 'b', url: 'https://b.test' }] }),
       ),
     ).toBe('2 parallel endpoints');
+    expect(
+      pipeSummary(
+        'source.api.http.multi',
+        JSON.stringify({
+          executionMode: 'linear',
+          outputMode: 'merge',
+          endpoints: [{ id: 'a', url: 'https://a.test' }],
+        }),
+      ),
+    ).toBe('1 linear endpoints · merge');
   });
 
   it('summarizes SQL and delimited file pipes', () => {
@@ -132,6 +142,19 @@ describe('PipeNode', () => {
     expect(screen.getByText('1 rule · reject')).toBeTruthy();
     expect(screen.getByText('Out')).toBeTruthy();
     expect(screen.getByText('Rejects')).toBeTruthy();
+  });
+
+  it('renders custom pipe name as the title when provided', () => {
+    renderNode({
+      pipeId: 'http_fetch_1',
+      name: 'Fetch Weather Data',
+      role: 'source',
+      type: 'source.api.http',
+      config: JSON.stringify({ url: 'https://example.com/weather' }),
+    });
+
+    expect(screen.getByText('Fetch Weather Data')).toBeTruthy();
+    expect(screen.getByText('api.http')).toBeTruthy();
   });
 });
 

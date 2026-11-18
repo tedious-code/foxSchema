@@ -90,10 +90,8 @@ import {
 import { EmailSinkPipe, SmsSinkPipe } from '../notify/index.js';
 import {
   CronTriggerSourcePipe,
-  HttpTriggerSourcePipe,
   ManualTriggerSourcePipe,
   ParentTriggerSourcePipe,
-  PollTriggerSourcePipe,
   TriggerPayloadSourcePipe,
   WebhookTriggerSourcePipe,
 } from '../trigger/index.js';
@@ -122,9 +120,7 @@ export function createDefaultPipeRegistry(): PipeRegistry {
     new ManualTriggerSourcePipe(),
     new CronTriggerSourcePipe(),
     new WebhookTriggerSourcePipe(),
-    new HttpTriggerSourcePipe(),
     new ParentTriggerSourcePipe(),
-    new PollTriggerSourcePipe(),
     new MapPipe(),
     new ConditionPipe(),
     new ScriptTransformPipe(),

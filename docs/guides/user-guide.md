@@ -860,13 +860,13 @@ Developer / ops runbook: [workflow.md](workflow.md). Env vars:
    records** (trigger → map), **Orders branch** (verify, paid/other split,
    merge), and **Regions join** (split → loop → script, then a second pipeline
    after the first succeeds). Re-clicking refreshes those same ids in place.
-5. **Designer**: drop a trigger (Manual, Schedule, Webhook, API Endpoint, …) and
+5. **Designer**: drop a trigger (Manual, Schedule, Webhook, Parent Workflow) and
    pipes. Picking a saved connection on a **SQL query** / **SQL write** pipe
    **links** it — Fox Schema records the grant; the pipe never holds a password.
    A saved connection belongs to **this workspace**. Saving or running a
    workflow that names another workspace's connection is refused (403) — the
    engine is install-wide, so this check is what keeps A's password out of B.
-6. **Run** from the designer, or let cron / webhook / poll fire. **Runs** lists
+6. **Run** from the designer, or let a schedule or webhook fire. **Runs** lists
    history. A live run can be **cancelled**. A run paused on **Ask a person**
    shows the question there: **Send answer** continues it, **Resume** without
    an answer retries the gate. Steering reads the run's snapshot, so a run that

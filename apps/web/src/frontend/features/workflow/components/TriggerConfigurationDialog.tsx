@@ -13,10 +13,8 @@ import {
   Clock3,
   Code2,
   GitBranch,
-  Globe2,
   Play,
   Plus,
-  RefreshCw,
   RotateCcw,
   ShieldCheck,
   Webhook,
@@ -40,13 +38,16 @@ import { JSON_EDITOR_OPTIONS, useJsonEditorTheme } from '../lib/jsonEditorOption
 import {
   TRIGGER_KINDS,
   createCronRetryConfig,
+  createCronSql,
   createTrigger,
   credentialsForTrigger,
   nextTriggerId,
   triggerCredentialId,
+  withExecutionType,
   withTriggerCredentialId,
   type WorkflowTrigger,
 } from '../lib/triggers';
+import { CronSqlEditor } from './CronSqlEditor';
 import { TriggerEndpointCard } from './TriggerEndpointCard';
 import { Button, Input, Label, Select, Textarea, TimezoneSelect } from './controls';
 
@@ -177,17 +178,6 @@ const TRIGGER_META = {
     description: 'Receive signed payloads from external systems via HTTP.',
     icon: Webhook,
   },
-  http: {
-    label: 'API Endpoint Trigger',
-    description: 'Publish an authenticated HTTP endpoint to start this workflow.',
-    icon: Globe2,
-  },
-  poll: {
-    label: 'API Polling Trigger',
-    description:
-      'Call an endpoint on an interval and run only when new items appear.',
-    icon: RefreshCw,
-  },
   parent: {
     label: 'Parent Workflow Trigger',
     description: 'Allow other workflows to call this one via workflow.sub.',
@@ -206,12 +196,8 @@ function getSections(kind: WorkflowTrigger['kind']): string[] {
       return ['general', 'schedule', 'execution', 'time zone', 'retry config'];
     case 'webhook':
       return ['general', 'request validation'];
-    case 'http':
-      return ['general', 'authentication'];
     case 'manual':
       return ['general', 'input parameters'];
-    case 'poll':
-      return ['general'];
     case 'parent':
       return ['general', 'allow from'];
   }
@@ -440,14 +426,7 @@ export function TriggerConfigurationDialog({
                         onChange={(event) => {
                           const executionType = event.target
                             .value as typeof trigger.executionType;
-                          patch({
-                            ...trigger,
-                            executionType,
-                            http:
-                              executionType === 'http'
-                                ? (trigger.http ?? EMPTY_HTTP_REQUEST)
-                                : trigger.http,
-                          });
+                          patch(withExecutionType(trigger, executionType, EMPTY_HTTP_REQUEST));
                         }}
                       >
                         {(
@@ -468,7 +447,7 @@ export function TriggerConfigurationDialog({
                       <div className="span-2">
                         <Label>Outgoing HTTP request</Label>
                         <small className="form-help">
-                          Calls this external URL when the schedule fires. To receive incoming API calls to trigger this workflow, configure an API Endpoint Trigger instead.
+                          Calls this external URL when the schedule fires. To start this workflow from outside, configure a Webhook Trigger instead.
                         </small>
                         <HttpRequestEditor
                           // Remount per trigger: the editor keeps local
@@ -480,6 +459,16 @@ export function TriggerConfigurationDialog({
                           )}
                           credentials={credentials}
                           onChange={(http) => patch({ ...trigger, http })}
+                        />
+                      </div>
+                    )}
+                    {trigger.executionType === 'sql' && (
+                      <div className="span-2">
+                        <CronSqlEditor
+                          key={trigger.id}
+                          editorHeight="220px"
+                          value={trigger.sql ?? createCronSql()}
+                          onChange={(sql) => patch({ ...trigger, sql })}
                         />
                       </div>
                     )}
@@ -631,10 +620,8 @@ export function TriggerConfigurationDialog({
                   </div>
                 )}
 
-                {(trigger.kind === 'http' || trigger.kind === 'webhook') &&
-                  (section === 'authentication' ||
-                    section === 'request validation' ||
-                    section === 'general') && (
+                {trigger.kind === 'webhook' &&
+                  (section === 'request validation' || section === 'general') && (
                     <div className="trigger-form-grid">
                       <div>
                         <Label>Authentication</Label>
@@ -669,11 +656,7 @@ export function TriggerConfigurationDialog({
                         <TriggerEndpointCard
                           workflowId={currentWorkflowId}
                           triggerId={trigger.id}
-                          kind={trigger.kind}
-                          credentialId={triggerCredentialId(trigger)}
-                          authHeader={trigger.kind === 'http' ? trigger.authHeader : undefined}
-                          requiredFields={trigger.kind === 'http' ? trigger.requiredFields : undefined}
-                          path={trigger.kind === 'webhook' ? trigger.path : undefined}
+                          path={trigger.path}
                         />
                       </div>
                     </div>

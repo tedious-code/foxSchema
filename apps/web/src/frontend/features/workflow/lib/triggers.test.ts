@@ -10,13 +10,17 @@ import { TRIGGER_KINDS as ENGINE_TRIGGER_KINDS } from '@foxschema/workflow-engin
 import type { CredentialMeta } from '../api/engineClient';
 import {
   TRIGGER_KINDS,
+  createCronSql,
   createTrigger,
   credentialsForTrigger,
   nextTriggerId,
+  partitionRetiredTriggers,
   triggerCredentialId,
+  withExecutionType,
   withTriggerCredentialId,
   type WorkflowTrigger,
 } from './triggers';
+import type { HttpRequestValue } from '../components/HttpRequestEditor';
 
 describe('nextTriggerId', () => {
   it('uses the bare kind when it is free', () => {
@@ -61,6 +65,10 @@ describe('the designer offers exactly the kinds the engine accepts', () => {
   it('does not offer the kinds the engine removed', () => {
     expect(TRIGGER_KINDS).not.toContain('event');
     expect(TRIGGER_KINDS).not.toContain('custom');
+    // API endpoint and API polling were retired: a Webhook trigger serves
+    // inbound calls, and a SQL schedule watches a database.
+    expect(TRIGGER_KINDS).not.toContain('http');
+    expect(TRIGGER_KINDS).not.toContain('poll');
   });
 
   it('can construct every kind the engine accepts', () => {
@@ -99,13 +107,6 @@ describe('createTrigger', () => {
 
 describe('trigger credentials', () => {
   const webhook = createTrigger('webhook', 'hook');
-  const http = createTrigger('http', 'api');
-
-  it('reads and writes an HTTP trigger’s credential flat', () => {
-    const next = withTriggerCredentialId(http, 'cred-http');
-    expect(next).toMatchObject({ credentialId: 'cred-http' });
-    expect(triggerCredentialId(next)).toBe('cred-http');
-  });
 
   it('reads and writes a webhook’s credential inside auth', () => {
     const next = withTriggerCredentialId(webhook, 'cred-hook');
@@ -147,13 +148,57 @@ describe('credentialsForTrigger', () => {
       ['webhook'],
     );
   });
+});
 
-  it('offers an API endpoint only HTTP credentials — not OAuth', () => {
-    // The runtime authenticates a trigger only with a credential of its own
-    // kind (authenticateHttpTrigger). Offering OAuth here produced triggers
-    // that saved fine and then refused every request.
-    expect(credentialsForTrigger('http', credentials).map((c) => c.kind)).toEqual([
-      'http',
-    ]);
+describe('Schedule execution type', () => {
+  const emptyHttp = { url: '' } as HttpRequestValue;
+  const cron = createTrigger('cron', 'nightly') as Extract<WorkflowTrigger, { kind: 'cron' }>;
+
+  it('starts a new schedule as "run this workflow", with no SQL settings', () => {
+    expect(cron.executionType).toBe('workflow');
+    expect(cron).not.toHaveProperty('sql');
+  });
+
+  it('seeds the SQL settings the first time SQL execute is chosen', () => {
+    const next = withExecutionType(cron, 'sql', emptyHttp);
+    expect(next.executionType).toBe('sql');
+    expect(next.sql).toEqual(createCronSql());
+    // Rows-only is the default: an idle tick should leave no run behind.
+    expect(next.sql?.onlyWhenRows).toBe(true);
+    expect(next.sql?.credentialId).toBe('');
+  });
+
+  it('keeps a half-written script when switching away and back', () => {
+    const withScript = {
+      ...withExecutionType(cron, 'sql', emptyHttp),
+      sql: { ...createCronSql(), credentialId: 'foxschema-conn-1', script: 'SELECT 1' },
+    };
+    const away = withExecutionType(withScript, 'workflow', emptyHttp);
+    expect(away.executionType).toBe('workflow');
+    const back = withExecutionType(away, 'sql', emptyHttp);
+    expect(back.sql).toMatchObject({ credentialId: 'foxschema-conn-1', script: 'SELECT 1' });
+  });
+
+  it('seeds the HTTP request when Call an HTTP endpoint is chosen', () => {
+    expect(withExecutionType(cron, 'http', emptyHttp).http).toBe(emptyHttp);
+  });
+});
+
+describe('partitionRetiredTriggers', () => {
+  it('keeps the kinds the engine accepts and names the retired ones', () => {
+    // As a workflow saved before the two kinds were retired holds them.
+    const stored = [
+      { id: 'manual', kind: 'manual', enabled: true },
+      { id: 'api', kind: 'http', enabled: true },
+      { id: 'poll', kind: 'poll', enabled: true },
+      { id: 'nightly', kind: 'cron', enabled: true },
+    ];
+    const { supported, retired } = partitionRetiredTriggers(stored);
+    expect(supported.map((trigger) => trigger.kind)).toEqual(['manual', 'cron']);
+    expect(retired).toEqual(['http', 'poll']);
+  });
+
+  it('reports nothing retired for a current workflow', () => {
+    expect(partitionRetiredTriggers([createTrigger('webhook', 'hook')]).retired).toEqual([]);
   });
 });

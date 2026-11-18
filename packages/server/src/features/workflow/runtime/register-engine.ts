@@ -210,11 +210,9 @@ export async function registerWorkflowEngine(
       await ctx.scheduler.recover();
       await ctx.cron.recover();
       ctx.cron.start();
-      ctx.poll.start();
     });
     app.addHook('onClose', async () => {
       ctx.cron.stop();
-      ctx.poll.stop();
       await Promise.race([
         ctx.scheduler.idle(),
         new Promise<void>((resolve) => setTimeout(resolve, ENGINE_IDLE_CLOSE_MS).unref()),

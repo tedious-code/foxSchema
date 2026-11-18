@@ -10,7 +10,5 @@ export {
   ManualTriggerSourcePipe,
   CronTriggerSourcePipe,
   WebhookTriggerSourcePipe,
-  HttpTriggerSourcePipe,
   ParentTriggerSourcePipe,
-  PollTriggerSourcePipe,
 } from './trigger-payload.js';

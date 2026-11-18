@@ -67,6 +67,35 @@ export type WebhookAuthValue =
       clockToleranceSeconds: number;
     };
 
+/**
+ * What a Schedule trigger in SQL mode runs. Mirrors the engine's
+ * `cronSqlSchema`: the script runs against a database credential (or a saved
+ * FoxSchema connection granted to workflows) and its rows start the run.
+ */
+export interface CronSqlValue {
+  credentialId: string;
+  /** Only for a credential entered in the engine; a saved connection already says. */
+  dialect?: string;
+  schema?: string;
+  script: string;
+  /** Skip the run when the script returns no rows. */
+  onlyWhenRows: boolean;
+  transaction: boolean;
+  maxRows: number;
+}
+
+export function createCronSql(): CronSqlValue {
+  return {
+    credentialId: '',
+    script: '',
+    onlyWhenRows: true,
+    transaction: false,
+    maxRows: 1000,
+  };
+}
+
+export type CronExecutionType = 'workflow' | 'http' | 'sql';
+
 export type WorkflowTrigger =
   | (CommonTrigger & { kind: 'manual'; inputData?: unknown })
   | (CommonTrigger & {
@@ -74,9 +103,11 @@ export type WorkflowTrigger =
       cron: string;
       timezone: string;
       catchUp: 'none' | 'one' | 'all';
-      executionType: 'workflow' | 'http';
+      executionType: CronExecutionType;
       /** Same shape as `source.api.http` — required when executionType is http. */
       http?: HttpRequestValue;
+      /** Required when executionType is sql. */
+      sql?: CronSqlValue;
       retryConfig?: CronRetryConfig;
     })
   | (CommonTrigger & {
@@ -88,24 +119,6 @@ export type WorkflowTrigger =
       idempotencyHeader: string;
       onMissingIdempotencyKey: 'reject' | 'fingerprint';
       maxBodyBytes: number;
-    })
-  | (CommonTrigger & {
-      kind: 'http';
-      credentialId: string;
-      authHeader: string;
-      idempotencyHeader: string;
-      maxBodyBytes: number;
-      requiredFields: string[];
-    })
-  | (CommonTrigger & {
-      kind: 'poll';
-      intervalSeconds: number;
-      /** Same shape as `source.api.http`. */
-      http: HttpRequestValue;
-      resultsPath: string;
-      dedupKey: string;
-      maxItems: number;
-      onFirstPoll: 'prime' | 'fire';
     })
   | (CommonTrigger & {
       kind: 'parent';
@@ -171,45 +184,59 @@ export function createTrigger(
         onMissingIdempotencyKey: 'reject',
         maxBodyBytes: 1_048_576,
       };
-    case 'http':
-      return {
-        ...common,
-        kind,
-        credentialId: '',
-        authHeader: 'authorization',
-        idempotencyHeader: 'x-idempotency-key',
-        maxBodyBytes: 1_048_576,
-        requiredFields: [],
-      };
-    case 'poll':
-      return {
-        ...common,
-        kind,
-        intervalSeconds: 300,
-        http: { url: '' } as HttpRequestValue,
-        resultsPath: '',
-        dedupKey: 'id',
-        maxItems: 100,
-        onFirstPoll: 'prime',
-      };
     case 'parent':
       return { ...common, kind, allowFrom: [] };
   }
 }
 
 /**
- * The credential a trigger authenticates with, wherever it lives: `http` keeps
- * it flat, `webhook` keeps it inside `auth`, and `auth: none` has none.
+ * A Schedule trigger switched to another execution type. Switching to `http`
+ * or `sql` seeds that mode's settings the first time; switching away keeps
+ * them, so flipping back and forth does not lose a half-written script.
+ */
+export function withExecutionType(
+  trigger: Extract<WorkflowTrigger, { kind: 'cron' }>,
+  executionType: CronExecutionType,
+  emptyHttp: HttpRequestValue,
+): Extract<WorkflowTrigger, { kind: 'cron' }> {
+  return {
+    ...trigger,
+    executionType,
+    ...(executionType === 'http' ? { http: trigger.http ?? emptyHttp } : {}),
+    ...(executionType === 'sql' ? { sql: trigger.sql ?? createCronSql() } : {}),
+  };
+}
+
+/**
+ * Trigger kinds the engine no longer has. A workflow saved while they existed
+ * still holds them; the designer drops them on load (and says so) rather than
+ * render a trigger it has no editor for and the engine would refuse to save.
+ */
+export function partitionRetiredTriggers(triggers: readonly { kind: string }[]): {
+  supported: WorkflowTrigger[];
+  retired: string[];
+} {
+  const known = new Set<string>(TRIGGER_KINDS);
+  const supported: WorkflowTrigger[] = [];
+  const retired: string[] = [];
+  for (const trigger of triggers) {
+    if (known.has(trigger.kind)) supported.push(trigger as WorkflowTrigger);
+    else retired.push(trigger.kind);
+  }
+  return { supported, retired };
+}
+
+/**
+ * The credential a trigger authenticates with: `webhook` keeps it inside
+ * `auth`, and `auth: none` has none.
  */
 export function triggerCredentialId(trigger: WorkflowTrigger): string {
-  if (trigger.kind === 'http') return trigger.credentialId;
   if (trigger.kind !== 'webhook') return '';
   return trigger.auth.type === 'none' ? '' : trigger.auth.credentialId;
 }
 
 /** `trigger` with its credential set; unchanged for kinds (or `auth: none`) that take none. */
 export function withTriggerCredentialId(trigger: WorkflowTrigger, credentialId: string): WorkflowTrigger {
-  if (trigger.kind === 'http') return { ...trigger, credentialId };
   if (trigger.kind !== 'webhook' || trigger.auth.type === 'none') return trigger;
   return { ...trigger, auth: { ...trigger.auth, credentialId } };
 }
@@ -227,18 +254,17 @@ export function nextTriggerId(
 }
 
 /**
- * Credentials a trigger of this kind can authenticate with — exactly those of
- * the same kind, because that is the rule the runtime enforces:
- * `authenticateHttpTrigger` (packages/runtime/src/triggers.ts) rejects any
- * credential whose kind differs from the trigger's.
+ * Credentials a webhook can authenticate with — webhook credentials only,
+ * because that is the rule the runtime enforces (`authenticateHttpTrigger`
+ * rejects any other kind).
  *
- * Both editors had this wrong, in different ways. The Triggers dialog listed
- * every credential; the inspector offered OAuth credentials to API-endpoint
- * triggers. Either let an author save a trigger that then failed
- * authentication on every request.
+ * Both editors once had this wrong, in different ways: the Triggers dialog
+ * listed every credential, and the inspector offered OAuth credentials to
+ * endpoint triggers. Either let an author save a trigger that then failed on
+ * every request.
  */
 export function credentialsForTrigger(
-  kind: 'webhook' | 'http',
+  kind: 'webhook',
   credentials: CredentialMeta[],
 ): CredentialMeta[] {
   return credentials.filter((credential) => credential.kind === kind);

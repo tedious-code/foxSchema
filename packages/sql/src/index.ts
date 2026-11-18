@@ -442,9 +442,11 @@ export {
   qualifiedNameParts,
   quoteQualifiedName,
   isTsqlDialect,
+  sqlLiteral,
+  inlineSqlParams,
 } from './modules/sql-text/sql-template.js';
 export { maxInsertRows } from './modules/sql-text/insert-limits.js';
-export type { SqlQuery, SqlTag, RenderedSql, SqlPlaceholderStyle } from './modules/sql-text/sql-template.js';
+export type { SqlQuery, SqlTag, RenderedSql, RenderSqlOptions, SqlPlaceholderStyle } from './modules/sql-text/sql-template.js';
 export {
   CODE_CELL_ALLOWED_PACKAGES,
   parseCodeCellImports,

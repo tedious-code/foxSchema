@@ -70,13 +70,14 @@ export {
   isCodeCellKind, isInsertWriteStatement, isMutatingDmlStatement, isNodeCodeCellKind,
   isPageableStatement, isSqlQuery, isTransactionControl, isWriteStatement, makeSqlQuery, nodeCodeCellWireKind,
   parseCodeCell, placeholderStyleFor, qualifiedNameParts, quoteIdentifierIfNeeded,
-  quoteSqlIdentifier, referencedTableNames, renderSqlQuery, requiresWritePermission,
+  inlineSqlParams, quoteSqlIdentifier, referencedTableNames, renderSqlQuery, requiresWritePermission,
+  sqlLiteral,
   splitSqlStatements, sqlTag, statementVerb, stripCodeFenceMarkers, stripFullLineSqlComments,
   stripJsStringsAndComments,
 } from '@foxschema/sql';
 export type {
   BrowserCodeCellKind, CodeCellKind, CodeFenceRange, MultiTableWriteWarning, NodeCodeCellKind,
-  RenderedSql, SplitStatement, SqlPlaceholderStyle, SqlQuery, SqlTag, StatementKind,
+  RenderedSql, RenderSqlOptions, SplitStatement, SqlPlaceholderStyle, SqlQuery, SqlTag, StatementKind,
   StatementStatus, TsCodeCellKind,
 } from '@foxschema/sql';
 

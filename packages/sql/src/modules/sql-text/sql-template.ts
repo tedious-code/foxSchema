@@ -15,6 +15,9 @@
  * it is the one construct that puts caller text straight into the statement.
  */
 
+import { sqlTokens } from './sql-tokens.js';
+import { sqlReadings } from './sql-readings.js';
+
 /** Placeholder syntax per engine family. */
 export type SqlPlaceholderStyle = 'dollar' | 'question' | 'colon' | 'at';
 
@@ -177,16 +180,140 @@ function columnsOf(rows: Record<string, unknown>[]): string[] {
   return [...set];
 }
 
+/** Engines that read a backslash inside `'…'` as an escape by default. */
+const BACKSLASH_STRING_DIALECTS = new Set(['mysql', 'mariadb', 'tidb', 'clickhouse']);
+/** Engines with no TRUE/FALSE literal (T-SQL `bit`, Oracle before 23ai): 1 and 0 instead. */
+const NUMERIC_BOOLEAN_DIALECTS = new Set([...TSQL_DIALECTS, 'oracle']);
+const POSTGRES_FAMILY = new Set(['postgres', 'cockroachdb', 'yugabytedb']);
+
+/** Bytes from a driver value: a Uint8Array (Node's Buffer is one), or a Buffer after JSON (`{ type: 'Buffer', data }`). */
+function bytesOf(value: object): Uint8Array | null {
+  if (value instanceof Uint8Array) return value;
+  const json = value as { type?: unknown; data?: unknown };
+  if (json.type === 'Buffer' && Array.isArray(json.data) && json.data.every((b) => Number.isInteger(b))) {
+    return Uint8Array.from(json.data as number[]);
+  }
+  return null;
+}
+
+function binaryLiteral(bytes: Uint8Array, dialect: string): string {
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  if (POSTGRES_FAMILY.has(dialect)) return `'\\x${hex}'`;
+  if (TSQL_DIALECTS.has(dialect)) return `0x${hex}`;
+  if (dialect === 'oracle') return `HEXTORAW('${hex}')`;
+  if (dialect === 'db2') return `BX'${hex}'`;
+  if (dialect === 'clickhouse') return `unhex('${hex}')`;
+  if (dialect === 'duckdb' || dialect === 'redshift') return `from_hex('${hex}')`;
+  return `X'${hex}'`; // MySQL, MariaDB, TiDB, SQLite
+}
+
+function stringLiteral(text: string, dialect: string): string {
+  let body = text.replace(/'/g, "''");
+  // MySQL reads `'C:\temp\'` as an unterminated string: the last `\` escapes the quote.
+  if (BACKSLASH_STRING_DIALECTS.has(dialect)) body = body.replace(/\\/g, '\\\\');
+  // Without N, SQL Server converts the text to the database code page first,
+  // so characters outside it arrive as `?`. Plain ASCII keeps the bare form,
+  // which compares against a varchar column without converting the column.
+  const national = TSQL_DIALECTS.has(dialect) && /[^\x00-\x7f]/.test(text) ? 'N' : '';
+  return `${national}'${body}'`;
+}
+
+/**
+ * A value as a SQL literal `dialect` reads back as the same value. For SQL a
+ * person will read, copy or run themselves: Copy INSERT, a peek opened in the
+ * editor. A statement Fox runs binds its values instead (see {@link renderSqlQuery}).
+ */
+export function sqlLiteral(value: unknown, dialect: string): string {
+  const d = dialect.toLowerCase();
+  if (value === null || value === undefined) return 'NULL';
+  if (typeof value === 'boolean') {
+    if (NUMERIC_BOOLEAN_DIALECTS.has(d)) return value ? '1' : '0';
+    return value ? 'TRUE' : 'FALSE';
+  }
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'NULL';
+  if (typeof value === 'bigint') return value.toString();
+  if (value instanceof Date) return stringLiteral(value.toISOString(), d);
+  if (typeof value === 'object') {
+    const bytes = bytesOf(value);
+    if (bytes) return binaryLiteral(bytes, d);
+    let json: string;
+    try {
+      json = JSON.stringify(value);
+    } catch {
+      json = String(value);
+    }
+    return stringLiteral(json, d);
+  }
+  return stringLiteral(String(value), d);
+}
+
+/**
+ * Replace the placeholders of `text` (as {@link renderSqlQuery} wrote them for
+ * `dialect`) with their values as literals. Reads the text as tokens, so a
+ * `?`, `$1`, `:1` or `@p0` inside a string, a quoted name or a comment is left
+ * alone, and only the dialect's own placeholder style is replaced. A
+ * placeholder with no matching value stays as it is.
+ */
+export function inlineSqlParams(text: string, params: readonly unknown[], dialect: string): string {
+  if (params.length === 0) return text;
+  const d = dialect.toLowerCase();
+  const style = placeholderStyleFor(d);
+  const tokens = [...sqlTokens(text, sqlReadings(d)[0] ?? {})];
+  const literalAt = (index: number) => (index >= 0 && index < params.length ? sqlLiteral(params[index], d) : null);
+  let out = '';
+  let question = 0;
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i]!;
+    const raw = text.slice(token.start, token.end);
+    const next = tokens[i + 1];
+    const nextRaw = next ? text.slice(next.start, next.end) : '';
+    let literal: string | null = null;
+    let consumed = 0;
+    if (style === 'dollar' && token.kind === 'word' && /^\$[1-9]\d*$/.test(raw)) {
+      literal = literalAt(Number(raw.slice(1)) - 1);
+    } else if (style === 'dollar' && raw === '$' && next?.kind === 'word' && /^[1-9]\d*$/.test(nextRaw)) {
+      // A reading where names cannot start with a digit (PostgreSQL's) lexes
+      // `$1` as `$` then `1`.
+      literal = literalAt(Number(nextRaw) - 1);
+      consumed = 1;
+    } else if (style === 'question' && token.kind === 'punct' && raw === '?') {
+      literal = literalAt(question++);
+    } else if (style === 'colon' && raw === ':' && next?.kind === 'word' && /^[1-9]\d*$/.test(nextRaw)) {
+      literal = literalAt(Number(nextRaw) - 1);
+      consumed = 1;
+    } else if (style === 'at' && raw === '@' && next?.kind === 'word' && /^p\d+$/i.test(nextRaw)) {
+      literal = literalAt(Number(nextRaw.slice(1)));
+      consumed = 1;
+    }
+    if (literal === null) {
+      out += raw;
+      continue;
+    }
+    out += literal;
+    i += consumed;
+  }
+  return out;
+}
+
+export interface RenderSqlOptions {
+  /**
+   * Write each value into the text as a literal ({@link sqlLiteral}) instead
+   * of a placeholder; `params` comes back empty. For SQL a person copies.
+   */
+  inlineValues?: boolean;
+}
+
 /**
  * Flatten a tagged-template query into driver-ready `{ text, params }`.
  * Nested queries and fragments are expanded in place so composition works.
  */
-export function renderSqlQuery(query: SqlQuery, dialect: string): RenderedSql {
+export function renderSqlQuery(query: SqlQuery, dialect: string, options: RenderSqlOptions = {}): RenderedSql {
   const style = placeholderStyleFor(dialect);
   const params: unknown[] = [];
   let text = '';
 
   const bind = (value: unknown): string => {
+    if (options.inlineValues) return sqlLiteral(value, dialect);
     params.push(value);
     return renderPlaceholder(style, params.length);
   };

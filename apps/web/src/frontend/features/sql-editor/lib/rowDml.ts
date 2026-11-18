@@ -27,6 +27,12 @@ export interface PeekWritePlan {
   params: unknown[];
   /** Human-readable preview (same as sql for bound statements). */
   displaySql: string;
+  /**
+   * The statement with its values written in as literals, for Copy INSERT.
+   * Kept apart from `displaySql`, which goes to the Recent list and the data
+   * migrate record: those keep placeholders, not the row's values.
+   */
+  literalSql?: string;
 }
 
 export interface PeekEditability {
@@ -49,32 +55,6 @@ export interface PeekEditability {
  */
 export function columnTypeIsBinary(type: string | undefined | null): boolean {
   return describeSqlType(String(type ?? '')).kind === 'binary';
-}
-
-/**
- * Format a JS value as a SQL literal for inlining in SQL Editor promotion or Copy INSERT.
- * Single quotes are doubled (''), numbers are bare, booleans are TRUE/FALSE, nulls/undefined are NULL.
- */
-export function formatSqlLiteral(value: unknown): string {
-  if (value === null || value === undefined) return 'NULL';
-  if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE';
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? String(value) : 'NULL';
-  }
-  if (typeof value === 'bigint') return value.toString();
-  if (value instanceof Date) {
-    return `'${value.toISOString().replace(/'/g, "''")}'`;
-  }
-  if (typeof value === 'object') {
-    try {
-      const json = JSON.stringify(value);
-      return `'${json.replace(/'/g, "''")}'`;
-    } catch {
-      return `'${String(value).replace(/'/g, "''")}'`;
-    }
-  }
-  const str = String(value);
-  return `'${str.replace(/'/g, "''")}'`;
 }
 
 function resultIndexMap(columns: string[]): Map<string, number> {
@@ -386,29 +366,15 @@ export function buildPeekInsert(opts: {
     : undefined;
   const between = support?.kind === 'overriding' ? support.clause : undefined;
 
-  const rendered = renderSqlQuery(
-    sql`INSERT INTO ${sql.id(...parts)} ${sql.values([row], undefined, between)}`,
-    dialect
-  );
-
-  const cols = Object.keys(row);
-  const betweenPart = between ? ` ${between}` : '';
-  const renderedTable = renderSqlQuery(sql`${sql.id(...parts)}`, dialect).text;
-  const colFragments = cols.map((c) => sql.id(c));
-  let colsQuery = sql`(${colFragments[0]}`;
-  for (let i = 1; i < colFragments.length; i++) {
-    colsQuery = sql`${colsQuery}, ${colFragments[i]}`;
-  }
-  colsQuery = sql`${colsQuery})`;
-  const renderedCols = renderSqlQuery(colsQuery, dialect).text;
-  const renderedVals = cols.map((c) => formatSqlLiteral(row[c])).join(', ');
-  const displaySql = `INSERT INTO ${renderedTable} ${renderedCols}${betweenPart} VALUES (${renderedVals});`;
+  const statement = sql`INSERT INTO ${sql.id(...parts)} ${sql.values([row], undefined, between)}`;
+  const rendered = renderSqlQuery(statement, dialect);
 
   return {
     kind: 'insert',
     sql: rendered.text,
     params: rendered.params,
-    displaySql,
+    displaySql: rendered.text,
+    literalSql: renderSqlQuery(statement, dialect, { inlineValues: true }).text,
   };
 }
 

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { quoteIdentifierIfNeeded, sqlTag as sql, renderSqlQuery, placeholderStyleFor } from './sql-template.js';
+import {
+  inlineSqlParams,
+  placeholderStyleFor,
+  quoteIdentifierIfNeeded,
+  renderSqlQuery,
+  sqlLiteral,
+  sqlTag as sql,
+} from './sql-template.js';
 
 describe('placeholderStyleFor', () => {
   it('maps each engine family to its placeholder syntax', () => {
@@ -163,5 +170,111 @@ describe('quoteIdentifierIfNeeded', () => {
   it('quotes names a bare identifier cannot express', () => {
     expect(quoteIdentifierIfNeeded('1st', 'postgres')).toBe('"1st"');
     expect(quoteIdentifierIfNeeded('café', 'postgres')).toBe('"café"');
+  });
+});
+
+describe('sqlLiteral', () => {
+  it('writes NULL, bare numbers and doubled quotes everywhere', () => {
+    expect(sqlLiteral(null, 'postgres')).toBe('NULL');
+    expect(sqlLiteral(undefined, 'mysql')).toBe('NULL');
+    expect(sqlLiteral(42, 'oracle')).toBe('42');
+    expect(sqlLiteral(Number.NaN, 'postgres')).toBe('NULL');
+    expect(sqlLiteral(BigInt('9007199254740993'), 'postgres')).toBe('9007199254740993');
+    expect(sqlLiteral("O'Reilly", 'postgres')).toBe("'O''Reilly'");
+  });
+
+  it('writes booleans as 1/0 where the engine has no TRUE literal', () => {
+    expect(sqlLiteral(true, 'postgres')).toBe('TRUE');
+    expect(sqlLiteral(false, 'mysql')).toBe('FALSE');
+    expect(sqlLiteral(true, 'sqlserver')).toBe('1');
+    expect(sqlLiteral(false, 'azuresql')).toBe('0');
+    expect(sqlLiteral(true, 'oracle')).toBe('1');
+  });
+
+  it('escapes backslashes where a backslash is an escape', () => {
+    // 'C:\temp\' would leave MySQL's string open: the last backslash escapes the quote.
+    expect(sqlLiteral('C:\\temp\\', 'mysql')).toBe("'C:\\\\temp\\\\'");
+    expect(sqlLiteral('a\\b', 'clickhouse')).toBe("'a\\\\b'");
+    expect(sqlLiteral('a\\b', 'postgres')).toBe("'a\\b'");
+  });
+
+  it('marks non-ASCII text national on SQL Server, and only that', () => {
+    expect(sqlLiteral('Zo\u00eb \u6771\u4eac', 'sqlserver')).toBe("N'Zo\u00eb \u6771\u4eac'");
+    expect(sqlLiteral('plain', 'sqlserver')).toBe("'plain'");
+    expect(sqlLiteral('Zo\u00eb', 'postgres')).toBe("'Zo\u00eb'");
+  });
+
+  it('writes bytes as each engine spells a binary literal', () => {
+    const bytes = Uint8Array.from([0xde, 0xad]);
+    expect(sqlLiteral(bytes, 'postgres')).toBe("'\\xdead'");
+    expect(sqlLiteral(bytes, 'sqlserver')).toBe('0xdead');
+    expect(sqlLiteral(bytes, 'oracle')).toBe("HEXTORAW('dead')");
+    expect(sqlLiteral(bytes, 'mysql')).toBe("X'dead'");
+    // A Buffer after a JSON round trip.
+    expect(sqlLiteral({ type: 'Buffer', data: [222, 173] }, 'sqlite')).toBe("X'dead'");
+  });
+
+  it('writes other objects as JSON text', () => {
+    expect(sqlLiteral({ a: "it's" }, 'postgres')).toBe(`'{"a":"it''s"}'`);
+  });
+});
+
+describe('inlineSqlParams', () => {
+  it("replaces the dialect's own placeholders", () => {
+    expect(inlineSqlParams('SELECT * FROM "t" WHERE "a" = $1 AND "b" = $2', [42, "O'C"], 'postgres')).toBe(
+      'SELECT * FROM "t" WHERE "a" = 42 AND "b" = \'O\'\'C\''
+    );
+    expect(inlineSqlParams('SELECT * FROM `t` WHERE `a` = ? AND `b` = ?', [1, 'x'], 'mysql')).toBe(
+      "SELECT * FROM `t` WHERE `a` = 1 AND `b` = 'x'"
+    );
+    expect(inlineSqlParams('SELECT * FROM [t] WHERE [a] = @p0 AND [b] = @p1', [9, true], 'sqlserver')).toBe(
+      'SELECT * FROM [t] WHERE [a] = 9 AND [b] = 1'
+    );
+    expect(inlineSqlParams('SELECT * FROM t WHERE a = :1', [7], 'oracle')).toBe('SELECT * FROM t WHERE a = 7');
+  });
+
+  it('round-trips what renderSqlQuery bound', () => {
+    for (const dialect of ['postgres', 'mysql', 'sqlserver', 'oracle', 'sqlite', 'clickhouse', 'db2']) {
+      const query = sql`SELECT * FROM ${sql.id('t')} WHERE ${sql.id('a')} = ${10} AND ${sql.id('b')} = ${'z'}`;
+      const bound = renderSqlQuery(query, dialect);
+      expect(inlineSqlParams(bound.text, bound.params, dialect), dialect).toBe(
+        renderSqlQuery(query, dialect, { inlineValues: true }).text
+      );
+    }
+  });
+
+  it('leaves another style alone: a ? is not a Postgres placeholder', () => {
+    expect(inlineSqlParams('SELECT * FROM t WHERE a = $1 AND tags ? \'vip\'', [5], 'postgres')).toBe(
+      "SELECT * FROM t WHERE a = 5 AND tags ? 'vip'"
+    );
+  });
+
+  it('leaves placeholders inside strings, quoted names and comments alone', () => {
+    expect(
+      inlineSqlParams(`SELECT "$1", 'cost $1?' FROM t /* $1 */ WHERE a = $1 -- $1`, [3], 'postgres')
+    ).toBe(`SELECT "$1", 'cost $1?' FROM t /* $1 */ WHERE a = 3 -- $1`);
+    expect(inlineSqlParams("SELECT 'why?' AS q FROM t WHERE a = ?", [8], 'mysql')).toBe(
+      "SELECT 'why?' AS q FROM t WHERE a = 8"
+    );
+    expect(inlineSqlParams("SELECT '10:1' FROM t WHERE a = :1", [2], 'oracle')).toBe(
+      "SELECT '10:1' FROM t WHERE a = 2"
+    );
+  });
+
+  it('leaves a placeholder with no value as it is', () => {
+    expect(inlineSqlParams('SELECT $1, $2', [1], 'postgres')).toBe('SELECT 1, $2');
+    expect(inlineSqlParams('SELECT $1', [], 'postgres')).toBe('SELECT $1');
+  });
+});
+
+describe('renderSqlQuery inlineValues', () => {
+  it('writes literals and returns no params', () => {
+    const rendered = renderSqlQuery(
+      sql`INSERT INTO ${sql.id('t')} ${sql.values([{ id: 1, name: "O'C", ok: false }])}`,
+      'sqlserver',
+      { inlineValues: true }
+    );
+    expect(rendered.text).toBe("INSERT INTO [t] ([id], [name], [ok]) VALUES (1, 'O''C', 0)");
+    expect(rendered.params).toEqual([]);
   });
 });

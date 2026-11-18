@@ -10,7 +10,6 @@ import {
   buildPeekInsert,
   buildPeekUpdate,
   draftToArray,
-  formatSqlLiteral,
   originalRowForPeekEdit,
   firstCaseFoldedDuplicate,
   resolvePeekKeyColumns,
@@ -261,34 +260,8 @@ describe('rowDml', () => {
     ]);
   });
 
-  describe('formatSqlLiteral', () => {
-    it('formats null and undefined as NULL', () => {
-      expect(formatSqlLiteral(null)).toBe('NULL');
-      expect(formatSqlLiteral(undefined)).toBe('NULL');
-    });
-
-    it('formats numbers bare and booleans as TRUE/FALSE', () => {
-      expect(formatSqlLiteral(42)).toBe('42');
-      expect(formatSqlLiteral(3.14)).toBe('3.14');
-      expect(formatSqlLiteral(true)).toBe('TRUE');
-      expect(formatSqlLiteral(false)).toBe('FALSE');
-      expect(formatSqlLiteral(NaN)).toBe('NULL');
-      expect(formatSqlLiteral(Infinity)).toBe('NULL');
-    });
-
-    it('escapes single quotes by doubling them', () => {
-      expect(formatSqlLiteral('hello')).toBe("'hello'");
-      expect(formatSqlLiteral("O'Reilly")).toBe("'O''Reilly'");
-      expect(formatSqlLiteral("it's a 'test'")).toBe("'it''s a ''test'''");
-    });
-
-    it('formats bigints bare', () => {
-      expect(formatSqlLiteral(BigInt('9007199254740993'))).toBe('9007199254740993');
-    });
-  });
-
   describe('buildPeekInsert', () => {
-    it('produces bound sql and inlined literal displaySql', () => {
+    it('binds for the run, and writes values in only for copying', () => {
       const plan = buildPeekInsert({
         tableName: 'public.users',
         dialect: 'postgres',
@@ -299,10 +272,32 @@ describe('rowDml', () => {
       expect(plan.kind).toBe('insert');
       expect(plan.sql).toBe('INSERT INTO "public"."users" ("id", "email", "name") VALUES ($1, $2, $3)');
       expect(plan.params).toEqual([1, "o'reilly@test.com", 'User 1']);
-      expect(plan.displaySql).toBe(
-        'INSERT INTO "public"."users" ("id", "email", "name") VALUES (1, \'o\'\'reilly@test.com\', \'User 1\');'
+      expect(plan.literalSql).toBe(
+        'INSERT INTO "public"."users" ("id", "email", "name") VALUES (1, \'o\'\'reilly@test.com\', \'User 1\')'
       );
-      expect(plan.displaySql).not.toContain('$1');
+    });
+
+    it('keeps row values out of displaySql, which the Recent list and migrate record store', () => {
+      const plan = buildPeekInsert({ tableName: 'public.users', dialect: 'postgres', values: { ssn: '123-45-6789' } });
+      if ('error' in plan) throw new Error(plan.error);
+      expect(plan.displaySql).toBe(plan.sql);
+      expect(plan.displaySql).not.toContain('123-45-6789');
+      // Data migrate appends its own `;` to each statement.
+      expect(plan.displaySql.endsWith(';')).toBe(false);
+    });
+
+    it('writes literals each engine reads back as the same value', () => {
+      const mysql = buildPeekInsert({ tableName: 'files', dialect: 'mysql', values: { path: 'C:\\temp\\' } });
+      if ('error' in mysql) throw new Error(mysql.error);
+      expect(mysql.literalSql).toBe("INSERT INTO `files` (`path`) VALUES ('C:\\\\temp\\\\')");
+
+      const mssql = buildPeekInsert({
+        tableName: 'dbo.people',
+        dialect: 'sqlserver',
+        values: { active: true, name: 'Zo\u00eb' },
+      });
+      if ('error' in mssql) throw new Error(mssql.error);
+      expect(mssql.literalSql).toBe("INSERT INTO [dbo].[people] ([active], [name]) VALUES (1, N'Zo\u00eb')");
     });
   });
 });

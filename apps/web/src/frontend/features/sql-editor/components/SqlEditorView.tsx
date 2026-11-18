@@ -2,10 +2,7 @@ import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useStat
 import {
   Loader2,
   Play,
-  Eraser,
   AlignLeft,
-  Columns2,
-  Rows3,
   RefreshCw,
   BookmarkPlus,
   Database,
@@ -70,8 +67,8 @@ const EditorFallback: React.FC = () => (
 );
 
 const EDITOR_PCT_MIN = 15;
-const EDITOR_PCT_MAX = 70;
-const EDITOR_PCT_DEFAULT = 26;
+const EDITOR_PCT_MAX = 80;
+const EDITOR_PCT_DEFAULT = 48;
 
 const SIDEBAR_WIDTH_KEY = 'foxschema-sql-sidebar-width';
 const SIDEBAR_COLLAPSED_KEY = 'foxschema-sql-sidebar-collapsed';
@@ -179,6 +176,15 @@ export const SqlEditorView: React.FC = () => {
   const [explorerCanCreateTable, setExplorerCanCreateTable] = useState(true);
   const [secretsRefreshing, setSecretsRefreshing] = useState(false);
   const [runsOpen, setRunsOpen] = useState(false);
+
+  const cursorPosition = useMemo(() => {
+    if (caretOffset == null || caretOffset < 0) return { line: 1, col: 1 };
+    const textBefore = tab.sql.slice(0, caretOffset);
+    const lines = textBefore.split('\n');
+    const line = lines.length;
+    const col = (lines[lines.length - 1]?.length ?? 0) + 1;
+    return { line, col };
+  }, [caretOffset, tab.sql]);
 
   const onSecretsRefresh = useCallback(async () => {
     setSecretsRefreshing(true);
@@ -823,120 +829,75 @@ export const SqlEditorView: React.FC = () => {
             <History className="w-3.5 h-3.5 text-cyan-400" strokeWidth={SQL_ICON_STROKE} /> Runs
           </button>
 
-          {/* `shrink-0`: a segmented control has no slack to give. Letting it
-              shrink clips its second button behind `overflow-hidden`, which
-              leaves the button hit-testable but not clickable. */}
-          <div className="flex shrink-0 items-center rounded border border-slate-800 overflow-hidden ml-1">
-            <button
-              type="button"
-              title="By credential — statements stacked vertically"
-              data-testid="sql-layout-by-credential"
-              onClick={() => setLayout('byCredential')}
-              className={`flex items-center gap-1 whitespace-nowrap px-2 py-1 text-[10px] font-bold transition ${
-                tab.layout === 'byCredential'
-                  ? 'bg-slate-800 text-cyan-400'
-                  : 'text-slate-500 hover:text-slate-300'
-              }`}
+          {/* Inline Safety & Transaction policy group */}
+          <div
+            data-testid="sql-safety-policy-group"
+            className="flex items-center gap-2 px-2 py-1 rounded border border-slate-800 bg-slate-900/40 text-[11px] shrink-0"
+          >
+            <label
+              className="flex items-center gap-1.5 cursor-pointer select-none text-slate-300 hover:text-slate-100"
+              title="When on, UPDATE / DELETE / MERGE (and other writes) require confirmation before Run"
             >
-              <Rows3 className="w-3 h-3 text-cyan-400" strokeWidth={SQL_ICON_STROKE} /> By cred
-            </button>
-            <button
-              type="button"
-              title="Side by side (per statement) — compare cell values across servers"
-              data-testid="sql-layout-side-by-side"
-              onClick={() => setLayout('sideBySide')}
-              className={`flex items-center gap-1 whitespace-nowrap px-2 py-1 text-[10px] font-bold transition border-l border-slate-800 ${
-                tab.layout === 'sideBySide'
-                  ? 'bg-slate-800 text-cyan-400'
-                  : 'text-slate-500 hover:text-slate-300'
-              }`}
+              <input
+                type="checkbox"
+                data-testid="sql-safe-mode"
+                checked={safeMode}
+                onChange={(e) => setSafeMode(e.target.checked)}
+                className="w-3.5 h-3.5 accent-rose-500 cursor-pointer rounded"
+              />
+              <Shield
+                className={`w-3.5 h-3.5 shrink-0 ${safeMode ? 'text-rose-400' : 'text-slate-500'}`}
+                strokeWidth={SQL_ICON_STROKE}
+              />
+              <span className={safeMode ? 'text-rose-300 font-semibold' : 'text-slate-400 font-medium'}>
+                Safe mode
+              </span>
+            </label>
+
+            <span className="w-px h-3.5 bg-slate-800 shrink-0" />
+
+            <label
+              className="flex items-center gap-1.5 cursor-pointer select-none text-slate-300 hover:text-slate-100"
+              title="Run every SQL statement in one transaction per destination. A failure rolls the batch back. Code cells and @set stay statement by statement."
             >
-              <Columns2 className="w-3 h-3 text-sky-400" strokeWidth={SQL_ICON_STROKE} /> Side-by-side
-            </button>
+              <input
+                type="checkbox"
+                data-testid="sql-one-transaction"
+                checked={oneTransaction}
+                onChange={(e) => setOneTransaction(e.target.checked)}
+                className="w-3.5 h-3.5 accent-cyan-500 cursor-pointer rounded"
+              />
+              <span
+                className={
+                  oneTransaction ? 'text-cyan-300 font-semibold' : 'text-slate-400 font-medium'
+                }
+              >
+                1-Tx
+              </span>
+            </label>
+
+            <span className="w-px h-3.5 bg-slate-800 shrink-0" />
+
+            <label
+              className="flex items-center gap-1 cursor-pointer select-none text-slate-400 hover:text-slate-200"
+              title="When Safe mode is on, confirm writes that reference this many tables in one statement (0 = off). SELECT / JOIN reads skip this check. Suggests wrapping related writes in a transaction."
+            >
+              <span className="text-[10px] font-medium text-slate-400 whitespace-nowrap">Tables≥</span>
+              <input
+                data-testid="sql-multi-table-threshold"
+                type="number"
+                min={0}
+                max={50}
+                value={multiTableConfirmThreshold}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  if (!Number.isFinite(n)) return;
+                  setMultiTableConfirmThreshold(n);
+                }}
+                className="w-8 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-[11px] text-slate-200 font-mono outline-none accent-focus text-center"
+              />
+            </label>
           </div>
-
-          <label
-            className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded px-1 py-0.5 text-[10px] font-semibold ml-1 cursor-pointer select-none transition hover:bg-slate-800/60"
-            title="When on, UPDATE / DELETE / MERGE (and other writes) require confirmation before Run"
-          >
-            <input
-              type="checkbox"
-              data-testid="sql-safe-mode"
-              checked={safeMode}
-              onChange={(e) => setSafeMode(e.target.checked)}
-              className="w-3.5 h-3.5 accent-rose-500 cursor-pointer"
-            />
-            <Shield
-              className={`w-3 h-3 ${safeMode ? 'text-rose-400' : 'text-slate-500'}`}
-              strokeWidth={SQL_ICON_STROKE}
-            />
-            <span className={safeMode ? 'text-rose-300' : 'text-slate-500'}>Safe mode</span>
-          </label>
-
-          <label
-            className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded px-1 py-0.5 text-[10px] font-semibold ml-1 cursor-pointer select-none transition hover:bg-slate-800/60"
-            title="Run every SQL statement in one transaction per destination. A failure rolls the batch back. Code cells and @set stay statement by statement."
-          >
-            <input
-              type="checkbox"
-              data-testid="sql-one-transaction"
-              checked={oneTransaction}
-              onChange={(e) => setOneTransaction(e.target.checked)}
-              className="w-3.5 h-3.5 accent-cyan-500 cursor-pointer"
-            />
-            <span className={oneTransaction ? 'text-cyan-300' : 'text-slate-500'}>One transaction</span>
-          </label>
-
-          <label className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[10px] font-semibold text-slate-500 ml-1" title="Rows fetched per page (Next/Prev use this size)">
-            Rows/page
-            <input
-              data-testid="sql-max-rows"
-              type="number"
-              min={1}
-              max={5000}
-              value={maxRows}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                if (!Number.isFinite(n)) return;
-                setMaxRows(Math.min(5000, Math.max(1, Math.floor(n))));
-              }}
-              className="w-14 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-[11px] text-slate-200 font-mono outline-none accent-focus"
-            />
-          </label>
-
-          <label
-            className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[10px] font-semibold text-slate-500 ml-1"
-            title="When Safe mode is on, confirm writes that reference this many tables in one statement (0 = off). SELECT / JOIN reads skip this check. Suggests wrapping related writes in a transaction."
-          >
-            Tables≥
-            <input
-              data-testid="sql-multi-table-threshold"
-              type="number"
-              min={0}
-              max={50}
-              value={multiTableConfirmThreshold}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                if (!Number.isFinite(n)) return;
-                setMultiTableConfirmThreshold(n);
-              }}
-              className="w-10 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-[11px] text-slate-200 font-mono outline-none accent-focus"
-            />
-          </label>
-
-          <span className="shrink-0 whitespace-nowrap text-[11px] text-slate-500 ml-1">
-            {runCount} statement{runCount === 1 ? '' : 's'} · {liveSelectedIds.length} server
-            {liveSelectedIds.length === 1 ? '' : 's'}
-          </span>
-          <div className="flex-1" />
-          {results && results.runs.length > 0 && (
-            <button data-testid="sql-clear-results"
-              onClick={clearResults}
-              className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-semibold text-slate-500 hover:text-slate-300 transition"
-            >
-              <Eraser className="w-3 h-3 text-orange-400" strokeWidth={SQL_ICON_STROKE} /> Clear results
-            </button>
-          )}
         </div>
 
         <div ref={splitRef} className="flex-1 flex flex-col min-h-0 overflow-hidden">
@@ -966,7 +927,8 @@ export const SqlEditorView: React.FC = () => {
             aria-label="Resize editor and results"
             data-testid="sql-editor-resize"
             onMouseDown={startEditorResize}
-            title="Drag to resize editor / results"
+            onDoubleClick={() => setEditorPct(EDITOR_PCT_DEFAULT)}
+            title="Drag to resize editor / results · Double-click to reset (48%)"
             className="h-1.5 shrink-0 cursor-row-resize bg-slate-900 hover:bg-cyan-500/40 active:bg-cyan-500/60 transition-colors border-y border-slate-800/80"
           />
 
@@ -976,12 +938,44 @@ export const SqlEditorView: React.FC = () => {
               statements={results?.ranStatements ?? NO_STATEMENTS}
               statementIndices={results?.ranStatementIndices}
               layout={tab.layout}
+              onChangeLayout={setLayout}
+              maxRows={maxRows}
+              onChangeMaxRows={setMaxRows}
+              onClearResults={clearResults}
               refreshing={running}
               warnings={results?.warnings}
               pageState={results?.pageMeta}
               onPage={onResultsPage}
               onRefresh={onResultsRefresh}
             />
+          </div>
+        </div>
+
+        <div
+          data-testid="sql-editor-status-bar"
+          className="h-6 px-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400 select-none shrink-0"
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5 font-semibold text-slate-300">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span>{dialect || 'SQL'}</span>
+            </span>
+            <span className="text-slate-700">|</span>
+            <span>{oneTransaction ? '1-Tx (atomic)' : 'Autocommit'}</span>
+            <span className="text-slate-700">|</span>
+            <span className={safeMode ? 'text-rose-400 font-semibold' : 'text-slate-500'}>
+              {safeMode ? 'Safe Mode ON' : 'Safe Mode OFF'}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span>
+              {runCount} statement{runCount === 1 ? '' : 's'} · {liveSelectedIds.length} server
+              {liveSelectedIds.length === 1 ? '' : 's'}
+            </span>
+            <span className="text-slate-700">|</span>
+            <span className="font-mono text-slate-300">
+              Ln {cursorPosition.line}, Col {cursorPosition.col}
+            </span>
           </div>
         </div>
       </section>

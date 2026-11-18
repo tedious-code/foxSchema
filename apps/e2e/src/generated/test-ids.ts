@@ -2063,6 +2063,8 @@ export const TestIds = {
       dataPeekClosePanel: (id: string | number) => `data-peek-close-panel-${id}`,
       /** button · Close panel */
       dataPeekCrumbClose: (id: string | number) => `data-peek-crumb-close-${id}`,
+      /** button */
+      dataPeekCrumbJump: (id: string | number) => `data-peek-crumb-jump-${id}`,
       /** button · Drag to rearrange panels */
       dataPeekDrag: (id: string | number) => `data-peek-drag-${id}`,
       /** div */
@@ -2071,6 +2073,12 @@ export const TestIds = {
       dataPeekGrid: (id: string | number) => `data-peek-grid-${id}`,
       /** input */
       dataPeekLimit: (id: string | number) => `data-peek-limit-${id}`,
+      /** div */
+      dataPeekOpenError: (id: string | number) => `data-peek-open-error-${id}`,
+      /** button · Dismiss error */
+      dataPeekOpenErrorClose: (id: string | number) => `data-peek-open-error-close-${id}`,
+      /** button · Open query in a new SQL Editor tab */
+      dataPeekOpenSql: (id: string | number) => `data-peek-open-sql-${id}`,
       /** input · created_at */
       dataPeekOrder: (id: string | number) => `data-peek-order-${id}`,
       /** input · created_at */
@@ -2117,6 +2125,8 @@ export const TestIds = {
       sqlTabAdd: 'sql-tab-add',
       /** button */
       sqlTabClose: (id: string | number) => `sql-tab-close-${id}`,
+      /** span */
+      sqlTabDialect: (id: string | number) => `sql-tab-dialect-${id}`,
       /** input */
       sqlTabRename: 'sql-tab-rename',
       /** button · Rename query */
@@ -2243,12 +2253,20 @@ export const TestIds = {
       peekRowSubmit: 'peek-row-submit',
     },
     ResultsPanel: {
+      /** button · Clear results */
+      sqlClearResults: 'sql-clear-results',
       /** button · Refresh this server */
       sqlCredRefresh: 'sql-cred-refresh',
       /** button · Install the driver package on the server */
       sqlInstallDriver: (connectionId: string | number) => `sql-install-driver-${connectionId}`,
       /** div */
       sqlInstallDriverBanner: (connectionId: string | number) => `sql-install-driver-${connectionId}-banner`,
+      /** button · By credential — statements stacked vertically */
+      sqlLayoutByCredential: 'sql-layout-by-credential',
+      /** button · Side by side (per statement) — compare cell values across servers */
+      sqlLayoutSideBySide: 'sql-layout-side-by-side',
+      /** input */
+      sqlMaxRows: 'sql-max-rows',
       /** button · Install the driver package on the server */
       sqlPaneInstallDriver: (connectionId: string | number) => `sql-pane-install-driver-${connectionId}`,
       /** div */
@@ -2368,6 +2386,8 @@ export const TestIds = {
       /** div */
       sqlResultsSideBySide: 'sql-results-side-by-side',
       /** div */
+      sqlResultsToolbar: 'sql-results-toolbar',
+      /** div */
       sqlResultsWarnings: 'sql-results-warnings',
       /** div */
       sqlRunError: 'sql-run-error',
@@ -2425,24 +2445,18 @@ export const TestIds = {
       sqlBookmarkSave: 'sql-bookmark-save',
       /** button · Bookmark this query (uses the tab title) */
       sqlBookmarkSaveToolbar: 'sql-bookmark-save-toolbar',
-      /** button · Clear results */
-      sqlClearResults: 'sql-clear-results',
       /** div */
       sqlEditorLoading: 'sql-editor-loading',
       /** div · Resize editor and results */
       sqlEditorResize: 'sql-editor-resize',
+      /** div */
+      sqlEditorStatusBar: 'sql-editor-status-bar',
       /** div */
       sqlEditorView: 'sql-editor-view',
       /** button · Pretty-print SQL (sql-formatter) and JS/TS/Node cells (Prettier) */
       sqlFormatBtn: 'sql-format-btn',
       /** span */
       sqlFormatNote: 'sql-format-note',
-      /** button · By credential — statements stacked vertically */
-      sqlLayoutByCredential: 'sql-layout-by-credential',
-      /** button · Side by side (per statement) — compare cell values across servers */
-      sqlLayoutSideBySide: 'sql-layout-side-by-side',
-      /** input */
-      sqlMaxRows: 'sql-max-rows',
       /** input */
       sqlMultiTableThreshold: 'sql-multi-table-threshold',
       /** input */
@@ -2455,6 +2469,8 @@ export const TestIds = {
       sqlRunsDrawerBtn: 'sql-runs-drawer-btn',
       /** input */
       sqlSafeMode: 'sql-safe-mode',
+      /** div */
+      sqlSafetyPolicyGroup: 'sql-safety-policy-group',
       /** button · Create table — opens blueprint to add columns */
       sqlSchemaNewTable: 'sql-schema-new-table',
       /** button · Re-fetch cloud secrets into Variables */
@@ -4405,6 +4421,7 @@ export type TestId =
   | 'data-peek-close'
   | `data-peek-close-panel-${string}`
   | `data-peek-crumb-close-${string}`
+  | `data-peek-crumb-jump-${string}`
   | `data-peek-drag-${string}`
   | `data-peek-filters-${string}`
   | `data-peek-grid-${string}`
@@ -4425,6 +4442,9 @@ export type TestId =
   | `data-peek-insight-peek-orphans-${string}`
   | 'data-peek-insight-rows'
   | `data-peek-limit-${string}`
+  | `data-peek-open-error-${string}`
+  | `data-peek-open-error-close-${string}`
+  | `data-peek-open-sql-${string}`
   | `data-peek-order-${string}`
   | `data-peek-order-${string}-${string}`
   | `data-peek-order-add-${string}`
@@ -5090,6 +5110,7 @@ export type TestId =
   | 'sql-destinations-trigger'
   | 'sql-editor-loading'
   | 'sql-editor-resize'
+  | 'sql-editor-status-bar'
   | 'sql-editor-tabs'
   | 'sql-editor-view'
   | `sql-explorer-col-insert-${string}-${string}`
@@ -5235,6 +5256,7 @@ export type TestId =
   | 'sql-results-peek-instruction'
   | 'sql-results-running'
   | 'sql-results-side-by-side'
+  | 'sql-results-toolbar'
   | 'sql-results-warnings'
   | `sql-row-${string}`
   | 'sql-row-num'
@@ -5255,6 +5277,7 @@ export type TestId =
   | 'sql-safe-no-where-ack'
   | 'sql-safe-no-where-ack-check'
   | 'sql-safe-no-where-warn'
+  | 'sql-safety-policy-group'
   | 'sql-schema-connection-backdrop'
   | 'sql-schema-connection-clear'
   | 'sql-schema-connection-filter'
@@ -5325,6 +5348,7 @@ export type TestId =
   | `sql-statement-run-${string}`
   | 'sql-tab-add'
   | `sql-tab-close-${string}`
+  | `sql-tab-dialect-${string}`
   | 'sql-tab-rename'
   | `sql-tab-rename-btn-${string}`
   | 'sql-tracer-detail'

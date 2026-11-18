@@ -52,6 +52,9 @@ function Harness() {
 
   return (
     <>
+      <button data-testid="test-select-row" onClick={() => crud.onSelectRow?.(0)}>
+        Select Row 0
+      </button>
       {crud.crudButtons}
       {crud.overlays}
     </>
@@ -80,5 +83,35 @@ describe('usePeekGridCrud Escape ownership', () => {
     fireEvent.keyDown(document.body, { key: 'Escape' });
 
     expect(screen.queryByTestId('peek-row-editor')).toBeNull();
+  });
+
+  it('renders copy JSON and copy INSERT buttons when a row is selected', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: { writeText },
+    });
+
+    render(<Harness />);
+    expect(screen.queryByTestId('test-copy-json')).toBeNull();
+    expect(screen.queryByTestId('test-copy-insert')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('test-select-row'));
+
+    const jsonBtn = screen.getByTestId('test-copy-json');
+    const insertBtn = screen.getByTestId('test-copy-insert');
+    expect(jsonBtn).toBeTruthy();
+    expect(insertBtn).toBeTruthy();
+
+    fireEvent.click(jsonBtn);
+    expect(writeText).toHaveBeenCalledWith(
+      JSON.stringify({ id: 1, label: 'seed' }, null, 2)
+    );
+
+    fireEvent.click(insertBtn);
+    expect(writeText).toHaveBeenCalledWith(
+      'INSERT INTO "public"."items" ("id", "label") VALUES (1, \'seed\');'
+    );
+    expect(writeText.mock.calls[1][0]).not.toContain('$1');
+    expect(writeText.mock.calls[1][0]).toContain("(1, 'seed')");
   });
 });

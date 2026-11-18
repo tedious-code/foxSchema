@@ -2,6 +2,33 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Pencil, Plus, X } from 'lucide-react';
 import type { SqlTab } from '@/features/sql-editor/state/sqlEditorTabLogic';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
+import { useSyncStore } from '@/features/compare';
+
+const DIALECT_BADGES: Record<string, string> = {
+  postgres: 'PG',
+  cockroachdb: 'CRDB',
+  yugabytedb: 'YB',
+  mysql: 'MY',
+  mariadb: 'MARIA',
+  tidb: 'TIDB',
+  db2: 'DB2',
+  sqlserver: 'MS',
+  mssql: 'MS',
+  azuresql: 'AZURE',
+  oracle: 'ORA',
+  sqlite: 'LITE',
+  duckdb: 'DUCK',
+  clickhouse: 'CH',
+  redshift: 'RS',
+  redis: 'RDS',
+  mongodb: 'MGO',
+};
+
+function dialectBadgeText(dialect?: string): string {
+  if (!dialect) return 'SQL';
+  const d = dialect.toLowerCase().trim();
+  return DIALECT_BADGES[d] ?? 'SQL';
+}
 
 interface Props {
   tabs: SqlTab[];
@@ -27,6 +54,7 @@ export const EditorTabBar: React.FC<Props> = ({
   onRename,
   onMove,
 }) => {
+  const connections = useSyncStore((s) => s.connections);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [dragFrom, setDragFrom] = useState<number | null>(null);
@@ -74,6 +102,15 @@ export const EditorTabBar: React.FC<Props> = ({
             ? 'Last empty query — add another tab first'
             : 'Clear this query (editor always keeps one tab)'
           : `Close ${tab.title}`;
+        const dialects = (tab.selectedConnectionIds ?? [])
+          .map((id) => connections.find((c) => c.id === id)?.dialect)
+          .filter(Boolean) as string[];
+        const badge =
+          dialects.length === 1
+            ? dialectBadgeText(dialects[0])
+            : dialects.length > 1
+              ? 'MULTI'
+              : 'SQL';
         return (
           <div
             key={tab.id}
@@ -139,7 +176,7 @@ export const EditorTabBar: React.FC<Props> = ({
               setDragOver(null);
             }}
             title="Drag to reorder · Double-click or use pencil to rename"
-            className={`group flex items-center gap-1 pl-1.5 pr-2 py-1.5 text-[11px] font-semibold border-r border-slate-800/80 cursor-grab active:cursor-grabbing shrink-0 max-w-[12rem] select-none ${
+            className={`group flex items-center gap-1.5 pl-2 pr-1.5 py-1.5 text-[11px] font-semibold border-r border-slate-800/80 cursor-grab active:cursor-grabbing shrink-0 max-w-[13rem] select-none ${
               active
                 ? 'bg-slate-900 text-slate-100 border-b-2 border-b-cyan-500 -mb-px'
                 : 'text-slate-500 hover:text-slate-300 hover:bg-slate-900/40'
@@ -147,6 +184,61 @@ export const EditorTabBar: React.FC<Props> = ({
               isOver ? 'bg-slate-800/80 ring-2 ring-inset ring-cyan-500/50' : ''
             }`}
           >
+            {/* Dialect badge on the left */}
+            <span
+              className={`text-[9px] font-extrabold uppercase px-1 py-0.5 rounded border shrink-0 leading-none ${
+                active
+                  ? 'border-cyan-700/60 bg-cyan-950/60 text-cyan-300'
+                  : 'border-slate-800 bg-slate-900/60 text-slate-400'
+              }`}
+              data-testid={`sql-tab-dialect-${tab.id}`}
+            >
+              {badge}
+            </span>
+
+            {/* Title / Rename input */}
+            {editing ? (
+              <input
+                ref={inputRef}
+                data-testid="sql-tab-rename"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={commitEdit}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitEdit();
+                  if (e.key === 'Escape') setEditingId(null);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                className="bg-slate-950 border border-cyan-600/50 rounded px-1 py-0 text-[11px] outline-none w-28 text-slate-100 cursor-text"
+              />
+            ) : (
+              <span className="truncate min-w-0" title={tab.title}>
+                {tab.title}
+              </span>
+            )}
+
+            {/* Rename button */}
+            {!editing && (
+              <button
+                type="button"
+                draggable={false}
+                data-testid={`sql-tab-rename-btn-${tab.id}`}
+                aria-label={`Rename ${tab.title}`}
+                title="Rename query"
+                onMouseDown={blockDragFromControl}
+                onClick={(e) => startEdit(tab, e)}
+                className={`p-0.5 rounded transition shrink-0 ${
+                  active
+                    ? 'text-slate-500 hover:text-cyan-400 hover:bg-slate-800'
+                    : 'opacity-0 group-hover:opacity-100 text-slate-600 hover:text-slate-300'
+                }`}
+              >
+                <Pencil className="w-3 h-3 text-sky-400" strokeWidth={SQL_ICON_STROKE} />
+              </button>
+            )}
+
+            {/* Close button on the right */}
             <button
               type="button"
               draggable={false}
@@ -170,44 +262,6 @@ export const EditorTabBar: React.FC<Props> = ({
             >
               <X className="w-3 h-3 text-rose-400" strokeWidth={SQL_ICON_STROKE} />
             </button>
-            {editing ? (
-              <input
-                ref={inputRef}
-                data-testid="sql-tab-rename"
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onBlur={commitEdit}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') commitEdit();
-                  if (e.key === 'Escape') setEditingId(null);
-                }}
-                onClick={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
-                className="bg-slate-950 border border-cyan-600/50 rounded px-1 py-0 text-[11px] outline-none w-28 text-slate-100 cursor-text"
-              />
-            ) : (
-              <>
-                <span className="truncate min-w-0" title={tab.title}>
-                  {tab.title}
-                </span>
-                <button
-                  type="button"
-                  draggable={false}
-                  data-testid={`sql-tab-rename-btn-${tab.id}`}
-                  aria-label={`Rename ${tab.title}`}
-                  title="Rename query"
-                  onMouseDown={blockDragFromControl}
-                  onClick={(e) => startEdit(tab, e)}
-                  className={`p-0.5 rounded transition shrink-0 ${
-                    active
-                      ? 'text-slate-500 hover:text-cyan-400 hover:bg-slate-800'
-                      : 'opacity-0 group-hover:opacity-100 text-slate-600 hover:text-slate-300'
-                  }`}
-                >
-                  <Pencil className="w-3 h-3 text-sky-400" strokeWidth={SQL_ICON_STROKE} />
-                </button>
-              </>
-            )}
           </div>
         );
       })}

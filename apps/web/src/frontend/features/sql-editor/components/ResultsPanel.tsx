@@ -15,8 +15,11 @@ import {
   Loader2,
   Database,
   AlertCircle,
+  Columns2,
+  Eraser,
   GripVertical,
   RefreshCw,
+  Rows3,
   GitCompare,
   Maximize2,
   X,
@@ -112,6 +115,10 @@ interface Props {
     string,
     { pageIndex: number; hasNext: boolean; loading?: boolean; pageSize?: number }
   >;
+  onChangeLayout?: (layout: ResultsLayout) => void;
+  maxRows?: number;
+  onChangeMaxRows?: (n: number) => void;
+  onClearResults?: () => void;
 }
 
 const GAP_PX = 6; // space between pane and its resize grip
@@ -2214,25 +2221,116 @@ const ResultsPanelView: React.FC<Props> = ({
   onRefresh,
   onPage,
   pageState,
+  onChangeLayout,
+  maxRows,
+  onChangeMaxRows,
+  onClearResults,
 }) => {
+  const activeLayout = layout ?? 'byCredential';
+  const effectiveMaxRows = maxRows ?? 200;
+
   // Engine SQL for peek / compare / edit. Must stay above the empty-runs return.
   const pageSqlByConnection = useSqlEditorStore(
     (s) => s.resultsByTab[s.activeTabId]?.pageSqlByConnection
   );
   const outNumber = (i: number) => (statementIndices?.[i] ?? i) + 1;
   const outTestId = (i: number) => statementIndices?.[i] ?? i;
+
+  const headerToolbar = (
+    <div
+      className="flex items-center justify-between px-3 py-1.5 border-b border-slate-800 bg-slate-900/40 text-xs shrink-0 select-none overflow-x-auto gap-2"
+      data-testid="sql-results-toolbar"
+    >
+      <div className="flex items-center gap-2 shrink-0">
+        <span className="font-bold text-slate-300">Results</span>
+        {runs.length > 0 && (
+          <span className="text-[11px] text-slate-500">
+            ({runs.length} server{runs.length === 1 ? '' : 's'})
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <div className="flex shrink-0 items-center rounded border border-slate-800 overflow-hidden">
+          <button
+            type="button"
+            title="By credential — statements stacked vertically"
+            data-testid="sql-layout-by-credential"
+            disabled={!onChangeLayout}
+            onClick={() => onChangeLayout?.('byCredential')}
+            className={`flex items-center gap-1 whitespace-nowrap px-2 py-1 text-[10px] font-bold transition ${
+              activeLayout === 'byCredential'
+                ? 'bg-slate-800 text-cyan-400'
+                : 'text-slate-500 hover:text-slate-300'
+            } disabled:opacity-50`}
+          >
+            <Rows3 className="w-3 h-3 text-cyan-400" strokeWidth={SQL_ICON_STROKE} /> By cred
+          </button>
+          <button
+            type="button"
+            title="Side by side (per statement) — compare cell values across servers"
+            data-testid="sql-layout-side-by-side"
+            disabled={!onChangeLayout}
+            onClick={() => onChangeLayout?.('sideBySide')}
+            className={`flex items-center gap-1 whitespace-nowrap px-2 py-1 text-[10px] font-bold transition border-l border-slate-800 ${
+              activeLayout === 'sideBySide'
+                ? 'bg-slate-800 text-cyan-400'
+                : 'text-slate-500 hover:text-slate-300'
+            } disabled:opacity-50`}
+          >
+            <Columns2 className="w-3 h-3 text-sky-400" strokeWidth={SQL_ICON_STROKE} /> Side-by-side
+          </button>
+        </div>
+
+        <label
+          className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[10px] font-semibold text-slate-500"
+          title="Rows fetched per page (Next/Prev use this size)"
+        >
+          Rows/page
+          <input
+            data-testid="sql-max-rows"
+            type="number"
+            min={1}
+            max={5000}
+            value={effectiveMaxRows}
+            disabled={!onChangeMaxRows}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              if (!Number.isFinite(n) || !onChangeMaxRows) return;
+              onChangeMaxRows(Math.min(5000, Math.max(1, Math.floor(n))));
+            }}
+            className="w-14 bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-[11px] text-slate-200 font-mono outline-none accent-focus disabled:opacity-50"
+          />
+        </label>
+
+        {runs.length > 0 && onClearResults && (
+          <button
+            type="button"
+            data-testid="sql-clear-results"
+            onClick={onClearResults}
+            className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-semibold text-slate-500 hover:text-slate-300 transition"
+          >
+            <Eraser className="w-3 h-3 text-orange-400" strokeWidth={SQL_ICON_STROKE} /> Clear results
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
   if (runs.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center text-slate-600 text-xs gap-2 px-6 text-center">
-        <div className="flex items-center gap-2">
-          <Database className="w-4 h-4 text-sky-400" strokeWidth={SQL_ICON_STROKE} />
-          Run a query to see results here — one section per checked credential.
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        {headerToolbar}
+        <div className="flex-1 flex flex-col items-center justify-center text-slate-600 text-xs gap-2 px-6 text-center">
+          <div className="flex items-center gap-2">
+            <Database className="w-4 h-4 text-sky-400" strokeWidth={SQL_ICON_STROKE} />
+            Run a query to see results here — one section per checked credential.
+          </div>
+          <p className="max-w-md text-[11px] text-slate-500 leading-relaxed" data-testid="sql-results-peek-instruction">
+            Tip: after Run, single-table SELECT grids can edit rows (when the key columns are in the result).
+            Underlined rust foreign-key cells open <span className="text-slate-400">Data Peek</span>.
+            Or Cmd/Ctrl-click a table in Schema to peek without writing SQL.
+          </p>
         </div>
-        <p className="max-w-md text-[11px] text-slate-500 leading-relaxed" data-testid="sql-results-peek-instruction">
-          Tip: after Run, single-table SELECT grids can edit rows (when the key columns are in the result).
-          Underlined rust foreign-key cells open <span className="text-slate-400">Data Peek</span>.
-          Or Cmd/Ctrl-click a table in Schema to peek without writing SQL.
-        </p>
       </div>
     );
   }
@@ -2257,103 +2355,109 @@ const ResultsPanelView: React.FC<Props> = ({
       </div>
     ) : null;
 
-  if (layout === 'sideBySide') {
+  if (activeLayout === 'sideBySide') {
     const stmtCount = sideBySideSectionCount(statements.length, runs);
     return (
-      <div className="flex-1 overflow-y-auto flex flex-col gap-4 pb-4" data-testid="sql-results-side-by-side">
-        {warningBanner}
-        <div className="flex flex-col gap-4 px-4 pt-1">
-        {Array.from({ length: stmtCount }, (_, i) => {
-          const items: PaneItem[] = [];
-          for (const run of runs) {
-            if (run.status === 'running') {
-              items.push({
-                key: `${run.connectionId}-run`,
-                kind: 'running',
-                label: credentialLabel(run),
-                connectionId: run.connectionId,
-              });
-              continue;
-            }
-            if (run.status === 'error') {
-              items.push({
-                key: `${run.connectionId}-err`,
-                kind: 'error',
-                label: credentialLabel(run),
-                error: run.error ?? 'Error',
-                connectionId: run.connectionId,
-                dialect: run.dialect,
-              });
-              continue;
-            }
-            const result = run.results?.[i];
-            if (!result) continue;
-            items.push({
-              key: `${run.connectionId}-q${i}`,
-              kind: 'grid',
-              result,
-              label: credentialLabel(run),
-              exportName: `${run.name}-q${i + 1}`,
-              connectionId: run.connectionId,
-              dialect: run.dialect,
-              statementIndex: i,
-              statementSql: statementSqlFor(run.connectionId, i),
-            });
-          }
-          return (
-            <SideBySideStatementSection
-              key={i}
-              statementIndex={i}
-              outTestId={outTestId(i)}
-              headerLabel={statementLabel(statements[i], outNumber(i))}
-              items={items}
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              onPage={onPage}
-              pageState={pageState}
-            />
-          );
-        })}
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        {headerToolbar}
+        <div className="flex-1 overflow-y-auto flex flex-col gap-4 pb-4" data-testid="sql-results-side-by-side">
+          {warningBanner}
+          <div className="flex flex-col gap-4 px-4 pt-1">
+            {Array.from({ length: stmtCount }, (_, i) => {
+              const items: PaneItem[] = [];
+              for (const run of runs) {
+                if (run.status === 'running') {
+                  items.push({
+                    key: `${run.connectionId}-run`,
+                    kind: 'running',
+                    label: credentialLabel(run),
+                    connectionId: run.connectionId,
+                  });
+                  continue;
+                }
+                if (run.status === 'error') {
+                  items.push({
+                    key: `${run.connectionId}-err`,
+                    kind: 'error',
+                    label: credentialLabel(run),
+                    error: run.error ?? 'Error',
+                    connectionId: run.connectionId,
+                    dialect: run.dialect,
+                  });
+                  continue;
+                }
+                const result = run.results?.[i];
+                if (!result) continue;
+                items.push({
+                  key: `${run.connectionId}-q${i}`,
+                  kind: 'grid',
+                  result,
+                  label: credentialLabel(run),
+                  exportName: `${run.name}-q${i + 1}`,
+                  connectionId: run.connectionId,
+                  dialect: run.dialect,
+                  statementIndex: i,
+                  statementSql: statementSqlFor(run.connectionId, i),
+                });
+              }
+              return (
+                <SideBySideStatementSection
+                  key={i}
+                  statementIndex={i}
+                  outTestId={outTestId(i)}
+                  headerLabel={statementLabel(statements[i], outNumber(i))}
+                  items={items}
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  onPage={onPage}
+                  pageState={pageState}
+                />
+              );
+            })}
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 overflow-y-auto flex flex-col gap-4 pb-4" data-testid="sql-results-by-credential">
-      {warningBanner}
-      <div className="flex flex-col gap-4 px-4 pt-1">
-      {runs.map((run) => {
-        const items: PaneItem[] =
-          run.status === 'done' && run.results
-            ? run.results.map((result, i) => ({
-                key: `${run.connectionId}-q${i}`,
-                kind: 'grid' as const,
-                result,
-                // These items only exist for a finished run, so a missing
-                // statement is a gap in the record — not work still in flight.
-                // Keep the bare label rather than claiming it is running.
-                label: statementLabel(statements[i] ?? '', outNumber(i)),
-                exportName: `${run.name}-q${i + 1}`,
-                connectionId: run.connectionId,
-                dialect: run.dialect,
-                statementIndex: i,
-                statementSql: statementSqlFor(run.connectionId, i),
-              }))
-            : [];
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+      {headerToolbar}
+      <div className="flex-1 overflow-y-auto flex flex-col gap-4 pb-4" data-testid="sql-results-by-credential">
+        {warningBanner}
+        <div className="flex flex-col gap-4 px-4 pt-1">
+          {runs.map((run) => {
+            const items: PaneItem[] =
+              run.status === 'done' && run.results
+                ? run.results.map((result, i) => ({
+                    key: `${run.connectionId}-q${i}`,
+                    kind: 'grid' as const,
+                    result,
+                    // These items only exist for a finished run, so a missing
+                    // statement is a gap in the record — not work still in flight.
+                    // Keep the bare label rather than claiming it is running.
+                    label: statementLabel(statements[i] ?? '', outNumber(i)),
+                    exportName: `${run.name}-q${i + 1}`,
+                    connectionId: run.connectionId,
+                    dialect: run.dialect,
+                    statementIndex: i,
+                    statementSql: statementSqlFor(run.connectionId, i),
+                  }))
+                : [];
 
-        return (
-          <CredentialResultsSection
-            key={run.connectionId}
-            run={run}
-            items={items}
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            onPage={onPage}
-            pageState={pageState}
-          />
-        );
-      })}
+            return (
+              <CredentialResultsSection
+                key={run.connectionId}
+                run={run}
+                items={items}
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                onPage={onPage}
+                pageState={pageState}
+              />
+            );
+          })}
+        </div>
       </div>
     </div>
   );

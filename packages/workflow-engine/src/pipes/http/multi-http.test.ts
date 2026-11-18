@@ -393,6 +393,76 @@ describe('MultiHttpSourcePipe', () => {
     ).rejects.toThrow(/HTTP multi endpoint "bad"/);
   });
 
+  it('keys the merged record in endpoint order, whatever order responses arrive in', async () => {
+    const pipe = new MultiHttpSourcePipe(async (input) => {
+      const url = String(input);
+      // The first endpoint answers last.
+      if (url.includes('slow')) await new Promise((resolve) => setTimeout(resolve, 20));
+      return new Response(JSON.stringify({ from: url }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    const [record] = await collect(pipe, {
+      outputMode: 'merge',
+      endpoints: [
+        { id: 'slow', url: 'https://example.test/slow' },
+        { id: '__proto__', url: 'https://example.test/fast' },
+      ],
+    });
+
+    expect(Object.keys(record!)).toEqual(['slow', '__proto__']);
+    expect(Object.getPrototypeOf(record)).toBe(Object.prototype);
+    expect(JSON.parse(JSON.stringify(record))).toEqual({
+      slow: { from: 'https://example.test/slow' },
+      ['__proto__']: { from: 'https://example.test/fast' },
+    });
+  });
+
+  it('fails when a recordsPath matches nothing in merge outputMode', async () => {
+    const pipe = new MultiHttpSourcePipe(stubFetch({ data: { items: [] } }));
+
+    await expect(
+      collect(pipe, {
+        outputMode: 'merge',
+        endpoints: [{ id: 'orders', url: 'https://example.test/orders', recordsPath: 'data.itmes' }],
+      }),
+    ).rejects.toThrow(/"orders" recordsPath "data.itmes" matched nothing/);
+
+    const [record] = await collect(pipe, {
+      outputMode: 'merge',
+      onError: 'skip',
+      endpoints: [{ id: 'orders', url: 'https://example.test/orders', recordsPath: 'data.itmes' }],
+    });
+    expect(record?.orders).toMatchObject({ ok: false, error: expect.stringMatching(/matched nothing/) });
+  });
+
+  it('does not deliver the merged record again when resuming past it', async () => {
+    let calls = 0;
+    const pipe = new MultiHttpSourcePipe(async () => {
+      calls += 1;
+      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+    const resumed: PipeContext = {
+      ...context({ outputMode: 'merge', endpoints: [{ id: 'a', url: 'https://example.test/a' }] }),
+      checkpoint: {
+        workflowRunId: 'run',
+        pipelineId: 'pipeline',
+        pipeId: 'multi',
+        partitionId: '0',
+        cursor: { offset: 1 },
+        updatedAt: '2026-11-18T00:00:00.000Z',
+      },
+    };
+
+    const batches = [];
+    for await (const batch of pipe.read(resumed)) batches.push(batch);
+
+    expect(batches).toEqual([]);
+    expect(calls).toBe(0);
+  });
+
   it('pipes merged HTTP output into ScriptTransformPipe for transformation', async () => {
     const sourcePipe = new MultiHttpSourcePipe(async (input) => {
       const url = String(input);

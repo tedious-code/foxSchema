@@ -105,6 +105,7 @@ import {
   type OverlapPolicy,
   type WorkflowTrigger,
 } from '../lib/triggers';
+import { generatePipeId, nextPipeName } from '../lib/pipeIdentity';
 import {
   WORKFLOW_SAMPLES,
   sampleForCanvas,
@@ -226,15 +227,6 @@ function defaultPipeConfig(type: string, boundTriggerId: string): string {
   }
   const preset = DEFAULT_PIPE_CONFIGS[type];
   return preset ? JSON.stringify(preset, null, 2) : '{}';
-}
-
-export function generatePipeId(type: string): string {
-  const short = type.split('.').pop() ?? 'pipe';
-  const randomPart =
-    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-      ? crypto.randomUUID().slice(0, 8)
-      : Math.random().toString(36).slice(2, 10);
-  return `${short}_${randomPart}`;
 }
 
 type Pipeline = {
@@ -509,7 +501,6 @@ function Designer() {
     log: debugLog,
   } = useDebugSamples(debugRunId);
 
-  const counter = useRef(1);
   const { screenToFlowPosition, fitView, zoomIn, zoomOut, deleteElements } = useReactFlow();
   const nodesInitialized = useNodesInitialized();
 
@@ -614,7 +605,6 @@ function Designer() {
   const addPipe = useCallback(
     (entry: CatalogEntry, position?: { x: number; y: number }) => {
       let pipeId = generatePipeId(entry.type);
-      const pipeName = entry.label;
 
       // A trigger node is the canvas face of a workflow-level trigger. Bind it
       // to an existing trigger of its kind, creating one on first use, so its
@@ -642,6 +632,12 @@ function Designer() {
         ) {
           pipeId = generatePipeId(entry.type);
         }
+        const pipeName = nextPipeName(
+          entry.label,
+          current
+            .filter((node) => node.data.pipelineId === activePipelineId)
+            .map((node) => node.data.name ?? ''),
+        );
         const pipelineIndex = Math.max(
           0,
           pipelines.findIndex((pipeline) => pipeline.id === activePipelineId),
@@ -817,46 +813,6 @@ function Designer() {
     });
     layoutStage(activePipelineId, { fit: true });
   }, [activePipelineId, canvasReady, layoutPending, layoutStage, nodesInitialized]);
-
-  const renamePipe = useCallback(
-    (oldId: string, newId: string): string | null => {
-      if (!newId) return 'Pipe id cannot be empty.';
-      const currentNode = nodes.find((node) => node.id === oldId);
-      if (!currentNode) return 'Pipe no longer exists.';
-      if (
-        nodes.some(
-          (node) =>
-            node.id !== oldId &&
-            node.data.pipelineId === currentNode.data.pipelineId &&
-            node.data.pipeId === newId,
-        )
-      ) {
-        return `"${newId}" is already used in ${currentNode.data.pipelineId}.`;
-      }
-      const nextId = pipeKey(currentNode.data.pipelineId, newId);
-      setNodes((current) =>
-        current.map((node) =>
-          node.id === oldId
-            ? {
-                ...node,
-                id: nextId,
-                data: { ...node.data, pipeId: newId },
-              }
-            : node,
-        ),
-      );
-      setEdges((es) =>
-        es.map((e) => ({
-          ...e,
-          source: e.source === oldId ? nextId : e.source,
-          target: e.target === oldId ? nextId : e.target,
-        })),
-      );
-      setSelectedId(nextId);
-      return null;
-    },
-    [nodes, setNodes, setEdges],
-  );
 
   const patchPipe = useCallback(
     (pipeId: string, patch: Partial<PipeData>) => {
@@ -1700,7 +1656,6 @@ function Designer() {
                   (selected?.data && debugPipeStates[pipeKey(selected.data.pipelineId, selected.data.pipeId)]?.error) ||
                   debugRunError
                 }
-                onRename={renamePipe}
                 onChange={patchPipe}
                 onTriggersChange={setTriggers}
                 onEditTrigger={(triggerId) => {

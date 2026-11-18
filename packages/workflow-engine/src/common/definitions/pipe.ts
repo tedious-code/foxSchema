@@ -6,6 +6,7 @@
  * Workflow engine — moved from FoxAgent (packages/common/src/definitions/pipe.ts).
  */
 import { z } from 'zod';
+import { PIPE_NAME_MAX_LENGTH } from '@foxschema/workflow-contract';
 import { contractSchema } from './contract.js';
 
 // Retry policy applied per pipe, wrapping the batch executor. `attempts`
@@ -34,7 +35,7 @@ export type PipeRole = z.infer<typeof pipeRoleSchema>;
 // unit of the workflow > pipeline > pipe hierarchy.
 export const pipeSchema = z.object({
   id: z.string().min(1),
-  name: z.string().max(120).optional(),
+  name: z.string().max(PIPE_NAME_MAX_LENGTH).optional(),
   role: pipeRoleSchema,
   /** Pipe type id, e.g. "source.file.csv", "transform.mapper", "sink.postgres". */
   type: z.string().min(1),

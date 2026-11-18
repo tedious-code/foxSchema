@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CatalogEntry } from '../lib/catalog';
 import { Inspector } from './Inspector';
 import type { PipeData } from './PipeNode';
+import { PIPE_NAME_MAX_LENGTH } from '@foxschema/workflow-contract';
 
 vi.mock('@monaco-editor/react', () => ({
   default: ({ value, onChange }: { value: string; onChange: (value: string) => void }) => (
@@ -96,7 +97,6 @@ function renderInspector(data: PipeData, onChange = vi.fn()) {
         triggers={[{ id: 'manual', kind: 'manual', enabled: true }]}
         workflowId="wf-1"
         workflows={[]}
-        onRename={() => null}
         onChange={onChange}
         onTriggersChange={vi.fn()}
         onEditTrigger={vi.fn()}
@@ -188,5 +188,12 @@ describe('Inspector pipe editors', () => {
     fireEvent.change(nameInput, { target: { value: 'Renamed Pipe' } });
     fireEvent.blur(nameInput);
     expect(onChange).toHaveBeenCalledWith('node_1', { name: 'Renamed Pipe' });
+  });
+
+  it('stops the pipe name at the length the engine accepts', () => {
+    renderInspector(makeData('transform.map', { mappings: {} }));
+
+    const nameInput = screen.getByLabelText('Pipe name') as HTMLInputElement;
+    expect(nameInput.maxLength).toBe(PIPE_NAME_MAX_LENGTH);
   });
 });

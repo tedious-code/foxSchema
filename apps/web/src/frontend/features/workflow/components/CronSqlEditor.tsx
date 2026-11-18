@@ -165,6 +165,10 @@ export function CronSqlEditor({ value, onChange, editorHeight = '180px' }: Props
         />
         Run the script in a transaction
       </label>
+      <div className="hint">
+        All or nothing where the database can roll back: if the run cannot start, the script’s changes are undone.
+        Retries only reconnect; a script that fails part-way is never run again.
+      </div>
 
       <label htmlFor="workflow-cron-sql-max-rows">Max rows per run</label>
       <input
@@ -181,6 +185,10 @@ export function CronSqlEditor({ value, onChange, editorHeight = '180px' }: Props
           })
         }
       />
+      <div className="hint">
+        Caps the rows passed to the run, not what the database returns: give the last statement its own LIMIT
+        so a large table is not read on every fire.
+      </div>
     </div>
   );
 }

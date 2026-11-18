@@ -18,6 +18,7 @@ import { executeHttpRequest } from '../../pipes/http/index.js';
 import {
   connectionFromSecret,
   runSqlScript,
+  type RunSqlScriptOptions,
   type SqlConnection,
 } from '../../pipes/db/sql.js';
 import { CronExpressionParser } from 'cron-parser';
@@ -34,8 +35,9 @@ export interface CronCoordinatorOptions {
   credentials?: CredentialStore;
   fetch?: typeof fetch;
   /**
-   * Runs a SQL schedule's script and returns the last statement's rows.
-   * Defaults to FoxSchema's own drivers; a test answers without a database.
+   * Runs a SQL schedule's script and hands the last statement's rows to
+   * `beforeCommit`. Defaults to FoxSchema's own drivers; a test answers
+   * without a database.
    */
   runSql?: CronSqlRunner;
   now?: () => Date;
@@ -47,8 +49,8 @@ export interface CronCoordinatorOptions {
 export type CronSqlRunner = (
   connection: SqlConnection,
   script: string,
-  options: { transaction: boolean },
-) => Promise<Record<string, unknown>[]>;
+  options: Required<Pick<RunSqlScriptOptions, 'transaction' | 'connect' | 'beforeCommit'>>,
+) => Promise<unknown>;
 
 export class CronCoordinator {
   private timer?: ReturnType<typeof setInterval>;
@@ -124,11 +126,15 @@ export class CronCoordinator {
 
         const due = dueOccurrences(trigger, state.nextFireAt, now);
         const accepted = acceptedOccurrences(trigger, due, recovering);
-        for (const scheduledAt of accepted) {
-          try {
-            await this.fire(workflow, trigger, scheduledAt, now);
-          } catch (error) {
-            this.onError(error);
+        if (trigger.executionType === 'sql') {
+          this.fireSql(workflow, trigger, accepted, now);
+        } else {
+          for (const scheduledAt of accepted) {
+            try {
+              await this.fire(workflow, trigger, scheduledAt, now);
+            } catch (error) {
+              this.onError(error);
+            }
           }
         }
         const nextFireAt =
@@ -187,27 +193,6 @@ export class CronCoordinator {
       return;
     }
 
-    if (trigger.executionType === 'sql') {
-      // Detached for the same reason as HTTP: a slow query must not stall the
-      // tick for every other schedule. A fire that is still running when the
-      // next one comes due skips it — two copies of a script that moves rows
-      // would race over the same rows.
-      const key = `${workflow.id}\0${trigger.id}`;
-      if (this.sqlInFlight.has(key)) {
-        this.onError(
-          new Error(
-            `cron SQL ${trigger.id} at ${scheduledAt} skipped: the previous run of its script has not finished`,
-          ),
-        );
-        return;
-      }
-      this.sqlInFlight.add(key);
-      void this.fireSql(workflow, trigger, scheduledAt, now)
-        .catch((error) => this.onError(error))
-        .finally(() => this.sqlInFlight.delete(key));
-      return;
-    }
-
     await this.options.scheduler.enqueue(
       workflow,
       cronInvocation(workflow.id, trigger.id, scheduledAt, now),
@@ -215,11 +200,50 @@ export class CronCoordinator {
   }
 
   /**
+   * Detached for the same reason as HTTP: a slow query must not stall the
+   * tick for every other schedule. The occurrences one tick accepts (several
+   * with `catchUp: 'all'`) run one after another. A fire that comes due while
+   * the previous series still runs is skipped: two copies of a script that
+   * moves rows would race over the same rows.
+   */
+  private fireSql(
+    workflow: WorkflowDef,
+    trigger: CronTrigger,
+    occurrences: string[],
+    now: Date,
+  ): void {
+    if (occurrences.length === 0) return;
+    const key = `${workflow.id}\0${trigger.id}`;
+    if (this.sqlInFlight.has(key)) {
+      this.onError(
+        new Error(
+          `cron SQL ${trigger.id} at ${occurrences.join(', ')} skipped: the previous run of its script has not finished`,
+        ),
+      );
+      return;
+    }
+    this.sqlInFlight.add(key);
+    void (async () => {
+      for (const scheduledAt of occurrences) {
+        try {
+          await this.runSqlOccurrence(workflow, trigger, scheduledAt, now);
+        } catch (error) {
+          this.onError(error);
+        }
+      }
+    })().finally(() => this.sqlInFlight.delete(key));
+  }
+
+  /**
    * Run the schedule's script, then start the workflow with the rows. With
    * `onlyWhenRows` (the default) an empty result creates no run at all.
-   * Retries, when configured, cover the script — not the enqueue.
+   *
+   * The run is enqueued before the script's transaction commits, so a run
+   * that cannot start rolls the script back instead of losing the rows it
+   * moved. Retries cover connecting only: once a statement has been sent,
+   * running the script again could repeat writes that already happened.
    */
-  private async fireSql(
+  private async runSqlOccurrence(
     workflow: WorkflowDef,
     trigger: CronTrigger,
     scheduledAt: string,
@@ -249,27 +273,35 @@ export class CronCoordinator {
         `cron SQL ${trigger.id}: ${sql.credentialId} is not a database credential`,
       );
     }
-    const rows = await withRetry(trigger, async () => {
-      const secret = await credentials.revealSecret(sql.credentialId);
-      if (!secret) {
-        throw new Error(
-          `cron SQL ${trigger.id}: credential not found: ${sql.credentialId}`,
-        );
-      }
-      const connection = connectionFromSecret(secret, sql.credentialId, sql);
-      return runSql(connection, sql.script, { transaction: sql.transaction });
+    const secret = await credentials.revealSecret(sql.credentialId);
+    if (!secret) {
+      throw new Error(
+        `cron SQL ${trigger.id}: credential not found: ${sql.credentialId}`,
+      );
+    }
+    const connection = connectionFromSecret(secret, sql.credentialId, sql);
+    await runSql(connection, sql.script, {
+      transaction: sql.transaction,
+      connect: (open) => withRetry(trigger, open),
+      beforeCommit: async (rows) => {
+        if (sql.onlyWhenRows && rows.length === 0) return;
+        const kept = rows.slice(0, sql.maxRows);
+        const invocation = cronInvocation(workflow.id, trigger.id, scheduledAt, now);
+        invocation.payload = {
+          scheduledAt,
+          rowCount: rows.length,
+          ...(rows.length > kept.length ? { truncated: true } : {}),
+          rows: kept,
+        };
+        const result = await this.options.scheduler.enqueue(workflow, invocation);
+        const refusal = refusedEnqueue(result);
+        if (refusal) {
+          throw new Error(
+            `cron SQL ${trigger.id} at ${scheduledAt}: the run was not started (${refusal})`,
+          );
+        }
+      },
     });
-    if (sql.onlyWhenRows && rows.length === 0) return;
-
-    const kept = rows.slice(0, sql.maxRows);
-    const invocation = cronInvocation(workflow.id, trigger.id, scheduledAt, now);
-    invocation.payload = {
-      scheduledAt,
-      rowCount: rows.length,
-      ...(rows.length > kept.length ? { truncated: true } : {}),
-      rows: kept,
-    };
-    await this.options.scheduler.enqueue(workflow, invocation);
   }
 
   private async fireHttp(
@@ -321,6 +353,18 @@ async function withRetry<T>(
     }
   }
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+/** Why the scheduler declined a run, when it reports `{ accepted: false }`. */
+function refusedEnqueue(result: unknown): string | undefined {
+  if (!result || typeof result !== 'object') return undefined;
+  const { accepted, reason, detail } = result as {
+    accepted?: unknown;
+    reason?: unknown;
+    detail?: unknown;
+  };
+  if (accepted !== false) return undefined;
+  return [reason, detail].filter((part) => typeof part === 'string' && part).join(': ') || 'refused';
 }
 
 type CronTrigger = Extract<

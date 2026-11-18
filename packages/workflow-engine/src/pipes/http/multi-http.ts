@@ -160,6 +160,8 @@ export class MultiHttpSourcePipe implements SourcePipe {
         : { payload: context.invocation?.payload };
 
     if (config.outputMode === 'merge') {
+      // One record: a checkpoint past it means it was already delivered.
+      if (Number(context.checkpoint?.cursor.offset ?? 0) >= 1) return;
       const merged = await fetchAllEndpointsMerged({
         config,
         context,
@@ -199,22 +201,30 @@ export class MultiHttpSourcePipe implements SourcePipe {
   }
 }
 
-async function fetchAllEndpoints(options: {
+type FetchOptions = {
   config: MultiConfig;
   context: PipeContext;
   triggerPayload: Record<string, unknown>;
   fetchImpl?: typeof fetch;
-}): Promise<Record<string, unknown>[]> {
-  const { config, context, triggerPayload, fetchImpl } = options;
+};
+
+/**
+ * Runs `work` for every endpoint, `linear` one at a time or `parallel` up to
+ * `concurrency`, and returns the results in endpoint order. A failed endpoint
+ * fails the pipe, or with `onError: skip` becomes `onSkip(error)`.
+ */
+async function forEachEndpoint<T>(
+  config: MultiConfig,
+  work: (endpoint: EndpointConfig) => Promise<T>,
+  onSkip: (error: unknown) => T,
+): Promise<T[]> {
   const limit =
     config.executionMode === 'linear'
       ? 1
       : config.concurrency > 0
         ? config.concurrency
         : config.endpoints.length;
-  const results: Array<Record<string, unknown>[] | null> = new Array(
-    config.endpoints.length,
-  ).fill(null);
+  const results = new Array<T>(config.endpoints.length);
   let next = 0;
 
   const workers = Array.from(
@@ -223,88 +233,74 @@ async function fetchAllEndpoints(options: {
       while (true) {
         const index = next++;
         if (index >= config.endpoints.length) return;
-        const endpoint = config.endpoints[index]!;
         try {
-          results[index] = await fetchOneEndpoint({
-            endpoint,
-            config,
-            context,
-            triggerPayload,
-            fetchImpl,
-          });
+          results[index] = await work(config.endpoints[index]!);
         } catch (error) {
-          if (config.onError === 'skip') {
-            results[index] = [];
-            continue;
-          }
-          throw error;
+          if (config.onError !== 'skip') throw error;
+          results[index] = onSkip(error);
         }
       }
     },
   );
 
   await Promise.all(workers);
-  return results.flatMap((rows) => rows ?? []);
+  return results;
 }
 
-async function fetchAllEndpointsMerged(options: {
-  config: MultiConfig;
-  context: PipeContext;
-  triggerPayload: Record<string, unknown>;
-  fetchImpl?: typeof fetch;
-}): Promise<Record<string, unknown>> {
-  const { config, context, triggerPayload, fetchImpl } = options;
-  const limit =
-    config.executionMode === 'linear'
-      ? 1
-      : config.concurrency > 0
-        ? config.concurrency
-        : config.endpoints.length;
-  const merged: Record<string, unknown> = {};
-  let next = 0;
-
-  const workers = Array.from(
-    { length: Math.min(limit, config.endpoints.length) },
-    async () => {
-      while (true) {
-        const index = next++;
-        if (index >= config.endpoints.length) return;
-        const endpoint = config.endpoints[index]!;
-        try {
-          const body = await fetchOneEndpointRaw({
-            endpoint,
-            config,
-            context,
-            triggerPayload,
-            fetchImpl,
-          });
-          merged[endpoint.id] = body;
-        } catch (error) {
-          if (config.onError === 'skip') {
-            merged[endpoint.id] = {
-              ok: false,
-              error: error instanceof Error ? error.message : String(error),
-            };
-            continue;
-          }
-          throw error;
-        }
-      }
-    },
+async function fetchAllEndpoints(
+  options: FetchOptions,
+): Promise<Record<string, unknown>[]> {
+  const { config } = options;
+  const rows = await forEachEndpoint(
+    config,
+    async (endpoint) =>
+      normalizeRecords(await fetchOneEndpoint(endpoint, options), endpoint.id).map(
+        (record) => ({ ...record, [config.tagField]: endpoint.id }),
+      ),
+    () => [],
   );
-
-  await Promise.all(workers);
-  return merged;
+  return rows.flat();
 }
 
-async function fetchOneEndpointRaw(options: {
-  endpoint: EndpointConfig;
-  config: MultiConfig;
-  context: PipeContext;
-  triggerPayload: Record<string, unknown>;
-  fetchImpl?: typeof fetch;
-}): Promise<unknown> {
-  const { endpoint, context, triggerPayload, fetchImpl } = options;
+/**
+ * One record keyed by endpoint id, in endpoint order whatever order the
+ * responses arrive in. `Object.fromEntries` defines own properties, so an id
+ * such as `__proto__` is a key like any other.
+ */
+async function fetchAllEndpointsMerged(
+  options: FetchOptions,
+): Promise<Record<string, unknown>> {
+  const { config } = options;
+  const bodies = await forEachEndpoint<unknown>(
+    config,
+    async (endpoint) => {
+      const selected = await fetchOneEndpoint(endpoint, options);
+      if (selected === undefined) {
+        // JSON would drop the key without a word; a typo in recordsPath must
+        // fail (or, with onError: skip, say so) like it does in records mode.
+        throw new Error(
+          endpoint.recordsPath
+            ? `HTTP multi endpoint "${endpoint.id}" recordsPath "${endpoint.recordsPath}" matched nothing in the response`
+            : `HTTP multi endpoint "${endpoint.id}" response is empty`,
+        );
+      }
+      return selected;
+    },
+    (error) => ({
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    }),
+  );
+  return Object.fromEntries(
+    config.endpoints.map((endpoint, index) => [endpoint.id, bodies[index]]),
+  );
+}
+
+/** One endpoint's response body, narrowed to `recordsPath` when set. */
+async function fetchOneEndpoint(
+  endpoint: EndpointConfig,
+  { context, triggerPayload, fetchImpl }: FetchOptions,
+): Promise<unknown> {
   const authCredentialId = requestCredentialId(endpoint.auth, context);
   const secret = await revealPipeSecret(context, authCredentialId);
 
@@ -331,46 +327,6 @@ async function fetchOneEndpointRaw(options: {
   return endpoint.recordsPath
     ? getPath(result.body, endpoint.recordsPath)
     : result.body;
-}
-
-async function fetchOneEndpoint(options: {
-  endpoint: EndpointConfig;
-  config: MultiConfig;
-  context: PipeContext;
-  triggerPayload: Record<string, unknown>;
-  fetchImpl?: typeof fetch;
-}): Promise<Record<string, unknown>[]> {
-  const { endpoint, config, context, triggerPayload, fetchImpl } = options;
-  const authCredentialId = requestCredentialId(endpoint.auth, context);
-  const secret = await revealPipeSecret(context, authCredentialId);
-
-  const result = await executeHttpRequest({
-    request: endpoint,
-    secret,
-    credentialId: authCredentialId,
-    credentials: context.credentials,
-    variables: { ...context.variables, ...endpoint.variables },
-    trigger: {
-      id: context.invocation?.triggerId,
-      kind: context.invocation?.kind,
-      ...triggerPayload,
-    },
-    fetch: fetchImpl,
-    signal: context.signal,
-  });
-  if (!result.ok) {
-    throw new Error(
-      `HTTP multi endpoint "${endpoint.id}" ${describeHttpFailure(result)}`,
-    );
-  }
-
-  const selected = endpoint.recordsPath
-    ? getPath(result.body, endpoint.recordsPath)
-    : result.body;
-  return normalizeRecords(selected, endpoint.id).map((record) => ({
-    ...record,
-    [config.tagField]: endpoint.id,
-  }));
 }
 
 function normalizeRecords(

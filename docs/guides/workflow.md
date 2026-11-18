@@ -136,10 +136,20 @@ whatever pipes follow the trigger.
   creates no run. Off, every fire starts a run; with no rows the pipes get one
   record carrying `scheduledAt` and `rowCount: 0`.
 - **Max rows per run** (default 1,000, at most 10,000) caps the payload; the
-  run's trigger payload records `rowCount` and `truncated`.
+  run's trigger payload records `rowCount` and `truncated`. It does not limit
+  the query: the driver still reads every row the last statement returns, so
+  give that statement its own `LIMIT`.
+- **Run the script in a transaction**: the run is enqueued before the
+  transaction commits, so a run that cannot start (engine disabled, overlap
+  refused) rolls the script back instead of losing the rows it moved. Without
+  a transaction the script's changes stand and the refusal is reported.
+- **Retries** (the schedule's retry policy) cover connecting only. Once a
+  statement has been sent, a failure is reported, never retried: running the
+  script again could repeat writes that already happened.
 - The script may change data; the connection's account is the boundary.
 - It runs detached from the scheduler tick, and a fire that comes due while the
-  previous one is still running is skipped and reported.
+  previous one is still running is skipped and reported. With **catch-up: all**
+  the occurrences one tick picks up run one after another.
 
 The API Endpoint and API Polling triggers were removed. Use a **Webhook**
 trigger (with `?wait=1` for a synchronous answer) for inbound calls. A saved

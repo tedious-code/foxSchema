@@ -63,6 +63,9 @@ export function foxSchemaEndpoint(
 /** The SSE event that tells a run-event stream's client the run is over and the stream is closing. */
 export const RUN_STREAM_END_EVENT = 'end';
 
+/** Longest pipe display name; the engine refuses a longer one, the designer stops typing at it. */
+export const PIPE_NAME_MAX_LENGTH = 120;
+
 /**
  * The kinds of trigger a workflow can have. The engine's trigger schema fails to
  * compile unless it accepts exactly these. Defined here rather than in the

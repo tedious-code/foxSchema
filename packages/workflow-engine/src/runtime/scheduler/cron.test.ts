@@ -9,7 +9,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { openSqliteStores } from '../../storage/index.js';
 import type { TriggerInvocation } from '../../common/index.js';
-import { CronCoordinator } from './cron.js';
+import { runSqlScript, type SqlRunner } from '../../pipes/db/sql.js';
+import { CronCoordinator, type CronSqlRunner } from './cron.js';
 
 function fingerprint(trigger: {
   cron: string;
@@ -226,7 +227,11 @@ describe('CronCoordinator', () => {
 
     async function setup(
       sqlOverrides: Record<string, unknown> = {},
-      options: { credentialKind?: 'database' | 'http'; retry?: boolean } = {},
+      options: {
+        credentialKind?: 'database' | 'http';
+        retry?: boolean;
+        catchUp?: 'one' | 'all';
+      } = {},
     ) {
       const stores = openSqliteStores(':memory:', randomBytes(32));
       const credential = await stores.credentials.create({
@@ -240,7 +245,7 @@ describe('CronCoordinator', () => {
         enabled: true,
         cron: '* * * * *',
         timezone: 'UTC',
-        catchUp: 'one' as const,
+        catchUp: options.catchUp ?? ('one' as const),
         executionType: 'sql' as const,
         sql: {
           credentialId: credential.id,
@@ -309,7 +314,8 @@ describe('CronCoordinator', () => {
 
     function coordinatorFor(
       stores: ReturnType<typeof openSqliteStores>,
-      runSql: ConstructorParameters<typeof CronCoordinator>[0]['runSql'],
+      runSql: CronSqlRunner,
+      enqueueResult: unknown = { accepted: true },
     ) {
       const enqueued: TriggerInvocation[] = [];
       const errors: unknown[] = [];
@@ -320,6 +326,7 @@ describe('CronCoordinator', () => {
         scheduler: {
           async enqueue(_workflow, invocation) {
             enqueued.push(invocation);
+            return enqueueResult;
           },
         },
         runSql,
@@ -332,15 +339,23 @@ describe('CronCoordinator', () => {
     /** SQL fires are detached from the tick; let them settle. */
     const settle = () => new Promise((resolve) => setTimeout(resolve, 10));
 
+    /** A runner that connects, then hands `rows` over as the real one does. */
+    const returning =
+      (rows: Record<string, unknown>[]): CronSqlRunner =>
+      async (_connection, _script, options) => {
+        await options.connect(async () => undefined);
+        await options.beforeCommit(rows);
+      };
+
     it('runs the script against the credential and starts the workflow with the rows', async () => {
       const { stores } = await setup();
       const calls: { connection: unknown; script: string; transaction: boolean }[] = [];
       const { coordinator, enqueued, errors } = coordinatorFor(stores, async (connection, script, options) => {
         calls.push({ connection, script, transaction: options.transaction });
-        return [
+        await returning([
           { id: 1, sku: 'A-1' },
           { id: 2, sku: 'B-2' },
-        ];
+        ])(connection, script, options);
       });
 
       await coordinator.tick();
@@ -375,7 +390,7 @@ describe('CronCoordinator', () => {
 
     it('creates no run when the script returns nothing and onlyWhenRows is on', async () => {
       const { stores } = await setup();
-      const { coordinator, enqueued, errors } = coordinatorFor(stores, async () => []);
+      const { coordinator, enqueued, errors } = coordinatorFor(stores, returning([]));
 
       await coordinator.tick();
       await settle();
@@ -391,7 +406,7 @@ describe('CronCoordinator', () => {
 
     it('starts a run with no rows when onlyWhenRows is off', async () => {
       const { stores } = await setup({ onlyWhenRows: false });
-      const { coordinator, enqueued } = coordinatorFor(stores, async () => []);
+      const { coordinator, enqueued } = coordinatorFor(stores, returning([]));
 
       await coordinator.tick();
       await settle();
@@ -404,11 +419,10 @@ describe('CronCoordinator', () => {
 
     it('caps the rows carried into the run and says so', async () => {
       const { stores } = await setup({ maxRows: 2 });
-      const { coordinator, enqueued } = coordinatorFor(stores, async () => [
-        { id: 1 },
-        { id: 2 },
-        { id: 3 },
-      ]);
+      const { coordinator, enqueued } = coordinatorFor(
+        stores,
+        returning([{ id: 1 }, { id: 2 }, { id: 3 }]),
+      );
 
       await coordinator.tick();
       await settle();
@@ -425,9 +439,9 @@ describe('CronCoordinator', () => {
     it('refuses a credential that is not a database credential', async () => {
       const { stores } = await setup({}, { credentialKind: 'http' });
       let ran = false;
-      const { coordinator, enqueued, errors } = coordinatorFor(stores, async () => {
+      const { coordinator, enqueued, errors } = coordinatorFor(stores, async (...args) => {
         ran = true;
-        return [{ id: 1 }];
+        await returning([{ id: 1 }])(...args);
       });
 
       await coordinator.tick();
@@ -439,12 +453,14 @@ describe('CronCoordinator', () => {
       stores.close();
     });
 
-    it('reports a failing script instead of starting a run, and retries when configured', async () => {
+    it('retries connecting when configured', async () => {
       const { stores } = await setup({}, { retry: true });
       let attempts = 0;
-      const { coordinator, enqueued, errors } = coordinatorFor(stores, async () => {
-        attempts += 1;
-        throw new Error('relation "orders" does not exist');
+      const { coordinator, enqueued, errors } = coordinatorFor(stores, async (_c, _s, options) => {
+        await options.connect(async () => {
+          attempts += 1;
+          throw new Error('connect ECONNREFUSED');
+        });
       });
 
       await coordinator.tick();
@@ -452,7 +468,89 @@ describe('CronCoordinator', () => {
 
       expect(attempts).toBe(2);
       expect(enqueued).toEqual([]);
+      expect(String(errors[0])).toMatch(/ECONNREFUSED/);
+      stores.close();
+    });
+
+    it('reports a failing script without running it again, even with retries', async () => {
+      // Statements before the failing one may already have written: running
+      // the script again would repeat those writes.
+      const { stores } = await setup({}, { retry: true });
+      let runs = 0;
+      const { coordinator, enqueued, errors } = coordinatorFor(stores, async (_c, _s, options) => {
+        await options.connect(async () => undefined);
+        runs += 1;
+        throw new Error('relation "orders" does not exist');
+      });
+
+      await coordinator.tick();
+      await settle();
+
+      expect(runs).toBe(1);
+      expect(enqueued).toEqual([]);
       expect(String(errors[0])).toMatch(/relation "orders" does not exist/);
+      stores.close();
+    });
+
+    it('rolls the script back when the run cannot start', async () => {
+      const { stores } = await setup({ transaction: true });
+      const log: string[] = [];
+      const open: SqlRunner = async () => ({
+        async query(sql) {
+          log.push(sql);
+          return [{ id: 1 }];
+        },
+        async transaction(work) {
+          log.push('BEGIN');
+          try {
+            const result = await work();
+            log.push('COMMIT');
+            return result;
+          } catch (error) {
+            log.push('ROLLBACK');
+            throw error;
+          }
+        },
+        async close() {},
+      });
+      const { coordinator, enqueued, errors } = coordinatorFor(
+        stores,
+        (connection, script, options) => runSqlScript(connection, script, { ...options, open }),
+        { accepted: false, reason: 'disabled', detail: 'the workflow engine is disabled' },
+      );
+
+      await coordinator.tick();
+      await settle();
+
+      expect(enqueued).toHaveLength(1);
+      expect(log).toEqual([
+        'BEGIN',
+        'SELECT id, sku FROM orders WHERE shipped = false',
+        'ROLLBACK',
+      ]);
+      expect(String(errors[0])).toMatch(
+        /the run was not started \(disabled: the workflow engine is disabled\)/,
+      );
+      stores.close();
+    });
+
+    it('runs every missed occurrence in order with catchUp all', async () => {
+      const { stores } = await setup({}, { catchUp: 'all' });
+      await stores.schedules.put({
+        ...(await stores.schedules.get('sql-scheduled', 'watch'))!,
+        nextFireAt: '2026-07-14T10:03:00.000Z',
+      });
+      const { coordinator, enqueued, errors } = coordinatorFor(stores, returning([{ id: 1 }]));
+
+      await coordinator.tick();
+      await settle();
+
+      expect(errors).toEqual([]);
+      expect(enqueued.map((invocation) => invocation.idempotencyKey)).toEqual([
+        'cron:2026-07-14T10:03:00.000Z',
+        'cron:2026-07-14T10:04:00.000Z',
+        'cron:2026-07-14T10:05:00.000Z',
+      ]);
       stores.close();
     });
 
@@ -463,10 +561,10 @@ describe('CronCoordinator', () => {
         release = resolve;
       });
       let calls = 0;
-      const { coordinator, enqueued, errors } = coordinatorFor(stores, async () => {
+      const { coordinator, enqueued, errors } = coordinatorFor(stores, async (...args) => {
         calls += 1;
         await blocked;
-        return [{ id: 1 }];
+        await returning([{ id: 1 }])(...args);
       });
 
       await coordinator.tick();

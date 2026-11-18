@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { useSyncStore } from '@/features/compare';
 import { effectiveConnectionIds } from '@/features/sql-editor/state/sqlEditorTabLogic';
-import { DataPeekPanel, inlineBoundParams } from './DataPeekPanel';
+import { DataPeekPanel } from './DataPeekPanel';
 
 const fetchTableInsight = vi.fn();
 vi.mock('@/shared/api/schemaApi', async (importOriginal) => {
@@ -185,22 +185,40 @@ describe('reference keys on a qualified table name', () => {
     expect(screen.queryByText(/foreign keys/i)).toBeNull();
   });
 
-  it('inlines bound parameters across SQL dialects without LIMIT in openInSqlEditor', () => {
-    expect(
-      inlineBoundParams('SELECT * FROM "orders" WHERE "id" = $1 AND "customer" = $2', [42, "O'Connor"], 'postgres')
-    ).toBe('SELECT * FROM "orders" WHERE "id" = 42 AND "customer" = \'O\'\'Connor\'');
+  it('leaves a ? or $1 the user typed inside the WHERE alone', () => {
+    // Postgres binds $n, so a `?` is never its placeholder; and `'$1 off'`
+    // is the user's own string. Only the drill's bound value is inlined.
+    const drill = {
+      ...entry,
+      id: 'e-typed',
+      baseSql: 'SELECT * FROM "public"."orders" WHERE "customer_id" = $1',
+      baseParams: [100],
+      sql: 'SELECT * FROM "public"."orders" WHERE "customer_id" = $1',
+      params: [100],
+      whereClause: "note = 'why?' AND memo LIKE '%$1 off%'",
+    };
+    useSqlEditorStore.setState({
+      dataPeek: { connectionId: 'c1', dialect: 'postgres', entries: [drill] },
+      activeTabId: 'tab-1',
+      tabs: [{
+        id: 'tab-1',
+        title: 'Query 1',
+        sql: '',
+        selectedConnectionIds: [],
+        checkedStatements: [],
+        statementCount: 1,
+        layout: 'byCredential',
+      }],
+    });
 
-    expect(
-      inlineBoundParams('SELECT * FROM `orders` WHERE `id` = ? AND `customer` = ?', [10, 'Acme'], 'mysql')
-    ).toBe("SELECT * FROM `orders` WHERE `id` = 10 AND `customer` = 'Acme'");
+    render(<DataPeekPanel />);
+    fireEvent.click(screen.getByTestId('data-peek-open-sql-e-typed'));
 
-    expect(
-      inlineBoundParams('SELECT * FROM [orders] WHERE [id] = @p0', [99], 'sqlserver')
-    ).toBe('SELECT * FROM [orders] WHERE [id] = 99');
-
-    expect(
-      inlineBoundParams('SELECT * FROM orders WHERE id = :1', [7], 'oracle')
-    ).toBe('SELECT * FROM orders WHERE id = 7');
+    const state = useSqlEditorStore.getState();
+    const activeTab = state.tabs.find((t) => t.id === state.activeTabId);
+    expect(activeTab?.sql).toBe(
+      'SELECT * FROM "public"."orders" WHERE "customer_id" = 100 AND (note = \'why?\' AND memo LIKE \'%$1 off%\');'
+    );
   });
 
   it('promotes to SQL editor with inlined params and targets connection', () => {
@@ -271,5 +289,26 @@ describe('reference keys on a qualified table name', () => {
     const state = useSqlEditorStore.getState();
     expect(state.dataPeek).not.toBeNull();
     expect(state.tabs.length).toBe(1);
+  });
+
+  it('clears the Open in SQL error once the filter changes', () => {
+    const brokenEntry = { ...entry, id: 'e-stale', whereClause: 'status = 1; DROP TABLE users' };
+    useSqlEditorStore.setState({
+      dataPeek: { connectionId: 'c1', dialect: 'postgres', entries: [brokenEntry] },
+    });
+    render(<DataPeekPanel />);
+    fireEvent.click(screen.getByTestId('data-peek-open-sql-e-stale'));
+    expect(screen.getByTestId('data-peek-open-error-e-stale')).toBeTruthy();
+
+    act(() => {
+      useSqlEditorStore.setState({
+        dataPeek: {
+          connectionId: 'c1',
+          dialect: 'postgres',
+          entries: [{ ...brokenEntry, whereClause: 'status = 1' }],
+        },
+      });
+    });
+    expect(screen.queryByTestId('data-peek-open-error-e-stale')).toBeNull();
   });
 });

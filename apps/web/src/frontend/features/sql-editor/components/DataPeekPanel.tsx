@@ -37,42 +37,7 @@ import { PeekInsight } from './PeekInsight';
 import { SQL_ICON_STROKE } from '@/shared/lib/iconStyle';
 import type { TableSchema } from '@/shared/lib/types';
 import { useSyncStore } from '@/features/compare';
-import { formatSqlLiteral } from '@/features/sql-editor/lib/rowDml';
-import { placeholderStyleFor } from '@/shared/lib/sql-splitter';
-
-export function inlineBoundParams(sqlText: string, params: unknown[], dialect: string): string {
-  if (!params || params.length === 0) return sqlText;
-  const style = placeholderStyleFor(dialect);
-  let res = sqlText;
-  if (style === 'dollar') {
-    res = res.replace(/\$([1-9]\d*)\b/g, (match, num) => {
-      const idx = parseInt(num, 10) - 1;
-      return idx in params ? formatSqlLiteral(params[idx]) : match;
-    });
-  } else if (style === 'colon') {
-    res = res.replace(/:([1-9]\d*)\b/g, (match, num) => {
-      const idx = parseInt(num, 10) - 1;
-      return idx in params ? formatSqlLiteral(params[idx]) : match;
-    });
-  } else if (style === 'at') {
-    res = res.replace(/@p(\d+)\b/gi, (match, num) => {
-      const idx = parseInt(num, 10);
-      return idx in params ? formatSqlLiteral(params[idx]) : match;
-    });
-  }
-  if (res.includes('?')) {
-    let paramIdx = 0;
-    res = res.replace(/\?/g, (match) => {
-      if (paramIdx < params.length) {
-        const val = formatSqlLiteral(params[paramIdx]);
-        paramIdx++;
-        return val;
-      }
-      return match;
-    });
-  }
-  return res;
-}
+import { inlineSqlParams } from '@/shared/lib/sql-splitter';
 
 /**
  * The height of a panel's body — the rows grid or Insight — not of the whole
@@ -602,9 +567,18 @@ const PeekGrid: React.FC<{
   }, [crud.overlayOpen, onOverlayOpenChange]);
 
   const [openError, setOpenError] = useState<string | null>(null);
+  // The error is about the filter as it was when Open was clicked: an edit
+  // to the filter makes it stale.
+  useEffect(() => {
+    setOpenError(null);
+  }, [entry.whereClause, entry.orderByClause]);
 
   const openInSqlEditor = useCallback(() => {
-    const composed = composePeekSql(entry.baseSql, entry.baseParams, {
+    // Inline the drill's bound values into the base query first, then add the
+    // filter text. Inlining after composing would also rewrite a `?` or `$1`
+    // the user typed inside a string in their WHERE.
+    const base = inlineSqlParams(entry.baseSql, entry.baseParams, dialect || 'postgres');
+    const composed = composePeekSql(base, [], {
       where: entry.whereClause,
       orderBy: entry.orderByClause,
     });
@@ -613,8 +587,7 @@ const PeekGrid: React.FC<{
       return;
     }
     setOpenError(null);
-    const inlined = inlineBoundParams(composed.sql, composed.params, dialect || 'postgres');
-    const finalSql = `${inlined.replace(/;+\s*$/, '')};`;
+    const finalSql = `${composed.sql.replace(/;+\s*$/, '')};`;
     const state = useSqlEditorStore.getState();
     state.addTab();
     const newTabId = useSqlEditorStore.getState().activeTabId;

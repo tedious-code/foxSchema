@@ -107,6 +107,8 @@ export function parseFoxScript(source: string): FoxScriptDocument {
 export {
   sqlTag,
   renderSqlQuery,
+  inlineSqlParams,
+  sqlLiteral,
   identityInsertFor,
   identityInsertSupport,
   isSqlQuery,

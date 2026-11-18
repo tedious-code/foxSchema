@@ -345,7 +345,7 @@ export function usePeekGridCrud(args: PeekGridCrudArgs): PeekGridCrud {
       values,
       identityColumns: editability.identityColumns,
     });
-    const sql = 'error' in plan ? '' : plan.displaySql || plan.sql;
+    const sql = 'error' in plan || !plan.literalSql ? '' : `${plan.literalSql};`;
     if (sql) {
       void copyToClipboard(sql);
     }

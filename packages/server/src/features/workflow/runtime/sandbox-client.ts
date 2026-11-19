@@ -8,6 +8,7 @@
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { assertSafeSqliteSql } from '@foxschema/sql';
 import type { EngineRuntimeConfig } from '@foxschema/workflow-contract';
 import {
   NATIVE_ADDON_SQL_DIALECTS,
@@ -360,6 +361,9 @@ export class WorkflowSandboxClient implements WorkflowEngineBackend {
       } else if (method === 'sqlQuery') {
         const { sessionId, sql, params: sqlParams } = params as SqlQueryParams;
         const session = this.touchSqlSession(sessionId);
+        if (session.dialect.trim().toLowerCase() === 'sqlite') {
+          assertSafeSqliteSql(sql);
+        }
         result = await session.query(sql, sqlParams);
       } else if (method === 'sqlTx') {
         const { sessionId, action } = params as SqlTxParams;

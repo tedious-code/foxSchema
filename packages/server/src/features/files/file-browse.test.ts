@@ -7,7 +7,7 @@
  * and nothing else. Every test that adds a file type is asking whether it
  * would still be true.
  */
-import { mkdtemp, mkdir, writeFile, symlink } from 'node:fs/promises';
+import { link, mkdtemp, mkdir, rm, writeFile, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -26,6 +26,9 @@ await mkdir(join(root, '.hidden'));
 await writeFile(join(root, 'app.db'), 'x');
 await writeFile(join(root, 'analytics.duckdb'), 'x');
 await writeFile(join(root, 'Notes.SQLite3'), 'x');
+await writeFile(join(root, 'foxschema.db'), 'internal-meta');
+await writeFile(join(root, 'workflow-engine.sqlite'), 'internal-wf');
+await symlink(join(root, 'foxschema.db'), join(root, 'meta-alias.db'));
 await writeFile(join(root, 'secrets.env'), 'AWS_SECRET=1');
 await writeFile(join(root, 'id_rsa'), 'PRIVATE KEY');
 await writeFile(join(root, 'dump.sql'), 'select 1');
@@ -68,6 +71,33 @@ describe('browseDirectory', () => {
     expect(names).not.toContain('dump.sql');
     expect(names).not.toContain('.env');
     expect(names).not.toContain('.hidden');
+    // Internal FoxSchema metadata and workflow databases (including symlinks to them)
+    // must never appear in the user database picker.
+    expect(names).not.toContain('foxschema.db');
+    expect(names).not.toContain('workflow-engine.sqlite');
+    expect(names).not.toContain('meta-alias.db');
+  });
+
+  it('hides hard links to the configured APP_DB_PATH', async () => {
+    const prev = process.env.APP_DB_PATH;
+    const isolated = await mkdtemp(join(tmpdir(), 'fox-browse-meta-'));
+    const customMeta = join(isolated, 'custom-meta.db');
+    const hardlink = join(isolated, 'custom-hardlink.db');
+    const regular = join(isolated, 'regular.db');
+    await writeFile(customMeta, 'secret-meta');
+    await link(customMeta, hardlink);
+    await writeFile(regular, 'ok');
+    process.env.APP_DB_PATH = customMeta;
+    try {
+      const names = (await browseDirectory(isolated)).entries.map((e) => e.name);
+      expect(names).toContain('regular.db');
+      expect(names).not.toContain('custom-meta.db');
+      expect(names).not.toContain('custom-hardlink.db');
+    } finally {
+      if (prev === undefined) delete process.env.APP_DB_PATH;
+      else process.env.APP_DB_PATH = prev;
+      await rm(isolated, { recursive: true, force: true });
+    }
   });
 
   it('never returns file contents — only name, size and mtime', async () => {

@@ -791,4 +791,159 @@ export class ProbePipe {
       await server.close();
     }
   });
+
+  it(
+    'blocks SQLite ATTACH/VACUUM INTO, symlink/hardlink aliases to foxschema.db, and DuckDB read_text/ATTACH/COPY escapes from workflow SQL pipes',
+    async () => {
+      const shopDbPath = join(tempDir, 'shop-escape.db');
+      const db = new DatabaseSync(shopDbPath);
+      db.exec('CREATE TABLE items (name TEXT); INSERT INTO items VALUES (\'ok\');');
+      db.close();
+
+      const foxDbPath = join(tempDir, 'foxschema.db');
+      const appKeyPath = join(tempDir, '.app_encryption_key');
+      const symlinkToFox = join(tempDir, 'harmless-sym.db');
+      const hardlinkToFox = join(tempDir, 'harmless-hard.db');
+      const exfilPath = join(tempDir, 'exfil.out');
+      fs.symlinkSync(foxDbPath, symlinkToFox);
+      fs.linkSync(foxDbPath, hardlinkToFox);
+
+      const { runtimeConfig } = runtimeSettings('enabled');
+      backend = new WorkflowSandboxClient({
+        databasePath: process.env.FOXFLOW_DB_PATH,
+        encryptionKey: process.env.FOXFLOW_ENCRYPTION_KEY!,
+        resolveFoxSchemaConnection: async (connectionId: string) => {
+          if (connectionId === 'conn-shop') return { dialect: 'sqlite', option: { database: shopDbPath } };
+          if (connectionId === 'conn-duck') return { dialect: 'duckdb', option: { database: ':memory:' } };
+          if (connectionId === 'conn-sym') return { dialect: 'sqlite', option: { database: symlinkToFox } };
+          if (connectionId === 'conn-hard') return { dialect: 'sqlite', option: { database: hardlinkToFox } };
+          return undefined;
+        },
+        loadRuntimeConfig: async () => runtimeConfig,
+      });
+      await backend.start();
+      const server = await mountTestApp(backend);
+
+      for (const [id, connId] of [
+        ['foxschema-conn-shop', 'conn-shop'],
+        ['foxschema-conn-duck', 'conn-duck'],
+        ['foxschema-conn-sym', 'conn-sym'],
+        ['foxschema-conn-hard', 'conn-hard'],
+      ] as const) {
+        await backend.credentials.create({
+          id,
+          name: id,
+          kind: 'database',
+          source: 'foxschema',
+          data: { connectionId: connId },
+        });
+      }
+
+      const runSqlAttack = async (wfId: string, credentialId: string, sql: string) => {
+        const put = await server.inject({
+          method: 'PUT',
+          url: `/api/workflow/engine/workflows/${wfId}`,
+          payload: {
+            id: wfId,
+            name: wfId,
+            version: 1,
+            onOverlap: 'parallel',
+            pipelines: [
+              {
+                id: 'main',
+                name: 'Main',
+                pipes: [
+                  {
+                    id: 'sql',
+                    role: 'source',
+                    type: 'source.db.sql',
+                    credentialId,
+                    config: { sql },
+                    concurrency: 1,
+                  },
+                ],
+                edges: [],
+              },
+            ],
+            triggers: [{ id: 'manual', kind: 'manual', enabled: true }],
+            dependencies: [],
+            middleware: [],
+          },
+        });
+        expect(put.statusCode).toBe(200);
+        const runRes = await server.inject({
+          method: 'POST',
+          url: `/api/workflow/engine/workflows/${wfId}/run`,
+        });
+        expect(runRes.statusCode).toBe(202);
+        const { runId } = runRes.json() as { runId: string };
+        const sse = await server.inject({
+          method: 'GET',
+          url: `/api/workflow/engine/runs/${runId}/events/stream`,
+        });
+        expect(sse.statusCode).toBe(200);
+        const detail = await server.inject({
+          method: 'GET',
+          url: `/api/workflow/engine/runs/${runId}`,
+        });
+        expect(detail.statusCode).toBe(200);
+        return detail.json() as { status: string; error?: string };
+      };
+
+      const escapedFoxDb = foxDbPath.replace(/'/g, "''");
+      const escapedAppKey = appKeyPath.replace(/'/g, "''");
+      const escapedExfil = exfilPath.replace(/'/g, "''");
+
+      const sqliteAttach = await runSqlAttack(
+        'wf-sqlite-attach',
+        'foxschema-conn-shop',
+        `ATTACH DATABASE '${escapedFoxDb}' AS meta`,
+      );
+      expect(sqliteAttach.status).toBe('failed');
+      expect(sqliteAttach.error ?? '').toMatch(/ATTACH and DETACH/i);
+
+      const sqliteVacuum = await runSqlAttack(
+        'wf-sqlite-vacuum',
+        'foxschema-conn-shop',
+        `VACUUM INTO '${escapedExfil}'`,
+      );
+      expect(sqliteVacuum.status).toBe('failed');
+      expect(sqliteVacuum.error ?? '').toMatch(/VACUUM INTO/i);
+      expect(fs.existsSync(exfilPath)).toBe(false);
+
+      const sqliteSymlink = await runSqlAttack('wf-sqlite-sym', 'foxschema-conn-sym', 'SELECT 1');
+      expect(sqliteSymlink.status).toBe('failed');
+      expect(sqliteSymlink.error ?? '').toMatch(/internal metadata database/i);
+
+      const sqliteHardlink = await runSqlAttack('wf-sqlite-hard', 'foxschema-conn-hard', 'SELECT 1');
+      expect(sqliteHardlink.status).toBe('failed');
+      expect(sqliteHardlink.error ?? '').toMatch(/internal metadata database/i);
+
+      const duckReadText = await runSqlAttack(
+        'wf-duck-read',
+        'foxschema-conn-duck',
+        `SELECT * FROM read_text('${escapedAppKey}')`,
+      );
+      expect(duckReadText.status).toBe('failed');
+      expect(duckReadText.error ?? '').toMatch(/file system operations are disabled|permission/i);
+
+      const duckAttach = await runSqlAttack(
+        'wf-duck-attach',
+        'foxschema-conn-duck',
+        `ATTACH '${escapedFoxDb}' AS meta`,
+      );
+      expect(duckAttach.status).toBe('failed');
+      expect(duckAttach.error ?? '').toMatch(/file system operations are disabled|permission/i);
+
+      const duckCopy = await runSqlAttack(
+        'wf-duck-copy',
+        'foxschema-conn-duck',
+        `COPY (SELECT 1) TO '${escapedExfil}'`,
+      );
+      expect(duckCopy.status).toBe('failed');
+      expect(duckCopy.error ?? '').toMatch(/file system operations are disabled|permission/i);
+      expect(fs.existsSync(exfilPath)).toBe(false);
+    },
+    30_000,
+  );
 });

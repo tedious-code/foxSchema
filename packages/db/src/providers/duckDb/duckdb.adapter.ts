@@ -1,5 +1,6 @@
 import { type ConnectionOptions, type DriverAdapter } from '@foxschema/sql';
 import { requireDriver } from '../../cores/driver-loader.js';
+import { assertSafeEmbeddedDatabasePath } from '../../cores/embedded-db-guard.js';
 
 interface DuckHandle {
   instance: any;
@@ -29,15 +30,27 @@ class DuckDbAdapter implements DriverAdapter {
   }
 
   async acquire(connectionString: string, _options: ConnectionOptions, _pooled: boolean): Promise<DuckHandle> {
+    assertSafeEmbeddedDatabasePath(connectionString);
     let pending = this.handles.get(connectionString);
     if (!pending) {
       const { DuckDBInstance } = this.load();
       pending = (async () => {
         const instance = await DuckDBInstance.create(connectionString);
         const conn = await instance.connect();
+        // Disable host filesystem / external file-reader access (`read_text`,
+        // `read_csv`, `ATTACH`, `COPY ... TO/FROM`, extension installs) at the
+        // DuckDB engine layer and lock configuration so user SQL cannot re-enable
+        // it to read FoxSchema's internal DB or encryption key.
+        await conn.run('SET enable_external_access = false');
+        await conn.run('SET lock_configuration = true');
         return { instance, conn };
       })();
       this.handles.set(connectionString, pending);
+      pending.catch(() => {
+        if (this.handles.get(connectionString) === pending) {
+          this.handles.delete(connectionString);
+        }
+      });
     }
     return pending;
   }

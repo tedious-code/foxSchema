@@ -472,7 +472,13 @@ describe('SQLite sandbox safety in SQL pipes', () => {
   });
 
   it('refuses opening FoxSchema or engine internal SQLite databases', async () => {
-    for (const target of ['/data/foxschema.db', '/tmp/workflow-engine.sqlite']) {
+    for (const target of [
+      '/data/foxschema.db',
+      '/data/foxschema.db-wal',
+      '/data/.app_encryption_key',
+      'file:///data/foxschema.db?mode=ro',
+      '/tmp/workflow-engine.sqlite',
+    ]) {
       await expect(
         collect(
           new SqlSourcePipe(),
@@ -484,6 +490,26 @@ describe('SQLite sandbox safety in SQL pipes', () => {
           ),
         ),
       ).rejects.toThrow(/Refusing to open FoxSchema internal database/);
+    }
+  });
+
+  it('refuses ATTACH, VACUUM INTO, and load_extension on :memory: SQLite sessions', async () => {
+    for (const sql of [
+      "ATTACH DATABASE '/data/foxschema.db' AS meta",
+      "VACUUM INTO '/tmp/escape.sqlite'",
+      "SELECT load_extension('/tmp/evil.so')",
+    ]) {
+      await expect(
+        collect(
+          new SqlSourcePipe(),
+          context(
+            'source.db.sql',
+            'source',
+            { dialect: 'sqlite', sql },
+            { dialect: 'sqlite', option: { database: ':memory:' } },
+          ),
+        ),
+      ).rejects.toThrow(/disabled for security|not authorized/i);
     }
   });
 });

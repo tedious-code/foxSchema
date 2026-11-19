@@ -282,12 +282,47 @@ describe('ConnectionStore', () => {
     expect((await store.resolve(alice, id))?.option.password).toBe('new-host-password');
   });
 
-  it('rejects saving a SQLite or DuckDB connection targeting foxschema.db or workflow-engine.sqlite', async () => {
+  it('rejects saving a SQLite or DuckDB connection targeting foxschema.db, workflow-engine.sqlite, .app_encryption_key, symlinks, or hard links', async () => {
     await expect(
       store.create(alice, { name: 'meta', dialect: 'sqlite', option: { database: '/tmp/foxschema.db' } })
     ).rejects.toMatchObject({ code: 'forbidden' });
     await expect(
+      store.create(alice, { name: 'meta-uri', dialect: 'sqlite', option: { connectionString: 'file:///tmp/foxschema.db?mode=ro' } })
+    ).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(
+      store.create(alice, { name: 'meta-wal', dialect: 'sqlite', option: { database: '/tmp/foxschema.db-wal' } })
+    ).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(
       store.create(alice, { name: 'wf', dialect: 'duckdb', option: { database: '/tmp/workflow-engine.sqlite' } })
     ).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(
+      store.create(alice, { name: 'key', dialect: 'sqlite', option: { database: '/tmp/.app_encryption_key' } })
+    ).rejects.toMatchObject({ code: 'forbidden' });
+
+    const { linkSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = mkdtempSync(join(tmpdir(), 'fox-conn-guard-'));
+    const prevAppDb = process.env.APP_DB_PATH;
+    try {
+      const customMeta = join(dir, 'internal-app.sqlite');
+      const symlinkAlias = join(dir, 'symlink-alias.db');
+      const hardlinkAlias = join(dir, 'hardlink-alias.db');
+      writeFileSync(customMeta, 'meta');
+      symlinkSync(customMeta, symlinkAlias);
+      linkSync(customMeta, hardlinkAlias);
+      process.env.APP_DB_PATH = customMeta;
+
+      await expect(
+        store.create(alice, { name: 'sym', dialect: 'sqlite', option: { database: symlinkAlias } })
+      ).rejects.toMatchObject({ code: 'forbidden' });
+      await expect(
+        store.create(alice, { name: 'hard', dialect: 'duckdb', option: { database: hardlinkAlias } })
+      ).rejects.toMatchObject({ code: 'forbidden' });
+    } finally {
+      if (prevAppDb === undefined) delete process.env.APP_DB_PATH;
+      else process.env.APP_DB_PATH = prevAppDb;
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

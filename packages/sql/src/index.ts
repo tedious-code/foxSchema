@@ -651,5 +651,6 @@ export type {
 export { nonSecretFingerprint } from './cores/fingerprint.js';
 export { errorMessage } from './cores/error-message.js';
 export { escapeRegExp } from './cores/escape-regexp.js';
+export { assertSafeSqliteSql } from './modules/sql-text/sqlite-sql-guard.js';
 export { odbcEscape, db2CaLooksLikePem } from './providers/db2/db2.connection.js';
 export { IBM_DB_VERSION } from './providers/db2/db2.settings.js';

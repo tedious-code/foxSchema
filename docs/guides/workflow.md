@@ -226,8 +226,14 @@ them on save and re-reads them every **30 seconds**.
   parent reverse-RPC, pure-JS database drivers (Postgres, MySQL, MariaDB, SQL Server,
   Oracle thin, ClickHouse, Redshift, CockroachDB, Yugabyte) run inside the sandbox,
   and native-addon dialects (file-based SQLite, DuckDB, IBM Db2) delegate safely
-  over private reverse-RPC to FoxSchema (which still blocks `foxschema.db` and
-  `workflow-engine.sqlite`). Plugins require a `@sha256:` digest pin, and an
+  over private reverse-RPC to FoxSchema. Every SQLite and DuckDB connection (in
+  workflows and across FoxSchema) rejects `foxschema.db`, `workflow-engine.sqlite`,
+  and `.app_encryption_key` — including `file:` URIs, `-wal`/`-shm`/`-journal`
+  companions, symlinks, and hard links — while DuckDB sessions lock
+  `enable_external_access = false` with `lock_configuration = true` (blocking
+  `read_text`, `read_csv`, `ATTACH`, and `COPY ... TO/FROM`) and SQLite sessions
+  refuse `ATTACH`, `DETACH`, `VACUUM INTO`, `load_extension()`, and schema-safety
+  `PRAGMA` overrides. Plugins require a `@sha256:` digest pin, and an
   unexpected sandbox crash triggers automatic respawn with backoff without taking
   down FoxSchema. Production Docker images pre-build `packages/server/dist/workflow-sandbox.worker.mjs`
   so `node_modules` can stay read-only. Optional operator knobs:

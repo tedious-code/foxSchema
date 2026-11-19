@@ -18,6 +18,7 @@
 import { readdir, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, resolve, sep } from 'node:path';
+import { isProtectedInternalDatabasePath } from '../../platform/connections/resolve';
 
 /** Extensions a SQLite or DuckDB connection could actually open. */
 export const DATABASE_FILE_EXTENSIONS = [
@@ -115,6 +116,9 @@ export async function browseDirectory(rawPath?: string): Promise<FileBrowseResul
     // directory is followed on click, by the same stat as any other path.
     if (!dirent.isFile() && !dirent.isSymbolicLink()) continue;
     if (!isDatabaseFile(dirent.name)) continue;
+    // Never surface FoxSchema's own metadata or workflow-engine databases
+    // (or symlinks / hard links to them) in the user database picker.
+    if (isProtectedInternalDatabasePath(full)) continue;
     let size: number | undefined;
     let modifiedAt: string | undefined;
     try {

@@ -7,10 +7,10 @@
  *
  * Both are plain functions so a service can take them as a dependency.
  */
-import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   buildConnectionString,
+  isProtectedEmbeddedDatabasePath,
   normalizeTableSchemas,
   type ConnectionModule,
   type ConnectionOptions,
@@ -23,48 +23,35 @@ import type { WorkspaceScope } from '../http/scope';
 import { getMetadataDbConfig } from '../../database/config';
 
 const DEFAULT_METADATA_DB_PATH = fileURLToPath(new URL('../../database/foxschema.db', import.meta.url));
-const INTERNAL_DB_NAMES = new Set(['foxschema.db', 'workflow-engine.sqlite']);
 
-function stripSqliteCompanionSuffix(filePath: string): string {
-  return filePath.replace(/(?:-wal|-shm|-journal)$/i, '');
+/**
+ * Returns `true` when `rawPath` refers to Fox Schema's own metadata database,
+ * workflow-engine database, or local encryption key file — directly, via
+ * `file:` URI, companion `-wal`/`-shm`/`-journal` path, symlink, or hard link.
+ */
+export function isProtectedInternalDatabasePath(rawPath: string): boolean {
+  const cfg = getMetadataDbConfig();
+  return isProtectedEmbeddedDatabasePath(rawPath, [
+    DEFAULT_METADATA_DB_PATH,
+    cfg.path,
+    process.env.FOXFLOW_DB_PATH,
+  ]);
 }
 
-function normalizedFileTarget(raw: string): string | null {
-  const trimmed = raw.trim();
-  if (!trimmed || trimmed === ':memory:') return null;
-  if (trimmed.startsWith('file:')) {
-    try {
-      const parsed = new URL(trimmed);
-      return resolve(stripSqliteCompanionSuffix(decodeURIComponent(parsed.pathname)));
-    } catch {
-      return resolve(stripSqliteCompanionSuffix(trimmed.slice(5).split('?')[0] ?? ''));
-    }
-  }
-  return resolve(stripSqliteCompanionSuffix(trimmed));
+function embeddedTargetsFromOption(option: ConnectionOptions): string[] {
+  const rec = option as Record<string, unknown>;
+  const candidates = [rec.database, rec.connectionString, rec.filename, rec.file];
+  return candidates.filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
 }
 
 /** Reject SQLite / DuckDB connections that target Fox Schema's own metadata or workflow-engine databases. */
 export function assertSafeUserDatabasePath(dialect: string, option: ConnectionOptions): void {
   const d = dialect.trim().toLowerCase();
   if (d !== 'sqlite' && d !== 'duckdb') return;
-  const raw =
-    typeof option.database === 'string' && option.database.trim()
-      ? option.database
-      : typeof option.connectionString === 'string'
-        ? option.connectionString
-        : '';
-  const candidate = normalizedFileTarget(raw);
-  if (!candidate) return;
-  const name = basename(candidate).toLowerCase();
-  if (INTERNAL_DB_NAMES.has(name)) {
-    throw new ServiceError('forbidden', 'Cannot open Fox Schema internal metadata database as a user connection.');
-  }
-  const cfg = getMetadataDbConfig();
-  const blocked = [DEFAULT_METADATA_DB_PATH, cfg.path, process.env.FOXFLOW_DB_PATH]
-    .filter((p): p is string => typeof p === 'string' && p.length > 0 && p !== ':memory:')
-    .map((p) => resolve(stripSqliteCompanionSuffix(p)));
-  if (blocked.includes(candidate)) {
-    throw new ServiceError('forbidden', 'Cannot open Fox Schema internal metadata database as a user connection.');
+  for (const raw of embeddedTargetsFromOption(option)) {
+    if (isProtectedInternalDatabasePath(raw)) {
+      throw new ServiceError('forbidden', 'Cannot open Fox Schema internal metadata database as a user connection.');
+    }
   }
 }
 

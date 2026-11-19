@@ -331,8 +331,10 @@ async function registerSandboxEngineApi(
         };
         req.raw.on('close', onClientClose);
         const statusCode = await headPromise;
+        req.raw.off('close', onClientClose);
         if (statusCode === 499) {
           stop();
+          reply.hijack();
           return;
         }
         if (statusCode !== 200) {

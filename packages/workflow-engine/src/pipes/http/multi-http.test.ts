@@ -530,4 +530,207 @@ describe('MultiHttpSourcePipe', () => {
     expect(meta.category).toBe('Source/API');
     expect(meta.palette).toBe('primary');
   });
+
+  it('stops immediately in linear mode with onError: fail and never calls subsequent endpoints', async () => {
+    const called: string[] = [];
+    const pipe = new MultiHttpSourcePipe(async (input) => {
+      const url = String(input);
+      called.push(url);
+      if (url.endsWith('/second')) {
+        return new Response('boom', { status: 500 });
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    await expect(
+      collect(pipe, {
+        executionMode: 'linear',
+        onError: 'fail',
+        endpoints: [
+          { id: 'first', url: 'https://example.test/first' },
+          { id: 'second', url: 'https://example.test/second' },
+          { id: 'third', url: 'https://example.test/third' },
+        ],
+      }),
+    ).rejects.toThrow(/second.*500/i);
+
+    expect(called).toEqual(['https://example.test/first', 'https://example.test/second']);
+  });
+
+  it('continues in exact order in linear mode with onError: skip and merge outputMode', async () => {
+    const order: string[] = [];
+    const pipe = new MultiHttpSourcePipe(async (input) => {
+      const url = String(input);
+      order.push(url);
+      if (url.endsWith('/second')) {
+        return new Response('missing', { status: 404 });
+      }
+      return new Response(JSON.stringify({ source: url.split('/').pop() }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    const [merged] = await collect(pipe, {
+      executionMode: 'linear',
+      outputMode: 'merge',
+      onError: 'skip',
+      endpoints: [
+        { id: 'first', url: 'https://example.test/first' },
+        { id: 'second', url: 'https://example.test/second' },
+        { id: 'third', url: 'https://example.test/third' },
+      ],
+    });
+
+    expect(order).toEqual([
+      'https://example.test/first',
+      'https://example.test/second',
+      'https://example.test/third',
+    ]);
+    expect(Object.keys(merged ?? {})).toEqual(['first', 'second', 'third']);
+    expect(merged?.first).toEqual({ source: 'first' });
+    expect(merged?.second).toMatchObject({ ok: false, error: expect.stringMatching(/404/) });
+    expect(merged?.third).toEqual({ source: 'third' });
+  });
+
+  it('prevents sibling parallel workers from starting queued endpoints after an onError: fail abort', async () => {
+    const started: string[] = [];
+    let releaseSecond!: () => void;
+    const secondGate = new Promise<void>((resolve) => {
+      releaseSecond = resolve;
+    });
+
+    const pipe = new MultiHttpSourcePipe(async (input) => {
+      const url = String(input);
+      started.push(url);
+      if (url.endsWith('/ep1')) {
+        return new Response('bad gateway', { status: 502 });
+      }
+      if (url.endsWith('/ep2')) {
+        await secondGate;
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    const run = collect(pipe, {
+      executionMode: 'parallel',
+      concurrency: 2,
+      onError: 'fail',
+      endpoints: [
+        { id: 'ep1', url: 'https://example.test/ep1' },
+        { id: 'ep2', url: 'https://example.test/ep2' },
+        { id: 'ep3', url: 'https://example.test/ep3' },
+        { id: 'ep4', url: 'https://example.test/ep4' },
+      ],
+    });
+
+    await expect(run).rejects.toThrow(/ep1.*502/i);
+    releaseSecond();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(started).toEqual(['https://example.test/ep1', 'https://example.test/ep2']);
+  });
+
+  it('handles all-endpoints-failing gracefully under onError: skip in both records and merge modes', async () => {
+    const failingFetch: typeof fetch = async () => new Response('down', { status: 503 });
+    const pipe = new MultiHttpSourcePipe(failingFetch);
+
+    const recordsOut = await collect(pipe, {
+      executionMode: 'parallel',
+      outputMode: 'records',
+      onError: 'skip',
+      endpoints: [
+        { id: 'a', url: 'https://example.test/a' },
+        { id: 'b', url: 'https://example.test/b' },
+      ],
+    });
+    expect(recordsOut).toEqual([]);
+
+    const [mergedOut] = await collect(pipe, {
+      executionMode: 'parallel',
+      outputMode: 'merge',
+      onError: 'skip',
+      endpoints: [
+        { id: 'a', url: 'https://example.test/a' },
+        { id: 'b', url: 'https://example.test/b' },
+      ],
+    });
+    expect(mergedOut).toMatchObject({
+      a: { ok: false, error: expect.stringMatching(/503/) },
+      b: { ok: false, error: expect.stringMatching(/503/) },
+    });
+  });
+
+  it('handles empty arrays, 204/null responses, and non-object array elements cleanly', async () => {
+    const emptyArrPipe = new MultiHttpSourcePipe(stubFetch([]));
+    expect(
+      await collect(emptyArrPipe, {
+        outputMode: 'records',
+        endpoints: [{ id: 'empty', url: 'https://example.test/empty' }],
+      }),
+    ).toEqual([]);
+
+    const nullPipe = new MultiHttpSourcePipe(stubFetch(null));
+    await expect(
+      collect(nullPipe, {
+        outputMode: 'records',
+        onError: 'fail',
+        endpoints: [{ id: 'nil', url: 'https://example.test/nil' }],
+      }),
+    ).rejects.toThrow(/response is empty/i);
+    expect(
+      await collect(nullPipe, {
+        outputMode: 'records',
+        onError: 'skip',
+        endpoints: [{ id: 'nil', url: 'https://example.test/nil' }],
+      }),
+    ).toEqual([]);
+
+    const primitiveArrayPipe = new MultiHttpSourcePipe(stubFetch([1, 2, 3]));
+    await expect(
+      collect(primitiveArrayPipe, {
+        outputMode: 'records',
+        onError: 'fail',
+        endpoints: [{ id: 'nums', url: 'https://example.test/nums' }],
+      }),
+    ).rejects.toThrow(/must be a JSON object/i);
+  });
+
+  it('enforces parallel concurrency cap while preserving endpoint result order', async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const pipe = new MultiHttpSourcePipe(async (input) => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      const id = String(input).split('/').pop()!;
+      // Earlier endpoints finish slower to prove output order still matches config order.
+      const delayMs = id === 'e1' ? 25 : id === 'e2' ? 15 : 5;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      inFlight -= 1;
+      return new Response(JSON.stringify({ id }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    const rows = await collect(pipe, {
+      executionMode: 'parallel',
+      concurrency: 2,
+      endpoints: [
+        { id: 'e1', url: 'https://example.test/e1' },
+        { id: 'e2', url: 'https://example.test/e2' },
+        { id: 'e3', url: 'https://example.test/e3' },
+        { id: 'e4', url: 'https://example.test/e4' },
+        { id: 'e5', url: 'https://example.test/e5' },
+      ],
+    });
+
+    expect(maxInFlight).toBeLessThanOrEqual(2);
+    expect(rows.map((r) => r._endpoint)).toEqual(['e1', 'e2', 'e3', 'e4', 'e5']);
+  });
 });

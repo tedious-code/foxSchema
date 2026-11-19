@@ -66,9 +66,27 @@ describe('Palette', () => {
     render(<Palette categories={CATEGORIES} onAdd={vi.fn()} />);
 
     expect(screen.queryByText('Postgres stream')).toBeNull();
-    fireEvent.change(screen.getByTestId('workflow-palette-search-pipes'), {
-      target: { value: 'postgres' },
-    });
+    const search = screen.getByTestId('workflow-palette-search-pipes');
+    fireEvent.change(search, { target: { value: '  POSTGRES  ' } });
     expect(screen.getByText('Postgres stream')).toBeTruthy();
+
+    // Clearing search restores hiding advanced pipes when the toggle is unchecked.
+    fireEvent.change(search, { target: { value: '' } });
+    expect(screen.queryByText('Postgres stream')).toBeNull();
+  });
+
+  it('matches by pipe type id and renders empty states for no matches or loading catalog', () => {
+    const { rerender } = render(<Palette categories={CATEGORIES} onAdd={vi.fn()} />);
+    const search = screen.getByTestId('workflow-palette-search-pipes');
+
+    fireEvent.change(search, { target: { value: 'source.api.http.multi' } });
+    expect(screen.getByText('HTTP Multi')).toBeTruthy();
+    expect(screen.queryByText('HTTP API')).toBeNull();
+
+    fireEvent.change(search, { target: { value: 'does-not-exist-xyz' } });
+    expect(screen.getByText('No matches.')).toBeTruthy();
+
+    rerender(<Palette categories={[]} onAdd={vi.fn()} />);
+    expect(screen.getByText('Loading connectors…')).toBeTruthy();
   });
 });

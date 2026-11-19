@@ -6,8 +6,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import { parseWorkflow } from '@foxschema/workflow-engine/definitions';
 import {
+  assertKnownFromPorts,
+  createDefaultPipeRegistry,
+} from '@foxschema/workflow-engine';
+import {
   SAMPLE_API_ENRICH_MULTI_DB_WORKFLOW_ID,
   SAMPLE_CROSS_DB_ETL_SPLIT_WORKFLOW_ID,
+  SAMPLE_DEDUPE_NULLS_QUARANTINE_ETL_WORKFLOW_ID,
+  SAMPLE_DIRTY_ETL_RECORDS,
+  SAMPLE_EMPTY_BATCH_AND_LOOP_EDGE_WORKFLOW_ID,
   SAMPLE_FILE_CSV_MULTI_PIPELINE_WORKFLOW_ID,
   SAMPLE_HELLO_PEOPLE,
   SAMPLE_HELLO_WORKFLOW_ID,
@@ -17,6 +24,7 @@ import {
   SAMPLE_MULTI_DB_ETL_CONSOLIDATE_WORKFLOW_ID,
   SAMPLE_ORDERS,
   SAMPLE_ORDERS_WORKFLOW_ID,
+  SAMPLE_PARTIAL_FAILURE_RECOVERY_WORKFLOW_ID,
   SAMPLE_CANVAS_ID,
   SAMPLE_REGIONS_WORKFLOW_ID,
   WORKFLOW_SAMPLES,
@@ -128,14 +136,49 @@ describe('workflow samples', () => {
     );
   });
 
-  it('each sample parses as a workflow the engine would accept', () => {
-    expect(WORKFLOW_SAMPLES.length).toBeGreaterThanOrEqual(12);
+  it('each sample parses as a workflow the engine would accept and uses only known output ports', () => {
+    const registry = createDefaultPipeRegistry();
+    expect(WORKFLOW_SAMPLES.length).toBeGreaterThanOrEqual(15);
     for (const entry of WORKFLOW_SAMPLES) {
       const parsed = parseWorkflow(entry.document);
       expect(parsed.id).toBe(entry.id);
       expect(parsed.pipelines.length).toBeGreaterThan(0);
       expect(parsed.pipelines[0]!.pipes.length).toBeGreaterThan(0);
+      for (const pipeline of parsed.pipelines) {
+        const pipesById = new Map(pipeline.pipes.map((p) => [p.id, p]));
+        expect(() => assertKnownFromPorts(registry, pipesById, pipeline.edges), `${entry.id}/${pipeline.id}`).not.toThrow();
+      }
     }
+  });
+
+  it('includes edge-case samples for partial API failure recovery, dirty-data quarantine ETL, and empty branch + failure/always stages', () => {
+    const partial = sample(SAMPLE_PARTIAL_FAILURE_RECOVERY_WORKFLOW_ID);
+    expect(partial.document.dependencies).toEqual([
+      { from: 'partial_api_ingest', to: 'audit_always_stage', on: 'always' },
+    ]);
+    const partialHttp = partial.document.pipelines[0]!.pipes[0]!;
+    expect(partialHttp.config).toMatchObject({
+      executionMode: 'parallel',
+      outputMode: 'merge',
+      onError: 'skip',
+    });
+
+    const dirty = sample(SAMPLE_DEDUPE_NULLS_QUARANTINE_ETL_WORKFLOW_ID);
+    expect(SAMPLE_DIRTY_ETL_RECORDS.filter((r) => r.id === 301)).toHaveLength(2);
+    expect(SAMPLE_DIRTY_ETL_RECORDS.some((r) => r.email === null)).toBe(true);
+    expect(SAMPLE_DIRTY_ETL_RECORDS.some((r) => String(r.name).includes("O'Brien"))).toBe(true);
+    expect(dirty.document.pipelines[0]!.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ from: 'verify_clean_rows', fromPort: 'rejects', to: 'format_quarantine_rows' }),
+      ]),
+    );
+
+    const emptyBranch = sample(SAMPLE_EMPTY_BATCH_AND_LOOP_EDGE_WORKFLOW_ID);
+    expect(emptyBranch.document.pipelines).toHaveLength(3);
+    expect(emptyBranch.document.dependencies).toEqual([
+      { from: 'empty_branch_pipeline', to: 'fallback_on_failure', on: 'failure' },
+      { from: 'empty_branch_pipeline', to: 'always_summary', on: 'always' },
+    ]);
   });
 
   it('includes samples for multi-URL parallel merge, linear fail-fast API fetch, and multi-DB ETL warehouse consolidation', () => {

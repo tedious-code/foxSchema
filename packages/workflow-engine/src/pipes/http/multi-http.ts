@@ -226,17 +226,21 @@ async function forEachEndpoint<T>(
         : config.endpoints.length;
   const results = new Array<T>(config.endpoints.length);
   let next = 0;
+  let failed = false;
 
   const workers = Array.from(
     { length: Math.min(limit, config.endpoints.length) },
     async () => {
-      while (true) {
+      while (!failed) {
         const index = next++;
         if (index >= config.endpoints.length) return;
         try {
           results[index] = await work(config.endpoints[index]!);
         } catch (error) {
-          if (config.onError !== 'skip') throw error;
+          if (config.onError !== 'skip') {
+            failed = true;
+            throw error;
+          }
           results[index] = onSkip(error);
         }
       }

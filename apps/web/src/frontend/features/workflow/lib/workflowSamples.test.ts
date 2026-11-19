@@ -11,7 +11,10 @@ import {
   SAMPLE_FILE_CSV_MULTI_PIPELINE_WORKFLOW_ID,
   SAMPLE_HELLO_PEOPLE,
   SAMPLE_HELLO_WORKFLOW_ID,
+  SAMPLE_LINEAR_API_FAILFAST_DB_WORKFLOW_ID,
   SAMPLE_MULTI_API_FANOUT_WORKFLOW_ID,
+  SAMPLE_MULTI_API_MERGE_TO_DB_WORKFLOW_ID,
+  SAMPLE_MULTI_DB_ETL_CONSOLIDATE_WORKFLOW_ID,
   SAMPLE_ORDERS,
   SAMPLE_ORDERS_WORKFLOW_ID,
   SAMPLE_CANVAS_ID,
@@ -126,13 +129,58 @@ describe('workflow samples', () => {
   });
 
   it('each sample parses as a workflow the engine would accept', () => {
-    expect(WORKFLOW_SAMPLES.length).toBeGreaterThanOrEqual(9);
+    expect(WORKFLOW_SAMPLES.length).toBeGreaterThanOrEqual(12);
     for (const entry of WORKFLOW_SAMPLES) {
       const parsed = parseWorkflow(entry.document);
       expect(parsed.id).toBe(entry.id);
       expect(parsed.pipelines.length).toBeGreaterThan(0);
       expect(parsed.pipelines[0]!.pipes.length).toBeGreaterThan(0);
     }
+  });
+
+  it('includes samples for multi-URL parallel merge, linear fail-fast API fetch, and multi-DB ETL warehouse consolidation', () => {
+    const parallelMerge = sample(SAMPLE_MULTI_API_MERGE_TO_DB_WORKFLOW_ID);
+    const parallelHttp = parallelMerge.document.pipelines[0]!.pipes[0]!;
+    expect(parallelHttp.type).toBe('source.api.http.multi');
+    expect(parallelHttp.config).toMatchObject({
+      executionMode: 'parallel',
+      outputMode: 'merge',
+      onError: 'skip',
+    });
+    expect(parallelMerge.document.pipelines).toHaveLength(2);
+
+    const linearFailFast = sample(SAMPLE_LINEAR_API_FAILFAST_DB_WORKFLOW_ID);
+    const linearHttp = linearFailFast.document.pipelines[0]!.pipes[0]!;
+    expect(linearHttp.type).toBe('source.api.http.multi');
+    expect(linearHttp.config).toMatchObject({
+      executionMode: 'linear',
+      outputMode: 'merge',
+      onError: 'fail',
+    });
+
+    const multiDbEtl = sample(SAMPLE_MULTI_DB_ETL_CONSOLIDATE_WORKFLOW_ID);
+    expect(multiDbEtl.document.pipelines).toHaveLength(2);
+    expect(multiDbEtl.document.dependencies).toEqual([
+      { from: 'seed_regional_dbs', to: 'consolidate_to_warehouse', on: 'success' },
+    ]);
+    const consolidateStage = multiDbEtl.document.pipelines[1]!;
+    const sourceDialects = new Set(
+      consolidateStage.pipes
+        .filter((pipe) => pipe.type === 'source.db.sql')
+        .map((pipe) => pipe.config.dialect),
+    );
+    const sinkDialects = new Set(
+      consolidateStage.pipes
+        .filter((pipe) => pipe.type === 'sink.db.sql')
+        .map((pipe) => pipe.config.dialect),
+    );
+    expect(sourceDialects).toEqual(new Set(['postgres', 'sqlite']));
+    expect(sinkDialects).toEqual(new Set(['postgres', 'sqlite']));
+    expect(consolidateStage.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ from: 'verify_order_quality', fromPort: 'rejects', to: 'quarantine_bad_orders' }),
+      ]),
+    );
   });
 
   it('includes multi-pipeline samples covering API enrich, CSV handoff, multi-HTTP split/loop, verify, merge, and multi-DB sinks', () => {

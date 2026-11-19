@@ -17,6 +17,7 @@
  * the dialect's own placeholder style, and table and column names are quoted
  * for the dialect.
  */
+import { basename, resolve } from 'node:path';
 import * as z from 'zod';
 import {
   makeSqlQuery,
@@ -61,7 +62,80 @@ export type SqlRunner = (
   options: { dedicated: boolean },
 ) => Promise<SqlSession>;
 
+const BLOCKED_SQLITE_BASENAMES = new Set([
+  'foxschema.db',
+  'workflow-engine.sqlite',
+]);
+
+function sqliteTargetFromOption(option: Record<string, unknown>): string {
+  const conn = option.connectionString;
+  if (typeof conn === 'string' && conn.trim()) return conn.trim();
+  const raw = option.database ?? option.filename ?? option.file;
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : ':memory:';
+}
+
+function assertSafeSqliteTarget(target: string): void {
+  if (target === ':memory:' || target.startsWith('file::memory:')) return;
+  let fsCandidate = target;
+  if (fsCandidate.startsWith('file:')) {
+    try {
+      fsCandidate = new URL(fsCandidate).pathname;
+    } catch {
+      fsCandidate = fsCandidate.slice('file:'.length).split('?')[0] ?? fsCandidate;
+    }
+  }
+  const normalizedTarget = resolve(fsCandidate);
+  const blockedExact = [process.env.APP_DB_PATH, process.env.FOXFLOW_DB_PATH]
+    .filter((value): value is string => Boolean(value && value.trim()))
+    .map((value) => resolve(value));
+  const targetName = basename(normalizedTarget).toLowerCase();
+  if (BLOCKED_SQLITE_BASENAMES.has(targetName) || blockedExact.includes(normalizedTarget)) {
+    throw new Error('Refusing to open FoxSchema internal database from a workflow SQL pipe');
+  }
+}
+
+async function openMemorySqliteSession(): Promise<SqlSession> {
+  const { DatabaseSync } = await import('node:sqlite');
+  const db = new DatabaseSync(':memory:');
+  return {
+    async query(sql, params) {
+      const stmt = db.prepare(sql);
+      const args = params as never[];
+      if (stmt.columns().length > 0) {
+        return stmt.all(...args) as Record<string, unknown>[];
+      }
+      stmt.run(...args);
+      return [];
+    },
+    async transaction(work) {
+      db.exec('BEGIN');
+      try {
+        const result = await work();
+        db.exec('COMMIT');
+        return result;
+      } catch (error) {
+        try {
+          db.exec('ROLLBACK');
+        } catch {
+          // ignore
+        }
+        throw error;
+      }
+    },
+    async close() {
+      db.close();
+    },
+  };
+}
+
 const foxSchemaDrivers: SqlRunner = async ({ dialect, schema, option }, { dedicated }) => {
+  if (dialect === 'sqlite') {
+    const target = sqliteTargetFromOption(option);
+    assertSafeSqliteTarget(target);
+    if (target === ':memory:') {
+      return openMemorySqliteSession();
+    }
+  }
   const db = await import('@foxschema/db');
   const adapter = db.getAdapter(dialect);
   const handle = await db.ConnectionFactory.create(dialect, option as never, { pooled: !dedicated });

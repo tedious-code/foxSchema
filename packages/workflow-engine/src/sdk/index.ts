@@ -37,8 +37,10 @@ export {
 export {
   runSandboxed,
   runSandboxedWithLogs,
+  setScriptSandboxDelegate,
   SandboxError,
   SandboxTimeoutError,
+  type ScriptSandboxDelegate,
   type SandboxLog,
   type SandboxOptions,
   type SandboxOutcome,

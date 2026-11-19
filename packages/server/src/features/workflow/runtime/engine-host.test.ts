@@ -72,7 +72,10 @@ describe('production workflow engine host', () => {
     await settings.set(WORKFLOW_ENGINE_CONFIG_KEY, JSON.stringify({ state: 'disabled', maxParallel: 1 }));
     try {
       const host = await startProductionWorkflowEngine();
-      const result = await host.ctx.scheduler.enqueue(MINIMAL);
+      expect(host.backend.mode).toBe('sandbox');
+      expect(host.backend.pid).toBeDefined();
+      expect(host.backend.pid).not.toBe(process.pid);
+      const result = await host.backend.enqueueWorkflow(MINIMAL);
       expect(result.accepted).toBe(false);
       expect(result.reason).toBe('disabled');
     } finally {

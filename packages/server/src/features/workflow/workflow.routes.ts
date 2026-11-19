@@ -65,7 +65,7 @@ export function createWorkflowRoutes(deps: WorkflowRouteDeps = {}): Router {
   const grantsOf = (): GrantsApi =>
     deps.grants ?? getProductionWorkflowEngine()?.grants ?? fallbackGrants;
   const credentialsOf = (): CredentialsApi | undefined =>
-    deps.credentials ?? getProductionWorkflowEngine()?.ctx.credentials;
+    deps.credentials ?? getProductionWorkflowEngine()?.backend.credentials;
   const router = Router();
 
   // Saved connections, and which of them workflows may use. Only the owner can

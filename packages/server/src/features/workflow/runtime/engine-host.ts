@@ -3,8 +3,9 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * The one in-process engine this API process runs: stores, admission, and
- * the saved-connection resolver the credential store calls per run.
+ * The process-wide workflow engine host run by FoxSchema: isolated by default in
+ * a Node `--permission` child process over a private OS IPC channel, with an
+ * explicit `FOXFLOW_SANDBOX_MODE=in-process` fallback for debugging/tests.
  */
 import type { EngineRuntimeConfig, WorkflowEngineConfig } from '@foxschema/workflow-contract';
 import { AppSettingsStore } from '../../../platform/settings/app-settings.service';
@@ -13,16 +14,25 @@ import { WorkflowSettingsService } from '../workflow-settings.service';
 import { createContext, type AppContext } from './context.js';
 import { attachEngineSettings } from './engine-settings.js';
 import { markWorkflowEngineReady } from './engine-ready.js';
+import {
+  WorkflowSandboxClient,
+  createInProcessBackend,
+} from './sandbox-client.js';
+import type { WorkflowEngineBackend } from './sandbox-protocol.js';
+
+const SETTINGS_REFRESH_MS = 30_000;
 
 export interface WorkflowEngineHost {
-  ctx: AppContext;
+  backend: WorkflowEngineBackend;
+  /** Populated only when `FOXFLOW_SANDBOX_MODE=in-process`. */
+  ctx?: AppContext;
   settings: WorkflowSettingsService;
   grants: WorkflowConnectionGrants;
   applyAdmission: () => Promise<void>;
 }
 
 let production: WorkflowEngineHost | undefined;
-let detachSettings: (() => Promise<void>) | undefined;
+let cleanupHost: (() => Promise<void>) | undefined;
 let starting: Promise<WorkflowEngineHost> | undefined;
 let refs = 0;
 
@@ -54,48 +64,118 @@ export async function startProductionWorkflowEngine(): Promise<WorkflowEngineHos
   }
 }
 
+function toRuntimeConfig(config: WorkflowEngineConfig): EngineRuntimeConfig {
+  return {
+    state: config.state,
+    maxParallel: config.maxParallel,
+    sinks: config.sinks,
+  };
+}
+
 async function openProductionHost(): Promise<WorkflowEngineHost> {
   const grants = new WorkflowConnectionGrants();
-  const ctx = createContext({
-    databasePath: process.env.FOXFLOW_DB_PATH ?? (process.env.VITEST ? ':memory:' : undefined),
-    resolveFoxSchemaConnection: async (connectionId) => {
-      const resolved = await grants.resolveForEngine(connectionId);
-      if (!resolved) return undefined;
-      return {
-        dialect: resolved.dialect,
-        ...(resolved.schema ? { schema: resolved.schema } : {}),
-        option: resolved.option,
-      };
-    },
-  });
-
-  function applyAdmissionFrom(config: WorkflowEngineConfig): void {
-    ctx.scheduler.setAdmission({
-      state: config.state,
-      maxConcurrentRuns: config.maxParallel,
-    });
-  }
-
-  const settings = new WorkflowSettingsService(new AppSettingsStore(), applyAdmissionFrom);
-  const host: WorkflowEngineHost = {
-    ctx,
-    settings,
-    grants,
-    applyAdmission: async () => applyAdmissionFrom(await settings.getConfig()),
+  const resolveFoxSchemaConnection = async (connectionId: string) => {
+    const resolved = await grants.resolveForEngine(connectionId);
+    if (!resolved) return undefined;
+    return {
+      dialect: resolved.dialect,
+      ...(resolved.schema ? { schema: resolved.schema } : {}),
+      option: resolved.option,
+    };
   };
 
-  try {
-    await host.applyAdmission();
-  } catch (error) {
-    ctx.close();
-    throw error;
+  if (process.env.FOXFLOW_SANDBOX_MODE === 'in-process') {
+    const ctx = createContext({
+      databasePath: process.env.FOXFLOW_DB_PATH ?? (process.env.VITEST ? ':memory:' : undefined),
+      resolveFoxSchemaConnection,
+    });
+
+    function applyAdmissionFrom(config: WorkflowEngineConfig): void {
+      ctx.scheduler.setAdmission({
+        state: config.state,
+        maxConcurrentRuns: config.maxParallel,
+      });
+    }
+
+    const settings = new WorkflowSettingsService(new AppSettingsStore(), applyAdmissionFrom);
+    let detachSettings: (() => Promise<void>) | undefined;
+    const backend = createInProcessBackend(ctx, {
+      onClose: async () => {
+        await detachSettings?.();
+        detachSettings = undefined;
+      },
+    });
+    const host: WorkflowEngineHost = {
+      backend,
+      ctx,
+      settings,
+      grants,
+      applyAdmission: async () => applyAdmissionFrom(await settings.getConfig()),
+    };
+
+    try {
+      await host.applyAdmission();
+    } catch (error) {
+      ctx.close();
+      throw error;
+    }
+
+    production = host;
+    detachSettings = attachEngineSettings(ctx, async (): Promise<EngineRuntimeConfig> =>
+      toRuntimeConfig(await settings.getConfig()),
+    );
+    cleanupHost = async () => {
+      await backend.close();
+    };
+    markWorkflowEngineReady(true);
+    refs = 1;
+    return host;
   }
 
-  production = host;
-  detachSettings = attachEngineSettings(ctx, async (): Promise<EngineRuntimeConfig> => {
-    const config = await settings.getConfig();
-    return { state: config.state, maxParallel: config.maxParallel, sinks: config.sinks };
+  let backend: WorkflowSandboxClient | undefined;
+  const settings = new WorkflowSettingsService(
+    new AppSettingsStore(),
+    (config) => {
+      void backend?.applyRuntimeConfig(toRuntimeConfig(config)).catch(() => undefined);
+    },
+    async () =>
+      backend
+        ? backend.probeHealth()
+        : { ok: false, error: 'Workflow engine sandbox is not started' },
+  );
+
+  backend = new WorkflowSandboxClient({
+    databasePath: process.env.FOXFLOW_DB_PATH ?? (process.env.VITEST ? ':memory:' : undefined),
+    encryptionKey: process.env.FOXFLOW_ENCRYPTION_KEY ?? '',
+    resolveFoxSchemaConnection,
+    loadRuntimeConfig: async () => toRuntimeConfig(await settings.getConfig()),
+    onReadyChange: (ready) => markWorkflowEngineReady(ready),
   });
+
+  await backend.start();
+
+  const refreshTimer = setInterval(() => {
+    void settings
+      .getConfig()
+      .then((cfg) => backend?.applyRuntimeConfig(toRuntimeConfig(cfg)))
+      .catch(() => undefined);
+  }, SETTINGS_REFRESH_MS);
+  refreshTimer.unref?.();
+
+  const host: WorkflowEngineHost = {
+    backend,
+    settings,
+    grants,
+    applyAdmission: async () => {
+      await backend.applyRuntimeConfig(toRuntimeConfig(await settings.getConfig()));
+    },
+  };
+
+  production = host;
+  cleanupHost = async () => {
+    clearInterval(refreshTimer);
+    await backend.close();
+  };
   markWorkflowEngineReady(true);
   refs = 1;
   return host;
@@ -106,9 +186,9 @@ export async function stopProductionWorkflowEngine(): Promise<void> {
   if (!production || refs <= 0) return;
   refs -= 1;
   if (refs > 0) return;
-  await detachSettings?.();
-  detachSettings = undefined;
-  production.ctx.close();
+  const stop = cleanupHost;
+  cleanupHost = undefined;
   production = undefined;
   markWorkflowEngineReady(false);
+  await stop?.();
 }

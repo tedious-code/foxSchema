@@ -303,6 +303,23 @@ export async function resolveStoredSecret(
   return resolved;
 }
 
+const FORBIDDEN_CREDENTIAL_ENV_VARS = new Set([
+  'APP_ENCRYPTION_KEY',
+  'FOXFLOW_ENCRYPTION_KEY',
+  'SESSION_SECRET',
+  'APP_DB_PATH',
+  'APP_DB_URL',
+  'APP_DB_ENGINE',
+  'APP_DB_PASSWORD',
+  'WORKFLOW_ENGINE_TOKEN',
+  'FOXSCHEMA_SETUP_CODE',
+  'SMTP_PASS',
+  'GOOGLE_CLIENT_SECRET',
+  'GITHUB_CLIENT_SECRET',
+  'OIDC_CLIENT_SECRET',
+  'NODE_OPTIONS',
+]);
+
 function resolveEnvSecret(
   payload: StoredSecretPayload,
   env: NodeJS.ProcessEnv,
@@ -311,6 +328,11 @@ function resolveEnvSecret(
   const out: Record<string, unknown> = {};
   const missing: string[] = [];
   for (const [field, envName] of Object.entries(mapping)) {
+    if (FORBIDDEN_CREDENTIAL_ENV_VARS.has(envName.trim().toUpperCase())) {
+      throw new Error(
+        `Environment variable "${envName}" cannot be read by workflow credentials`,
+      );
+    }
     const value = env[envName];
     if (value === undefined || value === '') {
       missing.push(envName);

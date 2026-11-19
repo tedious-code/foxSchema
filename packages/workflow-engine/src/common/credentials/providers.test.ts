@@ -297,4 +297,23 @@ describe('secret providers', () => {
     });
     delete process.env.FOXFLOW_TEST_TOKEN;
   });
+
+  it('refuses reading FoxSchema internal secret env vars', async () => {
+    for (const secretKey of [
+      'APP_ENCRYPTION_KEY',
+      'FOXFLOW_ENCRYPTION_KEY',
+      'SESSION_SECRET',
+      'APP_DB_PATH',
+      'WORKFLOW_ENGINE_TOKEN',
+      'FOXSCHEMA_SETUP_CODE',
+      'NODE_OPTIONS',
+    ]) {
+      await expect(
+        resolveStoredSecret(
+          { source: 'env', mapping: { key: secretKey } },
+          { [secretKey]: 'should-never-leak' },
+        ),
+      ).rejects.toThrow(/cannot be read by workflow credentials/);
+    }
+  });
 });

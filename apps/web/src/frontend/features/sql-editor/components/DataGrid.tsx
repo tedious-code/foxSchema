@@ -23,6 +23,7 @@ import {
   type GridSelection,
 } from '@/features/sql-editor/utils/copyGrid';
 import { writeClipboard } from '@/shared/utils/clipboard';
+import { isWriteStatement } from '@/shared/lib/sql-splitter';
 import {
   EMPTY_VIEW,
   applyGridView,
@@ -547,6 +548,8 @@ export const DataGrid: React.FC<{
    * (`modified` / `missing` / `extra`), or null when unchanged.
    */
   cellHighlight?: (rowIdx: number, colIdx: number) => CellDiffKind | null;
+  /** Optional source SQL used to distinguish empty query results from DDL/DML execution. */
+  statementSql?: string;
   /** Compare migrate: per-row Sync checkbox (sticky right); null = matching row. */
   rowSync?: {
     isChecked: (rowIdx: number) => boolean | null;
@@ -579,6 +582,7 @@ export const DataGrid: React.FC<{
     toolbarExtra,
     emphasis = false,
     cellHighlight,
+    statementSql,
     rowSync,
   }) => {
   const upsertVariable = useSqlEditorStore((s) => s.upsertVariable);
@@ -1185,7 +1189,11 @@ export const DataGrid: React.FC<{
       >
         {sourceColumns.length === 0 ? (
           <div className={`px-3 py-2 ${emphasis ? 'text-sm font-semibold' : 'text-xs'} text-[var(--fox-grid-muted)] italic`}>
-            0 rows (column names unavailable for empty results)
+            {(statementSql && isWriteStatement(statementSql)) || result.rowCount > 0
+              ? result.rowCount > 0
+                ? `Statement executed successfully (${result.rowCount} row${result.rowCount === 1 ? '' : 's'} affected)`
+                : 'Statement executed successfully'
+              : '0 rows (column names unavailable for empty results)'}
           </div>
         ) : (
           <table

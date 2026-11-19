@@ -33,6 +33,9 @@ function dialectBadgeText(dialect?: string): string {
 interface Props {
   tabs: SqlTab[];
   activeTabId: string;
+  shareDestinations?: boolean;
+  sharedConnectionIds?: string[];
+  bookmarks?: readonly { id: string; sql: string }[];
   onSelect: (id: string) => void;
   onClose: (id: string) => void;
   onAdd: () => void;
@@ -48,6 +51,9 @@ interface Props {
 export const EditorTabBar: React.FC<Props> = ({
   tabs,
   activeTabId,
+  shareDestinations,
+  sharedConnectionIds,
+  bookmarks,
   onSelect,
   onClose,
   onAdd,
@@ -102,9 +108,16 @@ export const EditorTabBar: React.FC<Props> = ({
             ? 'Last empty query — add another tab first'
             : 'Clear this query (editor always keeps one tab)'
           : `Close ${tab.title}`;
-        const dialects = (tab.selectedConnectionIds ?? [])
+        const effectiveIds = shareDestinations
+          ? (sharedConnectionIds ?? [])
+          : (tab.selectedConnectionIds ?? []);
+        const dialects = effectiveIds
           .map((id) => connections.find((c) => c.id === id)?.dialect)
           .filter(Boolean) as string[];
+        const linkedBookmark = tab.bookmarkId && bookmarks
+          ? bookmarks.find((b) => b.id === tab.bookmarkId)
+          : undefined;
+        const isBookmarkDirty = Boolean(linkedBookmark && linkedBookmark.sql !== tab.sql);
         const badge =
           dialects.length === 1
             ? dialectBadgeText(dialects[0])
@@ -213,9 +226,20 @@ export const EditorTabBar: React.FC<Props> = ({
                 className="bg-slate-950 border border-cyan-600/50 rounded px-1 py-0 text-[11px] outline-none w-28 text-slate-100 cursor-text"
               />
             ) : (
-              <span className="truncate min-w-0" title={tab.title}>
-                {tab.title}
-              </span>
+              <>
+                <span className="truncate min-w-0" title={tab.title}>
+                  {tab.title}
+                </span>
+                {isBookmarkDirty && (
+                  <span
+                    data-testid={`sql-tab-dirty-${tab.id}`}
+                    className="text-amber-400 shrink-0 leading-none"
+                    title="Modified from saved bookmark"
+                  >
+                    •
+                  </span>
+                )}
+              </>
             )}
 
             {/* Rename button */}

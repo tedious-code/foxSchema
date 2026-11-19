@@ -16,7 +16,7 @@
  * personal workspace always keeps the account it belongs to.
  */
 import { randomUUID } from 'node:crypto';
-import { isWorkspaceRole, WORKSPACE_ROLES, type AppRole, type Permission, type WorkspaceRole } from '@foxschema/shared';
+import { isDemoRole, isWorkspaceRole, WORKSPACE_ROLES, type AppRole, type Permission, type WorkspaceRole } from '@foxschema/shared';
 import { getStore } from '../../database/store';
 import type { MetadataStore } from '../../database/stores/types';
 import { RbacModule } from '../../platform/authorization/rbac.service';
@@ -173,6 +173,10 @@ export class WorkspaceDirectory {
     const store = await getStore();
     await this.workspace(store, workspaceId);
     if (!(await effectiveMemberRole(store, workspaceId, userId))) throw new ServiceError('not_found', 'Workspace not found');
+    const userRow = await store.get<{ app_role: string | null }>('SELECT app_role FROM users WHERE id = ?', [userId]);
+    // A shared demo login is used by many visitors simultaneously; letting one write
+    // user_preferences.last_workspace_id would switch every other visitor's workspace.
+    if (isDemoRole(userRow?.app_role)) return;
     await store.upsert(
       'user_preferences',
       ['user_id'],
@@ -323,11 +327,15 @@ export class WorkspaceDirectory {
   }
 
   private async assertOwnerRemains(store: MetadataStore, workspaceId: string, leavingUserId: string) {
-    const row = await store.get<{ n: number }>(
-      "SELECT COUNT(*) AS n FROM workspace_members WHERE workspace_id = ? AND role = 'owner' AND user_id != ?",
+    const rows = await store.all<StoredRoleRow>(
+      `SELECT ${CAPPED_ROLE_COLUMNS}
+         FROM workspace_members m
+         JOIN workspaces w ON w.id = m.workspace_id
+         ${CAPPED_ROLE_JOINS}
+        WHERE m.workspace_id = ? AND m.user_id != ? AND (mu.active IS NULL OR mu.active != 0)`,
       [workspaceId, leavingUserId]
     );
-    if (Number(row?.n ?? 0) === 0) {
+    if (!rows.some((r) => cappedRole(r) === 'owner')) {
       throw new ServiceError('conflict', 'A workspace needs an owner. Make someone else an owner first.');
     }
   }

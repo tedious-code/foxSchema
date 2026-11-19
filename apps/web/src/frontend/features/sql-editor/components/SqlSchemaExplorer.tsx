@@ -132,6 +132,7 @@ export const SqlSchemaExplorer = forwardRef<
   );
 
   const [explorerId, setExplorerId] = useState<string>(() => readStoredExplorerId());
+  const [objectFilter, setObjectFilter] = useState('');
   const [expandedObj, setExpandedObj] = useState<Record<string, boolean>>({});
   const [expandedGroup, setExpandedGroup] = useState<Record<string, boolean>>({
     TABLE: true,
@@ -205,9 +206,13 @@ export const SqlSchemaExplorer = forwardRef<
   const entry = explorerId ? schemaCache[explorerId] : undefined;
   const grouped = useMemo(() => {
     const list = entry?.tables ?? [];
+    const q = objectFilter.trim().toLowerCase();
     const map = new Map<DbObjectType, TableSchema[]>();
     for (const g of EXPLORER_GROUPS) map.set(g.type, []);
     for (const t of list) {
+      if (q && !t.name.toLowerCase().includes(q)) {
+        continue;
+      }
       const bucket = map.get(t.objectType);
       if (bucket) bucket.push(t);
     }
@@ -215,7 +220,7 @@ export const SqlSchemaExplorer = forwardRef<
       items.sort((a, b) => a.name.localeCompare(b.name));
     }
     return map;
-  }, [entry?.tables]);
+  }, [entry?.tables, objectFilter]);
 
   const totalCount = useMemo(
     () => EXPLORER_GROUPS.reduce((n, g) => n + (grouped.get(g.type)?.length ?? 0), 0),
@@ -338,6 +343,17 @@ export const SqlSchemaExplorer = forwardRef<
               )}
             </button>
           </div>
+          {explorerId && (
+            <input
+              type="text"
+              data-testid="sql-schema-object-filter"
+              value={objectFilter}
+              onChange={(e) => setObjectFilter(e.target.value)}
+              placeholder="Filter tables, views, routines…"
+              aria-label="Filter schema objects"
+              className="w-full rounded border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-200 placeholder-slate-500 outline-none accent-focus"
+            />
+          )}
 
           {schemaMissingHint && (
             <p className="text-[11px] text-amber-300 break-words font-medium" data-testid="sql-schema-missing">
@@ -450,7 +466,20 @@ export const SqlSchemaExplorer = forwardRef<
                           onPeek={(name) => explorerId && void openDataPeek(explorerId, name)}
                           onOpenSource={
                             isScriptableObject(t.objectType)
-                              ? () => void objectSourceScript(t, conn?.dialect ?? 'sql').then(setSql)
+                              ? () => {
+                                  void objectSourceScript(t, conn?.dialect ?? 'sql').then((ddl) => {
+                                    const st = useSqlEditorStore.getState();
+                                    const cur = st.tabs.find((x) => x.id === st.activeTabId);
+                                    if (cur && cur.sql.trim()) {
+                                      st.addTab();
+                                      const nextState = useSqlEditorStore.getState();
+                                      nextState.renameTab(nextState.activeTabId, t.name);
+                                      nextState.setSql(ddl);
+                                    } else {
+                                      setSql(ddl);
+                                    }
+                                  });
+                                }
                               : undefined
                           }
                         />
@@ -664,6 +693,20 @@ const ObjectNode: React.FC<{
         </button>
         {/* One group, so the actions wrap as a unit instead of splitting apart. */}
         <span className="shrink-0 flex items-center gap-0.5">
+          {canPeek && onPeek && (
+            <button
+              type="button"
+              title={`Peek rows (${peekModifierLabel()}-click name also peeks)`}
+              data-testid={`sql-schema-peek-${table.name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onPeek(table.name);
+              }}
+              className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold text-amber-200 bg-amber-950/60 border border-amber-600/50 hover:bg-amber-900/70 transition whitespace-nowrap"
+            >
+              Peek
+            </button>
+          )}
           {canInsertFrom && (
             <button
               type="button"

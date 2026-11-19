@@ -12,7 +12,7 @@ import type { ConnectionResolver } from '../../platform/connections/resolve';
 import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
-import { requirePermissions } from '../../platform/authorization/rbac.guard';
+import { requireAnyPermission, requirePermissions } from '../../platform/authorization/rbac.guard';
 import type { AuthedRequest } from '../../platform/http/types';
 import { rateLimit } from '../../platform/guards/rate-limit';
 import { targetKey, targetLocks } from '../../platform/guards/target-lock';
@@ -536,6 +536,7 @@ export function createHistoryRoutes(deps: HistoryRouteDeps): Router {
   router.patch(
     '/lokee/databases/:id/versions/:versionId',
     requirePermissions('schema.browse'),
+    requireAnyPermission('editor.ddl', 'schema.migrate'),
     async (req: AppRequest, res: FastifyReply) => {
       const body = req.body as { name?: string | null; description?: string | null };
       const updated = await deps.lokee.updateVersionMeta(

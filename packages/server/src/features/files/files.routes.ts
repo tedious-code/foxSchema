@@ -302,7 +302,7 @@ export function createFileQueryRoutes(connectionStore: ConnectionStore): Router 
         const scope = scopeOf(req as AuthedRequest)!;
         const parsed = parseImportBody(req.body as Record<string, unknown>);
         // Credential bulk-load runs DROP/CREATE/INSERT — same bar as /sql/execute writes.
-        if (parsed.targetConnectionId && denyUnless(req as AuthedRequest, res, 'editor.write')) {
+        if (parsed.targetConnectionId && denyUnless(req as AuthedRequest, res, 'editor.ddl', 'editor.dml')) {
           return;
         }
         const result = await runImport(connectionStore, scope, parsed);
@@ -332,7 +332,7 @@ export function createFileQueryRoutes(connectionStore: ConnectionStore): Router 
         const targetConnectionId = body.targetConnectionId
           ? String(body.targetConnectionId)
           : undefined;
-        if (targetConnectionId && denyUnless(req as AuthedRequest, res, 'editor.write')) {
+        if (targetConnectionId && denyUnless(req as AuthedRequest, res, 'editor.ddl', 'editor.dml')) {
           return;
         }
         const session = createUploadSession(userId, {
@@ -409,7 +409,7 @@ export function createFileQueryRoutes(connectionStore: ConnectionStore): Router 
         // Re-check at commit: session may have been created before a role change.
         if (
           session.targetConnectionId &&
-          denyUnless(req as AuthedRequest, res, 'editor.write')
+          denyUnless(req as AuthedRequest, res, 'editor.ddl', 'editor.dml')
         ) {
           return;
         }

@@ -5,7 +5,7 @@
  *
  * Workflow engine — moved from FoxAgent (packages/pipes/http/src/request.test.ts).
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { randomBytes } from 'node:crypto';
 import { InMemoryCredentialStore, parseHttpRequest } from '../../common/index.js';
 import { buildHttpRequest, describeHttpFailure, executeHttpRequest } from './request.js';
@@ -443,5 +443,47 @@ describe('describeHttpFailure', () => {
   it('is just the status when the body says nothing', () => {
     expect(describeHttpFailure({ status: 500, body: '' })).toBe('returned 500');
     expect(describeHttpFailure({ status: 500, body: undefined })).toBe('returned 500');
+  });
+});
+
+describe('SSRF redirect protection', () => {
+  it('blocks HTTP 302 redirects pointing to loopback or cloud metadata', async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(null, { status: 302, headers: { location: 'http://127.0.0.1:3210/api/health' } }),
+    ) as unknown as typeof fetch;
+
+    await expect(
+      executeHttpRequest({
+        request: parseHttpRequest({ method: 'GET', url: 'https://api.example.com/start' }),
+        secret: {},
+        fetch: fetchMock,
+      }),
+    ).rejects.toThrow(/not a public address/);
+  });
+
+  it('strips Authorization and Cookie headers when following cross-origin redirects', async () => {
+    const seenHeaders: Array<Headers> = [];
+    let callCount = 0;
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      seenHeaders.push(new Headers(init?.headers));
+      callCount += 1;
+      if (callCount === 1) {
+        return new Response(null, { status: 302, headers: { location: 'https://cdn.other-domain.com/file' } });
+      }
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }) as unknown as typeof fetch;
+
+    const result = await executeHttpRequest({
+      request: parseHttpRequest({
+        method: 'GET',
+        url: 'https://api.example.com/start',
+        auth: { type: 'bearer', token: 'top-secret' },
+      }),
+      secret: {},
+      fetch: fetchMock,
+    });
+    expect(result.ok).toBe(true);
+    expect(seenHeaders[0]?.get('authorization')).toBe('Bearer top-secret');
+    expect(seenHeaders[1]?.get('authorization')).toBeNull();
   });
 });

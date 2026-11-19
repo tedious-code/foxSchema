@@ -23,6 +23,7 @@ export interface MigrationRunSummary {
   error?: string;
   startedAt: string;
   finishedAt?: string;
+  author?: string;
   /** The committed migration this run applied, when it came from Git. */
   git?: { repoId: string; branch?: string; commit: string; path: string };
 }

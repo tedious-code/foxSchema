@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1076** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1095** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -506,11 +506,16 @@ Every control has a test ID: **1076** buttons, text boxes, selects and textareas
   - `auth-login-form` · form
   - `auth-login-submit` · button · Sign in
   - `auth-setup-code` · input · ABCD-EFGH
+  - `auth-setup-code-announce` · button · Generate new code in server log
+  - `auth-setup-code-note` · p
   - `auth-setup-email` · input · your@email.com
   - `auth-setup-form` · form
   - `auth-setup-submit` · button · Create account
 - **NewPasswordFields** · `features/auth/components/NewPasswordFields.tsx`
   - `auth-news-opt-in` · input
+  - `auth-password-copy-generated` · button
+  - `auth-password-generate` · button · Auto-generate
+  - `auth-password-generated-notice` · div
   - `caps-lock-hint` · p
   - `password-rules` · ul
 - **OnboardingWizard** · `features/auth/components/OnboardingWizard.tsx`
@@ -812,6 +817,7 @@ Every control has a test ID: **1076** buttons, text boxes, selects and textareas
   - `lokee-inspector-blueprint` · div
   - `lokee-inspector-close` · button · Close
   - `lokee-inspector-column-mutations` · div
+  - `lokee-inspector-copy-ddl` · button · Copy object DDL
   - `lokee-inspector-growth` · section · Roadmap · v …v ( of touched this )
   - `lokee-inspector-history` · section · Change timeline
   - `lokee-inspector-source` · section
@@ -882,6 +888,7 @@ Every control has a test ID: **1076** buttons, text boxes, selects and textareas
   - `lokee-cmp-summary` · div
   - `lokee-cmp-tab-{id}` · button in DetailTabs
   - `lokee-cmp-use-current-target` · button · Put Target back on the current database so this revert can run
+  - `lokee-compare-copy-revert-sql` · button · Copy revert statements
   - `lokee-version-compare` · div · Compare versions
   - `lokee-version-compare-close` · button · Close compare
 - **VersionTimeline** · `features/lokee-weave/components/VersionTimeline.tsx`
@@ -906,6 +913,10 @@ Every control has a test ID: **1076** buttons, text boxes, selects and textareas
   - `history-run-item` · div
   - `history-select-{id}` · input · Select this record
   - `history-select-all` · button
+  - `migration-history-copy-sql` · button · Copy SQL
+  - `migration-history-filter-status` · select · Filter migrations by status
+  - `migration-history-no-match` · div
+  - `migration-history-search` · input · Search migration history
 
 ## schema-diff
 
@@ -1145,6 +1156,7 @@ Every control has a test ID: **1076** buttons, text boxes, selects and textareas
   - `sql-tab-add` · button · New tab
   - `sql-tab-close-{id}` · button
   - `sql-tab-dialect-{id}` · span
+  - `sql-tab-dirty-{id}` · span · Modified from saved bookmark
   - `sql-tab-rename` · input
   - `sql-tab-rename-btn-{id}` · button · Rename query
 - **FileImportsPanel** · `features/sql-editor/components/FileImportsPanel.tsx`
@@ -1309,12 +1321,12 @@ Every control has a test ID: **1076** buttons, text boxes, selects and textareas
   - `sql-workspace-scripts-tab` · button · Workspace
 - **SqlEditorView** · `features/sql-editor/components/SqlEditorView.tsx`
   - `sql-bookmark-save` · button · Save current query as a bookmark (uses the tab title)
-  - `sql-bookmark-save-toolbar` · button · Bookmark this query (uses the tab title)
+  - `sql-bookmark-save-toolbar` · button · Bookmark this query (uses the tab title) (Cmd/Ctrl+S)
   - `sql-editor-loading` · div
   - `sql-editor-resize` · div · Resize editor and results
   - `sql-editor-status-bar` · div
   - `sql-editor-view` · div
-  - `sql-format-btn` · button · Pretty-print SQL (sql-formatter) and JS/TS/Node cells (Prettier)
+  - `sql-format-btn` · button · Pretty-print SQL (sql-formatter) and JS/TS/Node cells (Prettier) (Cmd/Ctrl+Shift+F)
   - `sql-format-note` · span
   - `sql-multi-table-threshold` · input
   - `sql-one-transaction` · input
@@ -1334,11 +1346,17 @@ Every control has a test ID: **1076** buttons, text boxes, selects and textareas
   - `sql-sidebar-toggle-{id}` · button
 - **SqlRunsDrawer** · `features/sql-editor/components/SqlRunsDrawer.tsx`
   - `sql-runs-clear` · button · Clear recent
+  - `sql-runs-clear-cancel` · button · Cancel
+  - `sql-runs-clear-confirm` · button · Confirm
   - `sql-runs-close` · button · Close runs
+  - `sql-runs-copy-{id}` · button · Copy run SQL
+  - `sql-runs-delete-{id}` · button · Remove run from history
   - `sql-runs-drawer` · aside · Recent runs
   - `sql-runs-empty` · p
   - `sql-runs-list` · ul
+  - `sql-runs-no-match` · p
   - `sql-runs-open-{id}` · button
+  - `sql-runs-search` · input · Search recent runs
 - **SqlSchemaExplorer** · `features/sql-editor/components/SqlSchemaExplorer.tsx`
   - `sql-explorer-col-insert-{name}-{name2}` · button
   - `sql-explorer-col-select-{name}-{name2}` · button · Sel
@@ -1366,6 +1384,8 @@ Every control has a test ID: **1076** buttons, text boxes, selects and textareas
   - `sql-schema-group-{type}` · div
   - `sql-schema-group-toggle-{type}` · button · ( )
   - `sql-schema-missing` · p
+  - `sql-schema-object-filter` · input · Filter schema objects
+  - `sql-schema-peek-{name}` · button · Peek
 - **SqlSecretsPanel** · `features/sql-editor/components/SqlSecretsPanel.tsx`
   - `sql-secret-{name}` · li
   - `sql-secret-add` · button · Add secret
@@ -1723,6 +1743,7 @@ Every control has a test ID: **1076** buttons, text boxes, selects and textareas
   - `index-management-embed` · div
   - `index-management-overlay` · div
   - `index-mgmt-cancel` · button · Cancel
+  - `index-mgmt-clear-filter` · button · Clear filters
   - `index-mgmt-close` · button · Close
   - `index-mgmt-collapse-all` · button · Collapse tables
   - `index-mgmt-confirm-defrag` · div · Confirm defragment
@@ -1731,11 +1752,15 @@ Every control has a test ID: **1076** buttons, text boxes, selects and textareas
   - `index-mgmt-confirm-drop-cancel` · button · Cancel
   - `index-mgmt-confirm-drop-run` · button · Drop indexes
   - `index-mgmt-connection` · select · — Select credential —
+  - `index-mgmt-copy-defrag-sql` · button · Copy SQL
+  - `index-mgmt-copy-drop-sql` · button · Copy SQL
   - `index-mgmt-defrag-filtered` · button · filtered ( )
   - `index-mgmt-defrag-selected` · button · selected ( )
+  - `index-mgmt-defrag-sql-preview` · pre
   - `index-mgmt-defragment-{key}` · button · Defragment
   - `index-mgmt-drop-{key}` · button · Drop
   - `index-mgmt-drop-selected` · button · Drop selected ( )
+  - `index-mgmt-drop-sql-preview` · pre
   - `index-mgmt-expand-all` · button · Expand tables
   - `index-mgmt-fetch-frag` · button · Fetch fragmentation
   - `index-mgmt-group-{tableName}` · tr
@@ -1770,6 +1795,7 @@ Every control has a test ID: **1076** buttons, text boxes, selects and textareas
   - `server-insights-close` · button · Close
   - `server-insights-confirm-action` · button
   - `server-insights-connection` · select
+  - `server-insights-filter` · input
   - `server-insights-health-analyze-{tableName}` · button · Analyze
   - `server-insights-health-optimize-{tableName}` · button · Optimize
   - `server-insights-health-vacuum-{tableName}` · button · Vacuum
@@ -2024,6 +2050,7 @@ Every control has a test ID: **1076** buttons, text boxes, selects and textareas
   - `workflow-designer-add-sample` · Button
   - `workflow-designer-auto-layout` · Button · Arrange this stage's pipes left to right, in the order records flow
   - `workflow-designer-breadcrumb-workflows` · button · Workflows
+  - `workflow-designer-delete-stage` · Button
   - `workflow-designer-id` · Input · Workflow id
   - `workflow-designer-issue-{key}` · button
   - `workflow-designer-issues` · div
@@ -2038,7 +2065,7 @@ Every control has a test ID: **1076** buttons, text boxes, selects and textareas
   - `workflow-designer-stage-select` · Select · Stage
   - `workflow-designer-triggers` · Button
 - **WorkflowsPanel** · `features/workflow/components/WorkflowsPanel.tsx`
-  - `workflow-add-sample` · Button · Install built-in sample workflows you can Test run without a database
+  - `workflow-add-sample` · Button
   - `workflow-list-file` · input
   - `workflow-list-open-in-designer-{id}` · button · Open in designer
 - **WorkflowView** · `features/workflow/components/WorkflowView.tsx`

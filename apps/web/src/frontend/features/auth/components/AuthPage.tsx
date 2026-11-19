@@ -15,8 +15,9 @@
  * an administrator invites them.
  */
 import React, { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, RefreshCw } from 'lucide-react';
 import { useAuthStore } from '@/platform/authStore';
+import { apiAnnounceSetupCode } from '@/shared/api/authApi';
 import { Brand } from '@/shared/components/Brand';
 import { PasswordInput } from '@/shared/components/PasswordInput';
 import { SsoButtons } from './SsoButtons';
@@ -241,8 +242,23 @@ export const FirstAccountForm: React.FC = () => {
   const [code, setCode] = useState('');
   const [attempted, setAttempted] = useState(false);
   const [news, setNews] = useState(false);
+  const [announcing, setAnnouncing] = useState(false);
+  const [announceNote, setAnnounceNote] = useState<string | null>(null);
   const accountEmail = boundEmail ?? email.trim();
   const problem = newPasswordError(password, confirm, accountEmail);
+
+  const announceCode = async () => {
+    setAnnouncing(true);
+    setAnnounceNote(null);
+    try {
+      await apiAnnounceSetupCode(true);
+      setAnnounceNote('A fresh setup code was printed to the Fox server terminal log.');
+    } catch (err: unknown) {
+      setAnnounceNote(err instanceof Error ? err.message : 'Could not print a new setup code.');
+    } finally {
+      setAnnouncing(false);
+    }
+  };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -280,10 +296,22 @@ export const FirstAccountForm: React.FC = () => {
       />
 
       {setupState?.setupCodeRequired && (
-        <div className="flex flex-col gap-1">
-          <label htmlFor="auth-setup-code" className={authLabelCls}>
-            Setup code
-          </label>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-baseline justify-between gap-2">
+            <label htmlFor="auth-setup-code" className={authLabelCls}>
+              Setup code
+            </label>
+            <button
+              type="button"
+              data-testid="auth-setup-code-announce"
+              disabled={announcing}
+              onClick={() => void announceCode()}
+              className={`${authLinkCls} inline-flex items-center gap-1 disabled:opacity-50`}
+            >
+              <RefreshCw className={`w-3 h-3 ${announcing ? 'animate-spin' : ''}`} />
+              Generate new code in server log
+            </button>
+          </div>
           <input data-testid="auth-setup-code"
             id="auth-setup-code"
             required
@@ -294,9 +322,21 @@ export const FirstAccountForm: React.FC = () => {
             spellCheck={false}
             className={`${authInputCls} font-mono uppercase`}
           />
-          <p className="text-xs text-slate-500">
-            You are not on the machine Fox runs on, so enter the code printed in the Fox server log.
-          </p>
+          <div className="rounded-md border border-slate-800 bg-slate-950/60 px-2.5 py-2 text-[11px] text-slate-400 space-y-1">
+            <p>
+              <strong className="text-slate-300">What is this?</strong> A one-time server security code that verifies
+              you have access to the machine or container running Fox Schema before claiming the administrator account.
+            </p>
+            <p>
+              <strong className="text-slate-300">Where to find it:</strong> Look in your Fox server terminal or
+              container logs for <code className="text-slate-300">First-run setup: enter code XXXX-XXXX</code>.
+            </p>
+          </div>
+          {announceNote && (
+            <p data-testid="auth-setup-code-note" className="text-[11px] text-cyan-300">
+              {announceNote}
+            </p>
+          )}
         </div>
       )}
 

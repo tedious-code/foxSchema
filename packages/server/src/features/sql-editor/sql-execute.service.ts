@@ -1,5 +1,6 @@
 import { ConnectionFactory, getAdapter, type ConnectionOptions } from '@foxschema/db';
 import { autoAliasSelectColumns, errorMessage, isSubsetDialect } from '@foxschema/sql';
+import { redactCredentials } from '../../platform/http/redact';
 import { isPageableStatement, syntaxProbeSql, trimPageProbe, wrapSqlForOrderedPage, wrapSqlForPage, wrapSqlForSeek, type SqlSeek } from './sql-page-wrap.service';
 
 /**
@@ -178,7 +179,7 @@ export async function runStatements(
       // subquery), so the same positional params apply on either path.
       const params = [...(paramsList[index] ?? [])];
       const pushErr = (message: string) => {
-        results.push({ ok: false, error: message, durationMs: Date.now() - started });
+        results.push({ ok: false, error: redactCredentials(message), durationMs: Date.now() - started });
       };
       const pushUnwrappedOk = async () => {
         // Positional first: it is the only path that survives a join whose

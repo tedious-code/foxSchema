@@ -252,4 +252,28 @@ describe('ConnectionStore', () => {
     expect(resolved?.option.password).toBe('super-secret');
     expect(resolved?.option.connectionString).toBe(buildConnectionString('postgres', pgOption));
   });
+
+  it('clears the stored password if update() changes host, port, dialect, or username without a new password', async () => {
+    const pgOption = { host: 'db.example.com', port: 5432, database: 'proddb', username: 'admin', password: 'super-secret' };
+    const id = (await store.create(alice, { name: 'pg', dialect: 'postgres', schema: 'public', option: pgOption, savePassword: true })).id;
+
+    const updated = await store.update(alice, id, {
+      name: 'pg',
+      dialect: 'postgres',
+      schema: 'public',
+      option: { ...pgOption, host: 'attacker.example.com', password: '' },
+      savePassword: true,
+    });
+    expect(updated?.hasPassword).toBe(false);
+    expect((await store.resolve(alice, id))?.option.password).toBeUndefined();
+  });
+
+  it('rejects saving a SQLite or DuckDB connection targeting foxschema.db or workflow-engine.sqlite', async () => {
+    await expect(
+      store.create(alice, { name: 'meta', dialect: 'sqlite', option: { database: '/tmp/foxschema.db' } })
+    ).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(
+      store.create(alice, { name: 'wf', dialect: 'duckdb', option: { database: '/tmp/workflow-engine.sqlite' } })
+    ).rejects.toMatchObject({ code: 'forbidden' });
+  });
 });

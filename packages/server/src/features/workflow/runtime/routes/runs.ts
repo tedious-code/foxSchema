@@ -235,6 +235,7 @@ export function runRoutes(ctx: AppContext, options: { extra?: boolean } = {}) {
         let idleTicks = 0;
         const flush = async (): Promise<number> => {
           const events = await ctx.events.list(req.params.id, after);
+          if (closed) return 0;
           for (const event of events) {
             reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
             after = event.seq;

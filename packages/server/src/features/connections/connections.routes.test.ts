@@ -7,6 +7,8 @@
  * rule as the credential form's (checkConnectionName).
  */
 import { describe, expect, it, vi } from 'vitest';
+process.env.APP_DB_PATH = ':memory:';
+process.env.APP_ENCRYPTION_KEY ||= '0'.repeat(64);
 import type { ConnectionStore } from '../../platform/connections/connection-store.service';
 import type { AuthedRequest } from '../../platform/http/types';
 import { fakeReply } from '../../platform/http/route-doubles';
@@ -52,5 +54,31 @@ describe('saving a connection name', () => {
   it('refuses a name over the limit', async () => {
     const { call } = setup();
     expect((await call('POST', 'x'.repeat(121))).status).toBe(400);
+  });
+
+  it('refuses creating, updating, or deleting a connection when workspaceRole is viewer', async () => {
+    const store = {
+      create: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn(),
+    };
+    const routes = createConnectionStoreRoutes(store as unknown as ConnectionStore).flatten();
+    for (const [method, path] of [['POST', '/'], ['PUT', '/:id'], ['DELETE', '/:id']] as const) {
+      const route = routes.find((r) => r.method === method && r.path === path)!;
+      const { reply, sent } = fakeReply();
+      const req = {
+        userId: 'u1',
+        appRole: 'viewer',
+        workspaceId: '00000000-0000-0000-0000-000000000000',
+        workspaceRole: 'viewer',
+        params: { id: 'c1' },
+        body: { name: 'db', dialect: 'postgres', option: { host: '127.0.0.1' } },
+      } as unknown as AuthedRequest;
+      await route.handler(req, reply);
+      expect(sent.status).toBe(403);
+    }
+    expect(store.create).not.toHaveBeenCalled();
+    expect(store.update).not.toHaveBeenCalled();
+    expect(store.remove).not.toHaveBeenCalled();
   });
 });

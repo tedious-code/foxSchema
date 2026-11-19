@@ -12,6 +12,8 @@ import { CopyPlus, FileCode2, FileJson, Pencil, Plus, Trash2 } from 'lucide-reac
 import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { useSyncStore } from '@/features/compare';
 import { useAuthStore } from '@/platform/authStore';
+import { toast } from '@/platform/toastStore';
+import { writeClipboard } from '@/shared/utils/clipboard';
 import {
   assessPeekEditability,
   buildPeekDelete,
@@ -318,21 +320,20 @@ export function usePeekGridCrud(args: PeekGridCrudArgs): PeekGridCrud {
     queueOrRun(plan);
   };
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
-      }
-    } catch {
-      // Insecure context or clipboard write denied
-    }
+  const copyToClipboard = async (text: string, label: string) => {
+    const ok = await writeClipboard(text);
+    toast({
+      tone: ok ? 'success' : 'warning',
+      title: ok ? `${label} copied` : 'Copy failed',
+      body: ok ? undefined : 'The browser blocked clipboard access. Click the grid and try again.',
+    });
   };
 
   const copyRowJson = () => {
     if (selectedRowIndex == null || !rows[selectedRowIndex]) return;
     const row = rows[selectedRowIndex];
     const obj = Object.fromEntries(columns.map((c, i) => [c, row[i]]));
-    void copyToClipboard(JSON.stringify(obj, null, 2));
+    void copyToClipboard(JSON.stringify(obj, null, 2), 'Row JSON');
   };
 
   const copyRowInsert = () => {
@@ -347,7 +348,7 @@ export function usePeekGridCrud(args: PeekGridCrudArgs): PeekGridCrud {
     });
     const sql = 'error' in plan ? '' : plan.displaySql || plan.sql;
     if (sql) {
-      void copyToClipboard(sql);
+      void copyToClipboard(sql, 'INSERT statement');
     }
   };
 

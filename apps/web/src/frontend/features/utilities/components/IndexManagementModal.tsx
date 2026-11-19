@@ -15,6 +15,7 @@ import {
   ChevronRight,
   ChevronUp,
   ChevronsUpDown,
+  Copy,
   Database,
   Loader2,
   RefreshCw,
@@ -48,6 +49,8 @@ import { executeSql } from '@/shared/api/sqlApi';
 import { useSyncStore } from '@/features/compare';
 import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { useAuthStore } from '@/platform/authStore';
+import { toast } from '@/platform/toastStore';
+import { writeClipboard } from '@/shared/utils/clipboard';
 import type { IndexInfo, TableSchema } from '@/shared/lib/types';
 import { PROVIDER_SETTINGS, needsSessionPassword } from '@/shared/lib/provider-settings';
 import {
@@ -150,6 +153,7 @@ export const IndexManagementModal: React.FC<Props> = ({
   const canDropIndexes = useAuthStore(
     (s) => s.can('utility.index.drop') && s.can('editor.ddl')
   );
+  const canDefragIndexes = useAuthStore((s) => s.can('editor.ddl'));
 
   const [connectionId, setConnectionId] = useState('');
   const [passwordDraft, setPasswordDraft] = useState('');
@@ -398,22 +402,22 @@ export const IndexManagementModal: React.FC<Props> = ({
         }
       }
       setFragByKey(next);
-      return { okTables, failTables };
+      return { okTables, failTables, nextFrag: next };
     },
     []
   );
 
   const fetchFragmentation = useCallback(
-    async (tables = tablesWithIndexes) => {
-      if (!connectionId || !conn) return;
+    async (tables = tablesWithIndexes): Promise<typeof fragByKey | undefined> => {
+      if (!connectionId || !conn) return undefined;
       if (needsPassword) {
         setError('Enter the session password for this credential first.');
-        return;
+        return undefined;
       }
       const tableNames = tables.map((t) => t.name);
       if (tableNames.length === 0) {
         setError('No indexed tables in the loaded schema — click Load indexes first.');
-        return;
+        return undefined;
       }
       setLoadingFrag(true);
       setError(null);
@@ -436,7 +440,7 @@ export const IndexManagementModal: React.FC<Props> = ({
           );
           allResults.push(...batch.results);
         }
-        const { okTables, failTables } = applyFragBatch(
+        const { okTables, failTables, nextFrag } = applyFragBatch(
           allResults,
           conn.dialect,
           conn.schema,
@@ -447,8 +451,10 @@ export const IndexManagementModal: React.FC<Props> = ({
             (failTables ? `; ${failTables} failed` : '') +
             `. ${fragSupport.hint}`
         );
+        return nextFrag;
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : String(err));
+        return undefined;
       } finally {
         setLoadingFrag(false);
       }
@@ -515,7 +521,7 @@ export const IndexManagementModal: React.FC<Props> = ({
         extra.push(fetchSizes());
         // Same path as Edit Table: load % automatically so Utilities is not empty.
         if (tables.length > 0 && conn && !needsPassword) {
-          extra.push(fetchFragmentation(tables));
+          extra.push(fetchFragmentation(tables).then(() => undefined));
         }
         await Promise.all(extra);
       } catch (err: unknown) {
@@ -564,6 +570,10 @@ export const IndexManagementModal: React.FC<Props> = ({
   const runDefrag = useCallback(
     async (keys: string[]) => {
       if (!connectionId || !conn || keys.length === 0) return;
+      if (!canDefragIndexes) {
+        setError('Index maintenance requires the Change schema permission.');
+        return;
+      }
       if (needsPassword) {
         setError('Enter the session password for this credential first.');
         return;
@@ -612,12 +622,13 @@ export const IndexManagementModal: React.FC<Props> = ({
             statements.length === 1 ? 'statement' : 'statements'
           }`;
           setSelected(new Set());
-          // The refresh sets its own status when it lands, so setting ours
-          // first meant the only confirmation the reader ever got was wiped
-          // milliseconds later — the click looked like it did nothing. Wait
-          // for the reload, then say what happened.
-          await fetchFragmentation();
-          setStatus(`${ran} — ${describeFragmentationChange(before, readFragmentation(keys))}`);
+          // Read fresh percentages returned directly by fetchFragmentation instead
+          // of re-reading the closure `allRows` (which still reflects pre-refresh state).
+          const nextFrag = await fetchFragmentation();
+          const after = nextFrag
+            ? keys.map((k) => nextFrag[k]?.frag?.fragmentationPercent ?? null)
+            : readFragmentation(keys);
+          setStatus(`${ran} — ${describeFragmentationChange(before, after)}`);
         }
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : String(err));
@@ -629,6 +640,7 @@ export const IndexManagementModal: React.FC<Props> = ({
     [
       connectionId,
       conn,
+      canDefragIndexes,
       needsPassword,
       allRows,
       sessionPasswords,
@@ -769,7 +781,7 @@ export const IndexManagementModal: React.FC<Props> = ({
 
         <div className="px-5 py-3 border-b border-slate-800 space-y-2.5 shrink-0 bg-slate-950/30">
           <div className="flex flex-wrap items-end gap-2">
-            {!lockedConnectionId && (
+            {!embedded && !lockedConnectionId && (
             <label className="flex flex-col gap-1 min-w-[14rem] flex-1">
               <span className={sectionLabelCls}>
                 Credential
@@ -859,11 +871,10 @@ export const IndexManagementModal: React.FC<Props> = ({
           </div>
 
           {/* Filters and bulk actions only mean something once there are rows
-              to filter and act on. Shown before that, they are six disabled
-              controls between the reader and the one button that does anything
-              — and three of them count "(0)" of a list that has not loaded. */}
+              to filter and act on. Keep visible while a filter narrows the
+              result set down to 0 so the user can still adjust or clear it. */}
           <div
-            className={`flex flex-wrap items-end gap-2 ${grouped.length === 0 ? 'hidden' : ''}`}
+            className={`flex flex-wrap items-end gap-2 ${allRows.length === 0 ? 'hidden' : ''}`}
           >
             <label
               className="flex flex-col gap-1 min-w-[12rem] flex-1"
@@ -944,7 +955,12 @@ export const IndexManagementModal: React.FC<Props> = ({
                 <button
                   type="button"
                   data-testid="index-mgmt-defrag-selected"
-                  disabled={selected.size === 0 || runningDefrag || runningDrop}
+                  disabled={!canDefragIndexes || selected.size === 0 || runningDefrag || runningDrop}
+                  title={
+                    canDefragIndexes
+                      ? undefined
+                      : 'Requires Change schema permission (grant this in Access control).'
+                  }
                   onClick={() => setConfirmDefrag('selected')}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md border border-rose-500/40 bg-rose-500/15 text-rose-100 hover:bg-rose-500/25 disabled:opacity-50"
                 >
@@ -954,7 +970,12 @@ export const IndexManagementModal: React.FC<Props> = ({
                 <button
                   type="button"
                   data-testid="index-mgmt-defrag-filtered"
-                  disabled={filteredKeys.length === 0 || runningDefrag || runningDrop}
+                  disabled={!canDefragIndexes || filteredKeys.length === 0 || runningDefrag || runningDrop}
+                  title={
+                    canDefragIndexes
+                      ? undefined
+                      : 'Requires Change schema permission (grant this in Access control).'
+                  }
                   onClick={() => setConfirmDefrag('filtered')}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-100 hover:bg-amber-500/20 disabled:opacity-50"
                 >
@@ -1024,19 +1045,36 @@ export const IndexManagementModal: React.FC<Props> = ({
           data-testid={embedded ? 'server-insights-size-groups' : undefined}
         >
           {grouped.length === 0 ? (
-            <p className="px-5 py-8 text-center text-sm text-slate-500">
-              {/* An empty list and a failed read are not the same thing, and
-                  saying "no indexes" for a database that could not be reached
-                  sends the reader looking for missing indexes instead of a
-                  missing connection. */}
-              {!connectionId
-                ? 'Select a credential to begin.'
-                : loadError
-                  ? 'Could not read the indexes.'
-                  : loadingSchema
-                    ? 'Reading indexes…'
-                    : 'This schema has no indexes.'}
-            </p>
+            <div className="px-5 py-8 text-center text-sm text-slate-500 space-y-2">
+              <p>
+                {/* An empty list and a failed read are not the same thing, and
+                    saying "no indexes" for a database that could not be reached
+                    sends the reader looking for missing indexes instead of a
+                    missing connection. */}
+                {!connectionId
+                  ? 'Select a credential to begin.'
+                  : loadError
+                    ? 'Could not read the indexes.'
+                    : loadingSchema
+                      ? 'Reading indexes…'
+                      : allRows.length > 0 && (tableFilter.trim() || minFragPct.trim())
+                        ? 'No indexes match the current filter.'
+                        : 'This schema has no indexes.'}
+              </p>
+              {allRows.length > 0 && (tableFilter.trim() || minFragPct.trim()) && (
+                <button
+                  type="button"
+                  data-testid="index-mgmt-clear-filter"
+                  onClick={() => {
+                    setTableFilter('');
+                    setMinFragPct('');
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
           ) : (
             <table
               className="w-full text-left border-collapse"
@@ -1329,8 +1367,12 @@ export const IndexManagementModal: React.FC<Props> = ({
                                 <div className="inline-flex items-center justify-end gap-1">
                                   <button data-testid={`index-mgmt-defragment-${row.key}`}
                                     type="button"
-                                    disabled={!row.defragSql.length || runningDefrag || runningDrop}
-                                    title={row.defragSql.join('\n') || 'No defrag SQL'}
+                                    disabled={!canDefragIndexes || !row.defragSql.length || runningDefrag || runningDrop}
+                                    title={
+                                      !canDefragIndexes
+                                        ? 'Requires Change schema (Access control).'
+                                        : row.defragSql.join('\n') || 'No defrag SQL'
+                                    }
                                     onClick={() => void runDefrag([row.key])}
                                     className="inline-flex items-center gap-1 rounded border border-slate-600 px-2 py-1 text-[11px] font-bold text-slate-200 hover:border-amber-400/50 hover:text-amber-100 disabled:opacity-40"
                                   >
@@ -1372,27 +1414,60 @@ export const IndexManagementModal: React.FC<Props> = ({
           )}
         </div>
 
-        {confirmDefrag &&
-          createPortal(
+        {confirmDefrag && (() => {
+          const targetKeys = confirmDefrag === 'selected' ? [...selected] : filteredKeys;
+          const previewSql = targetKeys
+            .flatMap((k) => allRows.find((r) => r.key === k)?.defragSql ?? [])
+            .filter((s) => s.trim() && !s.trim().startsWith('--'))
+            .join('\n');
+          return createPortal(
             <div
               className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4"
               onClick={() => setConfirmDefrag(null)}
             >
               <div
-                className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
+                className="w-full max-w-lg rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
                 data-testid="index-mgmt-confirm-defrag"
               >
                 <h3 className="text-sm font-bold text-slate-100 mb-2">Confirm defragment</h3>
-                <p className="text-xs text-slate-400 mb-4">
+                <p className="text-xs text-slate-400 mb-3">
                   Run rebuild / reorganize / optimize statements for{' '}
                   <span className="text-slate-200 font-semibold">
-                    {confirmDefrag === 'selected' ? selected.size : filteredKeys.length}
+                    {targetKeys.length}
                   </span>{' '}
                   index(es) on{' '}
                   <span className="font-mono text-amber-200">{conn?.name || 'credential'}</span>?
                   This may lock tables briefly.
                 </p>
+                {previewSql && (
+                  <div className="mb-4 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase text-slate-500">SQL preview</span>
+                      <button
+                        type="button"
+                        data-testid="index-mgmt-copy-defrag-sql"
+                        onClick={() => {
+                          void writeClipboard(previewSql).then((ok) =>
+                            toast({
+                              tone: ok ? 'success' : 'warning',
+                              title: ok ? 'Defrag SQL copied' : 'Copy failed',
+                            })
+                          );
+                        }}
+                        className="inline-flex items-center gap-1 rounded border border-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-300 hover:bg-slate-800"
+                      >
+                        <Copy className="w-3 h-3" /> Copy SQL
+                      </button>
+                    </div>
+                    <pre
+                      data-testid="index-mgmt-defrag-sql-preview"
+                      className="max-h-40 overflow-auto rounded-md border border-slate-800 bg-slate-950 p-2 font-mono text-[11px] text-slate-300 whitespace-pre-wrap"
+                    >
+                      {previewSql}
+                    </pre>
+                  </div>
+                )}
                 <div className="flex justify-end gap-2">
                   <button data-testid="index-mgmt-cancel"
                     type="button"
@@ -1406,11 +1481,7 @@ export const IndexManagementModal: React.FC<Props> = ({
                     data-testid="index-mgmt-confirm-defrag-run"
                     disabled={runningDefrag}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md border border-rose-500/50 bg-rose-500/20 text-rose-50"
-                    onClick={() =>
-                      void runDefrag(
-                        confirmDefrag === 'selected' ? [...selected] : filteredKeys
-                      )
-                    }
+                    onClick={() => void runDefrag(targetKeys)}
                   >
                     {runningDefrag ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1423,21 +1494,26 @@ export const IndexManagementModal: React.FC<Props> = ({
               </div>
             </div>,
             document.body
-          )}
+          );
+        })()}
 
-        {confirmDrop &&
-          createPortal(
+        {confirmDrop && (() => {
+          const previewSql = confirmDrop
+            .flatMap((k) => allRows.find((r) => r.key === k)?.dropSql ?? [])
+            .filter((s) => s.trim() && !s.trim().startsWith('--'))
+            .join('\n');
+          return createPortal(
             <div
               className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4"
               onClick={() => setConfirmDrop(null)}
             >
               <div
-                className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
+                className="w-full max-w-lg rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
                 data-testid="index-mgmt-confirm-drop"
               >
                 <h3 className="text-sm font-bold text-slate-100 mb-2">Confirm drop index</h3>
-                <p className="text-xs text-slate-400 mb-4">
+                <p className="text-xs text-slate-400 mb-3">
                   Run DROP INDEX for{' '}
                   <span className="text-slate-200 font-semibold">{confirmDrop.length}</span>{' '}
                   index(es) on{' '}
@@ -1445,6 +1521,34 @@ export const IndexManagementModal: React.FC<Props> = ({
                   This cannot be undone from here. Constraint-backed indexes are not included.
                   {safeMode ? ' Safe mode is on — confirm carefully.' : ''}
                 </p>
+                {previewSql && (
+                  <div className="mb-4 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase text-slate-500">SQL preview</span>
+                      <button
+                        type="button"
+                        data-testid="index-mgmt-copy-drop-sql"
+                        onClick={() => {
+                          void writeClipboard(previewSql).then((ok) =>
+                            toast({
+                              tone: ok ? 'success' : 'warning',
+                              title: ok ? 'DROP INDEX SQL copied' : 'Copy failed',
+                            })
+                          );
+                        }}
+                        className="inline-flex items-center gap-1 rounded border border-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-300 hover:bg-slate-800"
+                      >
+                        <Copy className="w-3 h-3" /> Copy SQL
+                      </button>
+                    </div>
+                    <pre
+                      data-testid="index-mgmt-drop-sql-preview"
+                      className="max-h-40 overflow-auto rounded-md border border-slate-800 bg-slate-950 p-2 font-mono text-[11px] text-rose-200 whitespace-pre-wrap"
+                    >
+                      {previewSql}
+                    </pre>
+                  </div>
+                )}
                 <div className="flex justify-end gap-2">
                   <button data-testid="index-mgmt-confirm-drop-cancel"
                     type="button"
@@ -1471,7 +1575,8 @@ export const IndexManagementModal: React.FC<Props> = ({
               </div>
             </div>,
             document.body
-          )}
+          );
+        })()}
     </>
   );
 

@@ -70,6 +70,10 @@ describe('first-run setup over HTTP', () => {
       setupRequired: true,
       setupCodeRequired: false,
     });
+    expect((await call('GET', '/auth/setup', undefined, { 'x-forwarded-for': '127.0.0.1' })).json).toMatchObject({
+      setupRequired: true,
+      setupCodeRequired: false,
+    });
     expect((await call('GET', '/auth/setup', undefined, PROXIED)).json).toMatchObject({
       setupRequired: true,
       setupCodeRequired: true,
@@ -108,7 +112,12 @@ describe('first-run setup over HTTP', () => {
     }
   });
 
-  it('refuses a proxied setup without the right code', async () => {
+  it('refuses a proxied setup without the right code and allows regenerating the code in logs without leaking it', async () => {
+    const before = setupCode();
+    const announced = await call('POST', '/auth/setup/code-announce', { regenerate: true }, PROXIED);
+    expect(announced.status).toBe(200);
+    expect(announced.json).toEqual({ ok: true });
+    expect(JSON.stringify(announced.json)).not.toContain(before);
     const creds = { email: 'owner@example.com', password: 'blue-lantern-42' };
     expect((await call('POST', '/auth/setup', creds, PROXIED)).status).toBe(403);
     expect((await call('POST', '/auth/setup', { ...creds, code: 'AAAA-AAAA' }, PROXIED)).status).toBe(403);

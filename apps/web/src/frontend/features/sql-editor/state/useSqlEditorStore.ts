@@ -162,6 +162,11 @@ export interface RecentQuery {
   /** Exact destinations used by this run; reopening must not follow today's selection. */
   selectedConnectionIds: string[];
   ranAt: number;
+  /** Outcome summary from the run that produced this entry. */
+  ok?: boolean;
+  durationMs?: number;
+  rowCount?: number;
+  errorSummary?: string;
 }
 
 const MAX_RECENT_QUERIES = 40;
@@ -428,6 +433,7 @@ interface SqlEditorState {
   setOneTransaction: (on: boolean) => void;
   setMultiTableConfirmThreshold: (n: number) => void;
   openRecentQuery: (id: string) => void;
+  removeRecentQuery: (id: string) => void;
   clearRecentQueries: () => void;
   toggleStatement: (index: number) => void;
   setLayout: (layout: ResultsLayout) => void;
@@ -867,6 +873,11 @@ export const useSqlEditorStore = create<SqlEditorState>()(
           ...(shareDestinations ? { sharedConnectionIds: selectedConnectionIds } : {}),
         });
       },
+
+      removeRecentQuery: (id) =>
+        set((state) => ({
+          recentQueries: state.recentQueries.filter((r) => r.id !== id),
+        })),
 
       clearRecentQueries: () => set({ recentQueries: [] }),
 
@@ -1659,18 +1670,39 @@ export const useSqlEditorStore = create<SqlEditorState>()(
           );
           let recentQueries = state.recentQueries;
           if (sqlSnippet) {
+            const connIds = connections
+              .map((connection) => connection.id)
+              .filter((id) => id !== LOCAL_CODE_RUN_TARGET.id);
+            const sortedConns = [...connIds].sort().join(',');
+            const allResults = connections.flatMap((c) => resultsByConn.get(c.id) ?? []);
+            const anyFailed =
+              Boolean(aborted) ||
+              current.runs.some((r) => r.status === 'error') ||
+              allResults.some((r) => !r.ok);
+            const durationMs = allResults.reduce((sum, r) => sum + (r.durationMs || 0), 0);
+            const rowCount = allResults.reduce((sum, r) => sum + (r.ok ? r.rowCount : 0), 0);
+            const firstErr = allResults.find((r) => !r.ok);
+            const errorSummary =
+              aborted ?? (firstErr && !firstErr.ok ? firstErr.error.slice(0, 120) : undefined);
+
             const entry: RecentQuery = {
               id: newTabId(),
               sql: truncatePersistedSql(sqlSnippet),
               title: tab.title || 'Query',
-              selectedConnectionIds: connections
-                .map((connection) => connection.id)
-                .filter((id) => id !== LOCAL_CODE_RUN_TARGET.id),
+              selectedConnectionIds: connIds,
               ranAt: Date.now(),
+              ok: allResults.length > 0 || Boolean(aborted) ? !anyFailed : undefined,
+              durationMs: allResults.length > 0 ? durationMs : undefined,
+              rowCount: !anyFailed && allResults.length > 0 ? rowCount : undefined,
+              errorSummary: anyFailed ? errorSummary : undefined,
             };
             recentQueries = [
               entry,
-              ...state.recentQueries.filter((r) => r.sql !== entry.sql),
+              ...state.recentQueries.filter((r) => {
+                const sameSql = r.sql.trim() === entry.sql.trim();
+                const sameConns = [...r.selectedConnectionIds].sort().join(',') === sortedConns;
+                return !(sameSql && sameConns);
+              }),
             ].slice(0, MAX_RECENT_QUERIES);
           }
           return {

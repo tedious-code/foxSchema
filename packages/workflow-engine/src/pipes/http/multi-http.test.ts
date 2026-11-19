@@ -212,6 +212,18 @@ describe('MultiHttpSourcePipe', () => {
     ).rejects.toThrow(/unique ids/);
   });
 
+  it('rejects duplicate endpoint ids at validateConfig time', () => {
+    const pipe = new MultiHttpSourcePipe();
+    expect(() =>
+      pipe.validateConfig({
+        endpoints: [
+          { id: 'dup', url: 'https://example.test/a' },
+          { id: 'dup', url: 'https://example.test/b' },
+        ],
+      }),
+    ).toThrow(/unique ids/);
+  });
+
   it('names the offending endpoint when a response is not record-shaped', async () => {
     const scalars = new MultiHttpSourcePipe(stubFetch([1, 2, 3]));
     await expect(

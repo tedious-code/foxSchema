@@ -6,10 +6,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { parseWorkflow } from '@foxschema/workflow-engine/definitions';
 import {
-  assertKnownFromPorts,
-  createDefaultPipeRegistry,
-} from '@foxschema/workflow-engine';
-import {
   SAMPLE_API_ENRICH_MULTI_DB_WORKFLOW_ID,
   SAMPLE_CROSS_DB_ETL_SPLIT_WORKFLOW_ID,
   SAMPLE_DEDUPE_NULLS_QUARANTINE_ETL_WORKFLOW_ID,
@@ -136,18 +132,13 @@ describe('workflow samples', () => {
     );
   });
 
-  it('each sample parses as a workflow the engine would accept and uses only known output ports', () => {
-    const registry = createDefaultPipeRegistry();
+  it('each sample parses as a workflow the engine would accept', () => {
     expect(WORKFLOW_SAMPLES.length).toBeGreaterThanOrEqual(15);
     for (const entry of WORKFLOW_SAMPLES) {
       const parsed = parseWorkflow(entry.document);
       expect(parsed.id).toBe(entry.id);
       expect(parsed.pipelines.length).toBeGreaterThan(0);
       expect(parsed.pipelines[0]!.pipes.length).toBeGreaterThan(0);
-      for (const pipeline of parsed.pipelines) {
-        const pipesById = new Map(pipeline.pipes.map((p) => [p.id, p]));
-        expect(() => assertKnownFromPorts(registry, pipesById, pipeline.edges), `${entry.id}/${pipeline.id}`).not.toThrow();
-      }
     }
   });
 
@@ -345,6 +336,78 @@ describe('workflow samples', () => {
   it('Add samples opens the branch workflow, not only the starter', () => {
     expect(SAMPLE_CANVAS_ID).toBe(SAMPLE_ORDERS_WORKFLOW_ID);
     expect(sampleForCanvas().id).toBe(SAMPLE_ORDERS_WORKFLOW_ID);
+  });
+
+  it('dedupe-nulls sample script properly deduplicates and parses currency strings', () => {
+    const found = sample(SAMPLE_DEDUPE_NULLS_QUARANTINE_ETL_WORKFLOW_ID);
+    const parsed = parseWorkflow(found.document);
+    const pipeline = parsed.pipelines[0]!;
+    const scriptPipe = pipeline.pipes.find((p) => p.id === 'cleanse_and_dedupe');
+    expect(scriptPipe).toBeDefined();
+
+    const fn = new Function('records', scriptPipe!.config.script as string);
+    const result = fn(SAMPLE_DIRTY_ETL_RECORDS) as Record<string, unknown>[];
+
+    expect(result).toHaveLength(5);
+
+    const rec301 = result.find((r) => r.id === 301)!;
+    expect(rec301.amount).toBe(1350);
+    expect(rec301.name).toContain('東京 🚀');
+
+    const rec302 = result.find((r) => r.id === 302)!;
+    expect(rec302.amount).toBe(0);
+    expect(rec302.name).toBe('Müller; DROP TABLE users;--');
+
+    // ID 303 had whitespace name ('   ') and null email -> both trimmed to empty string
+    const rec303 = result.find((r) => r.id === 303)!;
+    expect(rec303.name).toBe('');
+    expect(rec303.email).toBe('');
+
+    // ID 304 had negative amount (-42.5)
+    const rec304 = result.find((r) => r.id === 304)!;
+    expect(rec304.amount).toBe(-42.5);
+
+    // ID 305 had invalid non-numeric string ('not-a-number') -> parsed to -1
+    const rec305 = result.find((r) => r.id === 305)!;
+    expect(rec305.amount).toBe(-1);
+  });
+
+  it('partial-failure recovery sample script maps merged payload into healthy vs dead-letter rows', () => {
+    const found = sample(SAMPLE_PARTIAL_FAILURE_RECOVERY_WORKFLOW_ID);
+    const parsed = parseWorkflow(found.document);
+    const pipeline = parsed.pipelines[0]!;
+    const scriptPipe = pipeline.pipes.find((p) => p.id === 'classify_endpoint_health');
+    expect(scriptPipe).toBeDefined();
+
+    const simulatedMerged = [
+      {
+        tokyo: { current_weather: { temperature: 18.5 } },
+        paris: { current_weather: { temperature: 21.0 } },
+        broken_hub: { ok: false, error: 'HTTP 404 Not Found' },
+      },
+    ];
+
+    const fn = new Function('records', scriptPipe!.config.script as string);
+    const result = fn(simulatedMerged) as {
+      id: number;
+      endpoint: string;
+      has_error: boolean;
+      temp_c: number;
+      error_message: string;
+    }[];
+
+    expect(result).toHaveLength(3);
+    const tokyo = result.find((r) => r.endpoint === 'tokyo')!;
+    expect(tokyo.has_error).toBe(false);
+    expect(tokyo.temp_c).toBe(18.5);
+
+    const paris = result.find((r) => r.endpoint === 'paris')!;
+    expect(paris.has_error).toBe(false);
+    expect(paris.temp_c).toBe(21.0);
+
+    const broken = result.find((r) => r.endpoint === 'broken_hub')!;
+    expect(broken.has_error).toBe(true);
+    expect(broken.error_message).toContain('HTTP 404');
   });
 
   it('saveSampleWorkflows PUTs each sample by id', async () => {

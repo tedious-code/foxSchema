@@ -36,34 +36,42 @@ const endpointSchema = z.preprocess((input) => {
   recordsPath: z.string().default(''),
 }));
 
-const configSchema = z.object({
-  endpoints: z.array(endpointSchema).min(1).max(64),
-  /**
-   * Execution mode:
-   * - `parallel`: all endpoints run concurrently (or up to `concurrency`).
-   * - `linear`: endpoints run sequentially one after another in order.
-   */
-  executionMode: z.enum(['parallel', 'linear']).default('parallel'),
-  /**
-   * Output mode:
-   * - `records`: extracts rows from each endpoint and emits a flattened stream of records.
-   * - `merge`: merges all endpoint responses into a single record `{ [id]: payload }` for script transformation.
-   */
-  outputMode: z.enum(['records', 'merge']).default('records'),
-  /**
-   * Max parallel in-flight requests when executionMode is parallel.
-   * `0` / omitted = all endpoints at once (Promise.all semantics).
-   */
-  concurrency: z.number().int().min(0).max(64).default(0),
-  /** Field stamped on every record naming which endpoint produced it (records mode only). */
-  tagField: z.string().min(1).default('_endpoint'),
-  /**
-   * `fail` — any endpoint error fails the pipe (default, stop to failure).
-   * `skip` — drop that endpoint's rows or record error object in merged payload and continue with the rest.
-   */
-  onError: z.enum(['fail', 'skip']).default('fail'),
-  batchSize: z.number().int().min(1).max(100_000).default(1_000),
-});
+const configSchema = z
+  .object({
+    endpoints: z.array(endpointSchema).min(1).max(64),
+    /**
+     * Execution mode:
+     * - `parallel`: all endpoints run concurrently (or up to `concurrency`).
+     * - `linear`: endpoints run sequentially one after another in order.
+     */
+    executionMode: z.enum(['parallel', 'linear']).default('parallel'),
+    /**
+     * Output mode:
+     * - `records`: extracts rows from each endpoint and emits a flattened stream of records.
+     * - `merge`: merges all endpoint responses into a single record `{ [id]: payload }` for script transformation.
+     */
+    outputMode: z.enum(['records', 'merge']).default('records'),
+    /**
+     * Max parallel in-flight requests when executionMode is parallel.
+     * `0` / omitted = all endpoints at once (Promise.all semantics).
+     */
+    concurrency: z.number().int().min(0).max(64).default(0),
+    /** Field stamped on every record naming which endpoint produced it (records mode only). */
+    tagField: z.string().min(1).default('_endpoint'),
+    /**
+     * `fail` — any endpoint error fails the pipe (default, stop to failure).
+     * `skip` — drop that endpoint's rows or record error object in merged payload and continue with the rest.
+     */
+    onError: z.enum(['fail', 'skip']).default('fail'),
+    batchSize: z.number().int().min(1).max(100_000).default(1_000),
+  })
+  .refine(
+    (data) => {
+      const ids = data.endpoints.map((endpoint) => endpoint.id);
+      return new Set(ids).size === ids.length;
+    },
+    { message: 'HTTP multi endpoints must have unique ids', path: ['endpoints'] },
+  );
 
 type EndpointConfig = z.infer<typeof endpointSchema>;
 type MultiConfig = z.infer<typeof configSchema>;

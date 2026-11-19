@@ -145,4 +145,124 @@ describe('MultiHttpEditor', () => {
       }),
     );
   });
+
+  it('reorders endpoints with move-up and move-down buttons', () => {
+    const onChange = vi.fn();
+    render(
+      <MultiHttpEditor
+        config={{
+          endpoints: [
+            { id: 'first', url: 'https://example.test/first' },
+            { id: 'second', url: 'https://example.test/second' },
+          ],
+        }}
+        credentials={[]}
+        onChange={onChange}
+      />,
+    );
+
+    // First endpoint cannot move up
+    expect((screen.getByTestId('workflow-multi-http-move-up-0') as HTMLButtonElement).disabled).toBe(true);
+    // Second endpoint cannot move down
+    expect((screen.getByTestId('workflow-multi-http-move-down-1') as HTMLButtonElement).disabled).toBe(true);
+
+    // Move first endpoint down
+    fireEvent.click(screen.getByTestId('workflow-multi-http-move-down-0'));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpoints: [
+          expect.objectContaining({ id: 'second' }),
+          expect.objectContaining({ id: 'first' }),
+        ],
+      }),
+    );
+  });
+
+  it('detects duplicate endpoint IDs and displays duplicate badge and error message', () => {
+    const onChange = vi.fn();
+    render(
+      <MultiHttpEditor
+        config={{
+          endpoints: [
+            { id: 'dup-id', url: 'https://example.test/first' },
+            { id: 'dup-id', url: 'https://example.test/second' },
+          ],
+        }}
+        credentials={[]}
+        onChange={onChange}
+      />,
+    );
+
+    expect(screen.getByTestId('workflow-multi-http-dup-badge-0')).toBeDefined();
+    expect(screen.getByTestId('workflow-multi-http-dup-badge-1')).toBeDefined();
+    expect(screen.getByTestId('workflow-multi-http-dup-error-0').textContent).toContain(
+      'Duplicate ID "dup-id". Must be unique.',
+    );
+  });
+
+  it('flags missing endpoint URLs with an indicator badge', () => {
+    const onChange = vi.fn();
+    render(
+      <MultiHttpEditor
+        config={{
+          endpoints: [
+            { id: 'good', url: 'https://example.test/good' },
+            { id: 'missing', url: '' },
+          ],
+        }}
+        credentials={[]}
+        onChange={onChange}
+      />,
+    );
+
+    expect(screen.queryByTestId('workflow-multi-http-empty-url-badge-0')).toBeNull();
+    expect(screen.getByTestId('workflow-multi-http-empty-url-badge-1')).toBeDefined();
+  });
+
+  it('renders merge helper explanation when outputMode is merge', () => {
+    const onChange = vi.fn();
+    render(
+      <MultiHttpEditor
+        config={{
+          endpoints: [
+            { id: 'forecast', url: 'https://example.test/forecast' },
+            { id: 'alerts', url: 'https://example.test/alerts' },
+          ],
+          outputMode: 'merge',
+        }}
+        credentials={[]}
+        onChange={onChange}
+      />,
+    );
+
+    const helper = screen.getByTestId('workflow-multi-http-merge-helper');
+    expect(helper).toBeDefined();
+    expect(helper.textContent).toContain('Merged payload structure');
+    expect(helper.textContent).toContain('records[0].forecast');
+  });
+
+  it('generates a unique non-colliding ID when endpoint-2 already exists', () => {
+    const onChange = vi.fn();
+    render(
+      <MultiHttpEditor
+        config={{
+          endpoints: [
+            { id: 'endpoint-2', url: 'https://example.test/a' },
+          ],
+        }}
+        credentials={[]}
+        onChange={onChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('workflow-multi-http-add-endpoint'));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpoints: expect.arrayContaining([
+          expect.objectContaining({ id: 'endpoint-2' }),
+          expect.objectContaining({ id: 'endpoint-1' }),
+        ]),
+      }),
+    );
+  });
 });

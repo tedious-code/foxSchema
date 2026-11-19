@@ -14,7 +14,8 @@
  * forty columns across three tables is three rows to scan, not forty.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, Loader2, Play, X } from 'lucide-react';
+import { Copy, Download, Loader2, Play, X } from 'lucide-react';
+import { writeClipboard } from '@/shared/utils/clipboard';
 import type { TableDiff } from '@foxschema/ui-shared';
 import {
   compareLokeeVersions,
@@ -740,13 +741,37 @@ export function VersionCompareModal({
                                   {selectedKeys.length > 0 ? ' for the selected objects' : ''}.
                                 </p>
                               ) : (
-                                <pre className="whitespace-pre-wrap break-words rounded border border-slate-800 bg-slate-950 p-2 font-mono text-[10px] leading-relaxed text-slate-300">
-                                  {/* Statements may already be terminated; joining
-                                      with ';' unconditionally produced `…;;`. */}
-                                  {plan.statements
-                                    .map((st) => (st.trimEnd().endsWith(';') ? st : `${st};`))
-                                    .join('\n\n')}
-                                </pre>
+                                <div className="flex flex-col gap-1.5">
+                                  <div className="flex justify-end">
+                                    <button
+                                      type="button"
+                                      data-testid="lokee-compare-copy-revert-sql"
+                                      onClick={() => {
+                                        const sql = plan.statements
+                                          .map((st) => (st.trimEnd().endsWith(';') ? st : `${st};`))
+                                          .join('\n\n');
+                                        void writeClipboard(sql).then((ok) =>
+                                          toast({
+                                            tone: ok ? 'success' : 'warning',
+                                            title: ok ? 'Revert SQL copied' : 'Copy failed',
+                                          })
+                                        );
+                                      }}
+                                      className="inline-flex items-center gap-1 rounded border border-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                                      title="Copy revert statements"
+                                    >
+                                      <Copy className="h-3 w-3" strokeWidth={SQL_ICON_STROKE} />
+                                      Copy SQL
+                                    </button>
+                                  </div>
+                                  <pre className="whitespace-pre-wrap break-words rounded border border-slate-800 bg-slate-950 p-2 font-mono text-[10px] leading-relaxed text-slate-300">
+                                    {/* Statements may already be terminated; joining
+                                        with ';' unconditionally produced `…;;`. */}
+                                    {plan.statements
+                                      .map((st) => (st.trimEnd().endsWith(';') ? st : `${st};`))
+                                      .join('\n\n')}
+                                  </pre>
+                                </div>
                               )}
                             </>
                           )}

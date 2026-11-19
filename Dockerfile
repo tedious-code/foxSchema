@@ -42,8 +42,10 @@ RUN if [ "$WITH_DB2" = "true" ]; then \
 # Everywhere else (CI, local) installs the locked tree. See docs/conventions/DEPENDENCY_POLICY.md.
 RUN npm install
 
-# Produce the frontend bundle at apps/web/dist (root build -> @foxschema/web).
-RUN npm run build
+# Produce the frontend bundle at apps/web/dist (root build -> @foxschema/web)
+# and pre-build the sandboxed workflow engine worker bundle so runtime never
+# needs a writable node_modules/.cache directory.
+RUN npm run build && node_modules/.bin/tsx scripts/workflow/build-sandbox-worker.mjs
 
 # ─────────────────────────── runtime stage ─────────────────────────
 FROM node:24-slim AS runtime

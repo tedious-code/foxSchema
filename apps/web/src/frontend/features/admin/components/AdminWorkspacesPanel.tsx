@@ -15,6 +15,7 @@ import React, { lazy, useCallback, useEffect, useState } from 'react';
 import { Layers, Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/platform/authStore';
 import { MountWhenOpened } from '@/shared/components/MountWhenOpened';
+import { activeEditorWorkspaceId, prepareWorkspaceSwitch } from '@/shared/lib/editorWorkspaceStorage';
 import {
   apiAdminListWorkspaces,
   apiArchiveWorkspace,
@@ -124,7 +125,13 @@ export const AdminWorkspacesPanel: React.FC<{ reload?: () => void }> = ({ reload
                       data-testid={`admin-workspace-open-${w.id}`}
                       disabled={busy}
                       onClick={() => void run(async () => {
-                        await apiSelectWorkspace(w.id);
+                        const undo = prepareWorkspaceSwitch(activeEditorWorkspaceId(), w.id);
+                        try {
+                          await apiSelectWorkspace(w.id);
+                        } catch (err) {
+                          undo();
+                          throw err;
+                        }
                         reload();
                       })}
                       className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-200 disabled:opacity-50"

@@ -7,8 +7,10 @@
  *
  * Both are plain functions so a service can take them as a dependency.
  */
+import { fileURLToPath } from 'node:url';
 import {
   buildConnectionString,
+  isProtectedEmbeddedDatabasePath,
   normalizeTableSchemas,
   type ConnectionModule,
   type ConnectionOptions,
@@ -18,6 +20,40 @@ import {
 import type { ConnectionStore } from './connection-store.service';
 import { ServiceError } from '../contracts/actor';
 import type { WorkspaceScope } from '../http/scope';
+import { getMetadataDbConfig } from '../../database/config';
+
+const DEFAULT_METADATA_DB_PATH = fileURLToPath(new URL('../../database/foxschema.db', import.meta.url));
+
+/**
+ * Returns `true` when `rawPath` refers to Fox Schema's own metadata database,
+ * workflow-engine database, or local encryption key file — directly, via
+ * `file:` URI, companion `-wal`/`-shm`/`-journal` path, symlink, or hard link.
+ */
+export function isProtectedInternalDatabasePath(rawPath: string): boolean {
+  const cfg = getMetadataDbConfig();
+  return isProtectedEmbeddedDatabasePath(rawPath, [
+    DEFAULT_METADATA_DB_PATH,
+    cfg.path,
+    process.env.FOXFLOW_DB_PATH,
+  ]);
+}
+
+function embeddedTargetsFromOption(option: ConnectionOptions): string[] {
+  const rec = option as Record<string, unknown>;
+  const candidates = [rec.database, rec.connectionString, rec.filename, rec.file];
+  return candidates.filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+}
+
+/** Reject SQLite / DuckDB connections that target Fox Schema's own metadata or workflow-engine databases. */
+export function assertSafeUserDatabasePath(dialect: string, option: ConnectionOptions): void {
+  const d = dialect.trim().toLowerCase();
+  if (d !== 'sqlite' && d !== 'duckdb') return;
+  for (const raw of embeddedTargetsFromOption(option)) {
+    if (isProtectedInternalDatabasePath(raw)) {
+      throw new ServiceError('forbidden', 'Cannot open Fox Schema internal metadata database as a user connection.');
+    }
+  }
+}
 
 /**
  * A connection reference: either a saved connection (resolved server-side so the
@@ -82,6 +118,7 @@ export function makeConnectionResolver(
         option = { ...option, password: ref.password, connectionString: undefined };
         option.connectionString = buildConnectionString(resolved.dialect, option);
       }
+      assertSafeUserDatabasePath(resolved.dialect, option);
       return { dialect: resolved.dialect, option, schema: ref.schema ?? resolved.schema ?? '' };
     }
     if (!ref.dialect || !ref.option) {
@@ -90,6 +127,7 @@ export function makeConnectionResolver(
         'A connectionId or (dialect + option) is required'
       );
     }
+    assertSafeUserDatabasePath(ref.dialect, ref.option);
     return { dialect: ref.dialect, option: ref.option, schema: ref.schema ?? '' };
   }
 

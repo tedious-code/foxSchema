@@ -83,7 +83,11 @@ async function replayWithRawBody(
   return Readable.from(buf);
 }
 
-export function triggerRoutes(ctx: AppContext) {
+export function triggerRoutes(
+  ctx: AppContext,
+  options: { rateLimit?: boolean } = {},
+) {
+  const applyRateLimit = options.rateLimit !== false;
   return async (app: FastifyInstance) => {
     const r = app.withTypeProvider<ZodTypeProvider>();
     // Keep the raw bytes on the trigger routes only. `fastify-raw-body`
@@ -107,7 +111,7 @@ export function triggerRoutes(ctx: AppContext) {
         url: '/hooks/*',
         config: {
           rawBody: true,
-          rateLimit: { max: 60, timeWindow: '1 minute' },
+          ...(applyRateLimit ? { rateLimit: { max: 60, timeWindow: '1 minute' } } : {}),
         },
         schema: { querystring: querySchema },
         handler: async (req, reply) => {
@@ -134,7 +138,7 @@ export function triggerRoutes(ctx: AppContext) {
         url: '/triggers/:workflowId/:triggerId',
         config: {
           rawBody: true,
-          rateLimit: { max: 60, timeWindow: '1 minute' },
+          ...(applyRateLimit ? { rateLimit: { max: 60, timeWindow: '1 minute' } } : {}),
         },
         schema: { params: paramsSchema, querystring: querySchema },
         handler: async (req, reply) => {

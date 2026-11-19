@@ -1,5 +1,6 @@
-import { type ConnectionOptions, type DriverAdapter } from '@foxschema/sql';
+import { assertSafeSqliteSql, type ConnectionOptions, type DriverAdapter } from '@foxschema/sql';
 import { requireDriver } from '../../cores/driver-loader.js';
+import { assertSafeEmbeddedDatabasePath } from '../../cores/embedded-db-guard.js';
 
 /**
  * SQLite adapter via better-sqlite3 (synchronous API, wrapped in Promises).
@@ -21,6 +22,7 @@ class SqliteAdapter implements DriverAdapter {
   }
 
   async acquire(connectionString: string, _options: ConnectionOptions, _pooled: boolean): Promise<any> {
+    assertSafeEmbeddedDatabasePath(connectionString);
     const Database = this.load();
     let db = this.dbs.get(connectionString);
     if (!db) {
@@ -29,6 +31,7 @@ class SqliteAdapter implements DriverAdapter {
       // database". fileMustExist keeps a typo'd path from silently creating an
       // empty database instead of reporting that the file is missing.
       db = new Database(connectionString, { fileMustExist: true });
+      db.pragma('trusted_schema = OFF');
       this.dbs.set(connectionString, db);
     }
     return db;
@@ -39,6 +42,7 @@ class SqliteAdapter implements DriverAdapter {
   }
 
   async query<T = Record<string, unknown>>(db: any, sql: string, params: readonly unknown[]): Promise<T[]> {
+    assertSafeSqliteSql(sql);
     const stmt = db.prepare(sql);
     // better-sqlite3 splits the API by statement kind: `.all()` throws
     // "This statement does not return data. Use run() instead" for anything

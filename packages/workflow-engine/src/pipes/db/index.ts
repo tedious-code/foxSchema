@@ -13,4 +13,15 @@ export {
 export { PostgresSourcePipe } from './postgres-source.js';
 export { MysqlSourcePipe, type MysqlClient, type MysqlClientFactory } from './mysql-source.js';
 export { MysqlSinkPipe, fallbackMysqlType } from './mysql.js';
-export { SqlSinkPipe, SqlSourcePipe, connectionFromSecret, runSqlScript, type RunSqlScriptOptions, type SqlConnection, type SqlRunner } from './sql.js';
+export {
+  NATIVE_ADDON_SQL_DIALECTS,
+  SqlSinkPipe,
+  SqlSourcePipe,
+  connectionFromSecret,
+  runSqlScript,
+  setSqlRunnerDelegate,
+  type RunSqlScriptOptions,
+  type SqlConnection,
+  type SqlRunner,
+  type SqlSession,
+} from './sql.js';

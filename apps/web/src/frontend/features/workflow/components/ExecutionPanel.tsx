@@ -68,6 +68,9 @@ const time = (iso: string): string => {
     : parsed.toLocaleTimeString(undefined, { hour12: false });
 };
 
+const pipeLabel = (node: PipeNodeType): string =>
+  node.data.name || node.data.pipeId || node.id;
+
 export function ExecutionPanel({
   nodes,
   edges,
@@ -138,8 +141,8 @@ export function ExecutionPanel({
                   <span className={`execution-dot ${node.data.role}`} />
                   <span>
                     {nodes.some((n) => n.data.pipelineId !== node.data.pipelineId)
-                      ? `${node.data.pipelineId} / ${node.data.pipeId}`
-                      : node.data.pipeId}
+                      ? `${node.data.pipelineId} / ${pipeLabel(node)}`
+                      : pipeLabel(node)}
                   </span>
                   <span className={`execution-row-state ${stateClass(state?.status)}`}>
                     {idle
@@ -161,7 +164,7 @@ export function ExecutionPanel({
         <div className="execution-log">
           <div className="execution-log-heading">
             <Terminal size={14} />
-            <strong>{focused?.data.pipeId ?? 'Workflow preview'}</strong>
+            <strong>{focused ? pipeLabel(focused) : 'Workflow preview'}</strong>
             {focused && !idle && (
               <span className="execution-id">
                 · click any pipe on the left to inspect Input &amp; Output
@@ -172,7 +175,7 @@ export function ExecutionPanel({
             <div className="execution-io-grid">
               <div className="execution-io-card">
                 <div className="execution-io-title">
-                  <strong>INPUT ({focused.data.pipeId})</strong>
+                  <strong>INPUT ({pipeLabel(focused)})</strong>
                   <span>
                     {focusedInSamples[0]
                       ? `${focusedInSamples[0].recordCount} record(s)`
@@ -189,7 +192,7 @@ export function ExecutionPanel({
               </div>
               <div className="execution-io-card">
                 <div className="execution-io-title">
-                  <strong>OUTPUT ({focused.data.pipeId})</strong>
+                  <strong>OUTPUT ({pipeLabel(focused)})</strong>
                   <span>
                     {focusedOutSamples[0]
                       ? `${focusedOutSamples[0].recordCount} record(s)`
@@ -259,7 +262,11 @@ export function ExecutionPanel({
             </div>
             <div>
               <dt>Connections</dt>
-              <dd>{edges.length}</dd>
+              <dd>
+                {focused
+                  ? edges.filter((e) => e.source === focused.id || e.target === focused.id).length
+                  : edges.length}
+              </dd>
             </div>
           </dl>
           <div className="execution-metric">

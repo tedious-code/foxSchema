@@ -19,6 +19,8 @@ useDefault = true
     '''foxuser''',
     # Placeholder password used only in local Docker compose (never production)
     '''FoxPass123!''',
+    # Non-secret password generator character set (NewPasswordFields.tsx, commit 96070d645c)
+    '''abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789''',
   ]
 
 # Fine-tune rule severity so the SARIF report is useful without noise.

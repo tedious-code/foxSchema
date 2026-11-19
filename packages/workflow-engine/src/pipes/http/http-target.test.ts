@@ -11,6 +11,11 @@ describe('assertHttpTargetAllowed', () => {
     'http://localhost/api/health',
     'http://127.0.0.1:3210/api/hooks/x',
     'http://[::1]/',
+    'http://[::ffff:127.0.0.1]:3210/',
+    'http://[::ffff:7f00:1]:3210/',
+    'http://[::ffff:a9fe:a9fe]/latest/meta-data/',
+    'http://[fd00:ec2::254]/latest/meta-data/',
+    'http://100.100.100.200/latest/meta-data/',
     'http://169.254.169.254/latest/meta-data/',
     'http://metadata.google.internal/',
   ])('refuses %s', async (url) => {

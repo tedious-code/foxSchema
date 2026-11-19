@@ -1,7 +1,9 @@
-import React, { useEffect, useState, Suspense, lazy } from 'react';
+import React, { useEffect, useMemo, useState, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
-import { X, History, RefreshCw, Trash2, Download, Database, CheckSquare, Square, GitBranch } from 'lucide-react';
+import { X, History, RefreshCw, Trash2, Download, Database, CheckSquare, Square, GitBranch, Copy } from 'lucide-react';
 import { useAuthStore } from '@/platform/authStore';
+import { toast } from '@/platform/toastStore';
+import { writeClipboard } from '@/shared/utils/clipboard';
 import { GitBranchView } from '@/features/git';
 import { loadSqlEditor } from '@/features/sql-editor';
 import {
@@ -47,8 +49,28 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
   // Multi-select for bulk delete (keyed by run id).
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [confirmClear, setConfirmClear] = useState(false);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | MigrationRunStatus>('ALL');
   const canViewGit = useAuthStore((s) => s.can('git.view'));
+  const canMigrate = useAuthStore((s) => s.can('schema.migrate'));
   const [showGit, setShowGit] = useState(false);
+
+  const filteredRuns = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return runs.filter((r) => {
+      if (statusFilter !== 'ALL' && r.status !== statusFilter) return false;
+      if (!q) return true;
+      return (
+        (r.database?.toLowerCase().includes(q) ?? false) ||
+        (r.schema?.toLowerCase().includes(q) ?? false) ||
+        (r.host?.toLowerCase().includes(q) ?? false) ||
+        r.dialect.toLowerCase().includes(q) ||
+        (r.author?.toLowerCase().includes(q) ?? false) ||
+        (r.git?.commit.toLowerCase().includes(q) ?? false) ||
+        (r.error?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [runs, search, statusFilter]);
 
   const loadList = async () => {
     setLoading(true);
@@ -100,9 +122,10 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
       return next;
     });
 
-  const allChecked = runs.length > 0 && checked.size === runs.length;
+  const visibleCheckedCount = filteredRuns.filter((r) => checked.has(r.id)).length;
+  const allChecked = filteredRuns.length > 0 && visibleCheckedCount === filteredRuns.length;
   const toggleCheckAll = () =>
-    setChecked(allChecked ? new Set() : new Set(runs.map((r) => r.id)));
+    setChecked(allChecked ? new Set() : new Set(filteredRuns.map((r) => r.id)));
 
   const deleteSelected = async () => {
     const ids = [...checked];
@@ -172,44 +195,73 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
           <div className="w-72 shrink-0 border-r border-slate-800 flex flex-col min-h-0">
             {runs.length > 0 && (
               <div className="shrink-0 border-b border-slate-800 bg-slate-950/40">
-                {/* Select-all row */}
-                <div className="flex items-center justify-between gap-2 px-3 py-2">
-                  <button data-testid="history-select-all"
-                    onClick={toggleCheckAll}
-                    className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-300 hover:text-slate-100 transition"
-                    title={allChecked ? 'Deselect all' : 'Select all'}
+                <div className="flex items-center gap-1.5 px-3 pt-2 pb-1.5">
+                  <input
+                    type="text"
+                    data-testid="migration-history-search"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search host, db, author…"
+                    aria-label="Search migration history"
+                    className="min-w-0 flex-1 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] text-slate-200 placeholder-slate-500 outline-none accent-focus"
+                  />
+                  <select
+                    data-testid="migration-history-filter-status"
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value as 'ALL' | MigrationRunStatus)}
+                    aria-label="Filter migrations by status"
+                    className="rounded border border-slate-700 bg-slate-900 px-1.5 py-1 text-[11px] text-slate-200 outline-none accent-focus"
                   >
-                    {allChecked ? <CheckSquare className="w-4 h-4 text-cyan-400" /> : <Square className="w-4 h-4 text-slate-500" />}
-                    {checked.size > 0 ? `${checked.size} selected` : 'Select all'}
-                  </button>
-                  <div className="flex items-center gap-1">
-                    {checked.size > 0 && (
-                      <button data-testid="history-delete-selected"
-                        onClick={deleteSelected}
-                        title="Delete selected records"
-                        className="flex items-center gap-1 text-[11px] font-semibold text-rose-300 hover:text-rose-200 border border-rose-500/30 bg-rose-950/30 hover:bg-rose-950/50 rounded px-2 py-1 transition cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" /> Delete
-                      </button>
-                    )}
-                    <button data-testid="history-clear-all"
-                      onClick={() => setConfirmClear(true)}
-                      title="Clear all records"
-                      className="text-[11px] font-semibold text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-600 rounded px-2 py-1 transition cursor-pointer"
-                    >
-                      Clear all
-                    </button>
-                  </div>
+                    <option value="ALL">All</option>
+                    <option value="SUCCESS">Success</option>
+                    <option value="PARTIAL_SUCCESS">Partial</option>
+                    <option value="FAILED">Failed</option>
+                    <option value="ROLLED_BACK">Rolled back</option>
+                    <option value="RUNNING">Running</option>
+                  </select>
                 </div>
-                {/* Inline confirm for the destructive clear-all */}
-                {confirmClear && (
-                  <div className="flex items-center justify-between gap-2 px-3 py-2 bg-rose-950/30 border-t border-rose-500/20">
-                    <span className="text-[11px] text-rose-200">Delete all {runs.length} record{runs.length === 1 ? '' : 's'}?</span>
-                    <div className="flex items-center gap-1">
-                      <button data-testid="history-clear-all-confirm" onClick={clearAll} className="text-[11px] font-bold text-slate-950 bg-rose-400 hover:bg-rose-300 rounded px-2 py-1 transition on-accent-fg">Clear all</button>
-                      <button data-testid="history-clear-all-cancel" onClick={() => setConfirmClear(false)} className="text-[11px] font-semibold text-slate-400 hover:text-slate-200 px-2 py-1 transition">Cancel</button>
+                {canMigrate && (
+                  <>
+                    {/* Select-all row */}
+                    <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-slate-800/60">
+                      <button data-testid="history-select-all"
+                        onClick={toggleCheckAll}
+                        className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-300 hover:text-slate-100 transition"
+                        title={allChecked ? 'Deselect all' : 'Select all'}
+                      >
+                        {allChecked ? <CheckSquare className="w-4 h-4 text-cyan-400" /> : <Square className="w-4 h-4 text-slate-500" />}
+                        {checked.size > 0 ? `${checked.size} selected` : 'Select all'}
+                      </button>
+                      <div className="flex items-center gap-1">
+                        {checked.size > 0 && (
+                          <button data-testid="history-delete-selected"
+                            onClick={deleteSelected}
+                            title="Delete selected records"
+                            className="flex items-center gap-1 text-[11px] font-semibold text-rose-300 hover:text-rose-200 border border-rose-500/30 bg-rose-950/30 hover:bg-rose-950/50 rounded px-2 py-1 transition cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                          </button>
+                        )}
+                        <button data-testid="history-clear-all"
+                          onClick={() => setConfirmClear(true)}
+                          title="Clear all records"
+                          className="text-[11px] font-semibold text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-600 rounded px-2 py-1 transition cursor-pointer"
+                        >
+                          Clear all
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                    {/* Inline confirm for the destructive clear-all */}
+                    {confirmClear && (
+                      <div className="flex items-center justify-between gap-2 px-3 py-2 bg-rose-950/30 border-t border-rose-500/20">
+                        <span className="text-[11px] text-rose-200">Delete all {runs.length} record{runs.length === 1 ? '' : 's'}?</span>
+                        <div className="flex items-center gap-1">
+                          <button data-testid="history-clear-all-confirm" onClick={clearAll} className="text-[11px] font-bold text-slate-950 bg-rose-400 hover:bg-rose-300 rounded px-2 py-1 transition on-accent-fg">Clear all</button>
+                          <button data-testid="history-clear-all-cancel" onClick={() => setConfirmClear(false)} className="text-[11px] font-semibold text-slate-400 hover:text-slate-200 px-2 py-1 transition">Cancel</button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -219,8 +271,12 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
                 <Database className="w-8 h-8 mx-auto mb-2 text-slate-700" />
                 {loading ? 'Loading…' : 'No migrations executed yet.'}
               </div>
+            ) : filteredRuns.length === 0 ? (
+              <div className="text-center py-10 px-4 text-slate-500 text-xs" data-testid="migration-history-no-match">
+                No matching migrations.
+              </div>
             ) : (
-              runs.map((r) => (
+              filteredRuns.map((r) => (
                 <div
                   key={r.id}
                   data-testid="history-run-item"
@@ -231,14 +287,16 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
                     selectedId === r.id ? 'bg-slate-800/70' : 'hover:bg-slate-900/60'
                   }`}
                 >
-                  <input data-testid={`history-select-${r.id}`}
-                    type="checkbox"
-                    checked={checked.has(r.id)}
-                    onChange={() => toggleCheck(r.id)}
-                    onClick={(e) => e.stopPropagation()}
-                    title="Select this record"
-                    className="w-4 h-4 mt-0.5 accent-cyan-500 cursor-pointer shrink-0"
-                  />
+                  {canMigrate && (
+                    <input data-testid={`history-select-${r.id}`}
+                      type="checkbox"
+                      checked={checked.has(r.id)}
+                      onChange={() => toggleCheck(r.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      title="Select this record"
+                      className="w-4 h-4 mt-0.5 accent-cyan-500 cursor-pointer shrink-0"
+                    />
+                  )}
                   <div className="min-w-0 flex-1 text-left">
                     <div className="flex items-center justify-between gap-2">
                       <StatusBadge status={r.status} />
@@ -247,7 +305,9 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
                     <p className="text-xs text-slate-300 font-mono truncate mt-1.5" title={`${r.host} / ${r.database} / ${r.schema}`}>
                       {r.database}{r.schema ? ` / ${r.schema}` : ''}
                     </p>
-                    <p className="text-[10px] text-slate-500 mt-0.5">{fmt(r.startedAt)}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5 truncate">
+                      {fmt(r.startedAt)}{r.author ? ` · ${r.author}` : ''}
+                    </p>
                   </div>
                 </div>
               ))
@@ -286,6 +346,7 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
                     </p>
                     <p className="text-[11px] text-slate-500 mt-1">
                       Started {fmt(detail.startedAt)} · Finished {fmt(detail.finishedAt)}
+                      {detail.author ? ` · by ${detail.author}` : ''}
                     </p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
@@ -298,13 +359,15 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
                         <Download className="w-3.5 h-3.5" /> Snapshot
                       </button>
                     )}
-                    <button data-testid="history-delete-record"
-                      onClick={() => remove(detail.id)}
-                      title="Delete this record"
-                      className="p-1.5 text-slate-500 hover:text-rose-300 hover:bg-rose-950/20 rounded transition cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {canMigrate && (
+                      <button data-testid="history-delete-record"
+                        onClick={() => remove(detail.id)}
+                        title="Delete this record"
+                        className="p-1.5 text-slate-500 hover:text-rose-300 hover:bg-rose-950/20 rounded transition cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -346,7 +409,25 @@ export const MigrationHistory: React.FC<Props> = ({ open, onClose }) => {
                 {/* Executed script */}
                 {detail.script && (
                   <div>
-                    <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1.5">Executed Script</p>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Executed Script</p>
+                      <button
+                        type="button"
+                        data-testid="migration-history-copy-sql"
+                        onClick={() => {
+                          if (!detail.script) return;
+                          void writeClipboard(detail.script).then((ok) =>
+                            toast({
+                              tone: ok ? 'success' : 'warning',
+                              title: ok ? 'Migration SQL copied' : 'Copy failed',
+                            })
+                          );
+                        }}
+                        className="flex items-center gap-1 text-[11px] text-slate-300 hover:text-slate-100 border border-slate-700 rounded px-2 py-0.5 hover:bg-slate-800 transition"
+                      >
+                        <Copy className="w-3 h-3" /> Copy SQL
+                      </button>
+                    </div>
                     <div className="bg-slate-950 border border-slate-850 rounded-lg overflow-hidden h-72">
                       <Suspense fallback={<div className="p-4 text-xs text-slate-500">Loading editor…</div>}>
                         <SqlEditor value={detail.script} dialect={detail.dialect} />

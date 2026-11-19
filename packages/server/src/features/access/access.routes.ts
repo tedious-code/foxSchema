@@ -48,6 +48,7 @@ export function createAccessRoutes(deps: AccessRouteDeps): Router {
 
   router.post(
     '/schema/index-fragmentation',
+    reads,
     indexFragLimiter,
     requirePermissions('utility.access'),
     async (req: AppRequest, res: FastifyReply) => {
@@ -83,14 +84,13 @@ export function createAccessRoutes(deps: AccessRouteDeps): Router {
       }
       res.send(probed.value);
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to load index fragmentation';
-      sendError(res, 'failed', message);
+      sendThrown(res, error, 'Failed to load index fragmentation');
     }
   });
 
   router.post(
     '/schema/index-fragmentation-batch',
+    reads,
     indexFragBatchLimiter,
     requirePermissions('utility.access'),
     async (req: AppRequest, res: FastifyReply) => {
@@ -155,15 +155,14 @@ export function createAccessRoutes(deps: AccessRouteDeps): Router {
           }),
         });
       } catch (error: unknown) {
-        const message =
-          error instanceof Error ? error.message : 'Failed to load index fragmentation batch';
-        sendError(res, 'failed', message);
+        sendThrown(res, error, 'Failed to load index fragmentation batch');
       }
     }
   );
 
   router.post(
     '/schema/dba-utility',
+    reads,
     dbaUtilityLimiter,
     requirePermissions('utility.access'),
     async (req: AppRequest, res: FastifyReply) => {
@@ -201,6 +200,7 @@ export function createAccessRoutes(deps: AccessRouteDeps): Router {
 
   router.post(
     '/schema/session-locks',
+    reads,
     dbaUtilityLimiter,
     requirePermissions('utility.access'),
     async (req: AppRequest, res: FastifyReply) => {
@@ -262,6 +262,7 @@ export function createAccessRoutes(deps: AccessRouteDeps): Router {
 
   router.post(
     '/schema/table-health',
+    reads,
     dbaUtilityLimiter,
     requirePermissions('utility.access'),
     async (req: AppRequest, res: FastifyReply) => {

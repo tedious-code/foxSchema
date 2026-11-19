@@ -536,6 +536,7 @@ const ResultGridPane: React.FC<{
         onSelectRow={crud.onSelectRow}
         toolbarExtra={toolbarExtra}
         cellHighlight={cellHighlight}
+        statementSql={item.statementSql}
         rowSync={rowSync}
       />
       {linkColumns && linkColumns.size > 0 && (

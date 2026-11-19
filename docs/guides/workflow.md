@@ -1,7 +1,8 @@
 # Workflow engine
 
-FoxSchema designs and administers workflows in the web UI. The engine runs
-**in the FoxSchema API process** (`packages/server/src/features/workflow/runtime`).
+FoxSchema designs and administers workflows in the web UI. The engine runs in
+an **isolated sandbox child process** (`packages/server/src/features/workflow/runtime`)
+that **only FoxSchema can reach** over a private OS IPC channel.
 
 User walkthrough: [user-guide.md](user-guide.md#workflow). Deploy env vars:
 [DEPLOYMENT.md](DEPLOYMENT.md#workflow-engine). Folder map: [CODE_MAP.md](../architecture/CODE_MAP.md).
@@ -10,26 +11,30 @@ User walkthrough: [user-guide.md](user-guide.md#workflow). Deploy env vars:
 
 ```
 Browser  ── /api/workflow/* (session + RBAC) ──►  FoxSchema API  (:3210)
-                                                    │ in-process Engine
+                                                    │ Private OS IPC only (no TCP/Unix listener)
                                                     ▼
-                                          packages/workflow-engine
+                                       Sandboxed Engine Child Process
+                                  (Node --permission, stripped env, heap cap)
                     ┌───────────────────────────────┼──────────────────────────┐
                     │                               │                          │
               scheduler + cron                SQLite FOXFLOW_DB_PATH     /api/hooks/*
-              (same process)                  (repo-root default)        (public ingress)
+              (inside sandbox)                (exact file allowlist)     (proxied via FoxSchema)
 ```
 
 | Piece | Role |
 |-------|------|
 | `apps/web/src/frontend/features/workflow` | Designer, runs, credentials, Engine control plane |
-| `packages/server/src/features/workflow` | Settings, connection grants, `ENGINE_ROUTES` Fastify plugins |
-| `packages/server/src/features/workflow/runtime` | Engine host, Fastify route plugins, SQL probe |
+| `packages/server/src/features/workflow` | Settings, connection grants, `ENGINE_ROUTES` RBAC & workspace-connection proxy |
+| `packages/server/src/features/workflow/runtime` | Sandbox supervisor (`sandbox-client.ts`, `sandbox-policy.ts`, `sandbox.worker.ts`), route plugins, SQL probe |
 | `packages/workflow-engine` | Definitions, compiler, runtime, SQLite stores, built-in pipes |
 | `packages/workflow-contract` | Browser-safe types |
 
-The designer talks to `/api/workflow/engine/*` with a FoxSchema session.
-Webhook and API-endpoint **ingress is never fronted** by that session — those
-routes authenticate their own callers (`runtime/routes/triggers.ts`).
+The designer talks to `/api/workflow/engine/*` with a FoxSchema session, which
+FoxSchema authorizes and forwards over private IPC to the sandbox child.
+Webhook and API-endpoint ingress (`/api/hooks/*`, `/api/triggers/:workflowId/:triggerId`)
+is also proxied through FoxSchema with exact raw request bytes preserved for HMAC
+verification (`runtime/routes/triggers.ts`), so the engine child never opens a
+listening network socket of its own.
 
 Saving a workflow runs the same checks the executor will: every pipe must be
 usable, and every edge `fromPort` must be a port the source pipe declares
@@ -39,9 +44,10 @@ refused at save (`pipeline p: edge split → out: unknown fromPort "eu"`), not
 discovered when a scheduled run fails. Pipes without static metadata skip the
 check (Goto).
 
-Saved FoxSchema connections resolve in-process through
-`WorkflowConnectionGrants.resolveForEngine` (injected into the Engine). There
-is no service token and no second hop.
+Saved FoxSchema connections resolve over reverse-IPC RPC through
+`WorkflowConnectionGrants.resolveForEngine` in the FoxSchema parent process.
+The sandboxed engine child never receives `APP_ENCRYPTION_KEY`, `SESSION_SECRET`,
+or filesystem access to `foxschema.db`.
 
 ## Local development
 
@@ -207,11 +213,34 @@ them on save and re-reads them every **30 seconds**.
 - **Docker.** Set `FOXFLOW_ENCRYPTION_KEY` on the FoxSchema process. The image
   defaults `FOXFLOW_DB_PATH` to `/data/workflow-engine.sqlite`. See
   [DEPLOYMENT.md](DEPLOYMENT.md#workflow-engine).
-- **In-process isolation.** A hung SQL or script shares this API process.
-  Mitigations: script pipes still run on worker threads; a bad
-  `FOXFLOW_ENCRYPTION_KEY` does not take down the API; saved-connection
-  resolve is injected (no HTTP to this process); HTTP pipes refuse loopback
-  and link-local; plugins load only with a digest pin.
+- **Sandbox isolation.** The engine runs in its own child process spawned with
+  Node `--permission`, no `--allow-child-process`, no `--allow-worker`, no
+  `--allow-addons` by default, a stripped environment (`APP_ENCRYPTION_KEY`,
+  `FOXFLOW_ENCRYPTION_KEY`, `SESSION_SECRET`, and `APP_DB_PATH` are excluded from
+  `process.env`), a bounded V8 heap (`FOXFLOW_SANDBOX_MEMORY_MB`, default `512`),
+  and narrow filesystem access covering only the exact workflow SQLite files
+  (`workflow-engine.sqlite*`) and configured `FOXFLOW_FILES_DIR` / `WORKFLOW_LOG_DIR`
+  subdirectories — never `/data` root or `foxschema.db`. Only FoxSchema holds
+  the private OS IPC channel; standalone execution of the worker is refused.
+  `transform.script` still runs in a dedicated zero-FS child sandbox via
+  parent reverse-RPC, pure-JS database drivers (Postgres, MySQL, MariaDB, SQL Server,
+  Oracle thin, ClickHouse, Redshift, CockroachDB, Yugabyte) run inside the sandbox,
+  and native-addon dialects (file-based SQLite, DuckDB, IBM Db2) delegate safely
+  over private reverse-RPC to FoxSchema. Every SQLite and DuckDB connection (in
+  workflows and across FoxSchema) rejects `foxschema.db`, `workflow-engine.sqlite`,
+  and `.app_encryption_key` — including `file:` URIs, `-wal`/`-shm`/`-journal`
+  companions, symlinks, and hard links — while DuckDB sessions lock
+  `enable_external_access = false` with `lock_configuration = true` (blocking
+  `read_text`, `read_csv`, `ATTACH`, and `COPY ... TO/FROM`) and SQLite sessions
+  refuse `ATTACH`, `DETACH`, `VACUUM INTO`, `load_extension()`, and schema-safety
+  `PRAGMA` overrides. Plugins require a `@sha256:` digest pin, and an
+  unexpected sandbox crash triggers automatic respawn with backoff without taking
+  down FoxSchema. Production Docker images pre-build `packages/server/dist/workflow-sandbox.worker.mjs`
+  so `node_modules` can stay read-only. Optional operator knobs:
+  `FOXFLOW_SANDBOX_MEMORY_MB`, `FOXFLOW_SANDBOX_ENV_ALLOWLIST`,
+  `FOXFLOW_SANDBOX_EXTRA_READ_DIRS`, `FOXFLOW_SANDBOX_EXTRA_WRITE_DIRS`,
+  `FOXFLOW_SANDBOX_ALLOW_ADDONS=true`, `FOXFLOW_SANDBOX_WORKER_BUNDLE`, and
+  `FOXFLOW_SANDBOX_MODE=in-process` (debug fallback).
 - **Sink batch claims are per run.** Postgres/MySQL write pipes scope the
   idempotency claim to `[workflowRunId, batch.id]` so a retry inside one run
   dedupes, but the next scheduled run is not suppressed.

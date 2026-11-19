@@ -26,6 +26,7 @@ export interface MigrationRunSummary {
   error?: string;
   startedAt: string;
   finishedAt?: string;
+  author?: string;
   /** The committed migration this run applied, when it came from Git. */
   git?: { repoId: string; branch?: string; commit: string; path: string };
 }
@@ -55,6 +56,7 @@ interface Row {
   git_branch?: string | null;
   git_commit?: string | null;
   git_path?: string | null;
+  author_email?: string | null;
 }
 
 // Bounds so the metadata DB can't grow unbounded.
@@ -157,6 +159,7 @@ export class MigrationHistoryStore {
       error: r.error ?? undefined,
       startedAt: r.started_at,
       finishedAt: r.finished_at ?? undefined,
+      ...(r.author_email ? { author: r.author_email } : {}),
       ...(r.git_repo_id && r.git_commit && r.git_path
         ? { git: { repoId: r.git_repo_id, branch: r.git_branch ?? undefined, commit: r.git_commit, path: r.git_path } }
         : {}),
@@ -166,9 +169,13 @@ export class MigrationHistoryStore {
   async list(scope: WorkspaceScope, limit = 100): Promise<MigrationRunSummary[]> {
     const store = await getStore();
     const rows = await store.all<Row>(
-      `SELECT id, status, dialect, target_host, database_name, "schema", object_count, error, started_at, finished_at,
-              git_repo_id, git_branch, git_commit, git_path
-         FROM migration_runs WHERE workspace_id = ? ORDER BY started_at DESC LIMIT ?`,
+      `SELECT m.id, m.status, m.dialect, m.target_host, m.database_name, m."schema", m.object_count, m.error, m.started_at, m.finished_at,
+              m.git_repo_id, m.git_branch, m.git_commit, m.git_path, u.email AS author_email
+         FROM migration_runs m
+         LEFT JOIN users u ON u.id = m.user_id
+        WHERE m.workspace_id = ?
+        ORDER BY m.started_at DESC
+        LIMIT ?`,
       [scope.workspaceId, limit]
     );
     return rows.map((r) => this.summary(r));
@@ -176,7 +183,13 @@ export class MigrationHistoryStore {
 
   async get(scope: WorkspaceScope, id: string): Promise<MigrationRunDetail | null> {
     const store = await getStore();
-    const r = await store.get<Row>('SELECT * FROM migration_runs WHERE id = ? AND workspace_id = ?', [id, scope.workspaceId]);
+    const r = await store.get<Row>(
+      `SELECT m.*, u.email AS author_email
+         FROM migration_runs m
+         LEFT JOIN users u ON u.id = m.user_id
+        WHERE m.id = ? AND m.workspace_id = ?`,
+      [id, scope.workspaceId]
+    );
     if (!r) return null;
     let results: MigrationObjectResult[] = [];
     try {

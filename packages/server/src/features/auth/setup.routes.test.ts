@@ -70,10 +70,32 @@ describe('first-run setup over HTTP', () => {
       setupRequired: true,
       setupCodeRequired: false,
     });
+    // Without explicit FOX_TRUST_LOCAL_DEV_PROXY, ANY forwarding header
+    // (including X-Forwarded-For: 127.0.0.1) must still require the setup code.
+    expect((await call('GET', '/auth/setup', undefined, { 'x-forwarded-for': '127.0.0.1' })).json).toMatchObject({
+      setupRequired: true,
+      setupCodeRequired: true,
+    });
     expect((await call('GET', '/auth/setup', undefined, PROXIED)).json).toMatchObject({
       setupRequired: true,
       setupCodeRequired: true,
     });
+
+    const oldDevProxy = process.env.FOX_TRUST_LOCAL_DEV_PROXY;
+    try {
+      process.env.FOX_TRUST_LOCAL_DEV_PROXY = 'true';
+      expect((await call('GET', '/auth/setup', undefined, { 'x-forwarded-for': '127.0.0.1' })).json).toMatchObject({
+        setupRequired: true,
+        setupCodeRequired: false,
+      });
+      expect((await call('GET', '/auth/setup', undefined, PROXIED)).json).toMatchObject({
+        setupRequired: true,
+        setupCodeRequired: true,
+      });
+    } finally {
+      if (oldDevProxy === undefined) delete process.env.FOX_TRUST_LOCAL_DEV_PROXY;
+      else process.env.FOX_TRUST_LOCAL_DEV_PROXY = oldDevProxy;
+    }
   });
 
   it('does not mistake an unlabelled loopback production proxy for the local owner', async () => {
@@ -108,7 +130,20 @@ describe('first-run setup over HTTP', () => {
     }
   });
 
-  it('refuses a proxied setup without the right code', async () => {
+  it('refuses remote setup code rotation while allowing re-printing the code in logs without leaking it', async () => {
+    const before = setupCode();
+    // Remote callers must NOT be able to rotate/invalidate the setup code.
+    const rotateDenied = await call('POST', '/auth/setup/code-announce', { regenerate: true }, PROXIED);
+    expect(rotateDenied.status).toBe(403);
+    expect(setupCode()).toBe(before);
+
+    // Re-printing the existing code without rotation is allowed and never leaks it.
+    const announced = await call('POST', '/auth/setup/code-announce', { regenerate: false }, PROXIED);
+    expect(announced.status).toBe(200);
+    expect(announced.json).toEqual({ ok: true });
+    expect(JSON.stringify(announced.json)).not.toContain(before);
+    expect(setupCode()).toBe(before);
+
     const creds = { email: 'owner@example.com', password: 'blue-lantern-42' };
     expect((await call('POST', '/auth/setup', creds, PROXIED)).status).toBe(403);
     expect((await call('POST', '/auth/setup', { ...creds, code: 'AAAA-AAAA' }, PROXIED)).status).toBe(403);

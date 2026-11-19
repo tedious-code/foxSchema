@@ -953,6 +953,10 @@ export const TestIds = {
       authLoginSubmit: 'auth-login-submit',
       /** input · ABCD-EFGH */
       authSetupCode: 'auth-setup-code',
+      /** button · Re-print code in server log */
+      authSetupCodeAnnounce: 'auth-setup-code-announce',
+      /** p */
+      authSetupCodeNote: 'auth-setup-code-note',
       /** input · your@email.com */
       authSetupEmail: 'auth-setup-email',
       /** form */
@@ -963,6 +967,12 @@ export const TestIds = {
     NewPasswordFields: {
       /** input */
       authNewsOptIn: 'auth-news-opt-in',
+      /** button */
+      authPasswordCopyGenerated: 'auth-password-copy-generated',
+      /** button · Auto-generate */
+      authPasswordGenerate: 'auth-password-generate',
+      /** div */
+      authPasswordGeneratedNotice: 'auth-password-generated-notice',
       /** p */
       capsLockHint: 'caps-lock-hint',
       /** ul */
@@ -1545,6 +1555,8 @@ export const TestIds = {
       lokeeInspectorClose: 'lokee-inspector-close',
       /** div */
       lokeeInspectorColumnMutations: 'lokee-inspector-column-mutations',
+      /** button · Copy object DDL */
+      lokeeInspectorCopyDdl: 'lokee-inspector-copy-ddl',
       /** section · Roadmap · v …v ( of touched this ) */
       lokeeInspectorGrowth: 'lokee-inspector-growth',
       /** section · Change timeline */
@@ -1685,6 +1697,8 @@ export const TestIds = {
       lokeeCmpTab: (id: string | number) => `lokee-cmp-tab-${id}`,
       /** button · Put Target back on the current database so this revert can run */
       lokeeCmpUseCurrentTarget: 'lokee-cmp-use-current-target',
+      /** button · Copy revert statements */
+      lokeeCompareCopyRevertSql: 'lokee-compare-copy-revert-sql',
       /** div · Compare versions */
       lokeeVersionCompare: 'lokee-version-compare',
       /** button · Close compare */
@@ -1729,6 +1743,14 @@ export const TestIds = {
       historySelect: (id: string | number) => `history-select-${id}`,
       /** button */
       historySelectAll: 'history-select-all',
+      /** button · Copy SQL */
+      migrationHistoryCopySql: 'migration-history-copy-sql',
+      /** select · Filter migrations by status */
+      migrationHistoryFilterStatus: 'migration-history-filter-status',
+      /** div */
+      migrationHistoryNoMatch: 'migration-history-no-match',
+      /** input · Search migration history */
+      migrationHistorySearch: 'migration-history-search',
     },
   },
   schemaDiff: {
@@ -2127,6 +2149,8 @@ export const TestIds = {
       sqlTabClose: (id: string | number) => `sql-tab-close-${id}`,
       /** span */
       sqlTabDialect: (id: string | number) => `sql-tab-dialect-${id}`,
+      /** span · Modified from saved bookmark */
+      sqlTabDirty: (id: string | number) => `sql-tab-dirty-${id}`,
       /** input */
       sqlTabRename: 'sql-tab-rename',
       /** button · Rename query */
@@ -2443,7 +2467,7 @@ export const TestIds = {
     SqlEditorView: {
       /** button · Save current query as a bookmark (uses the tab title) */
       sqlBookmarkSave: 'sql-bookmark-save',
-      /** button · Bookmark this query (uses the tab title) */
+      /** button · Bookmark this query (uses the tab title) (Cmd/Ctrl+S) */
       sqlBookmarkSaveToolbar: 'sql-bookmark-save-toolbar',
       /** div */
       sqlEditorLoading: 'sql-editor-loading',
@@ -2453,7 +2477,7 @@ export const TestIds = {
       sqlEditorStatusBar: 'sql-editor-status-bar',
       /** div */
       sqlEditorView: 'sql-editor-view',
-      /** button · Pretty-print SQL (sql-formatter) and JS/TS/Node cells (Prettier) */
+      /** button · Pretty-print SQL (sql-formatter) and JS/TS/Node cells (Prettier) (Cmd/Ctrl+Shift+F) */
       sqlFormatBtn: 'sql-format-btn',
       /** span */
       sqlFormatNote: 'sql-format-note',
@@ -2493,16 +2517,28 @@ export const TestIds = {
     SqlRunsDrawer: {
       /** button · Clear recent */
       sqlRunsClear: 'sql-runs-clear',
+      /** button · Cancel */
+      sqlRunsClearCancel: 'sql-runs-clear-cancel',
+      /** button · Confirm */
+      sqlRunsClearConfirm: 'sql-runs-clear-confirm',
       /** button · Close runs */
       sqlRunsClose: 'sql-runs-close',
+      /** button · Copy run SQL */
+      sqlRunsCopy: (id: string | number) => `sql-runs-copy-${id}`,
+      /** button · Remove run from history */
+      sqlRunsDelete: (id: string | number) => `sql-runs-delete-${id}`,
       /** aside · Recent runs */
       sqlRunsDrawer: 'sql-runs-drawer',
       /** p */
       sqlRunsEmpty: 'sql-runs-empty',
       /** ul */
       sqlRunsList: 'sql-runs-list',
+      /** p */
+      sqlRunsNoMatch: 'sql-runs-no-match',
       /** button */
       sqlRunsOpen: (id: string | number) => `sql-runs-open-${id}`,
+      /** input · Search recent runs */
+      sqlRunsSearch: 'sql-runs-search',
     },
     SqlSchemaExplorer: {
       /** button */
@@ -2557,6 +2593,10 @@ export const TestIds = {
       sqlSchemaGroupToggle: (type: string | number) => `sql-schema-group-toggle-${type}`,
       /** p */
       sqlSchemaMissing: 'sql-schema-missing',
+      /** input · Filter schema objects */
+      sqlSchemaObjectFilter: 'sql-schema-object-filter',
+      /** button · Peek */
+      sqlSchemaPeek: (name: string | number) => `sql-schema-peek-${name}`,
     },
     SqlSecretsPanel: {
       /** li */
@@ -3235,6 +3275,8 @@ export const TestIds = {
       indexManagementOverlay: 'index-management-overlay',
       /** button · Cancel */
       indexMgmtCancel: 'index-mgmt-cancel',
+      /** button · Clear filters */
+      indexMgmtClearFilter: 'index-mgmt-clear-filter',
       /** button · Close */
       indexMgmtClose: 'index-mgmt-close',
       /** button · Collapse tables */
@@ -3251,16 +3293,24 @@ export const TestIds = {
       indexMgmtConfirmDropRun: 'index-mgmt-confirm-drop-run',
       /** select · — Select credential — */
       indexMgmtConnection: 'index-mgmt-connection',
+      /** button · Copy SQL */
+      indexMgmtCopyDefragSql: 'index-mgmt-copy-defrag-sql',
+      /** button · Copy SQL */
+      indexMgmtCopyDropSql: 'index-mgmt-copy-drop-sql',
       /** button · filtered ( ) */
       indexMgmtDefragFiltered: 'index-mgmt-defrag-filtered',
       /** button · selected ( ) */
       indexMgmtDefragSelected: 'index-mgmt-defrag-selected',
+      /** pre */
+      indexMgmtDefragSqlPreview: 'index-mgmt-defrag-sql-preview',
       /** button · Defragment */
       indexMgmtDefragment: (key: string | number) => `index-mgmt-defragment-${key}`,
       /** button · Drop */
       indexMgmtDrop: (key: string | number) => `index-mgmt-drop-${key}`,
       /** button · Drop selected ( ) */
       indexMgmtDropSelected: 'index-mgmt-drop-selected',
+      /** pre */
+      indexMgmtDropSqlPreview: 'index-mgmt-drop-sql-preview',
       /** button · Expand tables */
       indexMgmtExpandAll: 'index-mgmt-expand-all',
       /** button · Fetch fragmentation */
@@ -3329,6 +3379,8 @@ export const TestIds = {
       serverInsightsConfirmAction: 'server-insights-confirm-action',
       /** select */
       serverInsightsConnection: 'server-insights-connection',
+      /** input */
+      serverInsightsFilter: 'server-insights-filter',
       /** button · Analyze */
       serverInsightsHealthAnalyze: (tableName: string | number) => `server-insights-health-analyze-${tableName}`,
       /** button · Optimize */
@@ -3829,6 +3881,8 @@ export const TestIds = {
       workflowDesignerAutoLayout: 'workflow-designer-auto-layout',
       /** button · Workflows */
       workflowDesignerBreadcrumbWorkflows: 'workflow-designer-breadcrumb-workflows',
+      /** Button */
+      workflowDesignerDeleteStage: 'workflow-designer-delete-stage',
       /** Input · Workflow id */
       workflowDesignerId: 'workflow-designer-id',
       /** button */
@@ -3857,7 +3911,7 @@ export const TestIds = {
       workflowDesignerTriggers: 'workflow-designer-triggers',
     },
     WorkflowsPanel: {
-      /** Button · Install built-in sample workflows you can Test run without a database */
+      /** Button */
       workflowAddSample: 'workflow-add-sample',
       /** input */
       workflowListFile: 'workflow-list-file',
@@ -4156,6 +4210,9 @@ export type TestId =
   | 'auth-login-form'
   | 'auth-login-submit'
   | 'auth-news-opt-in'
+  | 'auth-password-copy-generated'
+  | 'auth-password-generate'
+  | 'auth-password-generated-notice'
   | 'auth-redeem-back'
   | 'auth-redeem-email'
   | 'auth-redeem-form'
@@ -4163,6 +4220,8 @@ export type TestId =
   | 'auth-sent-back'
   | 'auth-sent-enter-code'
   | 'auth-setup-code'
+  | 'auth-setup-code-announce'
+  | 'auth-setup-code-note'
   | 'auth-setup-email'
   | 'auth-setup-form'
   | 'auth-setup-submit'
@@ -4768,6 +4827,7 @@ export type TestId =
   | 'index-management-modal'
   | 'index-management-overlay'
   | 'index-mgmt-cancel'
+  | 'index-mgmt-clear-filter'
   | 'index-mgmt-close'
   | 'index-mgmt-collapse-all'
   | 'index-mgmt-confirm-defrag'
@@ -4776,11 +4836,15 @@ export type TestId =
   | 'index-mgmt-confirm-drop-cancel'
   | 'index-mgmt-confirm-drop-run'
   | 'index-mgmt-connection'
+  | 'index-mgmt-copy-defrag-sql'
+  | 'index-mgmt-copy-drop-sql'
   | 'index-mgmt-defrag-filtered'
   | 'index-mgmt-defrag-selected'
+  | 'index-mgmt-defrag-sql-preview'
   | `index-mgmt-defragment-${string}`
   | `index-mgmt-drop-${string}`
   | 'index-mgmt-drop-selected'
+  | 'index-mgmt-drop-sql-preview'
   | 'index-mgmt-expand-all'
   | 'index-mgmt-fetch-frag'
   | `index-mgmt-group-${string}`
@@ -4843,6 +4907,7 @@ export type TestId =
   | 'lokee-cmp-summary'
   | `lokee-cmp-tab-${string}`
   | 'lokee-cmp-use-current-target'
+  | 'lokee-compare-copy-revert-sql'
   | 'lokee-compare-versions-btn'
   | 'lokee-database-select'
   | 'lokee-empty-capture'
@@ -4854,6 +4919,7 @@ export type TestId =
   | 'lokee-inspector-blueprint'
   | 'lokee-inspector-close'
   | 'lokee-inspector-column-mutations'
+  | 'lokee-inspector-copy-ddl'
   | 'lokee-inspector-growth'
   | 'lokee-inspector-history'
   | 'lokee-inspector-script-diff'
@@ -4934,6 +5000,10 @@ export type TestId =
   | 'migration-complete'
   | 'migration-download-pre-migration'
   | 'migration-failed'
+  | 'migration-history-copy-sql'
+  | 'migration-history-filter-status'
+  | 'migration-history-no-match'
+  | 'migration-history-search'
   | 'migration-partial'
   | 'migration-progress-item'
   | 'migration-progress-panel'
@@ -5024,6 +5094,7 @@ export type TestId =
   | 'server-insights-close'
   | 'server-insights-confirm-action'
   | 'server-insights-connection'
+  | 'server-insights-filter'
   | `server-insights-health-analyze-${string}`
   | `server-insights-health-optimize-${string}`
   | `server-insights-health-vacuum-${string}`
@@ -5307,12 +5378,18 @@ export type TestId =
   | 'sql-run-btn'
   | 'sql-run-error'
   | 'sql-runs-clear'
+  | 'sql-runs-clear-cancel'
+  | 'sql-runs-clear-confirm'
   | 'sql-runs-close'
+  | `sql-runs-copy-${string}`
+  | `sql-runs-delete-${string}`
   | 'sql-runs-drawer'
   | 'sql-runs-drawer-btn'
   | 'sql-runs-empty'
   | 'sql-runs-list'
+  | 'sql-runs-no-match'
   | `sql-runs-open-${string}`
+  | 'sql-runs-search'
   | 'sql-safe-dml-warn'
   | 'sql-safe-mode'
   | 'sql-safe-multi-table-warn'
@@ -5332,6 +5409,8 @@ export type TestId =
   | `sql-schema-group-toggle-${string}`
   | 'sql-schema-missing'
   | 'sql-schema-new-table'
+  | 'sql-schema-object-filter'
+  | `sql-schema-peek-${string}`
   | 'sql-schema-tree-include-all'
   | 'sql-schema-tree-search'
   | 'sql-schema-tree-type-all'
@@ -5391,6 +5470,7 @@ export type TestId =
   | 'sql-tab-add'
   | `sql-tab-close-${string}`
   | `sql-tab-dialect-${string}`
+  | `sql-tab-dirty-${string}`
   | 'sql-tab-rename'
   | `sql-tab-rename-btn-${string}`
   | 'sql-tracer-detail'
@@ -5615,6 +5695,7 @@ export type TestId =
   | 'workflow-designer-add-sample'
   | 'workflow-designer-auto-layout'
   | 'workflow-designer-breadcrumb-workflows'
+  | 'workflow-designer-delete-stage'
   | 'workflow-designer-id'
   | `workflow-designer-issue-${string}`
   | 'workflow-designer-issues'

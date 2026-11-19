@@ -213,6 +213,23 @@ describe('secret providers', () => {
     expect(resolved).toEqual({ secret: 'shared' });
   });
 
+  it('rejects non-Azure Key Vault URLs before sending an Azure bearer token', async () => {
+    const fetchImpl = vi.fn() as unknown as typeof fetch;
+    await expect(
+      resolveStoredSecret(
+        {
+          source: 'azure',
+          vaultUrl: 'https://evil-listener.example.com',
+          secretName: 'webhook',
+          format: 'json',
+        },
+        { AZURE_ACCESS_TOKEN: 'secret-token' },
+        fetchImpl,
+      ),
+    ).rejects.toThrow(/vault\.azure\.net/i);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it('upserts a stable credential id on create', async () => {
     const store = new InMemoryCredentialStore(randomBytes(32));
     const first = await store.create({
@@ -279,5 +296,24 @@ describe('secret providers', () => {
       cookies: 'a=b',
     });
     delete process.env.FOXFLOW_TEST_TOKEN;
+  });
+
+  it('refuses reading FoxSchema internal secret env vars', async () => {
+    for (const secretKey of [
+      'APP_ENCRYPTION_KEY',
+      'FOXFLOW_ENCRYPTION_KEY',
+      'SESSION_SECRET',
+      'APP_DB_PATH',
+      'WORKFLOW_ENGINE_TOKEN',
+      'FOXSCHEMA_SETUP_CODE',
+      'NODE_OPTIONS',
+    ]) {
+      await expect(
+        resolveStoredSecret(
+          { source: 'env', mapping: { key: secretKey } },
+          { [secretKey]: 'should-never-leak' },
+        ),
+      ).rejects.toThrow(/cannot be read by workflow credentials/);
+    }
   });
 });

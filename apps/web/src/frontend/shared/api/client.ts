@@ -26,6 +26,7 @@
  */
 import type { ErrorCode } from '@foxschema/shared';
 import { getApiBase, parseJsonBody } from './apiBase';
+import { activeEditorWorkspaceId } from '../lib/editorWorkspaceStorage';
 
 /** A request that reached the server and came back as a failure. */
 export class ApiError extends Error {
@@ -94,6 +95,7 @@ export async function raw(
   options: RequestOptions = {}
 ): Promise<Response> {
   const hasBody = body !== undefined;
+  const workspaceId = activeEditorWorkspaceId();
   return fetch(`${getApiBase()}${withQuery(path, options.query)}`, {
     method,
     // Every API route is same-origin and session-cookie authenticated.
@@ -102,6 +104,7 @@ export async function raw(
     ...(options.signal ? { signal: options.signal } : {}),
     headers: {
       ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+      ...(workspaceId ? { 'X-Fox-Workspace': workspaceId } : {}),
       ...options.headers,
     },
     ...(hasBody ? { body: JSON.stringify(body) } : {}),

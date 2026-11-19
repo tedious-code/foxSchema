@@ -584,6 +584,26 @@ function Designer() {
     setSelectedId(null);
   }, [pipelines]);
 
+  const removeActivePipeline = useCallback(() => {
+    if (pipelines.length <= 1 || !canDesign) return;
+    const removedId = activePipelineId;
+    const remaining = pipelines.filter((pipeline) => pipeline.id !== removedId);
+    const removedNodeIds = new Set(
+      nodes.filter((node) => node.data.pipelineId === removedId).map((node) => node.id),
+    );
+    setPipelines(remaining);
+    setNodes((current) => current.filter((node) => node.data.pipelineId !== removedId));
+    setEdges((current) =>
+      current.filter((edge) => !removedNodeIds.has(edge.source) && !removedNodeIds.has(edge.target)),
+    );
+    setDependencies((current) =>
+      current.filter((dep) => dep.from !== removedId && dep.to !== removedId),
+    );
+    setActivePipelineId(remaining[0]!.id);
+    setSelectedId(null);
+    setSelectionCount(0);
+  }, [pipelines, activePipelineId, canDesign, nodes, setNodes, setEdges]);
+
   const updateActivePipelineTask = useCallback(
     (task: string) => {
       setPipelines((current) =>
@@ -1000,6 +1020,17 @@ function Designer() {
     }
   }, [toDocument, workflowId, setBusy, noteValidation]);
 
+  useEffect(() => {
+    if (view !== 'designer') return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 's') return;
+      event.preventDefault();
+      if (!busy && nodes.length > 0 && canDesign) void save();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [view, busy, nodes.length, canDesign, save]);
+
   const extractActivePipeline = useCallback(async () => {
     const active = pipelines.find(
       (pipeline) => pipeline.id === activePipelineId,
@@ -1206,7 +1237,7 @@ function Designer() {
         issues.set(node.id, {
           kind: 'run-stopped',
           causeId: origin,
-          message: `Stopped because ${cause?.data.pipeId ?? origin} failed.`,
+          message: `Stopped because ${cause?.data.name || cause?.data.pipeId || origin} failed.`,
         });
       }
     }
@@ -1225,7 +1256,7 @@ function Designer() {
           key: node.id,
           nodeId: node.id,
           pipelineId: node.data.pipelineId,
-          label: node.data.pipeId,
+          label: node.data.name || node.data.pipeId || node.id,
           message: issue.message,
         });
       }
@@ -1368,7 +1399,7 @@ function Designer() {
                 data-testid="workflow-designer-save"
                 onClick={() => void save()}
                 disabled={busy || nodes.length === 0 || !canDesign}
-                title={canDesign ? undefined : 'Saving needs the workflow design permission'}
+                title={canDesign ? 'Save workflow (Cmd/Ctrl+S)' : 'Saving needs the workflow design permission'}
               >
                 <Save />
                 Save
@@ -1432,7 +1463,7 @@ function Designer() {
                 </option>
                 {pipeOptions.map((node) => (
                   <option key={node.id} value={node.id}>
-                    {`${issuesByNode.has(node.id) && issuesByNode.get(node.id)!.kind !== 'run-stopped' ? '⚠ ' : ''}${node.data.pipeId} — ${node.data.type.split('.').slice(-2).join('.')}`}
+                    {`${issuesByNode.has(node.id) && issuesByNode.get(node.id)!.kind !== 'run-stopped' ? '⚠ ' : ''}${node.data.name || node.data.pipeId} — ${node.data.type.split('.').slice(-2).join('.')}`}
                   </option>
                 ))}
               </Select>
@@ -1445,6 +1476,14 @@ function Designer() {
                   >
                     <Split /> Extract
                   </Button>
+                  <Button
+                    data-testid="workflow-designer-delete-stage"
+                    onClick={removeActivePipeline}
+                    disabled={busy || !canDesign}
+                    title={canDesign ? 'Delete the active stage' : 'Deleting a stage needs the workflow design permission'}
+                  >
+                    <Trash2 /> Delete stage
+                  </Button>
                   <Input
                     className="pipeline-task-input"
                     aria-label="Active pipeline task"
@@ -1454,7 +1493,11 @@ function Designer() {
                   />
                 </>
               )}
-              <Button onClick={addPipeline} title="Add a parallel or sequential stage to this workflow">
+              <Button
+                onClick={addPipeline}
+                disabled={!canDesign}
+                title={canDesign ? 'Add a parallel or sequential stage to this workflow' : 'Adding a stage needs the workflow design permission'}
+              >
                 + Stage
               </Button>
             </div>

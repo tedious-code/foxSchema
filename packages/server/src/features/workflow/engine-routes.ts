@@ -43,8 +43,8 @@ export const ENGINE_ROUTES: readonly EngineRoute[] = [
   { method: 'GET', path: '/pipes', permission: 'workflow.access' },
   { method: 'GET', path: '/middleware', permission: 'workflow.access' },
   { method: 'GET', path: '/workflows', permission: 'workflow.access' },
-  { method: 'GET', path: '/workflows/:id', permission: 'workflow.access' },
-  { method: 'GET', path: '/workflows/:id/export', permission: 'workflow.access' },
+  { method: 'GET', path: '/workflows/:id', permission: 'workflow.access', connections: 'workflow' },
+  { method: 'GET', path: '/workflows/:id/export', permission: 'workflow.access', connections: 'workflow' },
   { method: 'GET', path: '/runs', permission: 'workflow.access', connections: 'run-list' },
   // A run's detail and events carry what its connections returned (debug
   // samples are rows), so they follow the same rule as running it.
@@ -88,14 +88,14 @@ export const ENGINE_NOT_ACCEPTING_MESSAGE =
 /** The saved connections a workflow document reaches: each linked credential it names. */
 export function linkedConnectionsIn(document: unknown): string[] {
   const found = new Set<string>();
-  const visit = (value: unknown, key?: string): void => {
-    if (key === 'credentialId' && typeof value === 'string') {
+  const visit = (value: unknown): void => {
+    if (typeof value === 'string') {
       const id = linkedConnectionId(value);
       if (id) found.add(id);
     } else if (Array.isArray(value)) {
       for (const item of value) visit(item);
     } else if (value && typeof value === 'object') {
-      for (const [name, item] of Object.entries(value)) visit(item, name);
+      for (const item of Object.values(value)) visit(item);
     }
   };
   visit(document);

@@ -29,6 +29,10 @@ export { DriverDetector, readInstalledPackageVersion } from './cores/driver-dete
 export { driverLoadReason, redactInstallPaths } from './cores/driver-loader.js';
 export { assertSafeIdentifier } from './cores/sql-identifier.js';
 export {
+  assertSafeEmbeddedDatabasePath,
+  isProtectedEmbeddedDatabasePath,
+} from './cores/embedded-db-guard.js';
+export {
   BoundedPoolCache,
   disposePoolEndOrClose,
   nonSecretFingerprint,

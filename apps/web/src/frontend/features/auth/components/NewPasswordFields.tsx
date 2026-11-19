@@ -8,10 +8,34 @@
  * never accepts what the server will refuse, or the other way round.
  */
 import React, { useState } from 'react';
-import { Check, AlertTriangle } from 'lucide-react';
+import { Check, AlertTriangle, Copy, Sparkles } from 'lucide-react';
 import { PASSWORD_MIN_LENGTH, passwordProblem } from '@foxschema/shared';
 import { PasswordInput } from '@/shared/components/PasswordInput';
-import { authInputCls, authLabelCls } from './authStyles';
+import { writeClipboard } from '@/shared/utils/clipboard';
+import { authInputCls, authLabelCls, authLinkCls } from './authStyles';
+
+const LOWER_CHARS = 'abcdefghjkmnpqrstuvwxyz';
+const UPPER_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+const DIGIT_CHARS = '23456789';
+const GENERATED_CHARSET = `${LOWER_CHARS}${UPPER_CHARS}${DIGIT_CHARS}`;
+
+/** Generate a random grouped passphrase (e.g. `k9Xm-pQ3z-vR7n-W2bT`) that passes server rules. */
+export function generateStrongPassword(email = ''): string {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const buf = new Uint32Array(16);
+    crypto.getRandomValues(buf);
+    const chars = Array.from(buf, (v) => GENERATED_CHARSET[v % GENERATED_CHARSET.length]!);
+    const candidate = [
+      chars.slice(0, 4).join(''),
+      chars.slice(4, 8).join(''),
+      chars.slice(8, 12).join(''),
+      chars.slice(12, 16).join(''),
+    ].join('-');
+    if (!passwordProblem(candidate, email)) return candidate;
+  }
+  // Unreachable in practice, but guarantees compliance.
+  return `Fox-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 /** Caps Lock is the usual reason a known password "stops working". */
 export function useCapsLock() {
@@ -72,29 +96,85 @@ export const NewPasswordFields: React.FC<Props> = ({
   label = 'Password',
 }) => {
   const caps = useCapsLock();
+  const [generated, setGenerated] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const longEnough = password.length >= PASSWORD_MIN_LENGTH;
   const problem = password ? passwordProblem(password, email) : null;
   const ruleProblem = longEnough ? problem : null;
   const mismatch = showMismatch && confirm !== password;
 
+  const handleGenerate = async () => {
+    const next = generateStrongPassword(email);
+    onPassword(next);
+    onConfirm(next);
+    setGenerated(next);
+    const didCopy = await writeClipboard(next);
+    setCopied(didCopy);
+    if (didCopy) setTimeout(() => setCopied(false), 1800);
+  };
+
+  const copyGenerated = async () => {
+    if (!generated) return;
+    if (await writeClipboard(generated)) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    }
+  };
+
   return (
     <>
       <div className="flex flex-col gap-1">
-        <label htmlFor="auth-new-password" className={authLabelCls}>
-          {label}
-        </label>
+        <div className="flex items-baseline justify-between gap-2">
+          <label htmlFor="auth-new-password" className={authLabelCls}>
+            {label}
+          </label>
+          <button
+            type="button"
+            data-testid="auth-password-generate"
+            onClick={() => void handleGenerate()}
+            className={`${authLinkCls} inline-flex items-center gap-1`}
+          >
+            <Sparkles className="w-3 h-3" />
+            Auto-generate
+          </button>
+        </div>
         <PasswordInput
           id="auth-new-password"
           required
           minLength={PASSWORD_MIN_LENGTH}
           value={password}
-          onChange={(e) => onPassword(e.target.value)}
+          onChange={(e) => {
+            if (generated && e.target.value !== generated) setGenerated(null);
+            onPassword(e.target.value);
+          }}
           {...caps}
           placeholder={`At least ${PASSWORD_MIN_LENGTH} characters`}
           autoComplete="new-password"
           aria-describedby="auth-password-rules"
           className={`w-full ${authInputCls}`}
         />
+        {generated && (
+          <div
+            data-testid="auth-password-generated-notice"
+            className="mt-1 rounded-md border border-cyan-500/30 bg-cyan-950/25 px-2.5 py-2 text-xs text-cyan-100 space-y-1"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <code className="font-mono text-xs select-all text-cyan-200">{generated}</code>
+              <button
+                type="button"
+                data-testid="auth-password-copy-generated"
+                onClick={() => void copyGenerated()}
+                className="inline-flex items-center gap-1 rounded border border-cyan-500/40 px-1.5 py-0.5 text-[11px] text-cyan-100 hover:bg-cyan-900/40"
+              >
+                {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Generated and filled both password fields — copy and save it in your password manager.
+            </p>
+          </div>
+        )}
         <ul id="auth-password-rules" className="mt-1 flex flex-col gap-0.5 text-xs" data-testid="password-rules">
           <li className={longEnough ? 'text-emerald-300' : 'text-slate-500'}>
             <Check className={`inline w-3 h-3 mr-1 ${longEnough ? '' : 'opacity-30'}`} />

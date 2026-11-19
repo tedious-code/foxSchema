@@ -5,6 +5,7 @@
  *
  * Workflow engine — moved from FoxAgent (packages/common/src/credentials/providers.ts).
  */
+import { FORBIDDEN_WORKFLOW_ENV_VARS } from '@foxschema/workflow-contract';
 import { z } from 'zod';
 import {
   mintGcpAccessToken,
@@ -164,6 +165,7 @@ export function buildStoredSecret(
   if (!vaultUrl || !secretName) {
     throw new Error('Azure credentials require vaultUrl and secretName');
   }
+  assertAzureVaultUrl(vaultUrl);
   return {
     source: 'azure',
     vaultUrl,
@@ -172,6 +174,46 @@ export function buildStoredSecret(
     format,
     valueKey: str('valueKey'),
   };
+}
+
+/**
+ * Azure Key Vault URLs only — HTTPS + known vault hostnames (blocks SSRF /
+ * token exfiltration via attacker-controlled vaultUrl). Pure URL/hostname checks
+ * so `definitions-purity.test.ts` stays free of Node-only imports.
+ */
+function assertAzureVaultUrl(vaultUrl: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(vaultUrl);
+  } catch {
+    throw new Error('Invalid Azure Key Vault URL');
+  }
+  if (parsed.protocol !== 'https:') {
+    throw new Error('Azure Key Vault URL must use HTTPS');
+  }
+  if (parsed.username || parsed.password) {
+    throw new Error('Azure Key Vault URL must not include credentials');
+  }
+  if (parsed.port && parsed.port !== '443') {
+    throw new Error('Azure Key Vault URL must use the default HTTPS port');
+  }
+  const host = parsed.hostname.toLowerCase();
+  const octets = host.split('.');
+  const isRawIpv4 = octets.length === 4 && octets.every((o) => /^\d{1,3}$/.test(o));
+  if (isRawIpv4 || host.includes(':')) {
+    throw new Error('Azure Key Vault URL must use a vault hostname, not an IP');
+  }
+  const allowedSuffixes = [
+    '.vault.azure.net',
+    '.vault.azure.cn',
+    '.vault.usgovcloudapi.net',
+    '.vault.microsoftazure.de',
+  ];
+  if (!allowedSuffixes.some((sfx) => host.endsWith(sfx) && host.length > sfx.length)) {
+    throw new Error(
+      'Azure Key Vault URL hostname must be *.vault.azure.net (or a known sovereign-cloud vault endpoint)',
+    );
+  }
 }
 
 /**
@@ -262,6 +304,8 @@ export async function resolveStoredSecret(
   return resolved;
 }
 
+const FORBIDDEN_CREDENTIAL_ENV_VARS: ReadonlySet<string> = new Set(FORBIDDEN_WORKFLOW_ENV_VARS);
+
 function resolveEnvSecret(
   payload: StoredSecretPayload,
   env: NodeJS.ProcessEnv,
@@ -270,6 +314,11 @@ function resolveEnvSecret(
   const out: Record<string, unknown> = {};
   const missing: string[] = [];
   for (const [field, envName] of Object.entries(mapping)) {
+    if (FORBIDDEN_CREDENTIAL_ENV_VARS.has(envName.trim().toUpperCase())) {
+      throw new Error(
+        `Environment variable "${envName}" cannot be read by workflow credentials`,
+      );
+    }
     const value = env[envName];
     if (value === undefined || value === '') {
       missing.push(envName);
@@ -455,6 +504,7 @@ async function resolveAzureSecret(
       'Azure secret reference is incomplete (vaultUrl, secretName)',
     );
   }
+  assertAzureVaultUrl(vaultUrl);
   const token = await getAzureAccessToken(env, fetchImpl);
   const version = payload.version ? `/${payload.version}` : '';
   const url = `${vaultUrl}/secrets/${encodeURIComponent(secretName)}${version}?api-version=7.4`;

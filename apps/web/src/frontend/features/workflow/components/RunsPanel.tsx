@@ -9,6 +9,7 @@
 import { ArrowDown, ArrowUp, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { RUN_STREAM_END_EVENT } from '@foxschema/workflow-contract';
+import { useAuthStore } from '@/platform/authStore';
 import {
   api,
   type RunEvent,
@@ -80,7 +81,7 @@ function FailureSummaryCard({ summary }: { summary: RunFailureSummary }) {
       )}
       {summary.failedPipe && (
         <p>
-          Pipe <code>{summary.failedPipe.pipeId}</code>
+          Pipe <code>{summary.failedPipe.name || summary.failedPipe.pipeId}</code>
           {summary.failedPipe.intent ? ` — ${summary.failedPipe.intent}` : ''}
           {summary.failedPipe.type ? ` [${summary.failedPipe.type}]` : ''}
           {summary.failedPipe.error ? `: ${summary.failedPipe.error}` : ''}
@@ -306,6 +307,7 @@ function RunSteering({
   status: string;
   onChanged: () => void;
 }) {
+  const canRun = useAuthStore((s) => s.can('workflow.run'));
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingQuestion[] | null>(null);
@@ -350,7 +352,14 @@ function RunSteering({
   return (
     <div className="run-steering">
       {live && (
-        <Button variant="danger" size="sm" disabled={busy} data-testid="workflow-run-cancel" onClick={() => void act(() => api.cancelRun(runId))}>
+        <Button
+          variant="danger"
+          size="sm"
+          disabled={busy || !canRun}
+          title={canRun ? undefined : 'Requires the workflow run permission'}
+          data-testid="workflow-run-cancel"
+          onClick={() => void act(() => api.cancelRun(runId))}
+        >
           Cancel run
         </Button>
       )}
@@ -391,10 +400,24 @@ function RunSteering({
               {field.help && <span className="hint">{field.help}</span>}
             </label>
           ))}
-          <Button type="submit" variant="primary" size="sm" disabled={busy} data-testid="workflow-run-answer">
+          <Button
+            type="submit"
+            variant="primary"
+            size="sm"
+            disabled={busy || !canRun}
+            title={canRun ? undefined : 'Requires the workflow run permission'}
+            data-testid="workflow-run-answer"
+          >
             Send answer
           </Button>
-          <Button variant="ghost" size="sm" disabled={busy} data-testid="workflow-run-resume" onClick={() => void act(() => api.resumeRun(runId))}>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={busy || !canRun}
+            title={canRun ? undefined : 'Requires the workflow run permission'}
+            data-testid="workflow-run-resume"
+            onClick={() => void act(() => api.resumeRun(runId))}
+          >
             Resume
           </Button>
         </form>

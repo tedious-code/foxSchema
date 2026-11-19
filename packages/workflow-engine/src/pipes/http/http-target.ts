@@ -22,14 +22,34 @@ function refused(target: string): Error {
   );
 }
 
+function decodeIpv4MappedHex(address: string): string {
+  const lower = address.toLowerCase();
+  const hex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i.exec(lower);
+  if (hex) {
+    const hi = parseInt(hex[1]!, 16);
+    const lo = parseInt(hex[2]!, 16);
+    return `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+  }
+  return lower.replace(/^::ffff:/i, '');
+}
+
 function isBlockedIp(address: string): boolean {
-  const ip = address.replace(/^::ffff:/i, '').toLowerCase();
-  if (ip === '::1' || ip === '::' || ip.startsWith('fe80:')) return true;
+  const ip = decodeIpv4MappedHex(address);
+  if (ip === '::1' || ip === '::' || /^fe[89ab][0-9a-f]:/i.test(ip) || /^f[cd][0-9a-f]{2}:/i.test(ip)) {
+    return true;
+  }
   const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip);
   if (!v4) return false;
   const a = Number(v4[1]);
   const b = Number(v4[2]);
-  return a === 127 || a === 0 || (a === 169 && b === 254);
+  const c = Number(v4[3]);
+  const d = Number(v4[4]);
+  return (
+    a === 127 ||
+    a === 0 ||
+    (a === 169 && b === 254) ||
+    (a === 100 && b === 100 && c === 100 && d === 200)
+  );
 }
 
 function hostnameOf(url: string): string {

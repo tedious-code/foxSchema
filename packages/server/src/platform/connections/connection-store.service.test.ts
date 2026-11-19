@@ -252,4 +252,77 @@ describe('ConnectionStore', () => {
     expect(resolved?.option.password).toBe('super-secret');
     expect(resolved?.option.connectionString).toBe(buildConnectionString('postgres', pgOption));
   });
+
+  it('refuses update() that changes host, port, dialect, or username without re-entering the password', async () => {
+    const pgOption = { host: 'db.example.com', port: 5432, database: 'proddb', username: 'admin', password: 'super-secret' };
+    const id = (await store.create(alice, { name: 'pg', dialect: 'postgres', schema: 'public', option: pgOption, savePassword: true })).id;
+
+    await expect(
+      store.update(alice, id, {
+        name: 'pg',
+        dialect: 'postgres',
+        schema: 'public',
+        option: { ...pgOption, host: 'attacker.example.com', password: '' },
+        savePassword: true,
+      })
+    ).rejects.toMatchObject({ code: 'invalid_input' });
+    // Existing saved connection stays intact and never silently drops its password.
+    expect((await store.resolve(alice, id))?.option.host).toBe('db.example.com');
+    expect((await store.resolve(alice, id))?.option.password).toBe('super-secret');
+
+    // Supplying a new password for the new host succeeds.
+    const moved = await store.update(alice, id, {
+      name: 'pg',
+      dialect: 'postgres',
+      schema: 'public',
+      option: { ...pgOption, host: 'new-db.example.com', password: 'new-host-password' },
+      savePassword: true,
+    });
+    expect(moved?.hasPassword).toBe(true);
+    expect((await store.resolve(alice, id))?.option.password).toBe('new-host-password');
+  });
+
+  it('rejects saving a SQLite or DuckDB connection targeting foxschema.db, workflow-engine.sqlite, .app_encryption_key, symlinks, or hard links', async () => {
+    await expect(
+      store.create(alice, { name: 'meta', dialect: 'sqlite', option: { database: '/tmp/foxschema.db' } })
+    ).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(
+      store.create(alice, { name: 'meta-uri', dialect: 'sqlite', option: { connectionString: 'file:///tmp/foxschema.db?mode=ro' } })
+    ).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(
+      store.create(alice, { name: 'meta-wal', dialect: 'sqlite', option: { database: '/tmp/foxschema.db-wal' } })
+    ).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(
+      store.create(alice, { name: 'wf', dialect: 'duckdb', option: { database: '/tmp/workflow-engine.sqlite' } })
+    ).rejects.toMatchObject({ code: 'forbidden' });
+    await expect(
+      store.create(alice, { name: 'key', dialect: 'sqlite', option: { database: '/tmp/.app_encryption_key' } })
+    ).rejects.toMatchObject({ code: 'forbidden' });
+
+    const { linkSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = mkdtempSync(join(tmpdir(), 'fox-conn-guard-'));
+    const prevAppDb = process.env.APP_DB_PATH;
+    try {
+      const customMeta = join(dir, 'internal-app.sqlite');
+      const symlinkAlias = join(dir, 'symlink-alias.db');
+      const hardlinkAlias = join(dir, 'hardlink-alias.db');
+      writeFileSync(customMeta, 'meta');
+      symlinkSync(customMeta, symlinkAlias);
+      linkSync(customMeta, hardlinkAlias);
+      process.env.APP_DB_PATH = customMeta;
+
+      await expect(
+        store.create(alice, { name: 'sym', dialect: 'sqlite', option: { database: symlinkAlias } })
+      ).rejects.toMatchObject({ code: 'forbidden' });
+      await expect(
+        store.create(alice, { name: 'hard', dialect: 'duckdb', option: { database: hardlinkAlias } })
+      ).rejects.toMatchObject({ code: 'forbidden' });
+    } finally {
+      if (prevAppDb === undefined) delete process.env.APP_DB_PATH;
+      else process.env.APP_DB_PATH = prevAppDb;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

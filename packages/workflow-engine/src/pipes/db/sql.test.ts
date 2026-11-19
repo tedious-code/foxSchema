@@ -448,3 +448,68 @@ describe('upsertKey on an insert step', () => {
     expect(() => sink.validateConfig({ table: 't', columns: ['name'], upsertKey: 'id' })).toThrow(/one of the columns/);
   });
 });
+
+describe('SQLite sandbox safety in SQL pipes', () => {
+  it('runs :memory: queries using built-in node:sqlite without native addons', async () => {
+    const batches = await collect(
+      new SqlSourcePipe(),
+      {
+        workflowRunId: 'run-mem',
+        pipelineId: 'p',
+        pipe: {
+          id: 'mem-sql',
+          type: 'source.db.sql',
+          role: 'source',
+          config: { dialect: 'sqlite', sql: 'SELECT 42 AS answer' },
+          concurrency: 1,
+        },
+        credentials: {
+          revealSecret: async () => undefined,
+        } as unknown as CredentialStore,
+      },
+    );
+    expect(batches[0]?.records).toEqual([{ answer: 42 }]);
+  });
+
+  it('refuses opening FoxSchema or engine internal SQLite databases', async () => {
+    for (const target of [
+      '/data/foxschema.db',
+      '/data/foxschema.db-wal',
+      '/data/.app_encryption_key',
+      'file:///data/foxschema.db?mode=ro',
+      '/tmp/workflow-engine.sqlite',
+    ]) {
+      await expect(
+        collect(
+          new SqlSourcePipe(),
+          context(
+            'source.db.sql',
+            'source',
+            { dialect: 'sqlite', sql: 'SELECT 1' },
+            { dialect: 'sqlite', option: { database: target } },
+          ),
+        ),
+      ).rejects.toThrow(/Refusing to open FoxSchema internal database/);
+    }
+  });
+
+  it('refuses ATTACH, VACUUM INTO, and load_extension on :memory: SQLite sessions', async () => {
+    for (const sql of [
+      "ATTACH DATABASE '/data/foxschema.db' AS meta",
+      "VACUUM INTO '/tmp/escape.sqlite'",
+      "SELECT load_extension('/tmp/evil.so')",
+    ]) {
+      await expect(
+        collect(
+          new SqlSourcePipe(),
+          context(
+            'source.db.sql',
+            'source',
+            { dialect: 'sqlite', sql },
+            { dialect: 'sqlite', option: { database: ':memory:' } },
+          ),
+        ),
+      ).rejects.toThrow(/disabled for security|not authorized/i);
+    }
+  });
+});

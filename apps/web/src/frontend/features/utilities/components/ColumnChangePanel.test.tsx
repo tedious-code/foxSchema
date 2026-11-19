@@ -27,6 +27,7 @@ vi.mock('@/features/compare', () => {
 });
 
 import { useSqlEditorStore } from '@/features/sql-editor/state';
+import { useAuthStore } from '@/platform/authStore';
 import { useUiStore } from '@/platform/uiStore';
 import { ColumnChangePanel } from './ColumnChangePanel';
 
@@ -58,6 +59,9 @@ describe('ColumnChangePanel', () => {
     executeSql.mockReset();
     fetchTableInsight.mockReset();
     fetchTableInsight.mockResolvedValue({ estimatedRows: 120, sizeBytes: 16384 });
+    useAuthStore.setState({
+      user: { id: 'u1', email: 'u1@x.test', role: 'admin', permissions: ['utility.access', 'editor.ddl'] } as never,
+    });
     useSqlEditorStore.setState({
       schemaCache: {
         pg: { status: 'ready', tables: [orders, statusFn] },

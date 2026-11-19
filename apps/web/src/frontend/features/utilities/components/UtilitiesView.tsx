@@ -355,6 +355,7 @@ export const UtilitiesView: React.FC = () => {
               open
               embedded
               initialTab={insights}
+              onTabChange={(next) => setTool(next)}
               lockedConnectionId={lockedId}
               onClose={() => undefined}
             />

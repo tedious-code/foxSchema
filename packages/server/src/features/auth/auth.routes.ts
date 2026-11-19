@@ -86,6 +86,7 @@ export function createAuthRoutes(
     try {
       const { user, token } = await auth.completeSetup(email ?? '', password ?? '');
       resetSetupCode();
+      announced = false;
       setSessionCookie(res, token);
       res.send({ user });
       subscribeIfAsked(subscribe, user.email);
@@ -108,6 +109,35 @@ export function createAuthRoutes(
     } catch (error: unknown) {
       sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Setup failed');
     }
+  });
+
+  /**
+   * Re-print the current one-time setup code in the server log so an operator
+   * configuring Fox from another machine can locate it. Rotating the code
+   * (`regenerate: true`) is restricted to direct local requests so a remote
+   * unauthenticated caller cannot DoS setup by invalidating the code in flight.
+   * Never returns the code in the HTTP body.
+   */
+  router.post('/setup/code-announce', signInLimiter, async (req: AppRequest, res: FastifyReply) => {
+    const state = await auth.setupState();
+    if (!state.setupRequired) {
+      sendError(res, 'conflict', 'Setup is already complete. Sign in instead.');
+      return;
+    }
+    const { regenerate } = (req.body ?? {}) as { regenerate?: boolean };
+    if (regenerate === true) {
+      if (!isDirectLocalRequest(req)) {
+        sendError(
+          res,
+          'forbidden',
+          'Only a direct local request can rotate the setup code. Check the existing code in the server log.',
+        );
+        return;
+      }
+      resetSetupCode();
+    }
+    announceSetupCode(true);
+    res.send({ ok: true });
   });
 
   const sendVerificationCode = async (user: AuthUser) =>
@@ -297,9 +327,9 @@ export function createAuthRoutes(
 
 let announced = false;
 
-/** Print the setup code to the server log, once, when someone may need it. */
-function announceSetupCode(): void {
-  if (announced) return;
+/** Print the setup code to the server log, once (or again when `force` is true). */
+function announceSetupCode(force = false): void {
+  if (announced && !force) return;
   announced = true;
   getLogger().warn(
     `First-run setup: enter code ${setupCode()} on the sign-in screen to create the admin account ` +

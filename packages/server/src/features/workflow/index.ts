@@ -2,7 +2,7 @@
  * Fox Schema (foxschema)
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
- * The workflow feature: engine settings, connection grants, and the in-process engine.
+ * The workflow feature: engine settings, connection grants, and the sandboxed engine host.
  */
 import type { ServerFeatureModule } from '../../platform/feature-module';
 import { getLogger } from '../../platform/logger/logger';
@@ -20,14 +20,15 @@ export const workflowFeature: ServerFeatureModule = {
     if (!process.env.FOXFLOW_ENCRYPTION_KEY?.trim()) {
       getLogger().warn(
         { component: 'workflow' },
-        'FOXFLOW_ENCRYPTION_KEY is not set; the in-process workflow engine is not started',
+        'FOXFLOW_ENCRYPTION_KEY is not set; the sandboxed workflow engine is not started',
       );
       return;
     }
     try {
-      const { ctx, settings, grants } = await startProductionWorkflowEngine();
+      const { backend, ctx, settings, grants } = await startProductionWorkflowEngine();
       await registerWorkflowEngine(app, {
-        ctx,
+        backend,
+        ...(ctx ? { ctx } : {}),
         featureContext: context,
         settings,
         grants,
@@ -36,7 +37,7 @@ export const workflowFeature: ServerFeatureModule = {
     } catch (err: unknown) {
       getLogger().warn(
         { component: 'workflow', err },
-        'in-process workflow engine is not started',
+        'sandboxed workflow engine is not started',
       );
       await stopProductionWorkflowEngine().catch(() => undefined);
     }

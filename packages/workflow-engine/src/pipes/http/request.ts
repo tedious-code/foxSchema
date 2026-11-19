@@ -257,6 +257,60 @@ export async function executeHttpRequest(
   return { ...publicResult, cookies };
 }
 
+const MAX_REDIRECTS = 5;
+
+async function fetchWithSafeRedirects(
+  initialUrl: string,
+  init: RequestInit,
+  options: { fetch?: typeof fetch; signal?: AbortSignal },
+): Promise<Response> {
+  const resolveHost = options.fetch === undefined;
+  const requestFn = options.fetch ?? globalThis.fetch.bind(globalThis);
+  let currentUrl = initialUrl;
+  let currentInit: RequestInit = { ...init, redirect: 'manual' };
+
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    await assertHttpTargetAllowed(currentUrl, { resolveHost });
+    const response = await requestFn(currentUrl, {
+      ...currentInit,
+      signal: options.signal ?? currentInit.signal,
+    });
+    if (response.status < 300 || response.status >= 400) {
+      return response;
+    }
+    const location = response.headers?.get('location');
+    if (!location) return response;
+    if (hop === MAX_REDIRECTS) {
+      throw new Error(`HTTP request exceeded maximum redirects (${MAX_REDIRECTS})`);
+    }
+    const nextUrl = new URL(location, currentUrl).toString();
+    const sameOrigin = new URL(nextUrl).origin === new URL(currentUrl).origin;
+    const nextHeaders = new Headers(currentInit.headers);
+    if (!sameOrigin) {
+      nextHeaders.delete('authorization');
+      nextHeaders.delete('cookie');
+      nextHeaders.delete('proxy-authorization');
+    }
+    const method = (currentInit.method ?? 'GET').toUpperCase();
+    const dropBodyToGet =
+      response.status === 303 ||
+      ((response.status === 301 || response.status === 302) && method === 'POST');
+    if (dropBodyToGet) {
+      nextHeaders.delete('content-length');
+      nextHeaders.delete('content-type');
+    }
+    currentInit = {
+      ...currentInit,
+      method: dropBodyToGet ? 'GET' : method,
+      ...(dropBodyToGet ? { body: undefined } : {}),
+      headers: nextHeaders,
+      redirect: 'manual',
+    };
+    currentUrl = nextUrl;
+  }
+  throw new Error('HTTP redirect loop aborted');
+}
+
 async function dispatch(
   request: HttpRequestDef,
   secret: Record<string, unknown>,
@@ -264,16 +318,14 @@ async function dispatch(
   options: HttpExecuteOptions,
 ): Promise<Omit<HttpExecuteResult, 'cookies'> & { setCookies: StoredCookie[] }> {
   const { url, init } = buildHttpRequest(request, secret, cookies);
-  await assertHttpTargetAllowed(url, { resolveHost: options.fetch === undefined });
-  const requestFn = options.fetch ?? globalThis.fetch.bind(globalThis);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), request.timeoutMs);
   const onAbort = () => controller.abort();
   options.signal?.addEventListener('abort', onAbort);
 
   try {
-    const response = await requestFn(url, {
-      ...init,
+    const response = await fetchWithSafeRedirects(url, init, {
+      fetch: options.fetch,
       signal: controller.signal,
     });
     const contentType = response.headers.get('content-type') ?? '';
@@ -564,14 +616,15 @@ async function maybeRefreshToken(options: {
     }
   }
 
-  await assertHttpTargetAllowed(url, { resolveHost: options.fetch === undefined });
-  const requestFn = options.fetch ?? globalThis.fetch.bind(globalThis);
-  const response = await requestFn(url, {
-    method: refresh.method,
-    headers,
-    body,
-    signal: options.signal,
-  });
+  const response = await fetchWithSafeRedirects(
+    url,
+    {
+      method: refresh.method,
+      headers,
+      body,
+    },
+    { fetch: options.fetch, signal: options.signal },
+  );
   if (!response.ok) {
     throw new Error(`token refresh returned ${response.status}`);
   }

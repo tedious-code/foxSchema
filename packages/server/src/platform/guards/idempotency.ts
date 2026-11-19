@@ -57,9 +57,15 @@ type Entry = Completed | InFlight;
 const DEFAULT_TTL_MS = 10 * 60_000;
 const DEFAULT_MAX_ENTRIES = 500;
 
-/** Body hash, so the same key with different content cannot silently replay. */
+/** Body + actor hash, so the same key across users, workspaces, or payloads cannot replay. */
 function fingerprintOf(req: AppRequest): string {
-  const material = JSON.stringify({ path: req.url, body: req.body ?? null });
+  const authed = req as { userId?: string; workspaceId?: string };
+  const material = JSON.stringify({
+    path: req.url,
+    userId: authed.userId ?? null,
+    workspaceId: authed.workspaceId ?? null,
+    body: req.body ?? null,
+  });
   return createHash('sha256').update(material).digest('hex').slice(0, 32);
 }
 
@@ -94,8 +100,10 @@ export function idempotency(options: IdempotencyOptions = {}): Middleware {
     const now = Date.now();
     sweep(now);
 
+    const authed = req as { userId?: string; workspaceId?: string };
+    const scopedKey = `${authed.userId ?? 'anon'}:${authed.workspaceId ?? ''}:${key}`;
     const fingerprint = fingerprintOf(req);
-    const existing = entries.get(key);
+    const existing = entries.get(scopedKey);
 
     if (existing) {
       if (existing.fingerprint !== fingerprint) {
@@ -119,7 +127,7 @@ export function idempotency(options: IdempotencyOptions = {}): Middleware {
     }
 
     const inFlight: InFlight = { kind: 'running', fingerprint, storedAt: now, waiters: [] };
-    entries.set(key, inFlight);
+    entries.set(scopedKey, inFlight);
 
     // Capture the response so it can be replayed, without changing how any
     // handler writes it.
@@ -136,7 +144,7 @@ export function idempotency(options: IdempotencyOptions = {}): Middleware {
         fingerprint,
         storedAt: Date.now(),
       };
-      entries.set(key, done);
+      entries.set(scopedKey, done);
       for (const waiter of inFlight.waiters) waiter(done);
       inFlight.waiters.length = 0;
     };
@@ -159,7 +167,7 @@ export function idempotency(options: IdempotencyOptions = {}): Middleware {
     res.raw.on('close', () => {
       if (settled) return;
       settled = true;
-      entries.delete(key);
+      entries.delete(scopedKey);
       const failed: Completed = {
         kind: 'done',
         status: 500,

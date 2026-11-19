@@ -46,6 +46,7 @@ export class WorkflowSettingsService {
   constructor(
     private appSettings: AppSettingsStore = new AppSettingsStore(),
     private onChange?: (config: WorkflowEngineConfig) => void,
+    private probeHealth?: () => Promise<{ ok: boolean; error?: string }>,
   ) {}
 
   /** The saved config. A copy each call: callers (putConfig among them) change it. */
@@ -98,6 +99,16 @@ export class WorkflowSettingsService {
         acceptsRuns: false,
         error: 'Workflow engine is not started',
       };
+    }
+    if (this.probeHealth) {
+      const live = await this.probeHealth();
+      if (!live.ok) {
+        return {
+          ok: false,
+          acceptsRuns: false,
+          error: live.error ?? 'Workflow engine sandbox is not ready',
+        };
+      }
     }
     const config = await this.getConfig();
     return {

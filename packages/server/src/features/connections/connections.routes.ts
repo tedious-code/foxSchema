@@ -7,6 +7,21 @@ import { ConnectionStore } from '../../platform/connections/connection-store.ser
 import { pruneOrphanFileQueryConnections } from '../files';
 import type { AuthedRequest } from '../../platform/http/types';
 import { sendError, sendThrown } from '../../platform/http/respond';
+import { getStore } from '../../database/store';
+
+async function canMutateWorkspaceConnections(req: AuthedRequest): Promise<boolean> {
+  if (req.appRole === 'admin') return true;
+  if (!req.workspaceRole) return false;
+  if (req.workspaceRole === 'owner' || req.workspaceRole === 'editor') return true;
+  if (req.workspaceRole === 'viewer' && req.workspaceId) {
+    const ws = await (await getStore()).get<{ personal_owner_id: string | null }>(
+      'SELECT personal_owner_id FROM workspaces WHERE id = ?',
+      [req.workspaceId]
+    );
+    return ws?.personal_owner_id === req.userId;
+  }
+  return false;
+}
 
 /** CRUD for the signed-in user's saved connections (credentials encrypted at rest). */
 export function createConnectionStoreRoutes(store: ConnectionStore): Router {
@@ -20,6 +35,10 @@ export function createConnectionStoreRoutes(store: ConnectionStore): Router {
   });
 
   router.post('/', async (req: AuthedRequest, res: FastifyReply) => {
+    if (!(await canMutateWorkspaceConnections(req))) {
+      sendError(res, 'forbidden', 'Viewers can use shared workspace connections. An editor or owner saves or deletes them.');
+      return;
+    }
     const { name, dialect, schema, option, savePassword } = req.body as {
       name?: string;
       dialect?: string;
@@ -46,6 +65,10 @@ export function createConnectionStoreRoutes(store: ConnectionStore): Router {
   });
 
   router.put('/:id', async (req: AuthedRequest, res: FastifyReply) => {
+    if (!(await canMutateWorkspaceConnections(req))) {
+      sendError(res, 'forbidden', 'Viewers can use shared workspace connections. An editor or owner saves or deletes them.');
+      return;
+    }
     const { name, dialect, schema, option, savePassword } = req.body as {
       name?: string;
       dialect?: string;
@@ -81,6 +104,10 @@ export function createConnectionStoreRoutes(store: ConnectionStore): Router {
   });
 
   router.delete('/:id', async (req: AuthedRequest, res: FastifyReply) => {
+    if (!(await canMutateWorkspaceConnections(req))) {
+      sendError(res, 'forbidden', 'Viewers can use shared workspace connections. An editor or owner saves or deletes them.');
+      return;
+    }
     const removed = await store.remove(scopeOf(req)!, String(req.params.id));
     if (!removed) {
       sendError(res, 'not_found', 'Saved connection not found');

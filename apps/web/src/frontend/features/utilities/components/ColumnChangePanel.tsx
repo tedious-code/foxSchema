@@ -15,6 +15,9 @@ import { Check, Copy, Loader2, Play, SquareTerminal } from 'lucide-react';
 import { useSyncStore } from '@/features/compare';
 import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { useUiStore } from '@/platform/uiStore';
+import { useAuthStore } from '@/platform/authStore';
+import { toast } from '@/platform/toastStore';
+import { writeClipboard } from '@/shared/utils/clipboard';
 import { executeSql, type SqlStatementResult } from '@/shared/api/sqlApi';
 import { fetchTableInsight } from '@/shared/api/schemaApi';
 import {
@@ -115,9 +118,13 @@ const CopyButton: React.FC<{ text: string; testId: string; label: string }> = ({
       type="button"
       data-testid={testId}
       onClick={() => {
-        void navigator.clipboard?.writeText(text).then(() => {
-          setDone(true);
-          setTimeout(() => setDone(false), 1500);
+        void writeClipboard(text).then((ok) => {
+          if (ok) {
+            setDone(true);
+            setTimeout(() => setDone(false), 1500);
+          } else {
+            toast({ tone: 'warning', title: 'Copy failed' });
+          }
         });
       }}
       className="inline-flex items-center gap-1 rounded-md border border-slate-700 px-2 py-1 text-[11px] font-semibold text-slate-300 hover:border-slate-500"
@@ -136,6 +143,7 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
   const sessionPasswords = useSqlEditorStore((s) => s.sessionPasswords);
   const schemaCache = useSqlEditorStore((s) => s.schemaCache);
   const setActiveView = useUiStore((s) => s.setActiveView);
+  const canEditDdl = useAuthStore((s) => s.can('editor.ddl'));
 
   const [tableName, setTableName] = useState('');
   const [columnName, setColumnName] = useState('');
@@ -256,7 +264,7 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
   const largeTableOffered = typeRequested && Boolean(conn && columnChangeLargeTable(conn.dialect));
   const conversionWarning = plan?.ok ? plan.impact.lossy : undefined;
   const runDisabled =
-    Boolean(runningTarget) || needsPassword || Boolean(conversionWarning && !ackLossy);
+    !canEditDdl || Boolean(runningTarget) || needsPassword || Boolean(conversionWarning && !ackLossy);
   const parts =
     mode === 'copy'
       ? COLUMN_CHANGE_PHASES
@@ -632,6 +640,7 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
                   type="button"
                   data-testid="column-change-run-all"
                   disabled={runDisabled}
+                  title={canEditDdl ? undefined : 'Requires Change schema permission (Access control).'}
                   onClick={() => askOrRun('all')}
                   className="inline-flex items-center gap-1 rounded-md border border-emerald-700/60 bg-emerald-950/40 px-2 py-1 text-[11px] font-bold text-emerald-200 hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
                 >
@@ -708,6 +717,7 @@ export const ColumnChangePanel: React.FC<Props> = ({ lockedConnectionId = '' }) 
                         type="button"
                         data-testid={`column-change-run-${part.id}`}
                         disabled={runDisabled}
+                        title={canEditDdl ? undefined : 'Requires Change schema permission (Access control).'}
                         onClick={() => askOrRun(part.id)}
                         className="inline-flex items-center gap-1 rounded-md border border-emerald-700/60 bg-emerald-950/40 px-2 py-1 text-[11px] font-bold text-emerald-200 hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
                       >

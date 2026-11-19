@@ -48,8 +48,13 @@ function mountedRoutes() {
 const REVIEWED_READS = [
   'POST /api/compare',
   'POST /api/schema/db-access',
+  'POST /api/schema/dba-utility',
+  'POST /api/schema/index-fragmentation',
+  'POST /api/schema/index-fragmentation-batch',
   'POST /api/schema/list',
   'POST /api/schema/load',
+  'POST /api/schema/session-locks',
+  'POST /api/schema/table-health',
   'POST /api/schema/table-insight',
   'POST /api/sql/code-cell/transpile',
   'POST /api/sql/execute',

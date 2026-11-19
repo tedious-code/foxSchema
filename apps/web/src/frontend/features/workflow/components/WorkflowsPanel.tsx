@@ -7,6 +7,7 @@
  */
 import { Copy, Download, FilePlus2, PlayCircle, Search, Sparkles, Trash2, Upload } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
+import { useAuthStore } from '@/platform/authStore';
 import { toast } from '../lib/notify';
 import { api, type WorkflowPackage, type WorkflowSummary } from '../api/engineClient';
 import { useWorkflows } from '../api/engineQueries';
@@ -52,6 +53,7 @@ export function WorkflowsPanel({
   onApplySample,
 }: Props) {
   const { workflows, loading, refresh } = useWorkflows();
+  const canDesign = useAuthStore((s) => s.can('workflow.design'));
   const [query, setQuery] = useState('');
   const [newId, setNewId] = useState('');
   const importRef = useRef<HTMLInputElement>(null);
@@ -204,24 +206,40 @@ export function WorkflowsPanel({
           </div>
           <Input
             value={newId}
+            disabled={!canDesign}
             placeholder="new-workflow-id"
             onChange={(event) => setNewId(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') create();
+              if (event.key === 'Enter' && canDesign) create();
             }}
           />
-          <Button variant="primary" onClick={create} disabled={!newId.trim()}>
+          <Button
+            variant="primary"
+            onClick={create}
+            disabled={!canDesign || !newId.trim()}
+            title={canDesign ? undefined : 'Creating a workflow needs the workflow design permission'}
+          >
             <FilePlus2 /> New
           </Button>
           <Button
             data-testid="workflow-add-sample"
             variant="ghost"
+            disabled={!canDesign}
             onClick={() => void installSamples()}
-            title="Install built-in sample workflows you can Test run without a database"
+            title={
+              canDesign
+                ? 'Install built-in sample workflows you can Test run without a database'
+                : 'Installing samples needs the workflow design permission'
+            }
           >
             <Sparkles /> {hasSamples ? 'Refresh samples' : 'Add samples'}
           </Button>
-          <Button variant="ghost" onClick={() => importRef.current?.click()}>
+          <Button
+            variant="ghost"
+            disabled={!canDesign}
+            title={canDesign ? undefined : 'Importing workflows needs the workflow design permission'}
+            onClick={() => importRef.current?.click()}
+          >
             <Upload /> Import
           </Button>
           <input data-testid="workflow-list-file"
@@ -353,16 +371,18 @@ export function WorkflowsPanel({
                   </Button>
                   <Button
                     size="icon"
+                    disabled={!canDesign}
                     aria-label={`Duplicate ${workflow.id}`}
-                    title="Duplicate"
+                    title={canDesign ? 'Duplicate' : 'Duplicating needs the workflow design permission'}
                     onClick={() => duplicate(workflow)}
                   >
                     <Copy />
                   </Button>
                   <Button
                     size="icon"
+                    disabled={!canDesign}
                     aria-label={`Delete ${workflow.id}`}
-                    title="Delete"
+                    title={canDesign ? 'Delete' : 'Deleting needs the workflow design permission'}
                     onClick={() => remove(workflow)}
                   >
                     <Trash2 />

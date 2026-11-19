@@ -26,6 +26,7 @@
     "@foxschema/sql": "*",
     "@foxschema/workflow-contract": "*",
     "@foxschema/workflow-engine": "*",
+    "esbuild": "0.28.2",
     "fastify": "5.12.8",
     "isomorphic-git": "1.44.11",
     "pino": "10.4.0",

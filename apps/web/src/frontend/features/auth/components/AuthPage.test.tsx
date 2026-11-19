@@ -13,6 +13,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 const apiSetupState = vi.fn();
 const apiSetup = vi.fn();
+const apiAnnounceSetupCode = vi.fn();
 const apiMe = vi.fn();
 const apiLogin = vi.fn();
 const apiForgotPassword = vi.fn();
@@ -22,6 +23,7 @@ const apiRedeemCode = vi.fn();
 vi.mock('@/shared/api/authApi', () => ({
   apiSetupState: (...a: unknown[]) => apiSetupState(...a),
   apiSetup: (...a: unknown[]) => apiSetup(...a),
+  apiAnnounceSetupCode: (...a: unknown[]) => apiAnnounceSetupCode(...a),
   apiMe: (...a: unknown[]) => apiMe(...a),
   // The session the app starts from: whoever `apiMe` says, signed in normally.
   apiSession: async (...a: unknown[]) => {
@@ -45,7 +47,7 @@ const ADMIN = { id: 'u1', email: 'owner@example.com', onboardingCompleted: true,
 const GOOD = 'blue-lantern-42';
 
 beforeEach(() => {
-  for (const m of [apiSetupState, apiSetup, apiMe, apiLogin, apiForgotPassword, apiInspectCode, apiRedeemCode]) {
+  for (const m of [apiSetupState, apiSetup, apiAnnounceSetupCode, apiMe, apiLogin, apiForgotPassword, apiInspectCode, apiRedeemCode]) {
     m.mockReset();
   }
   useAuthStore.setState({ status: 'loading', user: null, error: null, busy: false, setupState: null });
@@ -123,6 +125,26 @@ describe('first-time sign-up', () => {
     fireEvent.click(optIn);
     fireEvent.submit(screen.getByTestId('auth-setup-form'));
     await waitFor(() => expect(apiSetup).toHaveBeenCalledWith('owner@example.com', GOOD, undefined, true));
+  });
+
+  it('auto-generates a compliant password into both fields and announces a fresh setup code', async () => {
+    apiAnnounceSetupCode.mockResolvedValue({ ok: true });
+    useAuthStore.setState({
+      status: 'setup',
+      setupState: { setupRequired: true, setupEmail: null, setupCodeRequired: true },
+    });
+    render(<AuthPage />);
+
+    fireEvent.click(screen.getByTestId('auth-password-generate'));
+    await waitFor(() => expect(screen.getByTestId('auth-password-generated-notice')).toBeTruthy());
+    const pw = (screen.getByLabelText(/^password$/i) as HTMLInputElement).value;
+    const confirm = (screen.getByLabelText(/confirm password/i) as HTMLInputElement).value;
+    expect(pw.length).toBeGreaterThanOrEqual(12);
+    expect(confirm).toBe(pw);
+
+    fireEvent.click(screen.getByTestId('auth-setup-code-announce'));
+    await waitFor(() => expect(apiAnnounceSetupCode).toHaveBeenCalledWith(false));
+    expect(screen.getByTestId('auth-setup-code-note')).toBeTruthy();
   });
 });
 

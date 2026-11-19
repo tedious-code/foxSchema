@@ -17,8 +17,10 @@
  * the dialect's own placeholder style, and table and column names are quoted
  * for the dialect.
  */
+import { basename, dirname, join, resolve } from 'node:path';
 import * as z from 'zod';
 import {
+  assertSafeSqliteSql,
   makeSqlQuery,
   maxInsertRows,
   quoteQualifiedName,
@@ -61,7 +63,162 @@ export type SqlRunner = (
   options: { dedicated: boolean },
 ) => Promise<SqlSession>;
 
+/**
+ * Dialects whose drivers rely on native `.node` addons (`better-sqlite3`,
+ * `@duckdb/node-api`, `ibm_db`) or host database files outside the sandbox's
+ * `--permission` boundary. When a SQL runner delegate is installed (inside the
+ * sandboxed workflow engine child), these dialects execute through the parent
+ * FoxSchema process over private reverse IPC while keeping `--allow-addons` off.
+ */
+export const NATIVE_ADDON_SQL_DIALECTS: ReadonlySet<string> = new Set([
+  'sqlite',
+  'duckdb',
+  'db2',
+]);
+
+let sqlRunnerDelegate: SqlRunner | undefined;
+
+export function setSqlRunnerDelegate(delegate: SqlRunner | undefined): void {
+  sqlRunnerDelegate = delegate;
+}
+
+const BLOCKED_SQLITE_BASENAMES = new Set([
+  'foxschema.db',
+  'workflow-engine.sqlite',
+  '.app_encryption_key',
+]);
+
+function stripSqliteCompanionSuffix(filePath: string): string {
+  return filePath.replace(/(?:-wal|-shm|-journal)$/i, '');
+}
+
+function sqliteTargetFromOption(option: Record<string, unknown>): string {
+  const conn = option.connectionString;
+  if (typeof conn === 'string' && conn.trim()) return conn.trim();
+  const raw = option.database ?? option.filename ?? option.file;
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : ':memory:';
+}
+
+function assertSafeSqliteTarget(target: string): void {
+  if (target.includes('\0')) {
+    throw new Error('Refusing to open FoxSchema internal database from a workflow SQL pipe');
+  }
+  const lower = target.toLowerCase();
+  if (
+    lower === ':memory:' ||
+    lower === 'file::memory:' ||
+    lower.startsWith('file::memory:?') ||
+    lower.startsWith('file::memory:#')
+  ) {
+    return;
+  }
+  let fsCandidate = target;
+  if (/^file:/i.test(fsCandidate)) {
+    try {
+      fsCandidate = decodeURIComponent(new URL(fsCandidate).pathname);
+    } catch {
+      const stripped = fsCandidate.slice('file:'.length).split(/[?#]/)[0] ?? fsCandidate;
+      try {
+        fsCandidate = decodeURIComponent(stripped);
+      } catch {
+        fsCandidate = stripped;
+      }
+    }
+  }
+  const normalizedExact = resolve(fsCandidate);
+  const normalizedTarget = resolve(stripSqliteCompanionSuffix(normalizedExact));
+
+  const blockedExact: string[] = [];
+  for (const raw of [process.env.APP_DB_PATH, process.env.FOXFLOW_DB_PATH]) {
+    if (!raw || !raw.trim() || raw.trim() === ':memory:') continue;
+    const base = resolve(stripSqliteCompanionSuffix(raw.trim()));
+    blockedExact.push(base, join(dirname(base), '.app_encryption_key'));
+  }
+
+  for (const p of [normalizedExact, normalizedTarget]) {
+    if (BLOCKED_SQLITE_BASENAMES.has(basename(p).toLowerCase()) || blockedExact.includes(p)) {
+      throw new Error('Refusing to open FoxSchema internal database from a workflow SQL pipe');
+    }
+  }
+}
+
+const BLOCKED_AUTHORIZER_PRAGMAS = new Set([
+  'writable_schema',
+  'trusted_schema',
+  'temp_store_directory',
+  'data_store_directory',
+]);
+
+async function openMemorySqliteSession(): Promise<SqlSession> {
+  const sqliteMod = await import('node:sqlite');
+  const db = new sqliteMod.DatabaseSync(':memory:', { defensive: true });
+  db.exec('PRAGMA trusted_schema = OFF');
+  if (typeof db.setAuthorizer === 'function' && sqliteMod.constants) {
+    const {
+      SQLITE_ATTACH,
+      SQLITE_DETACH,
+      SQLITE_FUNCTION,
+      SQLITE_PRAGMA,
+      SQLITE_DENY,
+      SQLITE_OK,
+    } = sqliteMod.constants;
+    db.setAuthorizer((actionCode, arg1, arg2) => {
+      if (actionCode === SQLITE_ATTACH || actionCode === SQLITE_DETACH) {
+        return SQLITE_DENY;
+      }
+      if (actionCode === SQLITE_FUNCTION && typeof arg2 === 'string' && arg2.toLowerCase() === 'load_extension') {
+        return SQLITE_DENY;
+      }
+      if (actionCode === SQLITE_PRAGMA && typeof arg1 === 'string' && BLOCKED_AUTHORIZER_PRAGMAS.has(arg1.toLowerCase())) {
+        return SQLITE_DENY;
+      }
+      return SQLITE_OK;
+    });
+  }
+  return {
+    async query(sql, params) {
+      assertSafeSqliteSql(sql);
+      const stmt = db.prepare(sql);
+      const args = params as never[];
+      if (stmt.columns().length > 0) {
+        return stmt.all(...args) as Record<string, unknown>[];
+      }
+      stmt.run(...args);
+      return [];
+    },
+    async transaction(work) {
+      db.exec('BEGIN');
+      try {
+        const result = await work();
+        db.exec('COMMIT');
+        return result;
+      } catch (error) {
+        try {
+          db.exec('ROLLBACK');
+        } catch {
+          // ignore
+        }
+        throw error;
+      }
+    },
+    async close() {
+      db.close();
+    },
+  };
+}
+
 const foxSchemaDrivers: SqlRunner = async ({ dialect, schema, option }, { dedicated }) => {
+  const normalizedDialect = dialect.trim().toLowerCase();
+  if (normalizedDialect === 'sqlite' || normalizedDialect === 'duckdb') {
+    const target = sqliteTargetFromOption(option);
+    assertSafeSqliteTarget(target);
+    if (normalizedDialect === 'sqlite' && target === ':memory:') {
+      return openMemorySqliteSession();
+    }
+  }
+  if (sqlRunnerDelegate && NATIVE_ADDON_SQL_DIALECTS.has(normalizedDialect)) {
+    return sqlRunnerDelegate({ dialect, ...(schema ? { schema } : {}), option }, { dedicated });
+  }
   const db = await import('@foxschema/db');
   const adapter = db.getAdapter(dialect);
   const handle = await db.ConnectionFactory.create(dialect, option as never, { pooled: !dedicated });

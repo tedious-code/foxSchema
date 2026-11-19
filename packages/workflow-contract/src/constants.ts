@@ -81,3 +81,26 @@ export const TERMINAL_RUN_STATUSES = ['succeeded', 'failed', 'cancelled'] as con
 export function isTerminalRunStatus(status: string): boolean {
   return (TERMINAL_RUN_STATUSES as readonly string[]).includes(status);
 }
+
+/**
+ * Host environment variables that must NEVER enter the workflow sandbox env
+ * and must NEVER be readable by workflow `source: 'env'` credentials (even in
+ * `FOXFLOW_SANDBOX_MODE=in-process`). Single source of truth shared between
+ * `packages/server` and `packages/workflow-engine`.
+ */
+export const FORBIDDEN_WORKFLOW_ENV_VARS = [
+  'APP_ENCRYPTION_KEY',
+  'FOXFLOW_ENCRYPTION_KEY',
+  'SESSION_SECRET',
+  'APP_DB_PATH',
+  'APP_DB_URL',
+  'APP_DB_ENGINE',
+  'APP_DB_PASSWORD',
+  'WORKFLOW_ENGINE_TOKEN',
+  'FOXSCHEMA_SETUP_CODE',
+  'SMTP_PASS',
+  'GOOGLE_CLIENT_SECRET',
+  'GITHUB_CLIENT_SECRET',
+  'OIDC_CLIENT_SECRET',
+  'NODE_OPTIONS',
+] as const;

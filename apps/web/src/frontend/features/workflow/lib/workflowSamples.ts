@@ -45,6 +45,12 @@ export const SAMPLE_API_ENRICH_MULTI_DB_WORKFLOW_ID = 'sample-api-enrich-multi-d
 export const SAMPLE_FILE_CSV_MULTI_PIPELINE_WORKFLOW_ID = 'sample-file-csv-multi-pipeline';
 export const SAMPLE_MULTI_API_FANOUT_WORKFLOW_ID = 'sample-multi-api-fanout';
 export const SAMPLE_CROSS_DB_ETL_SPLIT_WORKFLOW_ID = 'sample-cross-db-etl-split';
+export const SAMPLE_MULTI_API_MERGE_TO_DB_WORKFLOW_ID = 'sample-multi-api-merge-to-db';
+export const SAMPLE_LINEAR_API_FAILFAST_DB_WORKFLOW_ID = 'sample-linear-api-failfast-db';
+export const SAMPLE_MULTI_DB_ETL_CONSOLIDATE_WORKFLOW_ID = 'sample-multi-db-etl-consolidate';
+export const SAMPLE_PARTIAL_FAILURE_RECOVERY_WORKFLOW_ID = 'sample-partial-failure-recovery';
+export const SAMPLE_DEDUPE_NULLS_QUARANTINE_ETL_WORKFLOW_ID = 'sample-dedupe-nulls-quarantine-etl';
+export const SAMPLE_EMPTY_BATCH_AND_LOOP_EDGE_WORKFLOW_ID = 'sample-empty-batch-and-loop-edge';
 
 /** What "Add samples" opens on the canvas — the branch DAG, not the one-pipe starter. */
 export const SAMPLE_CANVAS_ID = SAMPLE_ORDERS_WORKFLOW_ID;
@@ -119,6 +125,30 @@ export const SAMPLE_SQL_CRUD_ROWS = [
   { id: 101, customer: 'Alice Nguyen', plan: 'starter', amount: 49, status: 'new' },
   { id: 102, customer: 'Bob Martinez', plan: 'pro', amount: 99, status: 'new' },
   { id: 103, customer: 'Cara Chen', plan: 'enterprise', amount: 249, status: 'new' },
+] as const;
+
+export const SAMPLE_MULTI_DB_ORDERS = [
+  { id: 201, order_code: 'ORD-N-201', customer: 'Nordic Freight', region: 'north', currency: 'USD', subtotal: 420.5, status: 'paid' },
+  { id: 202, order_code: 'ORD-N-202', customer: 'Aurora Labs', region: 'north', currency: 'EUR', subtotal: 280, status: 'paid' },
+  { id: 203, order_code: 'ORD-S-203', customer: 'Southern Foods', region: 'south', currency: 'USD', subtotal: 155.25, status: 'paid' },
+  { id: 204, order_code: 'ORD-S-204', customer: 'Kestrel Retail', region: 'south', currency: 'GBP', subtotal: 610, status: 'pending' },
+  { id: 205, order_code: 'ORD-S-205', customer: 'Invalid Row', region: 'south', currency: 'USD', subtotal: -15, status: 'cancelled' },
+] as const;
+
+/** Dirty ETL inputs exercising duplicates, nulls, currency strings, zero/negative boundaries, Unicode, and SQL quotes. */
+export const SAMPLE_DIRTY_ETL_RECORDS = [
+  { id: 301, name: "  O'Brien & Co — 東京 🚀  ", email: 'ops@obrien.example', amount: '$1,250.50', status: 'active' },
+  { id: 301, name: "O'Brien & Co — 東京 🚀 (v2)", email: 'ops@obrien.example', amount: '$1,350.00', status: 'active' },
+  { id: 302, name: "Müller; DROP TABLE users;--", email: 'muller@example.de', amount: '0', status: 'active' },
+  { id: 303, name: '   ', email: null, amount: '99.99', status: 'active' },
+  { id: 304, name: 'Negative Edge Corp', email: 'neg@example.com', amount: '-42.5', status: 'refunded' },
+  { id: 305, name: 'Corrupt Amount Ltd', email: 'nan@example.com', amount: 'not-a-number', status: 'pending' },
+] as const;
+
+export const SAMPLE_EMPTY_BRANCH_ROWS = [
+  { id: 401, lane: 'priority', group: 'alpha', score: 95 },
+  { id: 402, lane: 'priority', group: 'beta', score: 88 },
+  { id: 403, lane: 'priority', group: 'alpha', score: 91 },
 ] as const;
 
 type SampleRecord = Record<string, unknown>;
@@ -1728,6 +1758,1102 @@ const CROSS_DB_ETL_SPLIT: SampleWorkflow = {
   },
 };
 
+const MULTI_API_MERGE_TO_DB: SampleWorkflow = {
+  id: SAMPLE_MULTI_API_MERGE_TO_DB_WORKFLOW_ID,
+  name: '★ Sample · Multi-URL Merge (Parallel, Skip Errors) → Script → Multi-DB',
+  document: {
+    id: SAMPLE_MULTI_API_MERGE_TO_DB_WORKFLOW_ID,
+    name: '★ Sample · Multi-URL Merge (Parallel, Skip Errors) → Script → Multi-DB',
+    description:
+      'Fetch 3 API endpoints in parallel with HTTP Multi (outputMode: merge, onError: skip), transform the single merged payload in a Script pipe, verify fields, upsert into PostgreSQL + SQLite, and verify in Stage 2. Swap any SQL pipe connection to your own saved database.',
+    purpose:
+      'Demonstrate HTTP Multi parallel fetch with merged payload output and fault-tolerant skip-on-error feeding a Script pipe and multi-DB SQL upserts.',
+    tags: ['sample', 'multi-http', 'parallel', 'merge-payload', 'script', 'postgres', 'sqlite'],
+    expectedResult:
+      'One merged payload ({ tokyo, berlin, sf }) is transformed into 3 clean rows, upserted into Postgres & SQLite wf_multi_api_merged, and exported to multi_api_merged_report.csv.',
+    origin: 'authored',
+    triggers: [{ id: 'manual', kind: 'manual', enabled: true }],
+    pipelines: [
+      {
+        id: 'fetch_merge_load',
+        name: '1. Multi-URL Parallel Merge → Script → Multi-DB',
+        task: 'Call 3 weather endpoints concurrently, merge all JSON payloads into one record, normalize in Script, validate, and upsert to Postgres + SQLite.',
+        pipes: [
+          {
+            id: 'fetch_multi_urls',
+            role: 'source',
+            type: 'source.api.http.multi',
+            intent: 'Fetch Tokyo, Berlin, and San Francisco APIs in parallel and merge payloads',
+            config: {
+              executionMode: 'parallel',
+              outputMode: 'merge',
+              onError: 'skip',
+              concurrency: 3,
+              batchSize: 100,
+              endpoints: [
+                {
+                  id: 'tokyo',
+                  url: 'https://api.open-meteo.com/v1/forecast',
+                  method: 'GET',
+                  query: [
+                    { key: 'latitude', value: '35.6895', enabled: true },
+                    { key: 'longitude', value: '139.6917', enabled: true },
+                    { key: 'current_weather', value: 'true', enabled: true },
+                  ],
+                },
+                {
+                  id: 'berlin',
+                  url: 'https://api.open-meteo.com/v1/forecast',
+                  method: 'GET',
+                  query: [
+                    { key: 'latitude', value: '52.52', enabled: true },
+                    { key: 'longitude', value: '13.405', enabled: true },
+                    { key: 'current_weather', value: 'true', enabled: true },
+                  ],
+                },
+                {
+                  id: 'sf',
+                  url: 'https://api.open-meteo.com/v1/forecast',
+                  method: 'GET',
+                  query: [
+                    { key: 'latitude', value: '37.7749', enabled: true },
+                    { key: 'longitude', value: '-122.4194', enabled: true },
+                    { key: 'current_weather', value: 'true', enabled: true },
+                  ],
+                },
+              ],
+            },
+          },
+          {
+            id: 'transform_merged_payload',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Unpack merged { tokyo, berlin, sf } object into normalized database rows',
+            config: {
+              script:
+                "const merged = records[0] ?? {}; const cities = [{ key: 'tokyo', id: 1, label: 'Tokyo' }, { key: 'berlin', id: 2, label: 'Berlin' }, { key: 'sf', id: 3, label: 'San Francisco' }]; const rows = []; for (const c of cities) { const payload = merged[c.key]; if (!payload || payload.ok === false) { rows.push({ id: c.id, city: c.label, temp_c: 0, wind_kmh: 0, fetch_status: 'skipped', observed_at: '' }); continue; } const w = payload.current_weather ?? {}; rows.push({ id: c.id, city: c.label, temp_c: Number(w.temperature ?? 0), wind_kmh: Number(w.windspeed ?? 0), fetch_status: 'ok', observed_at: String(w.time ?? '') }); } return rows;",
+            },
+          },
+          {
+            id: 'verify_rows',
+            role: 'transform',
+            type: 'transform.verify',
+            intent: 'Ensure every row has city name and non-negative wind speed',
+            config: {
+              rules: [
+                { field: 'city', op: 'notEmpty', message: 'City name is required' },
+                { field: 'wind_kmh', op: 'gte', value: 0, message: 'Wind speed must be >= 0' },
+              ],
+              minScore: 1,
+              onInvalid: 'reject',
+              outputField: 'verification',
+            },
+          },
+          {
+            id: 'project_db_columns',
+            role: 'transform',
+            type: 'transform.map',
+            intent: 'Select clean columns for SQL upsert',
+            config: {
+              mappings: {
+                id: 'id',
+                city: 'city',
+                temp_c: 'temp_c',
+                wind_kmh: 'wind_kmh',
+                fetch_status: 'fetch_status',
+                observed_at: 'observed_at',
+              },
+              includeOriginal: false,
+            },
+          },
+          {
+            id: 'upsert_postgres',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Upsert merged API rows into PostgreSQL wf_multi_api_merged',
+            config: {
+              dialect: 'postgres',
+              mode: 'insert',
+              table: 'wf_multi_api_merged',
+              upsertKey: 'id',
+            },
+          },
+          {
+            id: 'upsert_sqlite',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Upsert merged API rows into SQLite wf_multi_api_merged',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'wf_multi_api_merged',
+              upsertKey: 'id',
+            },
+          },
+        ],
+        edges: [
+          { from: 'fetch_multi_urls', to: 'transform_merged_payload' },
+          { from: 'transform_merged_payload', to: 'verify_rows' },
+          { from: 'verify_rows', fromPort: 'out', to: 'project_db_columns' },
+          { from: 'project_db_columns', to: 'upsert_postgres' },
+          { from: 'project_db_columns', to: 'upsert_sqlite' },
+        ],
+      },
+      {
+        id: 'verify_loaded_snapshots',
+        name: '2. Verify Loaded DB Rows → CSV Export',
+        task: 'Query loaded rows back from PostgreSQL and write a verification CSV.',
+        pipes: [
+          {
+            id: 'read_pg_snapshots',
+            role: 'source',
+            type: 'source.db.sql',
+            intent: 'Read back upserted multi-API rows from PostgreSQL',
+            config: {
+              dialect: 'postgres',
+              sql: 'SELECT id, city, temp_c, wind_kmh, fetch_status, observed_at FROM wf_multi_api_merged ORDER BY id ASC;',
+            },
+          },
+          {
+            id: 'export_merged_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Write verification snapshot to multi_api_merged_report.csv',
+            config: {
+              path: 'multi_api_merged_report.csv',
+              columns: ['id', 'city', 'temp_c', 'wind_kmh', 'fetch_status', 'observed_at'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+        ],
+        edges: [{ from: 'read_pg_snapshots', to: 'export_merged_csv' }],
+      },
+    ],
+    dependencies: [{ from: 'fetch_merge_load', to: 'verify_loaded_snapshots', on: 'success' }],
+  },
+};
+
+const LINEAR_API_FAILFAST_DB: SampleWorkflow = {
+  id: SAMPLE_LINEAR_API_FAILFAST_DB_WORKFLOW_ID,
+  name: '★ Sample · Multi-URL Linear (Stop on Failure) → Script → DB',
+  document: {
+    id: SAMPLE_LINEAR_API_FAILFAST_DB_WORKFLOW_ID,
+    name: '★ Sample · Multi-URL Linear (Stop on Failure) → Script → DB',
+    description:
+      'Run 3 API calls sequentially in order (HTTP Multi with executionMode: linear, onError: fail, outputMode: merge), combine geocoding + weather + air quality in a Script pipe, validate, and upsert into PostgreSQL + SQLite.',
+    purpose:
+      'Show ordered linear multi-URL fetching with stop-on-failure semantics and multi-endpoint payload joining before database insertion.',
+    tags: ['sample', 'multi-http', 'linear', 'fail-fast', 'merge-payload', 'script', 'postgres', 'sqlite'],
+    expectedResult:
+      'Geocoding, forecast, and air quality endpoints run sequentially; any error stops immediately; valid combined city-environment metrics upsert into wf_linear_city_env.',
+    origin: 'authored',
+    triggers: [{ id: 'manual', kind: 'manual', enabled: true }],
+    pipelines: [
+      {
+        id: 'linear_fetch_and_load',
+        name: '1. Linear Multi-URL → Join Payloads → DB Upsert',
+        task: 'Fetch city metadata, weather, and air quality in strict linear sequence, stop on any failure, join in Script, and upsert to Postgres + SQLite.',
+        pipes: [
+          {
+            id: 'fetch_ordered_apis',
+            role: 'source',
+            type: 'source.api.http.multi',
+            intent: 'Execute 3 endpoints linearly and abort immediately on failure',
+            config: {
+              executionMode: 'linear',
+              outputMode: 'merge',
+              onError: 'fail',
+              concurrency: 0,
+              batchSize: 100,
+              endpoints: [
+                {
+                  id: 'city_meta',
+                  url: 'https://geocoding-api.open-meteo.com/v1/search',
+                  method: 'GET',
+                  query: [
+                    { key: 'name', value: 'Tokyo', enabled: true },
+                    { key: 'count', value: '1', enabled: true },
+                  ],
+                },
+                {
+                  id: 'forecast',
+                  url: 'https://api.open-meteo.com/v1/forecast',
+                  method: 'GET',
+                  query: [
+                    { key: 'latitude', value: '35.6895', enabled: true },
+                    { key: 'longitude', value: '139.6917', enabled: true },
+                    { key: 'current_weather', value: 'true', enabled: true },
+                  ],
+                },
+                {
+                  id: 'air_quality',
+                  url: 'https://air-quality-api.open-meteo.com/v1/air-quality',
+                  method: 'GET',
+                  query: [
+                    { key: 'latitude', value: '35.6895', enabled: true },
+                    { key: 'longitude', value: '139.6917', enabled: true },
+                    { key: 'current', value: 'pm10,pm2_5', enabled: true },
+                  ],
+                },
+              ],
+            },
+          },
+          {
+            id: 'join_city_environment',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Combine city metadata, weather forecast, and air quality into one record',
+            config: {
+              script:
+                "const m = records[0] ?? {}; const city = m.city_meta?.results?.[0] ?? {}; const weather = m.forecast?.current_weather ?? {}; const air = m.air_quality?.current ?? {}; return [{ id: Number(city.id ?? 1850147), city: String(city.name ?? 'Tokyo'), country: String(city.country ?? 'Japan'), population: Number(city.population ?? 0), temp_c: Number(weather.temperature ?? 0), wind_kmh: Number(weather.windspeed ?? 0), pm2_5: Number(air.pm2_5 ?? 0), pm10: Number(air.pm10 ?? 0), observed_at: String(weather.time ?? '') }];",
+            },
+          },
+          {
+            id: 'verify_env_record',
+            role: 'transform',
+            type: 'transform.verify',
+            intent: 'Validate city name and non-negative air quality metrics',
+            config: {
+              rules: [
+                { field: 'city', op: 'notEmpty', message: 'City name required' },
+                { field: 'pm2_5', op: 'gte', value: 0, message: 'PM2.5 must be >= 0' },
+              ],
+              minScore: 1,
+              onInvalid: 'reject',
+              outputField: 'verification',
+            },
+          },
+          {
+            id: 'clean_env_columns',
+            role: 'transform',
+            type: 'transform.map',
+            intent: 'Drop verification metadata before SQL insert',
+            config: {
+              mappings: {
+                id: 'id',
+                city: 'city',
+                country: 'country',
+                population: 'population',
+                temp_c: 'temp_c',
+                wind_kmh: 'wind_kmh',
+                pm2_5: 'pm2_5',
+                pm10: 'pm10',
+                observed_at: 'observed_at',
+              },
+              includeOriginal: false,
+            },
+          },
+          {
+            id: 'upsert_pg_env',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Upsert joined city environment snapshot to PostgreSQL wf_linear_city_env',
+            config: {
+              dialect: 'postgres',
+              mode: 'insert',
+              table: 'wf_linear_city_env',
+              upsertKey: 'id',
+            },
+          },
+          {
+            id: 'upsert_sqlite_env',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Upsert joined city environment snapshot to SQLite wf_linear_city_env',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'wf_linear_city_env',
+              upsertKey: 'id',
+            },
+          },
+        ],
+        edges: [
+          { from: 'fetch_ordered_apis', to: 'join_city_environment' },
+          { from: 'join_city_environment', to: 'verify_env_record' },
+          { from: 'verify_env_record', fromPort: 'out', to: 'clean_env_columns' },
+          { from: 'clean_env_columns', to: 'upsert_pg_env' },
+          { from: 'clean_env_columns', to: 'upsert_sqlite_env' },
+        ],
+      },
+    ],
+  },
+};
+
+const MULTI_DB_ETL_CONSOLIDATE: SampleWorkflow = {
+  id: SAMPLE_MULTI_DB_ETL_CONSOLIDATE_WORKFLOW_ID,
+  name: '★ Sample · Multi-DB ETL (Postgres + SQLite) → Warehouse',
+  document: {
+    id: SAMPLE_MULTI_DB_ETL_CONSOLIDATE_WORKFLOW_ID,
+    name: '★ Sample · Multi-DB ETL (Postgres + SQLite) → Warehouse',
+    description:
+      'End-to-end Multi-Database ETL: Stage 1 seeds North orders in PostgreSQL and South orders in SQLite; Stage 2 extracts from both databases in parallel, merges streams, converts currencies to USD in Script, quarantines negative amounts via Verify, and loads a consolidated warehouse table + CSV. Swap any SQL pipe connection to MySQL, SQL Server, Oracle, or DuckDB.',
+    purpose:
+      'Provide a ready-to-run multi-database ETL template combining parallel DB extracts, merge fan-in, currency normalization, quality quarantine, dual warehouse sinks, and CSV export.',
+    tags: ['sample', 'etl', 'multi-db', 'postgres', 'sqlite', 'merge', 'verify', 'warehouse'],
+    expectedResult:
+      '4 valid regional orders from Postgres + SQLite merge into normalized USD totals in wf_etl_warehouse_orders (both Postgres & SQLite) + multi_db_etl_warehouse.csv, while the negative-subtotal row is quarantined into SQLite wf_etl_quarantine + multi_db_etl_quarantine.csv.',
+    origin: 'authored',
+    triggers: [
+      {
+        id: 'manual',
+        kind: 'manual',
+        enabled: true,
+        inputData: cloneRecords(SAMPLE_MULTI_DB_ORDERS),
+      },
+    ],
+    pipelines: [
+      {
+        id: 'seed_regional_dbs',
+        name: '1. Seed Regional Source DBs (Postgres + SQLite)',
+        task: 'Route North orders into PostgreSQL and South orders into SQLite so Stage 2 can extract from two separate databases.',
+        pipes: [
+          {
+            id: 'trigger_orders',
+            role: 'source',
+            type: 'source.trigger.manual',
+            intent: 'Emit 5 regional sample orders (4 valid, 1 negative subtotal)',
+            config: {},
+          },
+          {
+            id: 'route_region',
+            role: 'transform',
+            type: 'transform.condition',
+            intent: 'Route north region orders to Postgres and south region orders to SQLite',
+            config: {
+              field: 'region',
+              operator: 'equals',
+              value: 'north',
+            },
+          },
+          {
+            id: 'seed_pg_north',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Seed North regional orders in PostgreSQL wf_etl_orders_north',
+            config: {
+              dialect: 'postgres',
+              mode: 'insert',
+              table: 'wf_etl_orders_north',
+              upsertKey: 'id',
+            },
+          },
+          {
+            id: 'seed_sqlite_south',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Seed South regional orders in SQLite wf_etl_orders_south',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'wf_etl_orders_south',
+              upsertKey: 'id',
+            },
+          },
+        ],
+        edges: [
+          { from: 'trigger_orders', to: 'route_region' },
+          { from: 'route_region', fromPort: 'true', to: 'seed_pg_north' },
+          { from: 'route_region', fromPort: 'false', to: 'seed_sqlite_south' },
+        ],
+      },
+      {
+        id: 'consolidate_to_warehouse',
+        name: '2. Extract 2 DBs → Merge & Normalize → Warehouse & CSV',
+        task: 'Extract from Postgres + SQLite, merge streams, convert currencies to USD, quarantine invalid rows, and load consolidated warehouse tables.',
+        pipes: [
+          {
+            id: 'extract_pg_north',
+            role: 'source',
+            type: 'source.db.sql',
+            intent: 'Extract North regional orders from PostgreSQL',
+            config: {
+              dialect: 'postgres',
+              sql: "SELECT id, order_code, customer, region, currency, subtotal, status, 'postgres' AS source_db FROM wf_etl_orders_north ORDER BY id ASC;",
+            },
+          },
+          {
+            id: 'extract_sqlite_south',
+            role: 'source',
+            type: 'source.db.sql',
+            intent: 'Extract South regional orders from SQLite',
+            config: {
+              dialect: 'sqlite',
+              sql: "SELECT id, order_code, customer, region, currency, subtotal, status, 'sqlite' AS source_db FROM wf_etl_orders_south ORDER BY id ASC;",
+            },
+          },
+          {
+            id: 'merge_db_extracts',
+            role: 'transform',
+            type: 'transform.merge',
+            intent: 'Combine PostgreSQL and SQLite extracts into one ETL stream',
+            config: {},
+          },
+          {
+            id: 'normalize_currency_usd',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Convert EUR/GBP/USD subtotals to normalized amount_usd and priority tier',
+            config: {
+              script:
+                "const FX = { USD: 1, EUR: 1.09, GBP: 1.27 }; return records.map((r) => { const raw = Number(r.subtotal ?? 0); const rate = FX[String(r.currency ?? 'USD').toUpperCase()] ?? 1; const amountUsd = Math.round(raw * rate * 100) / 100; return { ...r, subtotal: raw, amount_usd: amountUsd, priority: amountUsd >= 400 ? 'high' : 'standard' }; });",
+            },
+          },
+          {
+            id: 'verify_order_quality',
+            role: 'transform',
+            type: 'transform.verify',
+            intent: 'Reject orders with non-positive amount_usd or missing order_code',
+            config: {
+              rules: [
+                { field: 'order_code', op: 'notEmpty', message: 'Order code is required' },
+                { field: 'amount_usd', op: 'gt', value: 0, message: 'USD amount must be positive' },
+              ],
+              minScore: 1,
+              onInvalid: 'reject',
+              outputField: 'verification',
+            },
+          },
+          {
+            id: 'quarantine_bad_orders',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Tag rejected rows for quarantine inspection',
+            config: {
+              script: "return records.map((r) => ({ order_code: r.order_code, source_db: r.source_db, amount_usd: r.amount_usd, reason: 'failed_etl_quality' }));",
+            },
+          },
+          {
+            id: 'sink_quarantine_db',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Persist quarantined orders into SQLite wf_etl_quarantine for inspection',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'wf_etl_quarantine',
+              upsertKey: 'order_code',
+            },
+          },
+          {
+            id: 'sink_quarantine_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Export quarantined orders to multi_db_etl_quarantine.csv',
+            config: {
+              path: 'multi_db_etl_quarantine.csv',
+              columns: ['order_code', 'source_db', 'amount_usd', 'reason'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+          {
+            id: 'map_warehouse_schema',
+            role: 'transform',
+            type: 'transform.map',
+            intent: 'Project clean canonical warehouse columns',
+            config: {
+              mappings: {
+                id: 'id',
+                order_code: 'order_code',
+                customer: 'customer',
+                region: 'region',
+                source_db: 'source_db',
+                currency: 'currency',
+                amount_usd: 'amount_usd',
+                priority: 'priority',
+                status: 'status',
+              },
+              includeOriginal: false,
+            },
+          },
+          {
+            id: 'load_pg_warehouse',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Upsert consolidated orders into PostgreSQL wf_etl_warehouse_orders',
+            config: {
+              dialect: 'postgres',
+              mode: 'insert',
+              table: 'wf_etl_warehouse_orders',
+              upsertKey: 'id',
+            },
+          },
+          {
+            id: 'load_sqlite_warehouse',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Upsert consolidated orders into SQLite wf_etl_warehouse_orders',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'wf_etl_warehouse_orders',
+              upsertKey: 'id',
+            },
+          },
+          {
+            id: 'export_warehouse_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Export consolidated warehouse orders to multi_db_etl_warehouse.csv',
+            config: {
+              path: 'multi_db_etl_warehouse.csv',
+              columns: ['order_code', 'customer', 'region', 'source_db', 'currency', 'amount_usd', 'priority', 'status'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+        ],
+        edges: [
+          { from: 'extract_pg_north', to: 'merge_db_extracts' },
+          { from: 'extract_sqlite_south', to: 'merge_db_extracts' },
+          { from: 'merge_db_extracts', to: 'normalize_currency_usd' },
+          { from: 'normalize_currency_usd', to: 'verify_order_quality' },
+          { from: 'verify_order_quality', fromPort: 'rejects', to: 'quarantine_bad_orders' },
+          { from: 'quarantine_bad_orders', to: 'sink_quarantine_db' },
+          { from: 'quarantine_bad_orders', to: 'sink_quarantine_csv' },
+          { from: 'verify_order_quality', fromPort: 'out', to: 'map_warehouse_schema' },
+          { from: 'map_warehouse_schema', to: 'load_pg_warehouse' },
+          { from: 'map_warehouse_schema', to: 'load_sqlite_warehouse' },
+          { from: 'map_warehouse_schema', to: 'export_warehouse_csv' },
+        ],
+      },
+    ],
+    dependencies: [{ from: 'seed_regional_dbs', to: 'consolidate_to_warehouse', on: 'success' }],
+  },
+};
+
+const PARTIAL_FAILURE_RECOVERY: SampleWorkflow = {
+  id: SAMPLE_PARTIAL_FAILURE_RECOVERY_WORKFLOW_ID,
+  name: '★ Sample · Edge Case · Partial API Failure & Dead-Letter Recovery',
+  document: {
+    id: SAMPLE_PARTIAL_FAILURE_RECOVERY_WORKFLOW_ID,
+    name: '★ Sample · Edge Case · Partial API Failure & Dead-Letter Recovery',
+    description:
+      'Edge case: HTTP Multi (parallel + merge + onError: skip) calls 2 healthy endpoints alongside 1 intentionally failing 404 endpoint. Script separates healthy data from { ok: false, error } payloads, routes healthy rows vs dead-letter diagnostics to separate SQLite tables + CSV, and Stage 2 runs with dependency on: always.',
+    purpose:
+      'Verify fault-tolerant partial failure handling, dead-letter routing, and on: always downstream audit stages.',
+    tags: ['sample', 'edge-case', 'multi-http', 'skip-on-error', 'dead-letter', 'sqlite'],
+    expectedResult:
+      'Healthy endpoints (tokyo, paris) upsert into wf_edge_healthy_snapshots, the broken endpoint lands in wf_edge_api_dead_letter + edge_api_dead_letter.csv, and Stage 2 always audits both tables.',
+    origin: 'authored',
+    triggers: [{ id: 'manual', kind: 'manual', enabled: true }],
+    pipelines: [
+      {
+        id: 'partial_api_ingest',
+        name: '1. Multi-URL Partial Failure → Split Healthy vs Dead-Letter',
+        task: 'Call 2 valid APIs + 1 intentionally failing 404 endpoint with onError: skip, classify errors in Script, and persist healthy rows and error diagnostics separately.',
+        pipes: [
+          {
+            id: 'fetch_with_broken_endpoint',
+            role: 'source',
+            type: 'source.api.http.multi',
+            intent: 'Fetch 2 live endpoints + 1 broken 404 endpoint without aborting the run',
+            config: {
+              executionMode: 'parallel',
+              outputMode: 'merge',
+              onError: 'skip',
+              concurrency: 3,
+              batchSize: 100,
+              endpoints: [
+                {
+                  id: 'tokyo',
+                  url: 'https://api.open-meteo.com/v1/forecast',
+                  method: 'GET',
+                  query: [
+                    { key: 'latitude', value: '35.6895', enabled: true },
+                    { key: 'longitude', value: '139.6917', enabled: true },
+                    { key: 'current_weather', value: 'true', enabled: true },
+                  ],
+                },
+                {
+                  id: 'paris',
+                  url: 'https://api.open-meteo.com/v1/forecast',
+                  method: 'GET',
+                  query: [
+                    { key: 'latitude', value: '48.8566', enabled: true },
+                    { key: 'longitude', value: '2.3522', enabled: true },
+                    { key: 'current_weather', value: 'true', enabled: true },
+                  ],
+                },
+                {
+                  id: 'broken_hub',
+                  url: 'https://api.open-meteo.com/v1/nonexistent-edge-case-endpoint',
+                  method: 'GET',
+                  query: [],
+                },
+              ],
+            },
+          },
+          {
+            id: 'classify_endpoint_health',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Inspect each endpoint payload and flag { ok: false, error } failures',
+            config: {
+              script:
+                "const merged = records[0] ?? {}; const defs = [{ id: 1, key: 'tokyo' }, { id: 2, key: 'paris' }, { id: 3, key: 'broken_hub' }]; return defs.map((d) => { const p = merged[d.key]; if (!p || p.ok === false) { return { id: d.id, endpoint: d.key, has_error: true, temp_c: 0, error_message: String(p?.error ?? 'empty payload') }; } return { id: d.id, endpoint: d.key, has_error: false, temp_c: Number(p.current_weather?.temperature ?? 0), error_message: '' }; });",
+            },
+          },
+          {
+            id: 'route_errors',
+            role: 'transform',
+            type: 'transform.condition',
+            intent: 'Route failed endpoints to dead-letter table and healthy endpoints to snapshot table',
+            config: {
+              field: 'has_error',
+              operator: 'equals',
+              value: true,
+            },
+          },
+          {
+            id: 'map_dead_letter',
+            role: 'transform',
+            type: 'transform.map',
+            intent: 'Project dead-letter diagnostic columns',
+            config: {
+              mappings: {
+                id: 'id',
+                endpoint: 'endpoint',
+                error_message: 'error_message',
+              },
+              includeOriginal: false,
+            },
+          },
+          {
+            id: 'sink_dead_letter_db',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Persist failed endpoint errors into SQLite wf_edge_api_dead_letter',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'wf_edge_api_dead_letter',
+              upsertKey: 'id',
+            },
+          },
+          {
+            id: 'sink_dead_letter_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Export failed endpoint errors to edge_api_dead_letter.csv',
+            config: {
+              path: 'edge_api_dead_letter.csv',
+              columns: ['id', 'endpoint', 'error_message'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+          {
+            id: 'map_healthy_rows',
+            role: 'transform',
+            type: 'transform.map',
+            intent: 'Project healthy endpoint columns',
+            config: {
+              mappings: {
+                id: 'id',
+                endpoint: 'endpoint',
+                temp_c: 'temp_c',
+              },
+              includeOriginal: false,
+            },
+          },
+          {
+            id: 'sink_healthy_db',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Upsert healthy endpoint data into SQLite wf_edge_healthy_snapshots',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'wf_edge_healthy_snapshots',
+              upsertKey: 'id',
+            },
+          },
+        ],
+        edges: [
+          { from: 'fetch_with_broken_endpoint', to: 'classify_endpoint_health' },
+          { from: 'classify_endpoint_health', to: 'route_errors' },
+          { from: 'route_errors', fromPort: 'true', to: 'map_dead_letter' },
+          { from: 'map_dead_letter', to: 'sink_dead_letter_db' },
+          { from: 'map_dead_letter', to: 'sink_dead_letter_csv' },
+          { from: 'route_errors', fromPort: 'false', to: 'map_healthy_rows' },
+          { from: 'map_healthy_rows', to: 'sink_healthy_db' },
+        ],
+      },
+      {
+        id: 'audit_always_stage',
+        name: '2. Always-Run Reconciliation Audit',
+        task: 'Run regardless of Stage 1 outcome (on: always) to read back healthy snapshots from SQLite.',
+        pipes: [
+          {
+            id: 'read_healthy_audit',
+            role: 'source',
+            type: 'source.db.sql',
+            intent: 'Query healthy rows saved during Stage 1',
+            config: {
+              dialect: 'sqlite',
+              sql: 'SELECT id, endpoint, temp_c FROM wf_edge_healthy_snapshots ORDER BY id ASC;',
+            },
+          },
+          {
+            id: 'write_audit_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Export healthy snapshot audit to edge_healthy_audit.csv',
+            config: {
+              path: 'edge_healthy_audit.csv',
+              columns: ['id', 'endpoint', 'temp_c'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+        ],
+        edges: [{ from: 'read_healthy_audit', to: 'write_audit_csv' }],
+      },
+    ],
+    dependencies: [{ from: 'partial_api_ingest', to: 'audit_always_stage', on: 'always' }],
+  },
+};
+
+const DEDUPE_NULLS_QUARANTINE_ETL: SampleWorkflow = {
+  id: SAMPLE_DEDUPE_NULLS_QUARANTINE_ETL_WORKFLOW_ID,
+  name: '★ Sample · Edge Case · Nulls, Duplicates, Unicode & Quarantine ETL',
+  document: {
+    id: SAMPLE_DEDUPE_NULLS_QUARANTINE_ETL_WORKFLOW_ID,
+    name: '★ Sample · Edge Case · Nulls, Duplicates, Unicode & Quarantine ETL',
+    description:
+      'Runs 100% locally (SQLite, no external DB or internet required). Cleans dirty records with duplicate IDs (last-write-wins), null emails, whitespace-only names, formatted currency ("$1,350.00"), NaN/negative amounts, Unicode/emoji, and SQL-quote strings ("O\'Brien", "DROP TABLE"), then splits clean rows vs quarantined rejects into SQLite + CSV.',
+    purpose:
+      'Exercise data-cleansing edge cases, parameterized SQL safety on hostile strings, deduplication, and Verify rejection quarantine.',
+    tags: ['sample', 'edge-case', 'etl', 'dedupe', 'unicode', 'quarantine', 'sqlite'],
+    expectedResult:
+      'Deduplicated valid rows (id 301 v2, id 302 with $0 boundary & SQL-quote name) load safely into wf_edge_clean_customers; blank/null/negative/NaN rows (303, 304, 305) quarantine into wf_edge_quarantine + edge_quarantine.csv.',
+    origin: 'authored',
+    triggers: [
+      {
+        id: 'manual',
+        kind: 'manual',
+        enabled: true,
+        inputData: cloneRecords(SAMPLE_DIRTY_ETL_RECORDS),
+      },
+    ],
+    pipelines: [
+      {
+        id: 'cleanse_and_quarantine',
+        name: '1. Dedupe, Parse Dirty Data & Quarantine Rejects',
+        task: 'Deduplicate by id, trim whitespace, parse currency strings, validate with Verify, and separate clean vs quarantined rows into SQLite + CSV.',
+        pipes: [
+          {
+            id: 'trigger_dirty_rows',
+            role: 'source',
+            type: 'source.trigger.manual',
+            intent: 'Emit 6 dirty edge-case rows (duplicates, nulls, NaN, negative, Unicode, SQL quotes)',
+            config: {},
+          },
+          {
+            id: 'cleanse_and_dedupe',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Deduplicate by id (last-write-wins), trim strings, and parse currency numbers safely',
+            config: {
+              script:
+                "const byId = new Map(); for (const r of records) { const id = Number(r.id); const name = String(r.name ?? '').trim(); const email = typeof r.email === 'string' ? r.email.trim() : ''; const rawAmt = String(r.amount ?? '').replace(/[$,\\s]/g, ''); const parsed = rawAmt === '' ? Number.NaN : Number(rawAmt); byId.set(id, { id, name, email, amount: Number.isFinite(parsed) ? parsed : -1, raw_amount: String(r.amount ?? ''), status: String(r.status ?? 'unknown').trim() }); } return Array.from(byId.values());",
+            },
+          },
+          {
+            id: 'verify_clean_rows',
+            role: 'transform',
+            type: 'transform.verify',
+            intent: 'Require non-empty name, non-empty email, and amount >= 0 (allowing $0 boundary)',
+            config: {
+              rules: [
+                { field: 'name', op: 'notEmpty', message: 'Customer name required after trim' },
+                { field: 'email', op: 'notEmpty', message: 'Email required' },
+                { field: 'amount', op: 'gte', value: 0, message: 'Amount must be >= 0' },
+              ],
+              minScore: 1,
+              onInvalid: 'reject',
+              outputField: 'verification',
+            },
+          },
+          {
+            id: 'project_clean_customers',
+            role: 'transform',
+            type: 'transform.map',
+            intent: 'Select clean customer columns',
+            config: {
+              mappings: {
+                id: 'id',
+                name: 'name',
+                email: 'email',
+                amount: 'amount',
+                status: 'status',
+              },
+              includeOriginal: false,
+            },
+          },
+          {
+            id: 'load_clean_sqlite',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Upsert clean rows (including Unicode & SQL quotes safely via bind params) into SQLite',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'wf_edge_clean_customers',
+              upsertKey: 'id',
+            },
+          },
+          {
+            id: 'export_clean_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Export clean customers to edge_clean_customers.csv',
+            config: {
+              path: 'edge_clean_customers.csv',
+              columns: ['id', 'name', 'email', 'amount', 'status'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+          {
+            id: 'format_quarantine_rows',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Format rejected rows with flat quarantine reason for SQLite + CSV',
+            config: {
+              script:
+                "return records.map((r) => ({ id: Number(r.id), name: String(r.name ?? ''), email: String(r.email ?? ''), raw_amount: String(r.raw_amount ?? ''), reason: 'failed_validation' }));",
+            },
+          },
+          {
+            id: 'load_quarantine_sqlite',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Record rejected dirty rows in SQLite wf_edge_quarantine',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'wf_edge_quarantine',
+              upsertKey: 'id',
+            },
+          },
+          {
+            id: 'export_quarantine_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Export rejected rows to edge_quarantine.csv',
+            config: {
+              path: 'edge_quarantine.csv',
+              columns: ['id', 'name', 'email', 'raw_amount', 'reason'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+        ],
+        edges: [
+          { from: 'trigger_dirty_rows', to: 'cleanse_and_dedupe' },
+          { from: 'cleanse_and_dedupe', to: 'verify_clean_rows' },
+          { from: 'verify_clean_rows', fromPort: 'out', to: 'project_clean_customers' },
+          { from: 'project_clean_customers', to: 'load_clean_sqlite' },
+          { from: 'project_clean_customers', to: 'export_clean_csv' },
+          { from: 'verify_clean_rows', fromPort: 'rejects', to: 'format_quarantine_rows' },
+          { from: 'format_quarantine_rows', to: 'load_quarantine_sqlite' },
+          { from: 'format_quarantine_rows', to: 'export_quarantine_csv' },
+        ],
+      },
+    ],
+  },
+};
+
+const EMPTY_BATCH_AND_LOOP_EDGE: SampleWorkflow = {
+  id: SAMPLE_EMPTY_BATCH_AND_LOOP_EDGE_WORKFLOW_ID,
+  name: '★ Sample · Edge Case · Empty Branch Merge, Split/Loop & Failure/Always Stages',
+  document: {
+    id: SAMPLE_EMPTY_BATCH_AND_LOOP_EDGE_WORKFLOW_ID,
+    name: '★ Sample · Edge Case · Empty Branch Merge, Split/Loop & Failure/Always Stages',
+    description:
+      'Runs 100% locally (SQLite, no external DB or internet required). Every record takes the true branch while the false branch receives 0 rows, proving Split + Loop + Merge complete without stalling on empty branches. Also demonstrates on: failure (skipped on success) and on: always (runs regardless) stage dependencies.',
+    purpose:
+      'Test empty condition branches feeding a Merge node, single-row Loop chunking after Split, and failure/always pipeline dependency edges.',
+    tags: ['sample', 'edge-case', 'empty-branch', 'split', 'loop', 'merge', 'sqlite'],
+    expectedResult:
+      'Stage 1 processes all 3 priority rows through the non-empty branch and merges cleanly with the empty false branch into wf_edge_empty_branch_out; Stage 2 (on: failure) is skipped; Stage 3 (on: always) exports edge_empty_branch_summary.csv.',
+    origin: 'authored',
+    triggers: [
+      {
+        id: 'manual',
+        kind: 'manual',
+        enabled: true,
+        inputData: cloneRecords(SAMPLE_EMPTY_BRANCH_ROWS),
+      },
+    ],
+    pipelines: [
+      {
+        id: 'empty_branch_pipeline',
+        name: '1. Empty False Branch + Split/Loop + Merge → SQLite',
+        task: 'Send 100% of rows down the true branch (0 down false), split & loop per group, merge back cleanly, and upsert into SQLite.',
+        pipes: [
+          {
+            id: 'trigger_priority',
+            role: 'source',
+            type: 'source.trigger.manual',
+            intent: 'Emit 3 rows where all match lane === priority',
+            config: {},
+          },
+          {
+            id: 'branch_lane',
+            role: 'transform',
+            type: 'transform.condition',
+            intent: 'Route priority rows to true (all 3) and standard rows to false (0 rows)',
+            config: {
+              field: 'lane',
+              operator: 'equals',
+              value: 'priority',
+            },
+          },
+          {
+            id: 'split_group',
+            role: 'transform',
+            type: 'transform.split',
+            intent: 'Split true-branch rows by group',
+            config: { field: 'group' },
+          },
+          {
+            id: 'loop_single',
+            role: 'transform',
+            type: 'logic.loop',
+            intent: 'Process 1 row per loop chunk',
+            config: { size: 1, maxIterations: 50 },
+          },
+          {
+            id: 'tag_priority_branch',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Stamp branch = priority_handled',
+            config: {
+              script: "return records.map((r) => ({ ...r, handled_by: 'priority_branch' }));",
+            },
+          },
+          {
+            id: 'tag_empty_branch',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Empty branch transform (receives 0 records)',
+            config: {
+              script: "return records.map((r) => ({ ...r, handled_by: 'standard_branch' }));",
+            },
+          },
+          {
+            id: 'merge_branches',
+            role: 'transform',
+            type: 'transform.merge',
+            intent: 'Merge non-empty true branch with empty false branch without stalling',
+            config: {},
+          },
+          {
+            id: 'save_merged_sqlite',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Upsert merged rows into SQLite wf_edge_empty_branch_out',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'wf_edge_empty_branch_out',
+              upsertKey: 'id',
+            },
+          },
+        ],
+        edges: [
+          { from: 'trigger_priority', to: 'branch_lane' },
+          { from: 'branch_lane', fromPort: 'true', to: 'split_group' },
+          { from: 'split_group', to: 'loop_single' },
+          { from: 'loop_single', to: 'tag_priority_branch' },
+          { from: 'tag_priority_branch', to: 'merge_branches' },
+          { from: 'branch_lane', fromPort: 'false', to: 'tag_empty_branch' },
+          { from: 'tag_empty_branch', to: 'merge_branches' },
+          { from: 'merge_branches', to: 'save_merged_sqlite' },
+        ],
+      },
+      {
+        id: 'fallback_on_failure',
+        name: '2. Failure Fallback (Skipped When Stage 1 Succeeds)',
+        task: 'Only runs when Stage 1 fails (dependency on: failure).',
+        pipes: [
+          {
+            id: 'emit_failure_notice',
+            role: 'source',
+            type: 'source.db.sql',
+            intent: 'Record fallback check from SQLite when Stage 1 fails',
+            config: {
+              dialect: 'sqlite',
+              sql: "SELECT 1 AS id, 'stage_1_failed' AS status;",
+            },
+          },
+          {
+            id: 'write_failure_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Write fallback failure marker CSV',
+            config: {
+              path: 'edge_failure_fallback.csv',
+              columns: ['id', 'status'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+        ],
+        edges: [{ from: 'emit_failure_notice', to: 'write_failure_csv' }],
+      },
+      {
+        id: 'always_summary',
+        name: '3. Always-Run Summary Export',
+        task: 'Always runs after Stage 1 (on: always) to summarize rows written to SQLite.',
+        pipes: [
+          {
+            id: 'query_branch_summary',
+            role: 'source',
+            type: 'source.db.sql',
+            intent: 'Read merged rows back from SQLite wf_edge_empty_branch_out',
+            config: {
+              dialect: 'sqlite',
+              sql: 'SELECT id, lane, score, handled_by FROM wf_edge_empty_branch_out ORDER BY id ASC;',
+            },
+          },
+          {
+            id: 'export_branch_summary_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Write summary CSV edge_empty_branch_summary.csv',
+            config: {
+              path: 'edge_empty_branch_summary.csv',
+              columns: ['id', 'lane', 'score', 'handled_by'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+        ],
+        edges: [{ from: 'query_branch_summary', to: 'export_branch_summary_csv' }],
+      },
+    ],
+    dependencies: [
+      { from: 'empty_branch_pipeline', to: 'fallback_on_failure', on: 'failure' },
+      { from: 'empty_branch_pipeline', to: 'always_summary', on: 'always' },
+    ],
+  },
+};
+
 export const WORKFLOW_SAMPLES: SampleWorkflow[] = [
   HELLO,
   ORDERS,
@@ -1738,6 +2864,12 @@ export const WORKFLOW_SAMPLES: SampleWorkflow[] = [
   FILE_CSV_MULTI_PIPELINE,
   MULTI_API_FANOUT,
   CROSS_DB_ETL_SPLIT,
+  MULTI_API_MERGE_TO_DB,
+  LINEAR_API_FAILFAST_DB,
+  MULTI_DB_ETL_CONSOLIDATE,
+  PARTIAL_FAILURE_RECOVERY,
+  DEDUPE_NULLS_QUARANTINE_ETL,
+  EMPTY_BATCH_AND_LOOP_EDGE,
 ];
 
 export function sampleWorkflowIds(): string[] {

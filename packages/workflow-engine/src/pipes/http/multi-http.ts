@@ -31,39 +31,51 @@ const endpointSchema = z.preprocess((input) => {
     recordsPath: raw.recordsPath ?? '',
   };
 }, httpRequestSchema.extend({
-  /** Stable tag written onto each record from this endpoint. */
-  id: z.string().min(1),
+  /**
+   * Stable tag written onto each record from this endpoint. Trimmed, so
+   * `tokyo` and `tokyo ` are one id (as the designer treats them) and a
+   * blank id is rejected.
+   */
+  id: z.string().trim().min(1),
   recordsPath: z.string().default(''),
 }));
 
-const configSchema = z.object({
-  endpoints: z.array(endpointSchema).min(1).max(64),
-  /**
-   * Execution mode:
-   * - `parallel`: all endpoints run concurrently (or up to `concurrency`).
-   * - `linear`: endpoints run sequentially one after another in order.
-   */
-  executionMode: z.enum(['parallel', 'linear']).default('parallel'),
-  /**
-   * Output mode:
-   * - `records`: extracts rows from each endpoint and emits a flattened stream of records.
-   * - `merge`: merges all endpoint responses into a single record `{ [id]: payload }` for script transformation.
-   */
-  outputMode: z.enum(['records', 'merge']).default('records'),
-  /**
-   * Max parallel in-flight requests when executionMode is parallel.
-   * `0` / omitted = all endpoints at once (Promise.all semantics).
-   */
-  concurrency: z.number().int().min(0).max(64).default(0),
-  /** Field stamped on every record naming which endpoint produced it (records mode only). */
-  tagField: z.string().min(1).default('_endpoint'),
-  /**
-   * `fail` — any endpoint error fails the pipe (default, stop to failure).
-   * `skip` — drop that endpoint's rows or record error object in merged payload and continue with the rest.
-   */
-  onError: z.enum(['fail', 'skip']).default('fail'),
-  batchSize: z.number().int().min(1).max(100_000).default(1_000),
-});
+const configSchema = z
+  .object({
+    endpoints: z.array(endpointSchema).min(1).max(64),
+    /**
+     * Execution mode:
+     * - `parallel`: all endpoints run concurrently (or up to `concurrency`).
+     * - `linear`: endpoints run sequentially one after another in order.
+     */
+    executionMode: z.enum(['parallel', 'linear']).default('parallel'),
+    /**
+     * Output mode:
+     * - `records`: extracts rows from each endpoint and emits a flattened stream of records.
+     * - `merge`: merges all endpoint responses into a single record `{ [id]: payload }` for script transformation.
+     */
+    outputMode: z.enum(['records', 'merge']).default('records'),
+    /**
+     * Max parallel in-flight requests when executionMode is parallel.
+     * `0` / omitted = all endpoints at once (Promise.all semantics).
+     */
+    concurrency: z.number().int().min(0).max(64).default(0),
+    /** Field stamped on every record naming which endpoint produced it (records mode only). */
+    tagField: z.string().min(1).default('_endpoint'),
+    /**
+     * `fail` — any endpoint error fails the pipe (default, stop to failure).
+     * `skip` — drop that endpoint's rows or record error object in merged payload and continue with the rest.
+     */
+    onError: z.enum(['fail', 'skip']).default('fail'),
+    batchSize: z.number().int().min(1).max(100_000).default(1_000),
+  })
+  .refine(
+    (data) => {
+      const ids = data.endpoints.map((endpoint) => endpoint.id);
+      return new Set(ids).size === ids.length;
+    },
+    { message: 'HTTP multi endpoints must have unique ids', path: ['endpoints'] },
+  );
 
 type EndpointConfig = z.infer<typeof endpointSchema>;
 type MultiConfig = z.infer<typeof configSchema>;
@@ -85,7 +97,7 @@ export class MultiHttpSourcePipe implements SourcePipe {
       category: 'Source/API',
       family: 'http',
       tags: ['auth', 'api', 'fan-out', 'google'],
-      palette: 'advanced',
+      palette: 'primary',
       version: '0.2.0',
       role: 'source',
       inputs: [{ name: 'in', type: 'records' }],
@@ -146,11 +158,8 @@ export class MultiHttpSourcePipe implements SourcePipe {
   }
 
   async *read(context: PipeContext): AsyncIterable<RecordBatch> {
+    // Unique ids are enforced by the schema refine.
     const config = configSchema.parse(context.pipe.config);
-    const ids = config.endpoints.map((endpoint) => endpoint.id);
-    if (new Set(ids).size !== ids.length) {
-      throw new Error('HTTP multi endpoints must have unique ids');
-    }
 
     const triggerPayload =
       context.invocation?.payload &&
@@ -212,10 +221,16 @@ type FetchOptions = {
  * Runs `work` for every endpoint, `linear` one at a time or `parallel` up to
  * `concurrency`, and returns the results in endpoint order. A failed endpoint
  * fails the pipe, or with `onError: skip` becomes `onSkip(error)`.
+ *
+ * On a fail-fast error the shared signal is aborted, so requests already in
+ * flight are cancelled too — not only the ones still queued. With the default
+ * `concurrency: 0` every endpoint is in flight from the start, so stopping the
+ * queue alone would change nothing.
  */
 async function forEachEndpoint<T>(
   config: MultiConfig,
-  work: (endpoint: EndpointConfig) => Promise<T>,
+  parentSignal: AbortSignal | undefined,
+  work: (endpoint: EndpointConfig, signal: AbortSignal) => Promise<T>,
   onSkip: (error: unknown) => T,
 ): Promise<T[]> {
   const limit =
@@ -226,24 +241,40 @@ async function forEachEndpoint<T>(
         : config.endpoints.length;
   const results = new Array<T>(config.endpoints.length);
   let next = 0;
+  let failed = false;
+
+  const controller = new AbortController();
+  const onParentAbort = () => controller.abort(parentSignal?.reason);
+  if (parentSignal?.aborted) onParentAbort();
+  else parentSignal?.addEventListener('abort', onParentAbort);
 
   const workers = Array.from(
     { length: Math.min(limit, config.endpoints.length) },
     async () => {
-      while (true) {
+      while (!failed) {
         const index = next++;
         if (index >= config.endpoints.length) return;
         try {
-          results[index] = await work(config.endpoints[index]!);
+          results[index] = await work(config.endpoints[index]!, controller.signal);
         } catch (error) {
-          if (config.onError !== 'skip') throw error;
+          if (config.onError !== 'skip') {
+            if (!failed) {
+              failed = true;
+              controller.abort(error);
+            }
+            throw error;
+          }
           results[index] = onSkip(error);
         }
       }
     },
   );
 
-  await Promise.all(workers);
+  try {
+    await Promise.all(workers);
+  } finally {
+    parentSignal?.removeEventListener('abort', onParentAbort);
+  }
   return results;
 }
 
@@ -253,8 +284,9 @@ async function fetchAllEndpoints(
   const { config } = options;
   const rows = await forEachEndpoint(
     config,
-    async (endpoint) =>
-      normalizeRecords(await fetchOneEndpoint(endpoint, options), endpoint.id).map(
+    options.context.signal,
+    async (endpoint, signal) =>
+      normalizeRecords(await fetchOneEndpoint(endpoint, options, signal), endpoint.id).map(
         (record) => ({ ...record, [config.tagField]: endpoint.id }),
       ),
     () => [],
@@ -273,8 +305,9 @@ async function fetchAllEndpointsMerged(
   const { config } = options;
   const bodies = await forEachEndpoint<unknown>(
     config,
-    async (endpoint) => {
-      const selected = await fetchOneEndpoint(endpoint, options);
+    options.context.signal,
+    async (endpoint, signal) => {
+      const selected = await fetchOneEndpoint(endpoint, options, signal);
       if (selected === undefined) {
         // JSON would drop the key without a word; a typo in recordsPath must
         // fail (or, with onError: skip, say so) like it does in records mode.
@@ -300,6 +333,7 @@ async function fetchAllEndpointsMerged(
 async function fetchOneEndpoint(
   endpoint: EndpointConfig,
   { context, triggerPayload, fetchImpl }: FetchOptions,
+  signal: AbortSignal,
 ): Promise<unknown> {
   const authCredentialId = requestCredentialId(endpoint.auth, context);
   const secret = await revealPipeSecret(context, authCredentialId);
@@ -316,7 +350,7 @@ async function fetchOneEndpoint(
       ...triggerPayload,
     },
     fetch: fetchImpl,
-    signal: context.signal,
+    signal,
   });
   if (!result.ok) {
     throw new Error(

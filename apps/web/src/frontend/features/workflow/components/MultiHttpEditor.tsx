@@ -5,7 +5,7 @@
  *
  * Workflow designer — ported from FoxAgent (components/MultiHttpEditor.tsx).
  */
-import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { CredentialMeta } from '../api/engineClient';
 import {
@@ -57,12 +57,38 @@ function asEndpoints(value: unknown): MultiHttpEndpoint[] {
   });
 }
 
-function emptyEndpoint(index: number): MultiHttpEndpoint {
+function nextUniqueEndpointId(endpoints: MultiHttpEndpoint[]): string {
+  const existing = new Set(endpoints.map((e) => (e.id ?? '').trim()));
+  let counter = endpoints.length + 1;
+  if (!existing.has(`endpoint-${counter}`)) {
+    return `endpoint-${counter}`;
+  }
+  counter = 1;
+  while (existing.has(`endpoint-${counter}`)) {
+    counter++;
+  }
+  return `endpoint-${counter}`;
+}
+
+function emptyEndpoint(idOrIndex: string | number): MultiHttpEndpoint {
+  const id = typeof idOrIndex === 'number' ? `endpoint-${idOrIndex}` : idOrIndex;
   return {
     ...EMPTY_HTTP_REQUEST,
-    id: `endpoint-${index}`,
+    id,
     recordsPath: '',
   };
+}
+
+const JS_IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
+
+/**
+ * Script-pipe access to one endpoint's payload in a merged record. Default ids
+ * look like `endpoint-1`, and `records[0].endpoint-1` would parse as a
+ * subtraction, so anything that isn't a plain identifier gets bracket notation.
+ */
+function mergedPayloadAccess(id: string): string {
+  const key = id.trim() || 'endpointId';
+  return JS_IDENTIFIER.test(key) ? `records[0].${key}` : `records[0][${JSON.stringify(key)}]`;
 }
 
 export function MultiHttpEditor({ config, credentials, onChange }: Props) {
@@ -77,6 +103,14 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
   const batchSize =
     typeof config.batchSize === 'number' ? config.batchSize : 1000;
   const [expanded, setExpanded] = useState<Record<number, boolean>>({ 0: true });
+
+  const idCounts = endpoints.reduce<Record<string, number>>((acc, ep) => {
+    const rawId = (ep.id ?? '').trim();
+    if (rawId) {
+      acc[rawId] = (acc[rawId] ?? 0) + 1;
+    }
+    return acc;
+  }, {});
 
   const patch = (next: Partial<MultiHttpConfig>) => {
     onChange({
@@ -112,6 +146,41 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
     });
   };
 
+  const moveEndpoint = (fromIndex: number, toIndex: number) => {
+    if (toIndex < 0 || toIndex >= endpoints.length || fromIndex === toIndex) return;
+    const reordered = [...endpoints];
+    const [moved] = reordered.splice(fromIndex, 1);
+    if (!moved) return;
+    reordered.splice(toIndex, 0, moved);
+    // Moves are always one step, so this is a swap of two expand entries.
+    // A missing entry means "open by default" and must stay missing, not
+    // become `false`, or every other row collapses on the first move.
+    setExpanded((prev) => {
+      const next = { ...prev };
+      delete next[fromIndex];
+      delete next[toIndex];
+      if (prev[fromIndex] !== undefined) next[toIndex] = prev[fromIndex];
+      if (prev[toIndex] !== undefined) next[fromIndex] = prev[toIndex];
+      return next;
+    });
+    patch({ endpoints: reordered });
+  };
+
+  const removeEndpoint = (index: number) => {
+    // `expanded` is keyed by position: shift the entries after the removed row
+    // down one, so each row keeps its own open/closed state.
+    setExpanded((prev) => {
+      const next: Record<number, boolean> = {};
+      for (const [key, value] of Object.entries(prev)) {
+        const i = Number(key);
+        if (i < index) next[i] = value;
+        else if (i > index) next[i - 1] = value;
+      }
+      return next;
+    });
+    patch({ endpoints: endpoints.filter((_, i) => i !== index) });
+  };
+
   const patchEndpointMeta = (
     index: number,
     meta: Partial<Pick<MultiHttpEndpoint, 'id' | 'recordsPath'>>,
@@ -136,6 +205,10 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
       {endpoints.map((endpoint, index) => {
         const open = expanded[index] !== false;
         const { id, recordsPath, ...request } = endpoint;
+        const trimmedId = (id ?? '').trim();
+        const isDuplicate = Boolean(trimmedId && (idCounts[trimmedId] ?? 0) > 1);
+        const isEmptyUrl = !(endpoint.url ?? '').trim();
+
         return (
           // Keyed by position, not by `endpoint.id`: the Id field below edits
           // that id, so keying on it remounted the row — and dropped focus —
@@ -159,21 +232,62 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
                 <span className="multi-http-method">
                   {endpoint.method ?? 'GET'}
                 </span>
+                {isDuplicate && (
+                  <span
+                    data-testid={`workflow-multi-http-dup-badge-${index}`}
+                    className="multi-http-badge duplicate"
+                    title="Duplicate endpoint ID"
+                  >
+                    Duplicate ID
+                  </span>
+                )}
+                {isEmptyUrl && (
+                  <span
+                    data-testid={`workflow-multi-http-empty-url-badge-${index}`}
+                    className="multi-http-badge empty-url"
+                    title="Endpoint URL cannot be empty"
+                  >
+                    No URL
+                  </span>
+                )}
               </button>
-              <Button
-                data-testid={`workflow-multi-http-remove-${index}`}
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Remove endpoint"
-                onClick={() =>
-                  patch({
-                    endpoints: endpoints.filter((_, i) => i !== index),
-                  })
-                }
-              >
-                <Trash2 />
-              </Button>
+              <div className="multi-http-row-actions">
+                <Button
+                  data-testid={`workflow-multi-http-move-up-${index}`}
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={index === 0}
+                  aria-label="Move endpoint up"
+                  title="Move endpoint up"
+                  onClick={() => moveEndpoint(index, index - 1)}
+                >
+                  <ArrowUp size={12} />
+                </Button>
+                <Button
+                  data-testid={`workflow-multi-http-move-down-${index}`}
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={index === endpoints.length - 1}
+                  aria-label="Move endpoint down"
+                  title="Move endpoint down"
+                  onClick={() => moveEndpoint(index, index + 1)}
+                >
+                  <ArrowDown size={12} />
+                </Button>
+                <Button
+                  data-testid={`workflow-multi-http-remove-${index}`}
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Remove endpoint"
+                  title="Remove endpoint"
+                  onClick={() => removeEndpoint(index)}
+                >
+                  <Trash2 size={12} />
+                </Button>
+              </div>
             </div>
 
             {open && (
@@ -188,6 +302,22 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
                         patchEndpointMeta(index, { id: event.target.value })
                       }
                     />
+                    {isDuplicate && (
+                      <div
+                        data-testid={`workflow-multi-http-dup-error-${index}`}
+                        className="field-error"
+                      >
+                        Duplicate ID &quot;{trimmedId}&quot;. Must be unique.
+                      </div>
+                    )}
+                    {!trimmedId && (
+                      <div
+                        data-testid={`workflow-multi-http-empty-id-error-${index}`}
+                        className="field-error"
+                      >
+                        Endpoint ID is required.
+                      </div>
+                    )}
                   </div>
                   <div>
                     <Label>Records path</Label>
@@ -229,7 +359,7 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
           const nextIndex = endpoints.length;
           setExpanded((current) => ({ ...current, [nextIndex]: true }));
           patch({
-            endpoints: [...endpoints, emptyEndpoint(endpoints.length + 1)],
+            endpoints: [...endpoints, emptyEndpoint(nextUniqueEndpointId(endpoints))],
           });
         }}
       >
@@ -247,6 +377,30 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
         <option value="records">Individual records (Flattened per endpoint)</option>
         <option value="merge">Merged payload (Single record for Script transform)</option>
       </Select>
+
+      {outputMode === 'merge' && (
+        <div
+          data-testid="workflow-multi-http-merge-helper"
+          className="multi-http-helper-box"
+        >
+          <strong>Merged payload structure:</strong>
+          <div>
+            Emits a single record keyed by endpoint ID; each value is that
+            endpoint&apos;s response body (narrowed by Records path):{' '}
+            <code>
+              &#123;{' '}
+              {endpoints.length > 0
+                ? endpoints.map((ep) => `${ep.id.trim() || 'id'}: …`).join(', ')
+                : '…'}
+              {' '}&#125;
+            </code>
+            . A failed endpoint with On error = skip holds{' '}
+            <code>&#123; ok: false, error &#125;</code>. In a downstream Script
+            pipe, read one with{' '}
+            <code>{mergedPayloadAccess(endpoints[0]?.id ?? '')}</code>.
+          </div>
+        </div>
+      )}
 
       <Label>Execution mode</Label>
       <Select

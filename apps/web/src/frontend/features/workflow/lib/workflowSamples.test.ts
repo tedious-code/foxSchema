@@ -8,12 +8,19 @@ import { parseWorkflow } from '@foxschema/workflow-engine/definitions';
 import {
   SAMPLE_API_ENRICH_MULTI_DB_WORKFLOW_ID,
   SAMPLE_CROSS_DB_ETL_SPLIT_WORKFLOW_ID,
+  SAMPLE_DEDUPE_NULLS_QUARANTINE_ETL_WORKFLOW_ID,
+  SAMPLE_DIRTY_ETL_RECORDS,
+  SAMPLE_EMPTY_BATCH_AND_LOOP_EDGE_WORKFLOW_ID,
   SAMPLE_FILE_CSV_MULTI_PIPELINE_WORKFLOW_ID,
   SAMPLE_HELLO_PEOPLE,
   SAMPLE_HELLO_WORKFLOW_ID,
+  SAMPLE_LINEAR_API_FAILFAST_DB_WORKFLOW_ID,
   SAMPLE_MULTI_API_FANOUT_WORKFLOW_ID,
+  SAMPLE_MULTI_API_MERGE_TO_DB_WORKFLOW_ID,
+  SAMPLE_MULTI_DB_ETL_CONSOLIDATE_WORKFLOW_ID,
   SAMPLE_ORDERS,
   SAMPLE_ORDERS_WORKFLOW_ID,
+  SAMPLE_PARTIAL_FAILURE_RECOVERY_WORKFLOW_ID,
   SAMPLE_CANVAS_ID,
   SAMPLE_REGIONS_WORKFLOW_ID,
   WORKFLOW_SAMPLES,
@@ -126,13 +133,88 @@ describe('workflow samples', () => {
   });
 
   it('each sample parses as a workflow the engine would accept', () => {
-    expect(WORKFLOW_SAMPLES.length).toBeGreaterThanOrEqual(9);
+    expect(WORKFLOW_SAMPLES.length).toBeGreaterThanOrEqual(15);
     for (const entry of WORKFLOW_SAMPLES) {
       const parsed = parseWorkflow(entry.document);
       expect(parsed.id).toBe(entry.id);
       expect(parsed.pipelines.length).toBeGreaterThan(0);
       expect(parsed.pipelines[0]!.pipes.length).toBeGreaterThan(0);
     }
+  });
+
+  it('includes edge-case samples for partial API failure recovery, dirty-data quarantine ETL, and empty branch + failure/always stages', () => {
+    const partial = sample(SAMPLE_PARTIAL_FAILURE_RECOVERY_WORKFLOW_ID);
+    expect(partial.document.dependencies).toEqual([
+      { from: 'partial_api_ingest', to: 'audit_always_stage', on: 'always' },
+    ]);
+    const partialHttp = partial.document.pipelines[0]!.pipes[0]!;
+    expect(partialHttp.config).toMatchObject({
+      executionMode: 'parallel',
+      outputMode: 'merge',
+      onError: 'skip',
+    });
+
+    const dirty = sample(SAMPLE_DEDUPE_NULLS_QUARANTINE_ETL_WORKFLOW_ID);
+    expect(SAMPLE_DIRTY_ETL_RECORDS.filter((r) => r.id === 301)).toHaveLength(2);
+    expect(SAMPLE_DIRTY_ETL_RECORDS.some((r) => r.email === null)).toBe(true);
+    expect(SAMPLE_DIRTY_ETL_RECORDS.some((r) => String(r.name).includes("O'Brien"))).toBe(true);
+    expect(dirty.document.pipelines[0]!.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ from: 'verify_clean_rows', fromPort: 'rejects', to: 'format_quarantine_rows' }),
+      ]),
+    );
+
+    const emptyBranch = sample(SAMPLE_EMPTY_BATCH_AND_LOOP_EDGE_WORKFLOW_ID);
+    expect(emptyBranch.document.pipelines).toHaveLength(3);
+    expect(emptyBranch.document.dependencies).toEqual([
+      { from: 'empty_branch_pipeline', to: 'fallback_on_failure', on: 'failure' },
+      { from: 'empty_branch_pipeline', to: 'always_summary', on: 'always' },
+    ]);
+  });
+
+  it('includes samples for multi-URL parallel merge, linear fail-fast API fetch, and multi-DB ETL warehouse consolidation', () => {
+    const parallelMerge = sample(SAMPLE_MULTI_API_MERGE_TO_DB_WORKFLOW_ID);
+    const parallelHttp = parallelMerge.document.pipelines[0]!.pipes[0]!;
+    expect(parallelHttp.type).toBe('source.api.http.multi');
+    expect(parallelHttp.config).toMatchObject({
+      executionMode: 'parallel',
+      outputMode: 'merge',
+      onError: 'skip',
+    });
+    expect(parallelMerge.document.pipelines).toHaveLength(2);
+
+    const linearFailFast = sample(SAMPLE_LINEAR_API_FAILFAST_DB_WORKFLOW_ID);
+    const linearHttp = linearFailFast.document.pipelines[0]!.pipes[0]!;
+    expect(linearHttp.type).toBe('source.api.http.multi');
+    expect(linearHttp.config).toMatchObject({
+      executionMode: 'linear',
+      outputMode: 'merge',
+      onError: 'fail',
+    });
+
+    const multiDbEtl = sample(SAMPLE_MULTI_DB_ETL_CONSOLIDATE_WORKFLOW_ID);
+    expect(multiDbEtl.document.pipelines).toHaveLength(2);
+    expect(multiDbEtl.document.dependencies).toEqual([
+      { from: 'seed_regional_dbs', to: 'consolidate_to_warehouse', on: 'success' },
+    ]);
+    const consolidateStage = multiDbEtl.document.pipelines[1]!;
+    const sourceDialects = new Set(
+      consolidateStage.pipes
+        .filter((pipe) => pipe.type === 'source.db.sql')
+        .map((pipe) => pipe.config.dialect),
+    );
+    const sinkDialects = new Set(
+      consolidateStage.pipes
+        .filter((pipe) => pipe.type === 'sink.db.sql')
+        .map((pipe) => pipe.config.dialect),
+    );
+    expect(sourceDialects).toEqual(new Set(['postgres', 'sqlite']));
+    expect(sinkDialects).toEqual(new Set(['postgres', 'sqlite']));
+    expect(consolidateStage.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ from: 'verify_order_quality', fromPort: 'rejects', to: 'quarantine_bad_orders' }),
+      ]),
+    );
   });
 
   it('includes multi-pipeline samples covering API enrich, CSV handoff, multi-HTTP split/loop, verify, merge, and multi-DB sinks', () => {
@@ -254,6 +336,91 @@ describe('workflow samples', () => {
   it('Add samples opens the branch workflow, not only the starter', () => {
     expect(SAMPLE_CANVAS_ID).toBe(SAMPLE_ORDERS_WORKFLOW_ID);
     expect(sampleForCanvas().id).toBe(SAMPLE_ORDERS_WORKFLOW_ID);
+  });
+
+  it('multi-DB ETL sample persists its quarantined rows instead of dropping them', () => {
+    const pipeline = sample(SAMPLE_MULTI_DB_ETL_CONSOLIDATE_WORKFLOW_ID).document.pipelines.find(
+      (p) => p.id === 'consolidate_to_warehouse',
+    )!;
+    const types = new Map(pipeline.pipes.map((p) => [p.id, p.type]));
+    const sinksAfterQuarantine = pipeline.edges
+      .filter((e) => e.from === 'quarantine_bad_orders')
+      .map((e) => types.get(e.to));
+    expect(sinksAfterQuarantine).toEqual(
+      expect.arrayContaining(['sink.db.sql', 'sink.file.delimited']),
+    );
+  });
+
+  it('dedupe-nulls sample script properly deduplicates and parses currency strings', () => {
+    const found = sample(SAMPLE_DEDUPE_NULLS_QUARANTINE_ETL_WORKFLOW_ID);
+    const parsed = parseWorkflow(found.document);
+    const pipeline = parsed.pipelines[0]!;
+    const scriptPipe = pipeline.pipes.find((p) => p.id === 'cleanse_and_dedupe');
+    expect(scriptPipe).toBeDefined();
+
+    const fn = new Function('records', scriptPipe!.config.script as string);
+    const result = fn(SAMPLE_DIRTY_ETL_RECORDS) as Record<string, unknown>[];
+
+    expect(result).toHaveLength(5);
+
+    const rec301 = result.find((r) => r.id === 301)!;
+    expect(rec301.amount).toBe(1350);
+    expect(rec301.name).toContain('東京 🚀');
+
+    const rec302 = result.find((r) => r.id === 302)!;
+    expect(rec302.amount).toBe(0);
+    expect(rec302.name).toBe('Müller; DROP TABLE users;--');
+
+    // ID 303 had whitespace name ('   ') and null email -> both trimmed to empty string
+    const rec303 = result.find((r) => r.id === 303)!;
+    expect(rec303.name).toBe('');
+    expect(rec303.email).toBe('');
+
+    // ID 304 had negative amount (-42.5)
+    const rec304 = result.find((r) => r.id === 304)!;
+    expect(rec304.amount).toBe(-42.5);
+
+    // ID 305 had invalid non-numeric string ('not-a-number') -> parsed to -1
+    const rec305 = result.find((r) => r.id === 305)!;
+    expect(rec305.amount).toBe(-1);
+  });
+
+  it('partial-failure recovery sample script maps merged payload into healthy vs dead-letter rows', () => {
+    const found = sample(SAMPLE_PARTIAL_FAILURE_RECOVERY_WORKFLOW_ID);
+    const parsed = parseWorkflow(found.document);
+    const pipeline = parsed.pipelines[0]!;
+    const scriptPipe = pipeline.pipes.find((p) => p.id === 'classify_endpoint_health');
+    expect(scriptPipe).toBeDefined();
+
+    const simulatedMerged = [
+      {
+        tokyo: { current_weather: { temperature: 18.5 } },
+        paris: { current_weather: { temperature: 21.0 } },
+        broken_hub: { ok: false, error: 'HTTP 404 Not Found' },
+      },
+    ];
+
+    const fn = new Function('records', scriptPipe!.config.script as string);
+    const result = fn(simulatedMerged) as {
+      id: number;
+      endpoint: string;
+      has_error: boolean;
+      temp_c: number;
+      error_message: string;
+    }[];
+
+    expect(result).toHaveLength(3);
+    const tokyo = result.find((r) => r.endpoint === 'tokyo')!;
+    expect(tokyo.has_error).toBe(false);
+    expect(tokyo.temp_c).toBe(18.5);
+
+    const paris = result.find((r) => r.endpoint === 'paris')!;
+    expect(paris.has_error).toBe(false);
+    expect(paris.temp_c).toBe(21.0);
+
+    const broken = result.find((r) => r.endpoint === 'broken_hub')!;
+    expect(broken.has_error).toBe(true);
+    expect(broken.error_message).toContain('HTTP 404');
   });
 
   it('saveSampleWorkflows PUTs each sample by id', async () => {

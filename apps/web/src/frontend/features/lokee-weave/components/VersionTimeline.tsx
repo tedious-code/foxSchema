@@ -9,6 +9,7 @@
 import React from 'react';
 import type { VersionGraphVersion } from '@foxschema/shared';
 import { DiffBriefingTicks } from '@/features/schema-diff';
+import { formatRelativeDay } from '@/shared/lib/relativeTime';
 
 export type TimelineVersion = VersionGraphVersion & {
   changeCount?: number;
@@ -70,6 +71,15 @@ export function VersionTimeline({
                 <span className="min-w-0 flex-1 truncate text-[11px] text-slate-400">
                   {version.name || version.source}
                   {changes > 0 ? ` · ${changes} changes` : ''}
+                  {version.author ? ` · ${version.author}` : ''}
+                </span>
+                <span
+                  className="shrink-0 text-[10px] text-slate-500"
+                  title={new Date(version.createdAt).toLocaleString()}
+                >
+                  {Number.isFinite(Date.parse(version.createdAt))
+                    ? formatRelativeDay(Date.parse(version.createdAt))
+                    : version.createdAt}
                 </span>
                 <DiffBriefingTicks added={added} modified={modified} removed={removed} />
               </button>

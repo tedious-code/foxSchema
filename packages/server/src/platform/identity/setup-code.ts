@@ -33,13 +33,28 @@ export function resetSetupCode(): void {
 
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 
+function onlyLoopbackForwarded(headers: AppRequest['headers'] | undefined): boolean {
+  if (!headers) return true;
+  if (headers.forwarded) return false;
+  const allLoopback = (raw: string | string[] | undefined): boolean => {
+    if (raw === undefined) return true;
+    const text = Array.isArray(raw) ? raw.join(',') : raw;
+    const parts = text
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return parts.every((part) => LOOPBACK.has(part));
+  };
+  return allLoopback(headers['x-forwarded-for']) && allLoopback(headers['x-real-ip']);
+}
+
 /**
  * True when the request comes from this machine directly.
  *
  * The raw socket address, never `req.ip`: the server trusts proxy headers, so
  * `req.ip` is whatever `X-Forwarded-For` says. And a request that carries
- * forwarding headers is not treated as local even from a loopback socket: a
- * reverse proxy on the same host makes every visitor look local.
+ * non-loopback forwarding headers is not treated as local even from a loopback
+ * socket: a reverse proxy on the same host makes every visitor look local.
  */
 export function isDirectLocalRequest(req: AppRequest): boolean {
   // A reverse proxy on this machine is also a loopback peer. Without a
@@ -55,6 +70,9 @@ export function isDirectLocalRequest(req: AppRequest): boolean {
   const address = req.raw?.socket?.remoteAddress ?? '';
   if (!LOOPBACK.has(address)) return false;
   const headers = req.headers ?? {};
+  if (process.env.NODE_ENV !== 'production') {
+    return onlyLoopbackForwarded(headers);
+  }
   return !headers['x-forwarded-for'] && !headers.forwarded && !headers['x-real-ip'];
 }
 

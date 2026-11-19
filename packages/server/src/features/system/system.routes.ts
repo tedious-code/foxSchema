@@ -14,6 +14,7 @@ import { AppSettingsStore } from '../../platform/settings/app-settings.service';
 import { targetLocks } from '../../platform/guards/target-lock';
 import { isLocalSingleUser } from '../../platform/runtime/deployment';
 import { sendError } from '../../platform/http/respond';
+import { redactCredentials } from '../../platform/http/redact';
 import { requirePermissions } from '../../platform/authorization/rbac.guard';
 import { WorkflowSettingsService } from '../workflow';
 import { readServiceStatus, type ServiceStatusDeps } from './service-status';
@@ -92,7 +93,7 @@ export function createSystemRoutes(
 
   // One-click self-update for local npm CLI installs (`foxschema open`).
   // Runs `npm install -g foxschema@latest`, then relaunches the UI server.
-  router.post('/updates/apply', async (_req: AppRequest, res: FastifyReply) => {
+  router.post('/updates/apply', requirePermissions('admin.drivers'), async (_req: AppRequest, res: FastifyReply) => {
     if (!canSelfUpdate()) {
       sendError(
         res,
@@ -134,7 +135,10 @@ export function createSystemRoutes(
     res.send({
       version: resolveAppVersion(),
       features: { fileQuery: true },
-      db: { engine: cfg.engine, location: cfg.engine === 'sqlite' ? cfg.path ?? '(default)' : cfg.url ?? '' },
+      db: {
+        engine: cfg.engine,
+        location: cfg.engine === 'sqlite' ? (cfg.path ?? '(default)') : redactCredentials(cfg.url ?? ''),
+      },
       security: { keyScheme: key.scheme, emailBound: key.emailBound, boundEmail: key.boundEmail },
     });
   });

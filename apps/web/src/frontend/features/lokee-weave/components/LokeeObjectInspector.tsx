@@ -11,7 +11,9 @@
  */
 import React, { useEffect, useState } from 'react';
 import { isLokeeTableLikeType, lokeeColumnChangeSubtitle, lokeeTypeLabel } from '@foxschema/ui-shared';
-import { ChevronsUpDown, Loader2, X } from 'lucide-react';
+import { ChevronsUpDown, Copy, Loader2, X } from 'lucide-react';
+import { toast } from '@/platform/toastStore';
+import { writeClipboard } from '@/shared/utils/clipboard';
 import {
   inspectLokeeObject,
   type LokeeHistoryEvent,
@@ -190,6 +192,28 @@ export function LokeeObjectInspector({
 
             {script && (
               <section data-testid="lokee-inspector-source">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    Definition SQL
+                  </span>
+                  <button
+                    type="button"
+                    data-testid="lokee-inspector-copy-ddl"
+                    onClick={() => {
+                      void writeClipboard(script).then((ok) =>
+                        toast({
+                          tone: ok ? 'success' : 'warning',
+                          title: ok ? 'Definition DDL copied' : 'Copy failed',
+                        })
+                      );
+                    }}
+                    className="inline-flex items-center gap-1 rounded border border-slate-700 px-1.5 py-0.5 text-[10px] font-semibold text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                    title="Copy object DDL"
+                  >
+                    <Copy className="h-3 w-3" strokeWidth={SQL_ICON_STROKE} />
+                    Copy DDL
+                  </button>
+                </div>
                 <GithubScriptDiff original={previousScript} modified={script} />
               </section>
             )}

@@ -213,6 +213,23 @@ describe('secret providers', () => {
     expect(resolved).toEqual({ secret: 'shared' });
   });
 
+  it('rejects non-Azure Key Vault URLs before sending an Azure bearer token', async () => {
+    const fetchImpl = vi.fn() as unknown as typeof fetch;
+    await expect(
+      resolveStoredSecret(
+        {
+          source: 'azure',
+          vaultUrl: 'https://evil-listener.example.com',
+          secretName: 'webhook',
+          format: 'json',
+        },
+        { AZURE_ACCESS_TOKEN: 'secret-token' },
+        fetchImpl,
+      ),
+    ).rejects.toThrow(/vault\.azure\.net/i);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it('upserts a stable credential id on create', async () => {
     const store = new InMemoryCredentialStore(randomBytes(32));
     const first = await store.create({

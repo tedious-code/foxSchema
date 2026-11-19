@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { getStore } from '../../database/store';
 import { encryptSecret, decryptSecret } from '../crypto/crypto';
 import { ConnectionOptions, buildConnectionString, resolveAuthMethod, storedAuthMethod, assertWindowsAccount } from '@foxschema/db';
+import { assertSafeUserDatabasePath } from './resolve';
 
 export interface SavedConnectionInput {
   name?: string;
@@ -147,6 +148,7 @@ export class ConnectionStore {
   }
 
   async create(scope: WorkspaceScope, input: SavedConnectionInput): Promise<SavedConnectionSummary> {
+    assertSafeUserDatabasePath(input.dialect, input.option);
     const store = await getStore();
     const id = randomUUID();
     const createdAt = new Date().toISOString();
@@ -191,11 +193,26 @@ export class ConnectionStore {
    * The connection string is rebuilt so it stays valid either way.
    */
   async update(scope: WorkspaceScope, id: string, input: SavedConnectionInput): Promise<SavedConnectionSummary | null> {
+    assertSafeUserDatabasePath(input.dialect, input.option);
     const store = await getStore();
     const existing = await this.resolve(scope, id);
     if (!existing) return null;
 
-    const merged = this.resolvePasswordOnSave(input.dialect, input.option, input.savePassword, existing.option.password);
+    // Never carry a stored password onto a different host, port, dialect, or account:
+    // otherwise a member could edit host -> attacker listener and run connection/test to exfiltrate the secret.
+    const norm = (v: unknown) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
+    const sameTarget =
+      norm(existing.dialect) === norm(input.dialect) &&
+      norm(existing.option.host) === norm(input.option.host) &&
+      Number(existing.option.port || 0) === Number(input.option.port || 0) &&
+      norm(existing.option.username) === norm(input.option.username) &&
+      norm(existing.option.domain) === norm(input.option.domain);
+    const merged = this.resolvePasswordOnSave(
+      input.dialect,
+      input.option,
+      input.savePassword,
+      sameTarget ? existing.option.password : undefined
+    );
 
     await store.run(
       'UPDATE connections SET name = ?, dialect = ?, "schema" = ?, encrypted_config = ? WHERE id = ? AND workspace_id = ?',

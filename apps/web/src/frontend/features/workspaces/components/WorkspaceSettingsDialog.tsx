@@ -57,9 +57,11 @@ export const WorkspaceSettingsDialog: React.FC<{
     setWorkspace(ws);
     setName(ws?.name ?? knownName ?? '');
     setMembers(people);
-    // Pending invites are for those who run the members; others get a 403 and see none.
-    setInvites(await apiWorkspaceInvites(workspaceId).catch(() => []));
-  }, [workspaceId, knownName]);
+    // Pending invites are for those who run the members; avoid 403 noise for viewers/editors.
+    const canManageInvites =
+      me?.role === 'admin' || ws?.role === 'owner' || (ws?.personal === true && me?.role !== 'demo');
+    setInvites(canManageInvites ? await apiWorkspaceInvites(workspaceId).catch(() => []) : []);
+  }, [workspaceId, knownName, me?.role]);
 
   useEffect(() => {
     load().catch((e: unknown) => setError(e instanceof Error ? e.message : 'Could not load the workspace'));
@@ -98,8 +100,8 @@ export const WorkspaceSettingsDialog: React.FC<{
    */
   const grantCeiling = workspaceGrantCeiling(me?.role ?? '', workspace?.role ?? null);
   const isOwner = grantCeiling === 'owner';
-  /** Who may invite and change roles: owners, admins, and everyone in their own workspace. */
-  const managesMembers = isOwner || workspace?.personal === true;
+  /** Who may invite and change roles: owners, admins, and everyone (except demo) in their own workspace. */
+  const managesMembers = (isOwner || workspace?.personal === true) && me?.role !== 'demo';
   const ceilingHint = `You can give up to ${grantCeiling} here: nobody gives more than they can do themselves.`;
   const roleOptions = WORKSPACE_ROLES.map((r) => {
     const allowed = workspaceRoleAtMost(r, grantCeiling);

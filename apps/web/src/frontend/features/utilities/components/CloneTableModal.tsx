@@ -14,6 +14,7 @@ import { executeSql } from '@/shared/api/sqlApi';
 import { useSyncStore } from '@/features/compare';
 import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { useUiStore } from '@/platform/uiStore';
+import { useAuthStore } from '@/platform/authStore';
 import type { TableSchema } from '@/shared/lib/types';
 import { PROVIDER_SETTINGS, needsSessionPassword } from '@/shared/lib/provider-settings';
 import { insertAtCursor } from '@/features/sql-editor';
@@ -58,6 +59,7 @@ export const CloneTableModal: React.FC<Props> = ({
   const schemaCache = useSqlEditorStore((s) => s.schemaCache);
   const safeMode = useSqlEditorStore((s) => s.safeMode);
   const setActiveView = useUiStore((s) => s.setActiveView);
+  const canEditDdl = useAuthStore((s) => s.can('editor.ddl'));
 
   const [connectionId, setConnectionId] = useState('');
   const [passwordDraft, setPasswordDraft] = useState('');
@@ -328,7 +330,7 @@ export const CloneTableModal: React.FC<Props> = ({
 
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end">
-              {!lockedConnectionId && (
+              {!embedded && !lockedConnectionId && (
               <label className="block min-w-0">
                 <span className="text-[10px] font-bold uppercase text-slate-500">
                   Credential
@@ -591,8 +593,9 @@ export const CloneTableModal: React.FC<Props> = ({
               type="button"
               data-testid="clone-apply"
               disabled={
-                !plan || !!plan.error || executable.length === 0 || running || needsPassword
+                !canEditDdl || !plan || !!plan.error || executable.length === 0 || running || needsPassword
               }
+              title={canEditDdl ? undefined : 'Requires Change schema permission (Access control).'}
               onClick={onApplyClick}
               className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/20 px-3 py-1.5 text-[12px] font-bold text-amber-50 disabled:opacity-40"
             >

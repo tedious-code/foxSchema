@@ -114,6 +114,7 @@ export interface RunFailureSummary {
     id: string;
     pipelineId: string;
     pipeId: string;
+    name?: string;
     intent?: string;
     type?: string;
     error?: string;

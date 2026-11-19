@@ -137,6 +137,7 @@ export const SqlEditorView: React.FC = () => {
   const setMaxRows = useSqlEditorStore((s) => s.setMaxRows);
   const maxRows = useSqlEditorStore((s) => s.maxRows);
   const saveBookmark = useSqlEditorStore((s) => s.saveBookmark);
+  const bookmarks = useSqlEditorStore((s) => s.bookmarks);
   const shareDestinations = useSqlEditorStore((s) => s.shareDestinations);
   const sharedConnectionIds = useSqlEditorStore((s) => s.sharedConnectionIds);
   const safeMode = useSqlEditorStore((s) => s.safeMode);
@@ -724,6 +725,9 @@ export const SqlEditorView: React.FC = () => {
         <EditorTabBar
           tabs={tabs}
           activeTabId={tab.id}
+          shareDestinations={shareDestinations}
+          sharedConnectionIds={sharedConnectionIds}
+          bookmarks={bookmarks}
           onSelect={setActiveTab}
           onClose={closeTab}
           onAdd={addTab}
@@ -766,9 +770,13 @@ export const SqlEditorView: React.FC = () => {
             )}
             {hasSelection
               ? 'Run selection'
-              : liveSelectedIds.length > 0
-                ? `Run · ${liveSelectedIds.length}`
-                : 'Run'}
+              : runCount > 1
+                ? liveSelectedIds.length > 1
+                  ? `Run (${runCount}) · ${liveSelectedIds.length}`
+                  : `Run (${runCount})`
+                : liveSelectedIds.length > 1
+                  ? `Run · ${liveSelectedIds.length}`
+                  : 'Run'}
           </button>
           <button
             type="button"
@@ -789,7 +797,7 @@ export const SqlEditorView: React.FC = () => {
             data-testid="sql-format-btn"
             onClick={onFormat}
             disabled={!tab.sql.trim()}
-            title="Pretty-print SQL (sql-formatter) and JS/TS/Node cells (Prettier)"
+            title="Pretty-print SQL (sql-formatter) and JS/TS/Node cells (Prettier) (Cmd/Ctrl+Shift+F)"
             className="flex shrink-0 items-center gap-1 whitespace-nowrap px-2.5 py-1.5 rounded text-[11px] font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <AlignLeft className="w-3.5 h-3.5 text-teal-400" strokeWidth={SQL_ICON_STROKE} /> Format
@@ -809,7 +817,7 @@ export const SqlEditorView: React.FC = () => {
             data-testid="sql-bookmark-save-toolbar"
             onClick={() => saveBookmark()}
             disabled={!tab.sql.trim()}
-            title="Bookmark this query (uses the tab title)"
+            title="Bookmark this query (uses the tab title) (Cmd/Ctrl+S)"
             className="flex shrink-0 items-center gap-1 whitespace-nowrap px-2.5 py-1.5 rounded text-[11px] font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <BookmarkPlus className="w-3.5 h-3.5 text-amber-400" strokeWidth={SQL_ICON_STROKE} /> Bookmark
@@ -836,7 +844,7 @@ export const SqlEditorView: React.FC = () => {
           >
             <label
               className="flex items-center gap-1.5 cursor-pointer select-none text-slate-300 hover:text-slate-100"
-              title="When on, UPDATE / DELETE / MERGE (and other writes) require confirmation before Run"
+              title="When on, UPDATE / DELETE / MERGE (and other writes) require confirmation before Run (Cmd/Ctrl+Shift+S)"
             >
               <input
                 type="checkbox"
@@ -957,8 +965,23 @@ export const SqlEditorView: React.FC = () => {
         >
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1.5 font-semibold text-slate-300">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              <span>{dialect || 'SQL'}</span>
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  running
+                    ? 'bg-amber-400 animate-pulse'
+                    : liveSelectedIds.length > 0
+                      ? 'bg-emerald-400'
+                      : 'bg-slate-500'
+                }`}
+              />
+              <span>
+                {dialect || 'SQL'}
+                {liveSelectedIds.length === 1
+                  ? ` · ${connections.find((c) => c.id === liveSelectedIds[0])?.name ?? '1 server'}`
+                  : liveSelectedIds.length === 0
+                    ? ' · No destination'
+                    : ''}
+              </span>
             </span>
             <span className="text-slate-700">|</span>
             <span>{oneTransaction ? '1-Tx (atomic)' : 'Autocommit'}</span>
@@ -969,8 +992,10 @@ export const SqlEditorView: React.FC = () => {
           </div>
           <div className="flex items-center gap-3">
             <span>
-              {runCount} statement{runCount === 1 ? '' : 's'} · {liveSelectedIds.length} server
-              {liveSelectedIds.length === 1 ? '' : 's'}
+              {running ? `Running ${runCount}` : `${runCount}`} statement{runCount === 1 ? '' : 's'}
+              {liveSelectedIds.length > 0
+                ? ` · ${liveSelectedIds.length} server${liveSelectedIds.length === 1 ? '' : 's'}`
+                : ''}
             </span>
             <span className="text-slate-700">|</span>
             <span className="font-mono text-slate-300">

@@ -59,6 +59,11 @@ export async function apiSetup(email: string, password: string, code?: string, s
   return user;
 }
 
+/** Print (and optionally rotate) the setup code in the Fox server terminal log. */
+export async function apiAnnounceSetupCode(regenerate = false): Promise<{ ok: boolean }> {
+  return api.post<{ ok: boolean }>('/auth/setup/code-announce', { regenerate }, EMPTY_OK);
+}
+
 /** When a launch session's account is due, and whether that time has come. */
 export interface RegistrationDue {
   dueAt: string;

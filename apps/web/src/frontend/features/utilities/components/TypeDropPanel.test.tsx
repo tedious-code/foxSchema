@@ -22,6 +22,7 @@ vi.mock('@/features/compare', () => {
 });
 
 import { useSqlEditorStore } from '@/features/sql-editor/state';
+import { useAuthStore } from '@/platform/authStore';
 import { useUiStore } from '@/platform/uiStore';
 import { TypeDropPanel, typeDropScript } from './TypeDropPanel';
 
@@ -64,6 +65,9 @@ const okResult = { results: [{ ok: true, columns: [], rows: [], rowCount: 0, tru
 describe('TypeDropPanel', () => {
   beforeEach(() => {
     executeSql.mockReset();
+    useAuthStore.setState({
+      user: { id: 'u1', email: 'u1@x.test', role: 'admin', permissions: ['utility.access', 'editor.ddl'] } as never,
+    });
     useSqlEditorStore.setState({
       schemaCache: {
         pg: { status: 'ready', tables: [orders, label, status, mood] },

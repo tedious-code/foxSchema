@@ -62,6 +62,7 @@ export type ServerInsightsTab = DbaUtilityKind | 'health';
 interface Props {
   open: boolean;
   initialTab?: ServerInsightsTab;
+  onTabChange?: (tab: ServerInsightsTab) => void;
   onClose?: () => void;
   /** Dock in the Utilities workspace (no overlay). */
   embedded?: boolean;
@@ -102,6 +103,7 @@ function formatUptime(seconds: number | null | undefined): string {
 export const ServerInsightsModal: React.FC<Props> = ({
   open,
   initialTab = 'pool',
+  onTabChange,
   onClose,
   embedded = false,
   lockedConnectionId,
@@ -117,6 +119,7 @@ export const ServerInsightsModal: React.FC<Props> = ({
   const [connectionId, setConnectionId] = useState('');
   const [passwordDraft, setPasswordDraft] = useState('');
   const [tab, setTab] = useState<ServerInsightsTab>(initialTab);
+  const [filterQuery, setFilterQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DbaUtilityResponse | null>(null);
@@ -146,6 +149,7 @@ export const ServerInsightsModal: React.FC<Props> = ({
         : fallback;
     setConnectionId(next);
     setTab(initialTab);
+    setFilterQuery('');
     setError(null);
     setData(null);
     setLocksData(null);
@@ -355,7 +359,7 @@ export const ServerInsightsModal: React.FC<Props> = ({
         )}
 
         <div className="flex flex-wrap items-end gap-2 border-b border-slate-800 bg-slate-950/30 px-5 py-3 shrink-0">
-          {!lockedConnectionId && (
+          {!embedded && !lockedConnectionId && (
           <label className="flex min-w-[14rem] flex-1 flex-col gap-1">
             <span className={sectionLabelCls}>
               Credential
@@ -405,6 +409,21 @@ export const ServerInsightsModal: React.FC<Props> = ({
               </div>
             </label>
           )}
+          {(tab === 'sessions' || tab === 'health') && (
+            <label className="flex min-w-[12rem] flex-1 flex-col gap-1">
+              <span className={sectionLabelCls}>
+                Filter {tab === 'sessions' ? 'sessions' : 'tables'}
+              </span>
+              <input
+                type="text"
+                data-testid="server-insights-filter"
+                value={filterQuery}
+                onChange={(e) => setFilterQuery(e.target.value)}
+                placeholder={tab === 'sessions' ? 'Filter user, host, db, query…' : 'Filter table name…'}
+                className="bg-slate-950 border border-slate-700 rounded-md px-2.5 py-1.5 text-sm text-slate-100 placeholder-slate-500 outline-none accent-focus"
+              />
+            </label>
+          )}
           <button
             type="button"
             data-testid="server-insights-refresh"
@@ -425,7 +444,11 @@ export const ServerInsightsModal: React.FC<Props> = ({
                 key={t.id}
                 type="button"
                 data-testid={`server-insights-tab-${t.id}`}
-                onClick={() => setTab(t.id)}
+                onClick={() => {
+                  setTab(t.id);
+                  setFilterQuery('');
+                  onTabChange?.(t.id);
+                }}
                 className={`inline-flex items-center gap-1.5 rounded-t-md px-3 py-2 text-[12px] font-bold ${
                   active
                     ? 'border border-b-0 border-slate-700 bg-slate-900 text-amber-300'
@@ -608,14 +631,27 @@ export const ServerInsightsModal: React.FC<Props> = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {(data.sessions ?? []).length === 0 ? (
-                      <tr>
-                        <td colSpan={showSessionControls ? 7 : 6} className="px-3 py-6 text-center text-slate-500">
-                          No sessions returned.
-                        </td>
-                      </tr>
-                    ) : (
-                      (data.sessions ?? []).map((s) => (
+                    {(() => {
+                      const q = filterQuery.trim().toLowerCase();
+                      const filteredSessions = (data.sessions ?? []).filter(
+                        (s) =>
+                          !q ||
+                          s.sessionId.toLowerCase().includes(q) ||
+                          (s.userName?.toLowerCase().includes(q) ?? false) ||
+                          (s.clientHost?.toLowerCase().includes(q) ?? false) ||
+                          (s.databaseName?.toLowerCase().includes(q) ?? false) ||
+                          (s.queryText?.toLowerCase().includes(q) ?? false)
+                      );
+                      if (filteredSessions.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={showSessionControls ? 7 : 6} className="px-3 py-6 text-center text-slate-500">
+                              {q ? 'No matching sessions.' : 'No sessions returned.'}
+                            </td>
+                          </tr>
+                        );
+                      }
+                      return filteredSessions.map((s) => (
                         <tr key={s.sessionId} className="border-t border-slate-800 align-top">
                           <td className="px-3 py-1.5 font-mono text-slate-200">{s.sessionId}</td>
                           <td className="px-3 py-1.5 font-semibold text-slate-100">{s.userName || '—'}</td>
@@ -655,8 +691,8 @@ export const ServerInsightsModal: React.FC<Props> = ({
                             </td>
                           )}
                         </tr>
-                      ))
-                    )}
+                      ));
+                    })()}
                   </tbody>
                 </table>
               </div>
@@ -677,14 +713,24 @@ export const ServerInsightsModal: React.FC<Props> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {healthData.tables.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
-                        No tables returned.
-                      </td>
-                    </tr>
-                  ) : (
-                    healthData.tables.map((row) => (
+                  {(() => {
+                    const q = filterQuery.trim().toLowerCase();
+                    const filteredTables = healthData.tables.filter(
+                      (row) =>
+                        !q ||
+                        row.tableName.toLowerCase().includes(q) ||
+                        (row.schemaName?.toLowerCase().includes(q) ?? false)
+                    );
+                    if (filteredTables.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
+                            {q ? 'No matching tables.' : 'No tables returned.'}
+                          </td>
+                        </tr>
+                      );
+                    }
+                    return filteredTables.map((row) => (
                       <tr key={`${row.schemaName ?? ''}.${row.tableName}`} className="border-t border-slate-800">
                         <td className="px-3 py-1.5 font-mono text-slate-100">
                           {row.schemaName ? `${row.schemaName}.${row.tableName}` : row.tableName}
@@ -741,8 +787,8 @@ export const ServerInsightsModal: React.FC<Props> = ({
                           </div>
                         </td>
                       </tr>
-                    ))
-                  )}
+                    ));
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -775,7 +821,7 @@ export const ServerInsightsModal: React.FC<Props> = ({
             </div>
           )}
 
-          {!loading && !error && support.query && !data && (
+          {!loading && !error && support.query && !data && !healthData && (
             <div className="flex items-center gap-2 text-[13px] font-semibold text-slate-500">
               <Database className="h-4 w-4 text-amber-400" /> Select a connection and refresh.
             </div>

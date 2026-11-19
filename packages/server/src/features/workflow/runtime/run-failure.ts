@@ -36,6 +36,7 @@ export interface RunFailureSummary {
     id: string;
     pipelineId: string;
     pipeId: string;
+    name?: string;
     intent?: string;
     type?: string;
     error?: string;
@@ -142,6 +143,7 @@ export function buildRunFailureSummary(input: {
             id: failedPipe.id,
             pipelineId: failedPipe.pipelineId,
             pipeId: failedPipe.pipeId,
+            ...(pipeDef?.name ? { name: pipeDef.name } : {}),
             ...(pipeDef?.intent ? { intent: pipeDef.intent } : {}),
             ...(pipeDef?.type ? { type: pipeDef.type } : {}),
             ...(failedPipe.error ? { error: failedPipe.error } : {}),

@@ -85,6 +85,53 @@ function withZodCompilers(instance: FastifyInstance): void {
   instance.setSerializerCompiler(serializerCompiler);
 }
 
+/** Extract workflowIds called via `workflow.sub` pipes inside any workflow document. */
+function referencedSubWorkflowIds(document: unknown): string[] {
+  const ids = new Set<string>();
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+    } else if (value && typeof value === 'object') {
+      const obj = value as Record<string, unknown>;
+      if (
+        obj.type === 'workflow.sub' &&
+        obj.config &&
+        typeof obj.config === 'object' &&
+        typeof (obj.config as Record<string, unknown>).workflowId === 'string'
+      ) {
+        const subId = ((obj.config as Record<string, unknown>).workflowId as string).trim();
+        if (subId) ids.add(subId);
+      }
+      for (const item of Object.values(obj)) visit(item);
+    }
+  };
+  visit(document);
+  return [...ids];
+}
+
+/** Transitively resolve `workflow.sub` callees (bounded depth) so connection grants cover the call graph. */
+async function expandSubWorkflowDocuments(
+  initial: unknown[],
+  ctx: AppContext,
+): Promise<unknown[]> {
+  const out = [...initial];
+  const seen = new Set<string>();
+  let frontier = initial.flatMap((doc) => referencedSubWorkflowIds(doc));
+  for (let depth = 0; depth < 5 && frontier.length > 0; depth++) {
+    const next: string[] = [];
+    for (const subId of frontier) {
+      if (seen.has(subId)) continue;
+      seen.add(subId);
+      const subDoc = await ctx.workflows.get(subId);
+      if (!subDoc) continue;
+      out.push(subDoc);
+      next.push(...referencedSubWorkflowIds(subDoc));
+    }
+    frontier = next;
+  }
+  return out;
+}
+
 /** Stored workflow or run snapshot whose linked connections the caller must be allowed to use. */
 async function storedDocumentsFor(
   route: EngineRoute,
@@ -95,7 +142,7 @@ async function storedDocumentsFor(
   if (!id || route.connections === 'body' || route.connections === 'run-list') return [];
   if (route.connections === 'body-and-stored' || route.connections === 'workflow') {
     const stored = await ctx.workflows.get(id);
-    return stored ? [stored] : [];
+    return stored ? expandSubWorkflowDocuments([stored], ctx) : [];
   }
   const snapshot = await ctx.runs.getSnapshot(id);
   return snapshot ? [snapshot] : [];
@@ -177,7 +224,8 @@ export async function registerWorkflowEngine(
         return;
       }
       if (route.connections === 'body' || route.connections === 'body-and-stored') {
-        if (await refuseForeignConnections(reply, grants, userId, [req.body])) return;
+        const docs = await expandSubWorkflowDocuments([req.body], ctx);
+        if (await refuseForeignConnections(reply, grants, userId, docs)) return;
       }
       if (route.connections === 'body' || route.connections === 'run-list') return;
       await refuseForeignConnections(reply, grants, userId, await storedDocumentsFor(route, req, ctx));

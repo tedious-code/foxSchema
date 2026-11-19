@@ -12,7 +12,7 @@ import type { ConnectionResolver } from '../../platform/connections/resolve';
 import { streamWrite, streamEnd } from '../../platform/http/reply';
 import type { FastifyReply } from 'fastify';
 import type { AppRequest } from '../../platform/http/types';
-import { Router } from '../../platform/http/router';
+import { Router, reads } from '../../platform/http/router';
 import type {
   ConnectionModule,
   ConnectionOptions,
@@ -21,7 +21,7 @@ import type {
   SqlGeneratorModule,
   normalizeTableSchemas,
 } from '@foxschema/db';
-import { requirePermissions } from '../../platform/authorization/rbac.guard';
+import { requireAnyPermission, requirePermissions } from '../../platform/authorization/rbac.guard';
 import { idempotency } from '../../platform/guards/idempotency';
 import { targetKey, targetLocks } from '../../platform/guards/target-lock';
 import { gitServices, type GitMigrationsService } from '../git';
@@ -278,40 +278,62 @@ export function createMigrationRoutes(deps: MigrationRouteDeps): Router {
     }
   });
 
-  router.get('/migrations', async (req: AppRequest, res: FastifyReply) => {
-    res.send({ runs: await deps.migrationHistory.list(scopeOf(req as AuthedRequest)!) });
-  });
-
-  router.post('/migrations/delete', async (req: AppRequest, res: FastifyReply) => {
-    const ids = Array.isArray((req.body as { ids?: unknown }).ids)
-      ? ((req.body as { ids: unknown[] }).ids.filter((i) => typeof i === 'string') as string[])
-      : [];
-    const removed = await deps.migrationHistory.removeMany(scopeOf(req as AuthedRequest)!, ids);
-    res.send({ removed });
-  });
-
-  router.delete('/migrations', async (req: AppRequest, res: FastifyReply) => {
-    const removed = await deps.migrationHistory.clear(scopeOf(req as AuthedRequest)!);
-    res.send({ removed });
-  });
-
-  router.get('/migrations/:id', async (req: AppRequest, res: FastifyReply) => {
-    const run = await deps.migrationHistory.get(scopeOf(req as AuthedRequest)!, String(req.params.id));
-    if (!run) {
-      sendError(res, 'not_found', 'Migration run not found');
-      return;
+  router.get(
+    '/migrations',
+    reads,
+    requireAnyPermission('schema.browse', 'schema.compare', 'schema.migrate', 'compare.history'),
+    async (req: AppRequest, res: FastifyReply) => {
+      res.send({ runs: await deps.migrationHistory.list(scopeOf(req as AuthedRequest)!) });
     }
-    res.send({ run });
-  });
+  );
 
-  router.delete('/migrations/:id', async (req: AppRequest, res: FastifyReply) => {
-    const removed = await deps.migrationHistory.remove(scopeOf(req as AuthedRequest)!, String(req.params.id));
-    if (!removed) {
-      sendError(res, 'not_found', 'Migration run not found');
-      return;
+  router.post(
+    '/migrations/delete',
+    requirePermissions('schema.migrate'),
+    async (req: AppRequest, res: FastifyReply) => {
+      const ids = Array.isArray((req.body as { ids?: unknown }).ids)
+        ? ((req.body as { ids: unknown[] }).ids.filter((i) => typeof i === 'string') as string[])
+        : [];
+      const removed = await deps.migrationHistory.removeMany(scopeOf(req as AuthedRequest)!, ids);
+      res.send({ removed });
     }
-    res.send({ ok: true });
-  });
+  );
+
+  router.delete(
+    '/migrations',
+    requirePermissions('schema.migrate'),
+    async (req: AppRequest, res: FastifyReply) => {
+      const removed = await deps.migrationHistory.clear(scopeOf(req as AuthedRequest)!);
+      res.send({ removed });
+    }
+  );
+
+  router.get(
+    '/migrations/:id',
+    reads,
+    requireAnyPermission('schema.browse', 'schema.compare', 'schema.migrate', 'compare.history'),
+    async (req: AppRequest, res: FastifyReply) => {
+      const run = await deps.migrationHistory.get(scopeOf(req as AuthedRequest)!, String(req.params.id));
+      if (!run) {
+        sendError(res, 'not_found', 'Migration run not found');
+        return;
+      }
+      res.send({ run });
+    }
+  );
+
+  router.delete(
+    '/migrations/:id',
+    requirePermissions('schema.migrate'),
+    async (req: AppRequest, res: FastifyReply) => {
+      const removed = await deps.migrationHistory.remove(scopeOf(req as AuthedRequest)!, String(req.params.id));
+      if (!removed) {
+        sendError(res, 'not_found', 'Migration run not found');
+        return;
+      }
+      res.send({ ok: true });
+    }
+  );
 
   return router;
 }

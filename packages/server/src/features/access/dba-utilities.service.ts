@@ -40,6 +40,7 @@ import {
   type TableMaintenanceAction,
   type TableMaintenanceSupport,
 } from '@foxschema/sql';
+import { redactCredentials } from '../../platform/http/redact';
 
 export type DbaUtilityProbeSuccess = {
   kind: DbaUtilityKind;
@@ -115,12 +116,13 @@ export async function probeDbaUtility(opts: {
     }
     return { ok: true, value: { ...base, sizes: normalizeObjectSizeRows(raw) } };
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'DBA utility probe failed';
+    const rawMessage = error instanceof Error ? error.message : 'DBA utility probe failed';
+    const message = redactCredentials(rawMessage);
     // A privileged view refused is not a broken database, and the raw code says
     // the opposite — Oracle reports "table or view does not exist" for a view
     // the caller simply may not read. Where the engine's error is that shape,
     // answer with the grant instead of the hint describing what we attempted.
-    const remedy = dbaPrivilegeRemedy(opts.dialect, opts.kind, message);
+    const remedy = dbaPrivilegeRemedy(opts.dialect, opts.kind, rawMessage);
     return {
       ok: false,
       failure: {
@@ -158,8 +160,9 @@ export async function probeSessionLocks(opts: {
     const chains = buildBlockingChains(locks);
     return { ok: true, value: { support, locks, chains } };
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Session lock probe failed';
-    const remedy = dbaPrivilegeRemedy(opts.dialect, 'sessions', message);
+    const rawMessage = error instanceof Error ? error.message : 'Session lock probe failed';
+    const message = redactCredentials(rawMessage);
+    const remedy = dbaPrivilegeRemedy(opts.dialect, 'sessions', rawMessage);
     return {
       ok: false,
       failure: {
@@ -188,7 +191,7 @@ export async function executeSessionControl(opts: {
     await ConnectionFactory.executeQuery(opts.dialect, opts.option, built.sql, []);
     return { ok: true, value: { ok: true, sql: built.sql, description: built.description } };
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Session control failed';
+    const message = redactCredentials(error instanceof Error ? error.message : 'Session control failed');
     return { ok: false, failure: { status: 500, error: message } };
   }
 }
@@ -218,8 +221,17 @@ export async function probeTableHealth(opts: {
     );
     return { ok: true, value: { support, tables: normalizeTableHealthRows(raw) } };
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Table health probe failed';
-    return { ok: false, failure: { status: 500, error: `${message} — ${support.hint}`, support } };
+    const rawMessage = error instanceof Error ? error.message : 'Table health probe failed';
+    const message = redactCredentials(rawMessage);
+    const remedy = dbaPrivilegeRemedy(opts.dialect, 'sizes', rawMessage);
+    return {
+      ok: false,
+      failure: {
+        status: remedy ? 403 : 500,
+        error: remedy ? `${message} — ${remedy}` : `${message} — ${support.hint}`,
+        support,
+      },
+    };
   }
 }
 
@@ -244,7 +256,7 @@ export async function executeTableMaintenance(opts: {
     await ConnectionFactory.executeQuery(opts.dialect, opts.option, built.sql, []);
     return { ok: true, value: { ok: true, sql: built.sql, description: built.description } };
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Table maintenance failed';
+    const message = redactCredentials(error instanceof Error ? error.message : 'Table maintenance failed');
     return { ok: false, failure: { status: 500, error: message } };
   }
 }

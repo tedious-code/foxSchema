@@ -7,7 +7,8 @@
  * than replaying the whole run (sample payloads included) a second time.
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { useAuthStore } from '@/platform/authStore';
 
 const streamRunEvents = vi.hoisted(() =>
   vi.fn(() => ({ close: vi.fn(), addEventListener: vi.fn() }) as unknown as EventSource),
@@ -36,6 +37,12 @@ vi.mock('../api/engineClient', async (importOriginal) => ({
 import { RunsPanel } from './RunsPanel';
 
 describe('Runs panel live stream', () => {
+  beforeEach(() => {
+    useAuthStore.setState({
+      user: { id: 'u1', email: 'u1@x.test', role: 'admin', permissions: ['workflow.access', 'workflow.run'] } as never,
+    });
+  });
+
   it('subscribes after the last event already loaded', async () => {
     const run = { id: 'r1', workflowId: 'wf', status: 'running', trigger: 'manual', startedAt: '2026-10-12T00:00:00Z' };
     const { container } = render(<RunsPanel runs={[run as never]} onRefresh={() => undefined} />);

@@ -239,6 +239,69 @@ describe('MultiHttpEditor', () => {
     expect(helper).toBeDefined();
     expect(helper.textContent).toContain('Merged payload structure');
     expect(helper.textContent).toContain('records[0].forecast');
+    // Values are response bodies (often objects), not arrays.
+    expect(helper.textContent).not.toContain('[...]');
+  });
+
+  it('suggests bracket access in the merge helper when the id is not a JS identifier', () => {
+    render(
+      <MultiHttpEditor
+        config={{
+          endpoints: [{ id: 'endpoint-1', url: 'https://example.test/a' }],
+          outputMode: 'merge',
+        }}
+        credentials={[]}
+        onChange={vi.fn()}
+      />,
+    );
+    const helper = screen.getByTestId('workflow-multi-http-merge-helper');
+    expect(helper.textContent).toContain('records[0]["endpoint-1"]');
+    expect(helper.textContent).not.toContain('records[0].endpoint-1');
+  });
+
+  it('keeps default-open rows open when an endpoint is moved', () => {
+    const onChange = vi.fn();
+    const endpoints = [
+      { id: 'a', url: 'https://example.test/a' },
+      { id: 'b', url: 'https://example.test/b' },
+      { id: 'c', url: 'https://example.test/c' },
+    ];
+    const { rerender } = render(
+      <MultiHttpEditor config={{ endpoints }} credentials={[]} onChange={onChange} />,
+    );
+    // Every row starts open.
+    expect(screen.queryByTestId('workflow-multi-http-id-2')).not.toBeNull();
+
+    fireEvent.click(screen.getByTestId('workflow-multi-http-move-down-0'));
+    const moved = onChange.mock.calls.at(-1)![0] as Record<string, unknown>;
+    rerender(<MultiHttpEditor config={moved} credentials={[]} onChange={onChange} />);
+
+    for (const index of [0, 1, 2]) {
+      expect(screen.queryByTestId(`workflow-multi-http-id-${index}`), `row ${index}`).not.toBeNull();
+    }
+  });
+
+  it('keeps each row\'s own open/closed state when an earlier row is removed', () => {
+    const onChange = vi.fn();
+    const endpoints = [
+      { id: 'a', url: 'https://example.test/a' },
+      { id: 'b', url: 'https://example.test/b' },
+      { id: 'c', url: 'https://example.test/c' },
+    ];
+    const { rerender } = render(
+      <MultiHttpEditor config={{ endpoints }} credentials={[]} onChange={onChange} />,
+    );
+    // Collapse row 1 ('b'), then remove row 0 ('a').
+    fireEvent.click(screen.getByTestId('workflow-multi-http-toggle-1'));
+    expect(screen.queryByTestId('workflow-multi-http-id-1')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('workflow-multi-http-remove-0'));
+    const removed = onChange.mock.calls.at(-1)![0] as Record<string, unknown>;
+    rerender(<MultiHttpEditor config={removed} credentials={[]} onChange={onChange} />);
+
+    // 'b' is now row 0 and stays collapsed; 'c' is row 1 and stays open.
+    expect(screen.queryByTestId('workflow-multi-http-id-0')).toBeNull();
+    expect(screen.queryByTestId('workflow-multi-http-id-1')).not.toBeNull();
   });
 
   it('generates a unique non-colliding ID when endpoint-2 already exists', () => {

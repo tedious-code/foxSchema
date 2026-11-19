@@ -31,8 +31,12 @@ const endpointSchema = z.preprocess((input) => {
     recordsPath: raw.recordsPath ?? '',
   };
 }, httpRequestSchema.extend({
-  /** Stable tag written onto each record from this endpoint. */
-  id: z.string().min(1),
+  /**
+   * Stable tag written onto each record from this endpoint. Trimmed, so
+   * `tokyo` and `tokyo ` are one id (as the designer treats them) and a
+   * blank id is rejected.
+   */
+  id: z.string().trim().min(1),
   recordsPath: z.string().default(''),
 }));
 
@@ -154,11 +158,8 @@ export class MultiHttpSourcePipe implements SourcePipe {
   }
 
   async *read(context: PipeContext): AsyncIterable<RecordBatch> {
+    // Unique ids are enforced by the schema refine.
     const config = configSchema.parse(context.pipe.config);
-    const ids = config.endpoints.map((endpoint) => endpoint.id);
-    if (new Set(ids).size !== ids.length) {
-      throw new Error('HTTP multi endpoints must have unique ids');
-    }
 
     const triggerPayload =
       context.invocation?.payload &&
@@ -220,10 +221,16 @@ type FetchOptions = {
  * Runs `work` for every endpoint, `linear` one at a time or `parallel` up to
  * `concurrency`, and returns the results in endpoint order. A failed endpoint
  * fails the pipe, or with `onError: skip` becomes `onSkip(error)`.
+ *
+ * On a fail-fast error the shared signal is aborted, so requests already in
+ * flight are cancelled too — not only the ones still queued. With the default
+ * `concurrency: 0` every endpoint is in flight from the start, so stopping the
+ * queue alone would change nothing.
  */
 async function forEachEndpoint<T>(
   config: MultiConfig,
-  work: (endpoint: EndpointConfig) => Promise<T>,
+  parentSignal: AbortSignal | undefined,
+  work: (endpoint: EndpointConfig, signal: AbortSignal) => Promise<T>,
   onSkip: (error: unknown) => T,
 ): Promise<T[]> {
   const limit =
@@ -236,6 +243,11 @@ async function forEachEndpoint<T>(
   let next = 0;
   let failed = false;
 
+  const controller = new AbortController();
+  const onParentAbort = () => controller.abort(parentSignal?.reason);
+  if (parentSignal?.aborted) onParentAbort();
+  else parentSignal?.addEventListener('abort', onParentAbort);
+
   const workers = Array.from(
     { length: Math.min(limit, config.endpoints.length) },
     async () => {
@@ -243,10 +255,13 @@ async function forEachEndpoint<T>(
         const index = next++;
         if (index >= config.endpoints.length) return;
         try {
-          results[index] = await work(config.endpoints[index]!);
+          results[index] = await work(config.endpoints[index]!, controller.signal);
         } catch (error) {
           if (config.onError !== 'skip') {
-            failed = true;
+            if (!failed) {
+              failed = true;
+              controller.abort(error);
+            }
             throw error;
           }
           results[index] = onSkip(error);
@@ -255,7 +270,11 @@ async function forEachEndpoint<T>(
     },
   );
 
-  await Promise.all(workers);
+  try {
+    await Promise.all(workers);
+  } finally {
+    parentSignal?.removeEventListener('abort', onParentAbort);
+  }
   return results;
 }
 
@@ -265,8 +284,9 @@ async function fetchAllEndpoints(
   const { config } = options;
   const rows = await forEachEndpoint(
     config,
-    async (endpoint) =>
-      normalizeRecords(await fetchOneEndpoint(endpoint, options), endpoint.id).map(
+    options.context.signal,
+    async (endpoint, signal) =>
+      normalizeRecords(await fetchOneEndpoint(endpoint, options, signal), endpoint.id).map(
         (record) => ({ ...record, [config.tagField]: endpoint.id }),
       ),
     () => [],
@@ -285,8 +305,9 @@ async function fetchAllEndpointsMerged(
   const { config } = options;
   const bodies = await forEachEndpoint<unknown>(
     config,
-    async (endpoint) => {
-      const selected = await fetchOneEndpoint(endpoint, options);
+    options.context.signal,
+    async (endpoint, signal) => {
+      const selected = await fetchOneEndpoint(endpoint, options, signal);
       if (selected === undefined) {
         // JSON would drop the key without a word; a typo in recordsPath must
         // fail (or, with onError: skip, say so) like it does in records mode.
@@ -312,6 +333,7 @@ async function fetchAllEndpointsMerged(
 async function fetchOneEndpoint(
   endpoint: EndpointConfig,
   { context, triggerPayload, fetchImpl }: FetchOptions,
+  signal: AbortSignal,
 ): Promise<unknown> {
   const authCredentialId = requestCredentialId(endpoint.auth, context);
   const secret = await revealPipeSecret(context, authCredentialId);
@@ -328,7 +350,7 @@ async function fetchOneEndpoint(
       ...triggerPayload,
     },
     fetch: fetchImpl,
-    signal: context.signal,
+    signal,
   });
   if (!result.ok) {
     throw new Error(

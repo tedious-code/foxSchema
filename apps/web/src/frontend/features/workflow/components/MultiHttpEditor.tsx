@@ -79,6 +79,18 @@ function emptyEndpoint(idOrIndex: string | number): MultiHttpEndpoint {
   };
 }
 
+const JS_IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
+
+/**
+ * Script-pipe access to one endpoint's payload in a merged record. Default ids
+ * look like `endpoint-1`, and `records[0].endpoint-1` would parse as a
+ * subtraction, so anything that isn't a plain identifier gets bracket notation.
+ */
+function mergedPayloadAccess(id: string): string {
+  const key = id.trim() || 'endpointId';
+  return JS_IDENTIFIER.test(key) ? `records[0].${key}` : `records[0][${JSON.stringify(key)}]`;
+}
+
 export function MultiHttpEditor({ config, credentials, onChange }: Props) {
   const endpoints = asEndpoints(config.endpoints);
   const executionMode = config.executionMode === 'linear' ? 'linear' : 'parallel';
@@ -140,15 +152,33 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
     const [moved] = reordered.splice(fromIndex, 1);
     if (!moved) return;
     reordered.splice(toIndex, 0, moved);
+    // Moves are always one step, so this is a swap of two expand entries.
+    // A missing entry means "open by default" and must stay missing, not
+    // become `false`, or every other row collapses on the first move.
     setExpanded((prev) => {
-      const next: Record<number, boolean> = {};
-      reordered.forEach((_, i) => {
-        const oldIndex = i === toIndex ? fromIndex : i === fromIndex ? toIndex : i;
-        next[i] = prev[oldIndex] ?? false;
-      });
+      const next = { ...prev };
+      delete next[fromIndex];
+      delete next[toIndex];
+      if (prev[fromIndex] !== undefined) next[toIndex] = prev[fromIndex];
+      if (prev[toIndex] !== undefined) next[fromIndex] = prev[toIndex];
       return next;
     });
     patch({ endpoints: reordered });
+  };
+
+  const removeEndpoint = (index: number) => {
+    // `expanded` is keyed by position: shift the entries after the removed row
+    // down one, so each row keeps its own open/closed state.
+    setExpanded((prev) => {
+      const next: Record<number, boolean> = {};
+      for (const [key, value] of Object.entries(prev)) {
+        const i = Number(key);
+        if (i < index) next[i] = value;
+        else if (i > index) next[i - 1] = value;
+      }
+      return next;
+    });
+    patch({ endpoints: endpoints.filter((_, i) => i !== index) });
   };
 
   const patchEndpointMeta = (
@@ -253,11 +283,7 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
                   size="icon"
                   aria-label="Remove endpoint"
                   title="Remove endpoint"
-                  onClick={() =>
-                    patch({
-                      endpoints: endpoints.filter((_, i) => i !== index),
-                    })
-                  }
+                  onClick={() => removeEndpoint(index)}
                 >
                   <Trash2 size={12} />
                 </Button>
@@ -359,19 +385,19 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
         >
           <strong>Merged payload structure:</strong>
           <div>
-            Emits a single record with keys matching your endpoint IDs:{' '}
+            Emits a single record keyed by endpoint ID; each value is that
+            endpoint&apos;s response body (narrowed by Records path):{' '}
             <code>
               &#123;{' '}
               {endpoints.length > 0
-                ? endpoints.map((ep) => ep.id || 'id').join(': [...], ') + ': [...]'
-                : '...'}
+                ? endpoints.map((ep) => `${ep.id.trim() || 'id'}: …`).join(', ')
+                : '…'}
               {' '}&#125;
             </code>
-            . In a downstream Script pipe, access each stream via{' '}
-            <code>
-              records[0].{endpoints[0]?.id || 'endpointId'}
-            </code>
-            .
+            . A failed endpoint with On error = skip holds{' '}
+            <code>&#123; ok: false, error &#125;</code>. In a downstream Script
+            pipe, read one with{' '}
+            <code>{mergedPayloadAccess(endpoints[0]?.id ?? '')}</code>.
           </div>
         </div>
       )}

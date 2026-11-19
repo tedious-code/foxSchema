@@ -224,6 +224,57 @@ describe('MultiHttpSourcePipe', () => {
     ).toThrow(/unique ids/);
   });
 
+  it('trims endpoint ids: whitespace variants collide and blank ids are rejected', async () => {
+    const pipe = new MultiHttpSourcePipe(stubFetch({ ok: true }));
+    expect(() =>
+      pipe.validateConfig({
+        endpoints: [
+          { id: 'tokyo', url: 'https://example.test/a' },
+          { id: 'tokyo ', url: 'https://example.test/b' },
+        ],
+      }),
+    ).toThrow(/unique ids/);
+    expect(() =>
+      pipe.validateConfig({ endpoints: [{ id: '   ', url: 'https://example.test/a' }] }),
+    ).toThrow();
+
+    const merged = await collect(pipe, {
+      outputMode: 'merge',
+      endpoints: [{ id: '  tokyo  ', url: 'https://example.test/a' }],
+    });
+    expect(Object.keys(merged[0]!)).toEqual(['tokyo']);
+  });
+
+  it('aborts requests already in flight when onError: fail trips', async () => {
+    const aborted: string[] = [];
+    const pipe = new MultiHttpSourcePipe((async (input: unknown, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/bad')) {
+        // Let the slow sibling start first.
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return new Response('boom', { status: 500 });
+      }
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          aborted.push(url);
+          reject(new DOMException('aborted', 'AbortError'));
+        });
+      });
+    }) as typeof fetch);
+
+    await expect(
+      collect(pipe, {
+        // concurrency 0: every endpoint is in flight from the start
+        onError: 'fail',
+        endpoints: [
+          { id: 'slow', url: 'https://example.test/slow' },
+          { id: 'bad', url: 'https://example.test/bad' },
+        ],
+      }),
+    ).rejects.toThrow(/bad.*500/);
+    expect(aborted).toEqual(['https://example.test/slow']);
+  });
+
   it('names the offending endpoint when a response is not record-shaped', async () => {
     const scalars = new MultiHttpSourcePipe(stubFetch([1, 2, 3]));
     await expect(

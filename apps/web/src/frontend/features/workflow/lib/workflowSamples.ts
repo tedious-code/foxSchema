@@ -2094,7 +2094,7 @@ const MULTI_DB_ETL_CONSOLIDATE: SampleWorkflow = {
       'Provide a ready-to-run multi-database ETL template combining parallel DB extracts, merge fan-in, currency normalization, quality quarantine, dual warehouse sinks, and CSV export.',
     tags: ['sample', 'etl', 'multi-db', 'postgres', 'sqlite', 'merge', 'verify', 'warehouse'],
     expectedResult:
-      '4 valid regional orders from Postgres + SQLite merge into normalized USD totals in wf_etl_warehouse_orders (both Postgres & SQLite) + multi_db_etl_warehouse.csv, while the negative-subtotal row is quarantined.',
+      '4 valid regional orders from Postgres + SQLite merge into normalized USD totals in wf_etl_warehouse_orders (both Postgres & SQLite) + multi_db_etl_warehouse.csv, while the negative-subtotal row is quarantined into SQLite wf_etl_quarantine + multi_db_etl_quarantine.csv.',
     origin: 'authored',
     triggers: [
       {
@@ -2226,6 +2226,31 @@ const MULTI_DB_ETL_CONSOLIDATE: SampleWorkflow = {
             },
           },
           {
+            id: 'sink_quarantine_db',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Persist quarantined orders into SQLite wf_etl_quarantine for inspection',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'wf_etl_quarantine',
+              upsertKey: 'order_code',
+            },
+          },
+          {
+            id: 'sink_quarantine_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Export quarantined orders to multi_db_etl_quarantine.csv',
+            config: {
+              path: 'multi_db_etl_quarantine.csv',
+              columns: ['order_code', 'source_db', 'amount_usd', 'reason'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+          {
             id: 'map_warehouse_schema',
             role: 'transform',
             type: 'transform.map',
@@ -2289,6 +2314,8 @@ const MULTI_DB_ETL_CONSOLIDATE: SampleWorkflow = {
           { from: 'merge_db_extracts', to: 'normalize_currency_usd' },
           { from: 'normalize_currency_usd', to: 'verify_order_quality' },
           { from: 'verify_order_quality', fromPort: 'rejects', to: 'quarantine_bad_orders' },
+          { from: 'quarantine_bad_orders', to: 'sink_quarantine_db' },
+          { from: 'quarantine_bad_orders', to: 'sink_quarantine_csv' },
           { from: 'verify_order_quality', fromPort: 'out', to: 'map_warehouse_schema' },
           { from: 'map_warehouse_schema', to: 'load_pg_warehouse' },
           { from: 'map_warehouse_schema', to: 'load_sqlite_warehouse' },

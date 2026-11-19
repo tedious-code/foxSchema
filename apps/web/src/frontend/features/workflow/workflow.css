@@ -1605,9 +1605,9 @@
   border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
 }
 .fox-workflow .multi-http-badge.empty-url {
-  background: color-mix(in srgb, #f59e0b 18%, transparent);
-  color: #f59e0b;
-  border: 1px solid color-mix(in srgb, #f59e0b 35%, transparent);
+  background: color-mix(in srgb, var(--warn, #f59e0b) 18%, transparent);
+  color: var(--warn, #f59e0b);
+  border: 1px solid color-mix(in srgb, var(--warn, #f59e0b) 35%, transparent);
 }
 .fox-workflow .multi-http-helper-box {
   padding: 8px 10px;
@@ -1627,7 +1627,7 @@
   font-family: var(--mono);
   font-size: 10px;
   padding: 1px 3px;
-  background: var(--panel-1);
+  background: var(--panel);
   border-radius: 3px;
 }
 .fox-workflow .multi-http-method {

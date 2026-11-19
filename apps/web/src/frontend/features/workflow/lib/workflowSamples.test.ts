@@ -338,6 +338,19 @@ describe('workflow samples', () => {
     expect(sampleForCanvas().id).toBe(SAMPLE_ORDERS_WORKFLOW_ID);
   });
 
+  it('multi-DB ETL sample persists its quarantined rows instead of dropping them', () => {
+    const pipeline = sample(SAMPLE_MULTI_DB_ETL_CONSOLIDATE_WORKFLOW_ID).document.pipelines.find(
+      (p) => p.id === 'consolidate_to_warehouse',
+    )!;
+    const types = new Map(pipeline.pipes.map((p) => [p.id, p.type]));
+    const sinksAfterQuarantine = pipeline.edges
+      .filter((e) => e.from === 'quarantine_bad_orders')
+      .map((e) => types.get(e.to));
+    expect(sinksAfterQuarantine).toEqual(
+      expect.arrayContaining(['sink.db.sql', 'sink.file.delimited']),
+    );
+  });
+
   it('dedupe-nulls sample script properly deduplicates and parses currency strings', () => {
     const found = sample(SAMPLE_DEDUPE_NULLS_QUARANTINE_ETL_WORKFLOW_ID);
     const parsed = parseWorkflow(found.document);

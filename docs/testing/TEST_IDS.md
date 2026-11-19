@@ -1990,8 +1990,15 @@ Every control has a test ID: **1095** buttons, text boxes, selects and textareas
   - `workflow-multi-http-add-endpoint` · Button
   - `workflow-multi-http-batch-size` · Input
   - `workflow-multi-http-concurrency` · Input
+  - `workflow-multi-http-dup-badge-{index}` · span · Duplicate endpoint ID
+  - `workflow-multi-http-dup-error-{index}` · div
+  - `workflow-multi-http-empty-id-error-{index}` · div
+  - `workflow-multi-http-empty-url-badge-{index}` · span · Endpoint URL cannot be empty
   - `workflow-multi-http-execution-mode` · Select
   - `workflow-multi-http-id-{index}` · Input
+  - `workflow-multi-http-merge-helper` · div
+  - `workflow-multi-http-move-down-{index}` · Button · Move endpoint down
+  - `workflow-multi-http-move-up-{index}` · Button · Move endpoint up
   - `workflow-multi-http-on-error` · Select
   - `workflow-multi-http-output-mode` · Select
   - `workflow-multi-http-records-path-{index}` · Input

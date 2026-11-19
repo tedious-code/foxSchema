@@ -3761,10 +3761,24 @@ export const TestIds = {
       workflowMultiHttpBatchSize: 'workflow-multi-http-batch-size',
       /** Input */
       workflowMultiHttpConcurrency: 'workflow-multi-http-concurrency',
+      /** span · Duplicate endpoint ID */
+      workflowMultiHttpDupBadge: (index: string | number) => `workflow-multi-http-dup-badge-${index}`,
+      /** div */
+      workflowMultiHttpDupError: (index: string | number) => `workflow-multi-http-dup-error-${index}`,
+      /** div */
+      workflowMultiHttpEmptyIdError: (index: string | number) => `workflow-multi-http-empty-id-error-${index}`,
+      /** span · Endpoint URL cannot be empty */
+      workflowMultiHttpEmptyUrlBadge: (index: string | number) => `workflow-multi-http-empty-url-badge-${index}`,
       /** Select */
       workflowMultiHttpExecutionMode: 'workflow-multi-http-execution-mode',
       /** Input */
       workflowMultiHttpId: (index: string | number) => `workflow-multi-http-id-${index}`,
+      /** div */
+      workflowMultiHttpMergeHelper: 'workflow-multi-http-merge-helper',
+      /** Button · Move endpoint down */
+      workflowMultiHttpMoveDown: (index: string | number) => `workflow-multi-http-move-down-${index}`,
+      /** Button · Move endpoint up */
+      workflowMultiHttpMoveUp: (index: string | number) => `workflow-multi-http-move-up-${index}`,
       /** Select */
       workflowMultiHttpOnError: 'workflow-multi-http-on-error',
       /** Select */
@@ -5777,8 +5791,15 @@ export type TestId =
   | 'workflow-multi-http-add-endpoint'
   | 'workflow-multi-http-batch-size'
   | 'workflow-multi-http-concurrency'
+  | `workflow-multi-http-dup-badge-${string}`
+  | `workflow-multi-http-dup-error-${string}`
+  | `workflow-multi-http-empty-id-error-${string}`
+  | `workflow-multi-http-empty-url-badge-${string}`
   | 'workflow-multi-http-execution-mode'
   | `workflow-multi-http-id-${string}`
+  | 'workflow-multi-http-merge-helper'
+  | `workflow-multi-http-move-down-${string}`
+  | `workflow-multi-http-move-up-${string}`
   | 'workflow-multi-http-on-error'
   | 'workflow-multi-http-output-mode'
   | `workflow-multi-http-records-path-${string}`

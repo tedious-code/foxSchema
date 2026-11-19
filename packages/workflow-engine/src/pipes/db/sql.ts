@@ -62,6 +62,25 @@ export type SqlRunner = (
   options: { dedicated: boolean },
 ) => Promise<SqlSession>;
 
+/**
+ * Dialects whose drivers rely on native `.node` addons (`better-sqlite3`,
+ * `@duckdb/node-api`, `ibm_db`) or host database files outside the sandbox's
+ * `--permission` boundary. When a SQL runner delegate is installed (inside the
+ * sandboxed workflow engine child), these dialects execute through the parent
+ * FoxSchema process over private reverse IPC while keeping `--allow-addons` off.
+ */
+export const NATIVE_ADDON_SQL_DIALECTS: ReadonlySet<string> = new Set([
+  'sqlite',
+  'duckdb',
+  'db2',
+]);
+
+let sqlRunnerDelegate: SqlRunner | undefined;
+
+export function setSqlRunnerDelegate(delegate: SqlRunner | undefined): void {
+  sqlRunnerDelegate = delegate;
+}
+
 const BLOCKED_SQLITE_BASENAMES = new Set([
   'foxschema.db',
   'workflow-engine.sqlite',
@@ -129,12 +148,16 @@ async function openMemorySqliteSession(): Promise<SqlSession> {
 }
 
 const foxSchemaDrivers: SqlRunner = async ({ dialect, schema, option }, { dedicated }) => {
-  if (dialect === 'sqlite') {
+  const normalizedDialect = dialect.trim().toLowerCase();
+  if (normalizedDialect === 'sqlite' || normalizedDialect === 'duckdb') {
     const target = sqliteTargetFromOption(option);
     assertSafeSqliteTarget(target);
-    if (target === ':memory:') {
+    if (normalizedDialect === 'sqlite' && target === ':memory:') {
       return openMemorySqliteSession();
     }
+  }
+  if (sqlRunnerDelegate && NATIVE_ADDON_SQL_DIALECTS.has(normalizedDialect)) {
+    return sqlRunnerDelegate({ dialect, ...(schema ? { schema } : {}), option }, { dedicated });
   }
   const db = await import('@foxschema/db');
   const adapter = db.getAdapter(dialect);

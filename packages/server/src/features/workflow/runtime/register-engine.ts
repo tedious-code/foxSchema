@@ -78,6 +78,7 @@ const RESPONSE_HOP_BY_HOP = new Set([
 interface WorkflowDocumentReader {
   getWorkflow(id: string): Promise<WorkflowDef | undefined>;
   getRunSnapshot(id: string): Promise<WorkflowDef | undefined>;
+  getRunLinkedConnections(runIds: readonly string[]): Promise<Record<string, string[]>>;
 }
 
 export interface RegisterWorkflowEngineOptions {
@@ -196,16 +197,28 @@ async function runsCallerMaySee(
   payload: unknown,
 ): Promise<unknown> {
   if (!Array.isArray(payload)) return payload;
-  const visible: unknown[] = [];
+  const entries: Array<{ run: unknown; id: string }> = [];
   for (const run of payload) {
     const id =
       run && typeof run === 'object' && 'id' in run && typeof (run as { id: unknown }).id === 'string'
         ? (run as { id: string }).id
         : '';
-    if (!id) continue;
-    const snapshot = await reader.getRunSnapshot(id);
-    if (!snapshot) continue;
-    if ((await grants.notUsableBy(userId, linkedConnectionsIn(snapshot))).length === 0) {
+    if (id) entries.push({ run, id });
+  }
+  if (entries.length === 0) return [];
+
+  // Single batch IPC round trip for all runs, followed by a single workspace-grant check.
+  const linkedByRun = await reader.getRunLinkedConnections(entries.map((e) => e.id));
+  const allLinkedIds = [...new Set(Object.values(linkedByRun).flat())];
+  const forbidden = new Set(
+    allLinkedIds.length > 0 ? await grants.notUsableBy(userId, allLinkedIds) : [],
+  );
+
+  const visible: unknown[] = [];
+  for (const { run, id } of entries) {
+    const linked = linkedByRun[id];
+    if (!linked) continue;
+    if (linked.every((connId) => !forbidden.has(connId))) {
       visible.push(run);
     }
   }
@@ -286,25 +299,42 @@ async function registerSandboxEngineApi(
         let onLiveChunk: ((chunk: string) => void) | undefined;
         let onLiveEnd: (() => void) | undefined;
 
+        let headSettled = false;
         let resolveHead!: (status: number) => void;
         const headPromise = new Promise<number>((resolve) => {
           resolveHead = resolve;
         });
+        const settleHead = (status: number) => {
+          if (headSettled) return;
+          headSettled = true;
+          resolveHead(status);
+        };
 
         const stop = backend.openRunEventsStream(id, parsedAfter, {
-          onHead: (statusCode) => resolveHead(statusCode),
+          onHead: (statusCode) => settleHead(statusCode),
           onChunk: (chunk) => {
             if (onLiveChunk) onLiveChunk(chunk);
             else bufferedChunks.push(chunk);
           },
           onEnd: () => {
+            // If the child crashes or exits before sending `sse.head`, unblock
+            // the handler with 503 instead of hanging indefinitely.
+            settleHead(503);
             if (onLiveEnd) onLiveEnd();
             else endedEarly = true;
           },
         });
 
-        req.raw.on('close', stop);
+        const onClientClose = () => {
+          settleHead(499);
+          stop();
+        };
+        req.raw.on('close', onClientClose);
         const statusCode = await headPromise;
+        if (statusCode === 499) {
+          stop();
+          return;
+        }
         if (statusCode !== 200) {
           stop();
           if (statusCode === 404) {
@@ -452,6 +482,14 @@ export async function registerWorkflowEngine(
     : {
         getWorkflow: (id) => ctx!.workflows.get(id),
         getRunSnapshot: (id) => ctx!.runs.getSnapshot(id),
+        async getRunLinkedConnections(runIds) {
+          const out: Record<string, string[]> = {};
+          for (const runId of runIds) {
+            const snapshot = await ctx!.runs.getSnapshot(runId);
+            if (snapshot) out[runId] = linkedConnectionsIn(snapshot);
+          }
+          return out;
+        },
       };
 
   const sessionGuards: Middleware[] = options.sessionGuard

@@ -143,7 +143,7 @@ describe('first-time sign-up', () => {
     expect(confirm).toBe(pw);
 
     fireEvent.click(screen.getByTestId('auth-setup-code-announce'));
-    await waitFor(() => expect(apiAnnounceSetupCode).toHaveBeenCalledWith(true));
+    await waitFor(() => expect(apiAnnounceSetupCode).toHaveBeenCalledWith(false));
     expect(screen.getByTestId('auth-setup-code-note')).toBeTruthy();
   });
 });

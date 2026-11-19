@@ -506,7 +506,7 @@ Every control has a test ID: **1095** buttons, text boxes, selects and textareas
   - `auth-login-form` · form
   - `auth-login-submit` · button · Sign in
   - `auth-setup-code` · input · ABCD-EFGH
-  - `auth-setup-code-announce` · button · Generate new code in server log
+  - `auth-setup-code-announce` · button · Re-print code in server log
   - `auth-setup-code-note` · p
   - `auth-setup-email` · input · your@email.com
   - `auth-setup-form` · form

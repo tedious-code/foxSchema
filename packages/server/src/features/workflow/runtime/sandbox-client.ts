@@ -10,13 +10,16 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import type { EngineRuntimeConfig } from '@foxschema/workflow-contract';
 import {
+  NATIVE_ADDON_SQL_DIALECTS,
   decodeKey,
   runSandboxedWithLogs,
   type CreateCredentialInput,
   type CredentialMeta,
   type WorkflowDef,
 } from '@foxschema/workflow-engine';
+import { assertSafeUserDatabasePath } from '../../../platform/connections/resolve.js';
 import { getLogger } from '../../../platform/logger/logger.js';
+import { linkedConnectionsIn } from '../engine-routes.js';
 import { loadConfiguredPlugins, type AppContext } from './context.js';
 import { ensureSandboxBundle } from './sandbox-bundle.js';
 import {
@@ -36,6 +39,11 @@ import {
   type RunScriptSandboxParams,
   type SandboxHttpRequest,
   type SandboxHttpResponse,
+  type SqlCloseParams,
+  type SqlOpenParams,
+  type SqlOpenResult,
+  type SqlQueryParams,
+  type SqlTxParams,
   type WorkflowEngineBackend,
 } from './sandbox-protocol.js';
 import { streamRunEvents } from './routes/runs.js';
@@ -49,6 +57,8 @@ const BACKOFF_SCHEDULE_MS = [500, 1_000, 2_000, 5_000, 10_000] as const;
 const STABLE_UPTIME_RESET_MS = 30_000;
 const SCRIPT_TIMEOUT_MAX_MS = 60_000;
 const SCRIPT_HEAP_MAX_MB = 512;
+const SQL_SESSION_IDLE_MS = 10 * 60_000;
+const MAX_SQL_SESSIONS = 64;
 
 export interface WorkflowSandboxClientOptions {
   databasePath?: string;
@@ -69,6 +79,17 @@ interface PendingPromise<T> {
 interface ActiveStream {
   handlers: RunEventStreamHandlers;
   headReceived: boolean;
+}
+
+interface ActiveSqlSession {
+  dialect: string;
+  handle: unknown;
+  query: (sql: string, params: readonly unknown[]) => Promise<Record<string, unknown>[]>;
+  beginTransaction: () => Promise<void>;
+  commitTransaction: () => Promise<void>;
+  rollbackTransaction: () => Promise<void>;
+  close: () => Promise<void>;
+  idleTimer: ReturnType<typeof setTimeout>;
 }
 
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {
@@ -92,6 +113,7 @@ export class WorkflowSandboxClient implements WorkflowEngineBackend {
   private readonly pendingRpc = new Map<string, PendingPromise<unknown>>();
   private readonly pendingHttp = new Map<string, PendingPromise<SandboxHttpResponse>>();
   private readonly activeStreams = new Map<string, ActiveStream>();
+  private readonly sqlSessions = new Map<string, ActiveSqlSession>();
 
   constructor(private readonly options: WorkflowSandboxClientOptions) {}
 
@@ -333,6 +355,24 @@ export class WorkflowSandboxClient implements WorkflowEngineBackend {
           maxOldGenerationSizeMb,
           isolation: 'process',
         });
+      } else if (method === 'sqlOpen') {
+        result = await this.openParentSqlSession(params as SqlOpenParams);
+      } else if (method === 'sqlQuery') {
+        const { sessionId, sql, params: sqlParams } = params as SqlQueryParams;
+        const session = this.touchSqlSession(sessionId);
+        result = await session.query(sql, sqlParams);
+      } else if (method === 'sqlTx') {
+        const { sessionId, action } = params as SqlTxParams;
+        const session = this.touchSqlSession(sessionId);
+        if (action === 'begin') await session.beginTransaction();
+        else if (action === 'commit') await session.commitTransaction();
+        else if (action === 'rollback') await session.rollbackTransaction();
+        else throw new Error(`Unsupported SQL tx action: ${String(action)}`);
+        result = { ok: true };
+      } else if (method === 'sqlClose') {
+        const { sessionId } = params as SqlCloseParams;
+        await this.closeSqlSession(sessionId);
+        result = { ok: true };
       } else {
         throw new Error(`Unsupported reverse RPC method: ${String(method)}`);
       }
@@ -344,6 +384,77 @@ export class WorkflowSandboxClient implements WorkflowEngineBackend {
         ok: false,
         error: serializeError(error),
       });
+    }
+  }
+
+  private async openParentSqlSession(params: SqlOpenParams): Promise<SqlOpenResult> {
+    const normalizedDialect = params.dialect.trim().toLowerCase();
+    if (!NATIVE_ADDON_SQL_DIALECTS.has(normalizedDialect)) {
+      throw new Error(`Dialect "${params.dialect}" is not delegated through the parent SQL runner`);
+    }
+    if (this.sqlSessions.size >= MAX_SQL_SESSIONS) {
+      throw new Error('Too many concurrent workflow SQL sessions');
+    }
+    assertSafeUserDatabasePath(params.dialect, params.option as never);
+
+    const db = await import('@foxschema/db');
+    const adapter = db.getAdapter(params.dialect);
+    const handle = await db.ConnectionFactory.create(params.dialect, params.option as never, {
+      pooled: !params.dedicated,
+    });
+    try {
+      if (params.schema) await adapter.setCurrentSchema(handle, params.schema);
+    } catch (error) {
+      await db.ConnectionFactory.close(params.dialect, handle).catch(() => undefined);
+      throw error;
+    }
+
+    const sessionId = randomUUID();
+    const canRollBack = db.dialectSupportsTransactionalRollback(params.dialect);
+    const makeIdleTimer = () => {
+      const timer = setTimeout(() => {
+        void this.closeSqlSession(sessionId);
+      }, SQL_SESSION_IDLE_MS);
+      timer.unref?.();
+      return timer;
+    };
+
+    this.sqlSessions.set(sessionId, {
+      dialect: params.dialect,
+      handle,
+      query: (sql, sqlParams) => adapter.query<Record<string, unknown>>(handle, sql, sqlParams),
+      beginTransaction: () => adapter.beginTransaction(handle),
+      commitTransaction: () => adapter.commitTransaction(handle),
+      rollbackTransaction: () => adapter.rollbackTransaction(handle),
+      close: () => db.ConnectionFactory.close(params.dialect, handle),
+      idleTimer: makeIdleTimer(),
+    });
+
+    return { sessionId, canRollBack };
+  }
+
+  private touchSqlSession(sessionId: string): ActiveSqlSession {
+    const session = this.sqlSessions.get(sessionId);
+    if (!session) throw new Error(`Workflow SQL session not found or already closed: ${sessionId}`);
+    clearTimeout(session.idleTimer);
+    session.idleTimer = setTimeout(() => {
+      void this.closeSqlSession(sessionId);
+    }, SQL_SESSION_IDLE_MS);
+    session.idleTimer.unref?.();
+    return session;
+  }
+
+  private async closeSqlSession(sessionId: string): Promise<void> {
+    const session = this.sqlSessions.get(sessionId);
+    if (!session) return;
+    this.sqlSessions.delete(sessionId);
+    clearTimeout(session.idleTimer);
+    await session.close().catch(() => undefined);
+  }
+
+  private closeAllSqlSessions(): void {
+    for (const sessionId of [...this.sqlSessions.keys()]) {
+      void this.closeSqlSession(sessionId);
     }
   }
 
@@ -433,6 +544,7 @@ export class WorkflowSandboxClient implements WorkflowEngineBackend {
       this.activeStreams.delete(streamId);
       stream.handlers.onEnd();
     }
+    this.closeAllSqlSessions();
   }
 
   private sendToChild(msg: ParentToChildMessage): void {
@@ -485,6 +597,11 @@ export class WorkflowSandboxClient implements WorkflowEngineBackend {
 
   async getRunSnapshot(id: string): Promise<WorkflowDef | undefined> {
     return this.callRpc<WorkflowDef | undefined>('getRunSnapshot', { runId: id });
+  }
+
+  async getRunLinkedConnections(runIds: readonly string[]): Promise<Record<string, string[]>> {
+    if (runIds.length === 0) return {};
+    return this.callRpc<Record<string, string[]>>('getRunLinkedConnections', { runIds });
   }
 
   readonly credentials = {
@@ -657,6 +774,14 @@ export function createInProcessBackend(
     isReady: () => true,
     getWorkflow: (id) => ctx.workflows.get(id),
     getRunSnapshot: (id) => ctx.runs.getSnapshot(id),
+    async getRunLinkedConnections(runIds) {
+      const out: Record<string, string[]> = {};
+      for (const runId of runIds) {
+        const snapshot = await ctx.runs.getSnapshot(runId);
+        if (snapshot) out[runId] = linkedConnectionsIn(snapshot);
+      }
+      return out;
+    },
     credentials: {
       create: (input) => ctx.credentials.create(input),
       remove: (id) => ctx.credentials.remove(id),

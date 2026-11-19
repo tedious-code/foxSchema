@@ -53,12 +53,17 @@ export {
   ParentTriggerSourcePipe,
 } from './pipes/trigger/index.js';
 export {
+  NATIVE_ADDON_SQL_DIALECTS,
   PostgresSinkPipe,
   PostgresSourcePipe,
   SqlSinkPipe,
   SqlSourcePipe,
+  setSqlRunnerDelegate,
   type PostgresClient,
   type PostgresClientFactory,
+  type SqlConnection,
+  type SqlRunner,
+  type SqlSession,
 } from './pipes/db/index.js';
 export {
   mergeBatches,

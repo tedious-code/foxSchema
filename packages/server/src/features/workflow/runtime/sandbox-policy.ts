@@ -12,6 +12,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { FORBIDDEN_WORKFLOW_ENV_VARS } from '@foxschema/workflow-contract';
 import { resolveDatabasePath } from '@foxschema/workflow-engine';
 
 const ROOT_PACKAGE_NAME = 'foxschema';
@@ -26,22 +27,9 @@ const MAX_HEAP_MB = 4_096;
  * delivered solely over the private IPC init handshake so user credentials
  * reading `process.env` cannot inspect it.
  */
-export const FORBIDDEN_SANDBOX_ENV_KEYS: ReadonlySet<string> = new Set([
-  'APP_ENCRYPTION_KEY',
-  'FOXFLOW_ENCRYPTION_KEY',
-  'SESSION_SECRET',
-  'APP_DB_PATH',
-  'APP_DB_URL',
-  'APP_DB_ENGINE',
-  'APP_DB_PASSWORD',
-  'WORKFLOW_ENGINE_TOKEN',
-  'FOXSCHEMA_SETUP_CODE',
-  'SMTP_PASS',
-  'GOOGLE_CLIENT_SECRET',
-  'GITHUB_CLIENT_SECRET',
-  'OIDC_CLIENT_SECRET',
-  'NODE_OPTIONS',
-]);
+export const FORBIDDEN_SANDBOX_ENV_KEYS: ReadonlySet<string> = new Set(
+  FORBIDDEN_WORKFLOW_ENV_VARS,
+);
 
 /** Environment variables explicitly safe for the sandboxed engine runtime. */
 const SAFE_SANDBOX_ENV_KEYS = [

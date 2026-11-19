@@ -253,19 +253,33 @@ describe('ConnectionStore', () => {
     expect(resolved?.option.connectionString).toBe(buildConnectionString('postgres', pgOption));
   });
 
-  it('clears the stored password if update() changes host, port, dialect, or username without a new password', async () => {
+  it('refuses update() that changes host, port, dialect, or username without re-entering the password', async () => {
     const pgOption = { host: 'db.example.com', port: 5432, database: 'proddb', username: 'admin', password: 'super-secret' };
     const id = (await store.create(alice, { name: 'pg', dialect: 'postgres', schema: 'public', option: pgOption, savePassword: true })).id;
 
-    const updated = await store.update(alice, id, {
+    await expect(
+      store.update(alice, id, {
+        name: 'pg',
+        dialect: 'postgres',
+        schema: 'public',
+        option: { ...pgOption, host: 'attacker.example.com', password: '' },
+        savePassword: true,
+      })
+    ).rejects.toMatchObject({ code: 'invalid_input' });
+    // Existing saved connection stays intact and never silently drops its password.
+    expect((await store.resolve(alice, id))?.option.host).toBe('db.example.com');
+    expect((await store.resolve(alice, id))?.option.password).toBe('super-secret');
+
+    // Supplying a new password for the new host succeeds.
+    const moved = await store.update(alice, id, {
       name: 'pg',
       dialect: 'postgres',
       schema: 'public',
-      option: { ...pgOption, host: 'attacker.example.com', password: '' },
+      option: { ...pgOption, host: 'new-db.example.com', password: 'new-host-password' },
       savePassword: true,
     });
-    expect(updated?.hasPassword).toBe(false);
-    expect((await store.resolve(alice, id))?.option.password).toBeUndefined();
+    expect(moved?.hasPassword).toBe(true);
+    expect((await store.resolve(alice, id))?.option.password).toBe('new-host-password');
   });
 
   it('rejects saving a SQLite or DuckDB connection targeting foxschema.db or workflow-engine.sqlite', async () => {

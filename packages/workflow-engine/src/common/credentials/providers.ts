@@ -5,6 +5,7 @@
  *
  * Workflow engine — moved from FoxAgent (packages/common/src/credentials/providers.ts).
  */
+import { FORBIDDEN_WORKFLOW_ENV_VARS } from '@foxschema/workflow-contract';
 import { z } from 'zod';
 import {
   mintGcpAccessToken,
@@ -303,22 +304,7 @@ export async function resolveStoredSecret(
   return resolved;
 }
 
-const FORBIDDEN_CREDENTIAL_ENV_VARS = new Set([
-  'APP_ENCRYPTION_KEY',
-  'FOXFLOW_ENCRYPTION_KEY',
-  'SESSION_SECRET',
-  'APP_DB_PATH',
-  'APP_DB_URL',
-  'APP_DB_ENGINE',
-  'APP_DB_PASSWORD',
-  'WORKFLOW_ENGINE_TOKEN',
-  'FOXSCHEMA_SETUP_CODE',
-  'SMTP_PASS',
-  'GOOGLE_CLIENT_SECRET',
-  'GITHUB_CLIENT_SECRET',
-  'OIDC_CLIENT_SECRET',
-  'NODE_OPTIONS',
-]);
+const FORBIDDEN_CREDENTIAL_ENV_VARS: ReadonlySet<string> = new Set(FORBIDDEN_WORKFLOW_ENV_VARS);
 
 function resolveEnvSecret(
   payload: StoredSecretPayload,

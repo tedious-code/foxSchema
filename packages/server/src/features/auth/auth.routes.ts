@@ -112,8 +112,10 @@ export function createAuthRoutes(
   });
 
   /**
-   * Print (and optionally rotate) the one-time setup code in the server log so
-   * an operator configuring Fox from another machine can retrieve a fresh code.
+   * Re-print the current one-time setup code in the server log so an operator
+   * configuring Fox from another machine can locate it. Rotating the code
+   * (`regenerate: true`) is restricted to direct local requests so a remote
+   * unauthenticated caller cannot DoS setup by invalidating the code in flight.
    * Never returns the code in the HTTP body.
    */
   router.post('/setup/code-announce', signInLimiter, async (req: AppRequest, res: FastifyReply) => {
@@ -124,6 +126,14 @@ export function createAuthRoutes(
     }
     const { regenerate } = (req.body ?? {}) as { regenerate?: boolean };
     if (regenerate === true) {
+      if (!isDirectLocalRequest(req)) {
+        sendError(
+          res,
+          'forbidden',
+          'Only a direct local request can rotate the setup code. Check the existing code in the server log.',
+        );
+        return;
+      }
       resetSetupCode();
     }
     announceSetupCode(true);

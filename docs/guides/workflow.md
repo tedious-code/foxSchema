@@ -223,11 +223,17 @@ them on save and re-reads them every **30 seconds**.
   subdirectories — never `/data` root or `foxschema.db`. Only FoxSchema holds
   the private OS IPC channel; standalone execution of the worker is refused.
   `transform.script` still runs in a dedicated zero-FS child sandbox via
-  parent reverse-RPC, plugins require a `@sha256:` digest pin, and an unexpected
-  sandbox crash triggers automatic respawn with backoff without taking down FoxSchema.
-  Optional operator knobs: `FOXFLOW_SANDBOX_MEMORY_MB`,
-  `FOXFLOW_SANDBOX_ENV_ALLOWLIST`, `FOXFLOW_SANDBOX_EXTRA_READ_DIRS`,
-  `FOXFLOW_SANDBOX_EXTRA_WRITE_DIRS`, `FOXFLOW_SANDBOX_ALLOW_ADDONS=true`, and
+  parent reverse-RPC, pure-JS database drivers (Postgres, MySQL, MariaDB, SQL Server,
+  Oracle thin, ClickHouse, Redshift, CockroachDB, Yugabyte) run inside the sandbox,
+  and native-addon dialects (file-based SQLite, DuckDB, IBM Db2) delegate safely
+  over private reverse-RPC to FoxSchema (which still blocks `foxschema.db` and
+  `workflow-engine.sqlite`). Plugins require a `@sha256:` digest pin, and an
+  unexpected sandbox crash triggers automatic respawn with backoff without taking
+  down FoxSchema. Production Docker images pre-build `packages/server/dist/workflow-sandbox.worker.mjs`
+  so `node_modules` can stay read-only. Optional operator knobs:
+  `FOXFLOW_SANDBOX_MEMORY_MB`, `FOXFLOW_SANDBOX_ENV_ALLOWLIST`,
+  `FOXFLOW_SANDBOX_EXTRA_READ_DIRS`, `FOXFLOW_SANDBOX_EXTRA_WRITE_DIRS`,
+  `FOXFLOW_SANDBOX_ALLOW_ADDONS=true`, `FOXFLOW_SANDBOX_WORKER_BUNDLE`, and
   `FOXFLOW_SANDBOX_MODE=in-process` (debug fallback).
 - **Sink batch claims are per run.** Postgres/MySQL write pipes scope the
   idempotency claim to `[workflowRunId, batch.id]` so a retry inside one run

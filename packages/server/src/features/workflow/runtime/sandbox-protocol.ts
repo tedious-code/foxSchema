@@ -51,6 +51,7 @@ export type ParentRpcMethod =
   | 'health'
   | 'getWorkflow'
   | 'getRunSnapshot'
+  | 'getRunLinkedConnections'
   | 'createCredential'
   | 'removeCredential'
   | 'applyConfig'
@@ -58,12 +59,45 @@ export type ParentRpcMethod =
   | 'enqueueWorkflow'
   | 'shutdown';
 
-export type ChildReverseRpcMethod = 'resolveConnection' | 'runScriptSandbox';
+export type ChildReverseRpcMethod =
+  | 'resolveConnection'
+  | 'runScriptSandbox'
+  | 'sqlOpen'
+  | 'sqlQuery'
+  | 'sqlTx'
+  | 'sqlClose';
 
 export interface RunScriptSandboxParams {
   body: string;
   records: Record<string, unknown>[];
   options: SandboxOptions;
+}
+
+export interface SqlOpenParams {
+  dialect: string;
+  schema?: string;
+  option: Record<string, unknown>;
+  dedicated: boolean;
+}
+
+export interface SqlOpenResult {
+  sessionId: string;
+  canRollBack: boolean;
+}
+
+export interface SqlQueryParams {
+  sessionId: string;
+  sql: string;
+  params: readonly unknown[];
+}
+
+export interface SqlTxParams {
+  sessionId: string;
+  action: 'begin' | 'commit' | 'rollback';
+}
+
+export interface SqlCloseParams {
+  sessionId: string;
 }
 
 export type ParentToChildMessage =
@@ -99,6 +133,7 @@ export interface WorkflowEngineBackend {
   isReady(): boolean;
   getWorkflow(id: string): Promise<WorkflowDef | undefined>;
   getRunSnapshot(id: string): Promise<WorkflowDef | undefined>;
+  getRunLinkedConnections(runIds: readonly string[]): Promise<Record<string, string[]>>;
   readonly credentials: {
     create(input: CreateCredentialInput): Promise<CredentialMeta>;
     remove(id: string): Promise<boolean>;

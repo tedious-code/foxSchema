@@ -14,14 +14,17 @@ import { PasswordInput } from '@/shared/components/PasswordInput';
 import { writeClipboard } from '@/shared/utils/clipboard';
 import { authInputCls, authLabelCls, authLinkCls } from './authStyles';
 
-const PASSWORD_ALPHABET = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const LOWER_CHARS = 'abcdefghjkmnpqrstuvwxyz';
+const UPPER_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+const DIGIT_CHARS = '23456789';
+const GENERATED_CHARSET = `${LOWER_CHARS}${UPPER_CHARS}${DIGIT_CHARS}`;
 
 /** Generate a random grouped passphrase (e.g. `k9Xm-pQ3z-vR7n-W2bT`) that passes server rules. */
 export function generateStrongPassword(email = ''): string {
   for (let attempt = 0; attempt < 5; attempt++) {
     const buf = new Uint32Array(16);
     crypto.getRandomValues(buf);
-    const chars = Array.from(buf, (v) => PASSWORD_ALPHABET[v % PASSWORD_ALPHABET.length]!);
+    const chars = Array.from(buf, (v) => GENERATED_CHARSET[v % GENERATED_CHARSET.length]!);
     const candidate = [
       chars.slice(0, 4).join(''),
       chars.slice(4, 8).join(''),

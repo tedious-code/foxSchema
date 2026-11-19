@@ -251,10 +251,10 @@ export const FirstAccountForm: React.FC = () => {
     setAnnouncing(true);
     setAnnounceNote(null);
     try {
-      await apiAnnounceSetupCode(true);
-      setAnnounceNote('A fresh setup code was printed to the Fox server terminal log.');
+      await apiAnnounceSetupCode(false);
+      setAnnounceNote('The setup code was printed to the Fox server terminal log.');
     } catch (err: unknown) {
-      setAnnounceNote(err instanceof Error ? err.message : 'Could not print a new setup code.');
+      setAnnounceNote(err instanceof Error ? err.message : 'Could not print the setup code.');
     } finally {
       setAnnouncing(false);
     }
@@ -309,7 +309,7 @@ export const FirstAccountForm: React.FC = () => {
               className={`${authLinkCls} inline-flex items-center gap-1 disabled:opacity-50`}
             >
               <RefreshCw className={`w-3 h-3 ${announcing ? 'animate-spin' : ''}`} />
-              Generate new code in server log
+              Re-print code in server log
             </button>
           </div>
           <input data-testid="auth-setup-code"

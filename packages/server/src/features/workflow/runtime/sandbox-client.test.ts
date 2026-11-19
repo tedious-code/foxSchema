@@ -14,6 +14,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Permission } from '@foxschema/shared';
@@ -633,4 +634,161 @@ export class ProbePipe {
     },
     30_000,
   );
+
+  it(
+    'runs file-based SQLite workflows via parent reverse-RPC without --allow-addons while blocking foxschema.db, and filters GET /runs in one batch RPC',
+    async () => {
+      const shopDbPath = join(tempDir, 'shop.db');
+      const db = new DatabaseSync(shopDbPath);
+      db.exec('CREATE TABLE items (name TEXT); INSERT INTO items VALUES (\'wrench\');');
+      db.close();
+
+      const { runtimeConfig } = runtimeSettings('enabled');
+      backend = new WorkflowSandboxClient({
+        databasePath: process.env.FOXFLOW_DB_PATH,
+        encryptionKey: process.env.FOXFLOW_ENCRYPTION_KEY!,
+        resolveFoxSchemaConnection: async (connectionId: string) =>
+          connectionId === 'conn-shop'
+            ? { dialect: 'sqlite', option: { database: shopDbPath } }
+            : connectionId === 'conn-foxmeta'
+              ? { dialect: 'sqlite', option: { database: join(tempDir, 'foxschema.db') } }
+              : undefined,
+        loadRuntimeConfig: async () => runtimeConfig,
+      });
+      await backend.start();
+      const server = await mountTestApp(backend);
+
+      await backend.credentials.create({
+        id: 'foxschema-conn-shop',
+        name: 'Shop SQLite',
+        kind: 'database',
+        source: 'foxschema',
+        data: { connectionId: 'conn-shop' },
+      });
+
+      const putShop = await server.inject({
+        method: 'PUT',
+        url: '/api/workflow/engine/workflows/wf-shop-sqlite',
+        payload: {
+          id: 'wf-shop-sqlite',
+          name: 'Shop SQLite File',
+          version: 1,
+          onOverlap: 'parallel',
+          pipelines: [
+            {
+              id: 'main',
+              name: 'Main',
+              pipes: [
+                {
+                  id: 'sql',
+                  role: 'source',
+                  type: 'source.db.sql',
+                  credentialId: 'foxschema-conn-shop',
+                  config: { sql: 'SELECT name FROM items' },
+                  concurrency: 1,
+                },
+                {
+                  id: 'out',
+                  role: 'sink',
+                  type: 'sink.file.delimited',
+                  config: { path: 'shop.csv', mode: 'overwrite', columns: ['name'] },
+                  concurrency: 1,
+                },
+              ],
+              edges: [{ from: 'sql', to: 'out', fromPort: 'out', toPort: 'in' }],
+            },
+          ],
+          triggers: [{ id: 'manual', kind: 'manual', enabled: true }],
+          dependencies: [],
+          middleware: [],
+        },
+      });
+      expect(putShop.statusCode).toBe(200);
+
+      const runRes = await server.inject({
+        method: 'POST',
+        url: '/api/workflow/engine/workflows/wf-shop-sqlite/run',
+      });
+      expect(runRes.statusCode).toBe(202);
+      const { runId } = runRes.json() as { runId: string };
+
+      const sseRes = await server.inject({
+        method: 'GET',
+        url: `/api/workflow/engine/runs/${runId}/events/stream`,
+      });
+      expect(sseRes.statusCode).toBe(200);
+      expect(sseRes.body).toContain('event: end');
+      expect(fs.readFileSync(join(process.env.FOXFLOW_FILES_DIR!, 'shop.csv'), 'utf8')).toContain('wrench');
+
+      // GET /runs filters via single batch getRunLinkedConnections RPC.
+      const batchSpy = vi.spyOn(backend, 'getRunLinkedConnections');
+      const runsRes = await server.inject({ method: 'GET', url: '/api/workflow/engine/runs' });
+      expect(runsRes.statusCode).toBe(200);
+      expect(batchSpy).toHaveBeenCalledTimes(1);
+      expect((runsRes.json() as Array<{ id: string }>).some((r) => r.id === runId)).toBe(true);
+    },
+    30_000,
+  );
+
+  it('unblocks proxied SSE run stream with 503 if the sandbox terminates before sending sse.head', async () => {
+    const { settings } = runtimeSettings('enabled');
+    const crashingBackend = {
+      mode: 'sandbox' as const,
+      permissionEnforced: true,
+      isReady: () => true,
+      getWorkflow: async () => undefined,
+      getRunSnapshot: async () =>
+        ({
+          id: 'wf',
+          name: 'wf',
+          version: 1,
+          origin: 'authored',
+          onOverlap: 'parallel',
+          pipelines: [],
+          triggers: [],
+          dependencies: [],
+          middleware: [],
+        }) as never,
+      getRunLinkedConnections: async () => ({}),
+      credentials: { create: vi.fn(), remove: vi.fn() },
+      applyRuntimeConfig: async () => undefined,
+      startLifecycle: async () => undefined,
+      enqueueWorkflow: async () => ({ accepted: false }),
+      injectHttp: async () => ({ statusCode: 200, headers: {}, bodyBase64: '' }),
+      openRunEventsStream: (_runId: string, _after: number, handlers: { onHead: (s: number) => void; onChunk: (c: string) => void; onEnd: () => void }) => {
+        // Simulate child crash/SIGKILL right after sse.open: rejectAllInFlight
+        // fires onEnd() without ever having received sse.head.
+        setTimeout(() => handlers.onEnd(), 10);
+        return () => undefined;
+      },
+      probeHealth: async () => ({ ok: false, sandboxed: true }),
+      close: async () => undefined,
+    };
+
+    const server = Fastify({ forceCloseConnections: true });
+    server.addHook('onRequest', async (req) => {
+      const authed = req as unknown as AuthedRequest;
+      authed.userId = 'user-1';
+      authed.appRole = 'admin';
+      authed.permissions = new Set(ALL_PERMS);
+    });
+    await registerWorkflowEngine(server, {
+      backend: crashingBackend,
+      featureContext: createFeatureContext(),
+      settings,
+      grants: { notUsableBy: async () => [] },
+      startLifecycle: false,
+      sessionGuard: (_req, _res, next) => next(),
+    });
+    await server.ready();
+    try {
+      const res = await server.inject({
+        method: 'GET',
+        url: '/api/workflow/engine/runs/run-crashed/events/stream',
+      });
+      expect(res.statusCode).toBe(503);
+    } finally {
+      await server.close();
+    }
+  });
 });

@@ -10,7 +10,8 @@ import { sendError, sendThrown } from '../../platform/http/respond';
 import { getStore } from '../../database/store';
 
 async function canMutateWorkspaceConnections(req: AuthedRequest): Promise<boolean> {
-  if (req.appRole === 'admin' || !req.workspaceRole) return true;
+  if (req.appRole === 'admin') return true;
+  if (!req.workspaceRole) return false;
   if (req.workspaceRole === 'owner' || req.workspaceRole === 'editor') return true;
   if (req.workspaceRole === 'viewer' && req.workspaceId) {
     const ws = await (await getStore()).get<{ personal_owner_id: string | null }>(

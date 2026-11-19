@@ -4,6 +4,7 @@ import { getStore } from '../../database/store';
 import { encryptSecret, decryptSecret } from '../crypto/crypto';
 import { ConnectionOptions, buildConnectionString, resolveAuthMethod, storedAuthMethod, assertWindowsAccount } from '@foxschema/db';
 import { assertSafeUserDatabasePath } from './resolve';
+import { ServiceError } from '../contracts/actor';
 
 export interface SavedConnectionInput {
   name?: string;
@@ -200,6 +201,7 @@ export class ConnectionStore {
 
     // Never carry a stored password onto a different host, port, dialect, or account:
     // otherwise a member could edit host -> attacker listener and run connection/test to exfiltrate the secret.
+    // Fail loudly with 400 instead of silently wiping the password and saving a broken connection.
     const norm = (v: unknown) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
     const sameTarget =
       norm(existing.dialect) === norm(input.dialect) &&
@@ -207,6 +209,20 @@ export class ConnectionStore {
       Number(existing.option.port || 0) === Number(input.option.port || 0) &&
       norm(existing.option.username) === norm(input.option.username) &&
       norm(existing.option.domain) === norm(input.option.domain);
+    const incomingPassword = typeof input.option.password === 'string' ? input.option.password : '';
+    const authMethod = resolveAuthMethod(input.dialect, input.option);
+    if (
+      !sameTarget &&
+      Boolean(existing.option.password) &&
+      input.savePassword !== false &&
+      authMethod !== 'none' &&
+      !incomingPassword
+    ) {
+      throw new ServiceError(
+        'invalid_input',
+        'Re-enter the password when changing the host, port, dialect, username, or domain of a saved connection.',
+      );
+    }
     const merged = this.resolvePasswordOnSave(
       input.dialect,
       input.option,

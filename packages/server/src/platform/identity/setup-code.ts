@@ -70,7 +70,11 @@ export function isDirectLocalRequest(req: AppRequest): boolean {
   const address = req.raw?.socket?.remoteAddress ?? '';
   if (!LOOPBACK.has(address)) return false;
   const headers = req.headers ?? {};
-  if (process.env.NODE_ENV !== 'production') {
+  // Only relax forwarding-header rejection when explicitly opted in for a local
+  // dev proxy (e.g. `npm run dev` Vite proxy sets FOX_TRUST_LOCAL_DEV_PROXY=true).
+  // Bare-metal installs often omit NODE_ENV and must still treat forwarded
+  // requests as remote so a same-host reverse proxy cannot bypass setup auth.
+  if (process.env.FOX_TRUST_LOCAL_DEV_PROXY === 'true') {
     return onlyLoopbackForwarded(headers);
   }
   return !headers['x-forwarded-for'] && !headers.forwarded && !headers['x-real-ip'];

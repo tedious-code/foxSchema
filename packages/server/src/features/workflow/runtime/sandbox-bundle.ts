@@ -3,10 +3,14 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * Pre-bundles `sandbox.worker.ts` into a self-contained ESM entrypoint under
- * `<repoRoot>/node_modules/.cache/foxschema/` so the sandboxed workflow engine
- * child executes under bare `node --permission` with zero TypeScript loader,
- * zero worker threads (`--allow-worker`), and zero subprocess permissions.
+ * Pre-bundles `sandbox.worker.ts` into a self-contained ESM entrypoint so the
+ * sandboxed workflow engine child executes under bare `node --permission` with
+ * zero TypeScript loader, zero worker threads (`--allow-worker`), and zero
+ * subprocess permissions.
+ *
+ * In production/Docker builds, `scripts/workflow/build-sandbox-worker.mjs`
+ * pre-builds `packages/server/dist/workflow-sandbox.worker.mjs` at image build
+ * time so runtime does not require a writable `node_modules/.cache`.
  */
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
@@ -15,6 +19,13 @@ import { fileURLToPath } from 'node:url';
 import { threadId } from 'node:worker_threads';
 import { build as esbuildBuild } from 'esbuild';
 import { findRepoRoot } from './sandbox-policy.js';
+
+export const PREBUILT_SANDBOX_BUNDLE_REL = join(
+  'packages',
+  'server',
+  'dist',
+  'workflow-sandbox.worker.mjs',
+);
 
 let cachedBundlePath: string | undefined;
 let buildingPromise: Promise<string> | undefined;
@@ -40,6 +51,40 @@ function workerEntrySource(): string {
   return join(here, 'sandbox.worker.js');
 }
 
+export async function buildSandboxWorkerBundle(outfile: string): Promise<string> {
+  const target = resolve(outfile);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- creating parent directory for the workflow sandbox worker bundle
+  mkdirSync(dirname(target), { recursive: true });
+
+  await esbuildBuild({
+    entryPoints: [workerEntrySource()],
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    target: 'node22',
+    outfile: target,
+    plugins: [
+      {
+        name: 'external-non-foxschema',
+        setup(build) {
+          build.onResolve({ filter: /^[^./]/ }, (args) => {
+            if (
+              args.path.startsWith('node:') ||
+              args.path.startsWith('@foxschema/') ||
+              /^[A-Za-z]:[\\/]/.test(args.path)
+            ) {
+              return null;
+            }
+            return { path: args.path, external: true };
+          });
+        },
+      },
+    ],
+  });
+
+  return target;
+}
+
 export async function ensureSandboxBundle(
   repoRoot: string = findRepoRoot(),
   env: NodeJS.ProcessEnv = process.env,
@@ -50,13 +95,21 @@ export async function ensureSandboxBundle(
     return resolve(override);
   }
 
+  // Use the image-built bundle automatically in production so read-only
+  // filesystems / pruned node_modules never need runtime bundling.
+  const prebuilt = join(repoRoot, PREBUILT_SANDBOX_BUNDLE_REL);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- fixed workspace dist path for prebuilt sandbox worker
+  if (env.NODE_ENV === 'production' && existsSync(prebuilt)) {
+    return prebuilt;
+  }
+
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- verifying cached process-owned bundle still exists
   if (cachedBundlePath && existsSync(cachedBundlePath)) {
     return cachedBundlePath;
   }
 
   if (!buildingPromise) {
-    buildingPromise = buildWorkerBundle(repoRoot).finally(() => {
+    buildingPromise = buildRuntimeCacheBundle(repoRoot, prebuilt).finally(() => {
       buildingPromise = undefined;
     });
   }
@@ -89,44 +142,28 @@ function pruneDeadBundles(cacheDir: string): void {
   }
 }
 
-async function buildWorkerBundle(repoRoot: string): Promise<string> {
+async function buildRuntimeCacheBundle(repoRoot: string, prebuiltFallback: string): Promise<string> {
   const cacheDir = join(repoRoot, 'node_modules', '.cache', 'foxschema');
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- workspace node_modules cache directory owned by the repo
-  mkdirSync(cacheDir, { recursive: true });
-  pruneDeadBundles(cacheDir);
+  try {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- workspace node_modules cache directory owned by the repo
+    mkdirSync(cacheDir, { recursive: true });
+    pruneDeadBundles(cacheDir);
 
-  const outfile = join(
-    cacheDir,
-    `workflow-sandbox-${process.pid}-${threadId}-${randomUUID().slice(0, 8)}.mjs`,
-  );
+    const outfile = join(
+      cacheDir,
+      `workflow-sandbox-${process.pid}-${threadId}-${randomUUID().slice(0, 8)}.mjs`,
+    );
 
-  await esbuildBuild({
-    entryPoints: [workerEntrySource()],
-    bundle: true,
-    platform: 'node',
-    format: 'esm',
-    target: 'node22',
-    outfile,
-    plugins: [
-      {
-        name: 'external-non-foxschema',
-        setup(build) {
-          build.onResolve({ filter: /^[^./]/ }, (args) => {
-            if (
-              args.path.startsWith('node:') ||
-              args.path.startsWith('@foxschema/') ||
-              /^[A-Za-z]:[\\/]/.test(args.path)
-            ) {
-              return null;
-            }
-            return { path: args.path, external: true };
-          });
-        },
-      },
-    ],
-  });
-
-  cachedBundlePath = outfile;
-  registerExitCleanup(outfile);
-  return outfile;
+    await buildSandboxWorkerBundle(outfile);
+    cachedBundlePath = outfile;
+    registerExitCleanup(outfile);
+    return outfile;
+  } catch (error) {
+    // If node_modules is mounted read-only, fall back to a prebuilt bundle if present.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- fixed workspace dist fallback when cache directory is read-only
+    if (existsSync(prebuiltFallback)) {
+      return prebuiltFallback;
+    }
+    throw error;
+  }
 }

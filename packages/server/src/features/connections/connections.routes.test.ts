@@ -26,6 +26,7 @@ function setup() {
     const req = {
       userId: 'u1',
       workspaceId: 'w1',
+      workspaceRole: 'owner',
       params: { id: 'c1' },
       body: { name, dialect: 'postgres', option: { host: '127.0.0.1' } },
     } as unknown as AuthedRequest;
@@ -80,5 +81,23 @@ describe('saving a connection name', () => {
     expect(store.create).not.toHaveBeenCalled();
     expect(store.update).not.toHaveBeenCalled();
     expect(store.remove).not.toHaveBeenCalled();
+  });
+
+  it('fails closed (403) when workspaceRole is missing and appRole is not admin', async () => {
+    const store = { create: vi.fn(), update: vi.fn(), remove: vi.fn() };
+    const routes = createConnectionStoreRoutes(store as unknown as ConnectionStore).flatten();
+    const postRoute = routes.find((r) => r.method === 'POST' && r.path === '/')!;
+    const { reply, sent } = fakeReply();
+    await postRoute.handler(
+      {
+        userId: 'u1',
+        appRole: 'viewer',
+        workspaceId: 'w1',
+        body: { name: 'db', dialect: 'postgres', option: { host: '127.0.0.1' } },
+      } as unknown as AuthedRequest,
+      reply
+    );
+    expect(sent.status).toBe(403);
+    expect(store.create).not.toHaveBeenCalled();
   });
 });

@@ -18,9 +18,11 @@ import type { EngineRuntimeConfig } from '@foxschema/workflow-contract';
 import {
   decodeKey,
   setScriptSandboxDelegate,
+  setSqlRunnerDelegate,
   type CreateCredentialInput,
   type WorkflowDef,
 } from '@foxschema/workflow-engine';
+import { linkedConnectionsIn } from '../engine-routes.js';
 import { createContext, loadConfiguredPlugins, type AppContext } from './context.js';
 import { RunEventSinks } from './run-event-sinks.js';
 import {
@@ -32,6 +34,11 @@ import {
   type RunScriptSandboxParams,
   type SandboxHttpRequest,
   type SandboxInitConfig,
+  type SqlCloseParams,
+  type SqlOpenParams,
+  type SqlOpenResult,
+  type SqlQueryParams,
+  type SqlTxParams,
 } from './sandbox-protocol.js';
 import { credentialRoutes } from './routes/credentials.js';
 import { middlewareRoutes } from './routes/middleware.js';
@@ -147,6 +154,7 @@ async function shutdownEngine(): Promise<void> {
   ctx?.close();
   ctx = undefined;
   setScriptSandboxDelegate(undefined);
+  setSqlRunnerDelegate(undefined);
 }
 
 async function initializeWorker(config: SandboxInitConfig): Promise<void> {
@@ -157,6 +165,44 @@ async function initializeWorker(config: SandboxInitConfig): Promise<void> {
   setScriptSandboxDelegate(async (body, records, options) => {
     const payload: RunScriptSandboxParams = { body, records, options };
     return callParent('runScriptSandbox', payload);
+  });
+
+  // Delegate native-addon dialects (file-based SQLite, DuckDB, IBM Db2) over
+  // private reverse IPC to FoxSchema so those workflows work out of the box
+  // while the sandbox child stays strictly free of `--allow-addons` and host FS access.
+  setSqlRunnerDelegate(async (connection, { dedicated }) => {
+    const openParams: SqlOpenParams = {
+      dialect: connection.dialect,
+      ...(connection.schema ? { schema: connection.schema } : {}),
+      option: connection.option,
+      dedicated,
+    };
+    const { sessionId, canRollBack } = await callParent<SqlOpenResult>('sqlOpen', openParams);
+    return {
+      query: (sql, params) => {
+        const queryParams: SqlQueryParams = { sessionId, sql, params };
+        return callParent<Record<string, unknown>[]>('sqlQuery', queryParams);
+      },
+      async transaction(work) {
+        if (!canRollBack) return work();
+        const begin: SqlTxParams = { sessionId, action: 'begin' };
+        await callParent('sqlTx', begin);
+        try {
+          const result = await work();
+          const commit: SqlTxParams = { sessionId, action: 'commit' };
+          await callParent('sqlTx', commit);
+          return result;
+        } catch (error) {
+          const rollback: SqlTxParams = { sessionId, action: 'rollback' };
+          await callParent('sqlTx', rollback).catch(() => undefined);
+          throw error;
+        }
+      },
+      close: async () => {
+        const closeParams: SqlCloseParams = { sessionId };
+        await callParent('sqlClose', closeParams);
+      },
+    };
   });
 
   ctx = createContext({
@@ -173,7 +219,9 @@ async function initializeWorker(config: SandboxInitConfig): Promise<void> {
   const engineCtx = ctx;
   const server = Fastify({
     logger: false,
-    trustProxy: process.env.FOXFLOW_TRUST_PROXY === 'true',
+    // Child only receives app.inject calls from parent over private IPC;
+    // rate limiting and proxy-header trust are enforced in the parent FoxSchema server.
+    trustProxy: false,
     forceCloseConnections: true,
   });
   server.setValidatorCompiler(validatorCompiler);
@@ -195,7 +243,10 @@ async function initializeWorker(config: SandboxInitConfig): Promise<void> {
 
   await server.register(
     async (ingress) => {
-      await ingress.register(triggerRoutes(engineCtx));
+      // Rate limiting is applied per real client IP in the parent FoxSchema
+      // server (`registerSandboxIngress`), so disable the child's per-route
+      // limit that would otherwise bucket all injected callers under 127.0.0.1.
+      await ingress.register(triggerRoutes(engineCtx, { rateLimit: false }));
     },
     { prefix: '/ingress' },
   );
@@ -322,6 +373,20 @@ async function handleRpc(
       case 'getRunSnapshot': {
         const { runId } = params as { runId: string };
         result = ctx ? await ctx.runs.getSnapshot(runId) : undefined;
+        break;
+      }
+      case 'getRunLinkedConnections': {
+        const { runIds } = params as { runIds: string[] };
+        const out: Record<string, string[]> = {};
+        if (ctx && Array.isArray(runIds)) {
+          for (const runId of runIds) {
+            const snapshot = await ctx.runs.getSnapshot(runId);
+            if (snapshot) {
+              out[runId] = linkedConnectionsIn(snapshot);
+            }
+          }
+        }
+        result = out;
         break;
       }
       case 'createCredential': {

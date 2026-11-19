@@ -953,7 +953,7 @@ export const TestIds = {
       authLoginSubmit: 'auth-login-submit',
       /** input · ABCD-EFGH */
       authSetupCode: 'auth-setup-code',
-      /** button · Generate new code in server log */
+      /** button · Re-print code in server log */
       authSetupCodeAnnounce: 'auth-setup-code-announce',
       /** p */
       authSetupCodeNote: 'auth-setup-code-note',

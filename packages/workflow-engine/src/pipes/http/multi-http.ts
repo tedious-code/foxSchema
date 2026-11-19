@@ -85,7 +85,7 @@ export class MultiHttpSourcePipe implements SourcePipe {
       category: 'Source/API',
       family: 'http',
       tags: ['auth', 'api', 'fan-out', 'google'],
-      palette: 'advanced',
+      palette: 'primary',
       version: '0.2.0',
       role: 'source',
       inputs: [{ name: 'in', type: 'records' }],

@@ -89,14 +89,16 @@ export function Palette({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return visibleCategories;
+    // Search across all categories (including advanced pipes) so users typing
+    // an exact pipe name still find it without toggling "Show advanced pipes".
     return filterCategories(
-      visibleCategories,
+      categories,
       (entry) =>
         entry.label.toLowerCase().includes(q) ||
         entry.type.toLowerCase().includes(q) ||
         entry.category.toLowerCase().includes(q),
     );
-  }, [visibleCategories, query]);
+  }, [categories, visibleCategories, query]);
 
   const advancedCount = useMemo(
     () =>

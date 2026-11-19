@@ -523,4 +523,11 @@ describe('MultiHttpSourcePipe', () => {
       { userId: 102, userName: 'Bob', orders: 7 },
     ]);
   });
+
+  it('advertises HTTP Multi in the primary palette under Source/API', () => {
+    const meta = new MultiHttpSourcePipe().metadata();
+    expect(meta.name).toBe('HTTP Multi');
+    expect(meta.category).toBe('Source/API');
+    expect(meta.palette).toBe('primary');
+  });
 });

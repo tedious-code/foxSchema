@@ -80,6 +80,26 @@ export interface SandboxOutcome {
   logs: SandboxLog[];
 }
 
+/**
+ * Optional delegate invoked for `isolation: 'process'` calls. Used when the
+ * workflow engine itself runs inside a `--permission` child without
+ * `--allow-child-process`, so it forwards untrusted script execution over
+ * private IPC to the parent FoxSchema process.
+ */
+export type ScriptSandboxDelegate = (
+  body: string,
+  records: Record<string, unknown>[],
+  options: SandboxOptions,
+) => Promise<SandboxOutcome>;
+
+let scriptSandboxDelegate: ScriptSandboxDelegate | undefined;
+
+export function setScriptSandboxDelegate(
+  delegate: ScriptSandboxDelegate | undefined,
+): void {
+  scriptSandboxDelegate = delegate;
+}
+
 /** What either isolation body sends back. */
 interface SandboxMessage {
   ok: boolean;
@@ -288,6 +308,9 @@ export async function runSandboxedWithLogs(
   options: SandboxOptions,
 ): Promise<SandboxOutcome> {
   if ((options.isolation ?? 'process') === 'process') {
+    if (scriptSandboxDelegate) {
+      return scriptSandboxDelegate(body, records, options);
+    }
     return runInProcess(body, records, options);
   }
   const worker = new Worker(WORKER_SOURCE, {

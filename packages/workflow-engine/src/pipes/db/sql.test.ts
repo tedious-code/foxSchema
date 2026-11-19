@@ -448,3 +448,42 @@ describe('upsertKey on an insert step', () => {
     expect(() => sink.validateConfig({ table: 't', columns: ['name'], upsertKey: 'id' })).toThrow(/one of the columns/);
   });
 });
+
+describe('SQLite sandbox safety in SQL pipes', () => {
+  it('runs :memory: queries using built-in node:sqlite without native addons', async () => {
+    const batches = await collect(
+      new SqlSourcePipe(),
+      {
+        workflowRunId: 'run-mem',
+        pipelineId: 'p',
+        pipe: {
+          id: 'mem-sql',
+          type: 'source.db.sql',
+          role: 'source',
+          config: { dialect: 'sqlite', sql: 'SELECT 42 AS answer' },
+          concurrency: 1,
+        },
+        credentials: {
+          revealSecret: async () => undefined,
+        } as unknown as CredentialStore,
+      },
+    );
+    expect(batches[0]?.records).toEqual([{ answer: 42 }]);
+  });
+
+  it('refuses opening FoxSchema or engine internal SQLite databases', async () => {
+    for (const target of ['/data/foxschema.db', '/tmp/workflow-engine.sqlite']) {
+      await expect(
+        collect(
+          new SqlSourcePipe(),
+          context(
+            'source.db.sql',
+            'source',
+            { dialect: 'sqlite', sql: 'SELECT 1' },
+            { dialect: 'sqlite', option: { database: target } },
+          ),
+        ),
+      ).rejects.toThrow(/Refusing to open FoxSchema internal database/);
+    }
+  });
+});

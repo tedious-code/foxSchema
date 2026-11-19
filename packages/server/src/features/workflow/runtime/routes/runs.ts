@@ -21,6 +21,113 @@ const runBodySchema = z.object({
   debug: z.boolean().optional(),
 });
 
+/** How often a quiet stream checks for what no in-process event announced. */
+const STREAM_FALLBACK_MS = 500;
+
+/**
+ * Stream stored + live events for one run as SSE frames until a terminal status
+ * arrives and one quiet read settles, or until the caller cancels via the
+ * returned stop function. Shared by HTTP SSE routes and the sandbox worker IPC.
+ */
+export function streamRunEvents(
+  ctx: AppContext,
+  runId: string,
+  initialAfter: number,
+  callbacks: {
+    onChunk: (chunk: string) => void;
+    onEnd: () => void;
+    onStop?: () => void;
+  },
+): () => void {
+  let after = initialAfter;
+  let closed = false;
+  let writing = false;
+  // An event arrived while a flush was running; flush again after it.
+  let pending = false;
+  let timer: ReturnType<typeof setInterval> | undefined;
+  let finished = false;
+  let idleTicks = 0;
+
+  // Woken by the engine as each event of this run is stored, rather than
+  // reading the store ten times a second for every open stream — those
+  // reads are synchronous SQLite on the loop that also executes runs.
+  const unsubscribe = ctx.onEvent((event) => {
+    if (event.workflowRunId !== runId) return;
+    if (writing) pending = true;
+    else void write().catch(() => undefined);
+  });
+
+  const stop = () => {
+    if (closed) return;
+    closed = true;
+    clearInterval(timer);
+    timer = undefined;
+    unsubscribe();
+    callbacks.onStop?.();
+  };
+
+  const flush = async (): Promise<number> => {
+    const events = await ctx.events.list(runId, after);
+    if (closed) return 0;
+    for (const event of events) {
+      callbacks.onChunk(`data: ${JSON.stringify(event)}\n\n`);
+      after = event.seq;
+      const status = event.type === 'run.status' ? event.data?.status : undefined;
+      if (typeof status === 'string' && isTerminalRunStatus(status)) finished = true;
+    }
+    return events.length;
+  };
+
+  const write = async () => {
+    // One at a time: two overlapping reads from the same `after` would
+    // send the same events twice.
+    if (closed || writing) return;
+    writing = true;
+    try {
+      if ((await flush()) > 0) return;
+      if (!finished) {
+        // Nothing new, and no event said the run ended — normal while it
+        // runs. The run record is read on the first quiet tick and about
+        // once a second after, for a client that subscribed past the
+        // run's final event.
+        if (idleTicks++ % 2 !== 0) return;
+        const run = await ctx.runs.get(runId);
+        if (closed || (run && !isTerminalRunStatus(run.status))) return;
+        await flush(); // anything appended between the two reads
+      }
+      // Everything the run will emit has been sent. Say so and close: an
+      // EventSource reconnects when a stream just ends.
+      stop();
+      callbacks.onChunk(`event: ${RUN_STREAM_END_EVENT}\ndata: {}\n\n`);
+      callbacks.onEnd();
+    } finally {
+      writing = false;
+      if (pending && !closed) {
+        pending = false;
+        void write().catch(() => undefined);
+      }
+    }
+  };
+
+  void write()
+    .then(() => {
+      if (closed) return;
+      // The fallback for what no in-process event announces: a run another
+      // process executes (a worker), and the run record for a client that
+      // subscribed after the run's last event.
+      timer = setInterval(() => {
+        void write().catch(() => undefined);
+      }, STREAM_FALLBACK_MS);
+      // An open SSE stream must not keep the process alive on its own — the
+      // client socket already does that, and this poller would otherwise
+      // outlive shutdown and block exit.
+      timer.unref?.();
+    })
+    .catch(() => undefined);
+
+  return stop;
+}
+
 export function runRoutes(ctx: AppContext, options: { extra?: boolean } = {}) {
   return async (app: FastifyInstance) => {
     const r = app.withTypeProvider<ZodTypeProvider>();
@@ -31,8 +138,6 @@ export function runRoutes(ctx: AppContext, options: { extra?: boolean } = {}) {
      * closed the database underneath it.
      */
     const openStreams = new Set<() => void>();
-    /** How often a quiet stream checks for what no in-process event announced. */
-    const STREAM_FALLBACK_MS = 500;
     app.addHook('onClose', async () => {
       for (const stop of [...openStreams]) stop();
     });
@@ -205,87 +310,15 @@ export function runRoutes(ctx: AppContext, options: { extra?: boolean } = {}) {
           'cache-control': 'no-cache',
           connection: 'keep-alive',
         });
-        let after = req.query.after;
-        let closed = false;
-        let writing = false;
-        // An event arrived while a flush was running; flush again after it.
-        let pending = false;
-        let timer: ReturnType<typeof setInterval> | undefined;
-        // Woken by the engine as each event of this run is stored, rather than
-        // reading the store ten times a second for every open stream — those
-        // reads are synchronous SQLite on the loop that also executes runs.
-        const unsubscribe = ctx.onEvent((event) => {
-          if (event.workflowRunId !== req.params.id) return;
-          if (writing) pending = true;
-          else void write().catch(() => undefined);
+        let stop = (): void => {};
+        stop = streamRunEvents(ctx, req.params.id, req.query.after, {
+          onChunk: (chunk) => reply.raw.write(chunk),
+          onEnd: () => reply.raw.end(),
+          onStop: () => openStreams.delete(stop),
         });
-        const stop = () => {
-          closed = true;
-          clearInterval(timer);
-          unsubscribe();
-          openStreams.delete(stop);
-        };
         openStreams.add(stop);
         // The response, not the request: see the proxy's note on `close`.
         reply.raw.on('close', stop);
-
-        // Set once a terminal run.status has gone out; the stream then only
-        // waits for one quiet tick, so nothing appended right after it is lost.
-        let finished = false;
-        let idleTicks = 0;
-        const flush = async (): Promise<number> => {
-          const events = await ctx.events.list(req.params.id, after);
-          if (closed) return 0;
-          for (const event of events) {
-            reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
-            after = event.seq;
-            const status = event.type === 'run.status' ? event.data?.status : undefined;
-            if (typeof status === 'string' && isTerminalRunStatus(status)) finished = true;
-          }
-          return events.length;
-        };
-        const write = async () => {
-          // One at a time: two overlapping reads from the same `after` would
-          // send the same events twice.
-          if (closed || writing) return;
-          writing = true;
-          try {
-            if ((await flush()) > 0) return;
-            if (!finished) {
-              // Nothing new, and no event said the run ended — normal while it
-              // runs. The run record is read on the first quiet tick and about
-              // once a second after, for a client that subscribed past the
-              // run's final event.
-              if (idleTicks++ % 2 !== 0) return;
-              const run = await ctx.runs.get(req.params.id);
-              if (closed || (run && !isTerminalRunStatus(run.status))) return;
-              await flush(); // anything appended between the two reads
-            }
-            // Everything the run will emit has been sent. Say so and close: an
-            // EventSource reconnects when a stream just ends.
-            stop();
-            reply.raw.write(`event: ${RUN_STREAM_END_EVENT}\ndata: {}\n\n`);
-            reply.raw.end();
-          } finally {
-            writing = false;
-            if (pending && !closed) {
-              pending = false;
-              void write().catch(() => undefined);
-            }
-          }
-        };
-        await write();
-        if (closed) return;
-        // The fallback for what no in-process event announces: a run another
-        // process executes (a worker), and the run record for a client that
-        // subscribed after the run's last event.
-        timer = setInterval(() => {
-          void write().catch(() => undefined);
-        }, STREAM_FALLBACK_MS);
-        // An open SSE stream must not keep the process alive on its own — the
-        // client socket already does that, and this poller would otherwise
-        // outlive shutdown and block exit.
-        timer.unref?.();
       },
     );
 

@@ -3,11 +3,14 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * Mount the in-process engine's Fastify plugins on the FoxSchema API:
- * designer routes behind a session + ENGINE_ROUTES, public trigger ingress.
+ * Mount the workflow engine on the FoxSchema API: designer routes behind a
+ * session + ENGINE_ROUTES RBAC & workspace-connection guards, and public
+ * trigger ingress. In production every engine call is forwarded exclusively over
+ * FoxSchema's private OS IPC channel to the sandboxed engine child process.
  */
 import rateLimit from '@fastify/rate-limit';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { WorkflowDef } from '@foxschema/workflow-engine';
 import { requirePermissions } from '../../../platform/authorization/rbac.guard';
 import { defaultApiRateLimit } from '../../../platform/guards/rate-limit';
 import { actorOf } from '../../../platform/http/actor-of';
@@ -26,6 +29,7 @@ import type { WorkflowConnectionGrants } from '../workflow-connection-grants.ser
 import type { WorkflowSettingsService } from '../workflow-settings.service';
 import { loadConfiguredPlugins, type AppContext } from './context.js';
 import { getProductionWorkflowEngine, stopProductionWorkflowEngine } from './engine-host.js';
+import type { WorkflowEngineBackend } from './sandbox-protocol.js';
 import { credentialRoutes } from './routes/credentials.js';
 import { middlewareRoutes } from './routes/middleware.js';
 import { pipeRoutes } from './routes/pipes.js';
@@ -44,8 +48,43 @@ const FOREIGN_CONNECTION_MESSAGE =
 /** How long close waits for in-flight runs before tearing the engine down. */
 const ENGINE_IDLE_CLOSE_MS = 2_000;
 
+const INGRESS_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
+const ENGINE_STRIPPED_HEADERS = new Set([
+  'cookie',
+  'authorization',
+  'host',
+  'connection',
+  'content-length',
+  'transfer-encoding',
+  'keep-alive',
+  'upgrade',
+]);
+const INGRESS_STRIPPED_HEADERS = new Set([
+  'cookie',
+  'host',
+  'connection',
+  'content-length',
+  'transfer-encoding',
+  'keep-alive',
+  'upgrade',
+]);
+const RESPONSE_HOP_BY_HOP = new Set([
+  'connection',
+  'content-length',
+  'transfer-encoding',
+  'keep-alive',
+]);
+
+interface WorkflowDocumentReader {
+  getWorkflow(id: string): Promise<WorkflowDef | undefined>;
+  getRunSnapshot(id: string): Promise<WorkflowDef | undefined>;
+}
+
 export interface RegisterWorkflowEngineOptions {
-  ctx: AppContext;
+  /** Sandboxed IPC backend (default in production). */
+  backend?: WorkflowEngineBackend;
+  /** Direct in-process AppContext (used by unit tests and `FOXFLOW_SANDBOX_MODE=in-process`). */
+  ctx?: AppContext;
   featureContext: FeatureContext;
   settings: Pick<WorkflowSettingsService, 'getConfig'>;
   grants: Pick<WorkflowConnectionGrants, 'notUsableBy'>;
@@ -56,7 +95,7 @@ export interface RegisterWorkflowEngineOptions {
 }
 
 function relativeEnginePath(req: FastifyRequest): string {
-  const pattern = (req.routeOptions?.url ?? '').split('?')[0] ?? '';
+  const pattern = (req.routeOptions?.url ?? req.url ?? '').split('?')[0] ?? '';
   return pattern.startsWith(ENGINE_HTTP_PREFIX)
     ? pattern.slice(ENGINE_HTTP_PREFIX.length) || '/'
     : pattern.startsWith('/')
@@ -73,7 +112,9 @@ function pathMatches(pattern: string, path: string): boolean {
 
 function matchEngineRoute(method: string, path: string): EngineRoute | undefined {
   const m = method.toUpperCase();
-  return ENGINE_ROUTES.find((route) => route.method === m && (route.path === path || pathMatches(route.path, path)));
+  return ENGINE_ROUTES.find(
+    (route) => route.method === m && (route.path === path || pathMatches(route.path, path)),
+  );
 }
 
 function engineRouteOf(req: FastifyRequest): EngineRoute | undefined {
@@ -112,7 +153,7 @@ function referencedSubWorkflowIds(document: unknown): string[] {
 /** Transitively resolve `workflow.sub` callees (bounded depth) so connection grants cover the call graph. */
 async function expandSubWorkflowDocuments(
   initial: unknown[],
-  ctx: AppContext,
+  reader: WorkflowDocumentReader,
 ): Promise<unknown[]> {
   const out = [...initial];
   const seen = new Set<string>();
@@ -122,7 +163,7 @@ async function expandSubWorkflowDocuments(
     for (const subId of frontier) {
       if (seen.has(subId)) continue;
       seen.add(subId);
-      const subDoc = await ctx.workflows.get(subId);
+      const subDoc = await reader.getWorkflow(subId);
       if (!subDoc) continue;
       out.push(subDoc);
       next.push(...referencedSubWorkflowIds(subDoc));
@@ -136,20 +177,20 @@ async function expandSubWorkflowDocuments(
 async function storedDocumentsFor(
   route: EngineRoute,
   req: FastifyRequest,
-  ctx: AppContext,
+  reader: WorkflowDocumentReader,
 ): Promise<unknown[]> {
   const id = (req.params as { id?: string }).id ?? '';
   if (!id || route.connections === 'body' || route.connections === 'run-list') return [];
   if (route.connections === 'body-and-stored' || route.connections === 'workflow') {
-    const stored = await ctx.workflows.get(id);
-    return stored ? expandSubWorkflowDocuments([stored], ctx) : [];
+    const stored = await reader.getWorkflow(id);
+    return stored ? expandSubWorkflowDocuments([stored], reader) : [];
   }
-  const snapshot = await ctx.runs.getSnapshot(id);
+  const snapshot = await reader.getRunSnapshot(id);
   return snapshot ? [snapshot] : [];
 }
 
 async function runsCallerMaySee(
-  ctx: AppContext,
+  reader: WorkflowDocumentReader,
   grants: Pick<WorkflowConnectionGrants, 'notUsableBy'>,
   userId: string,
   payload: unknown,
@@ -162,7 +203,7 @@ async function runsCallerMaySee(
         ? (run as { id: string }).id
         : '';
     if (!id) continue;
-    const snapshot = await ctx.runs.getSnapshot(id);
+    const snapshot = await reader.getRunSnapshot(id);
     if (!snapshot) continue;
     if ((await grants.notUsableBy(userId, linkedConnectionsIn(snapshot))).length === 0) {
       visible.push(run);
@@ -183,93 +224,350 @@ async function refuseForeignConnections(
   return true;
 }
 
+function forwardHeaders(
+  headers: FastifyRequest['headers'],
+  stripped: ReadonlySet<string>,
+  hasBody: boolean,
+): Record<string, string | string[]> {
+  const out: Record<string, string | string[]> = {};
+  for (const [key, val] of Object.entries(headers)) {
+    if (val === undefined) continue;
+    const lower = key.toLowerCase();
+    if (stripped.has(lower)) continue;
+    if (!hasBody && lower === 'content-type') continue;
+    out[lower] = val;
+  }
+  return out;
+}
+
+function childEngineUrl(req: FastifyRequest): string {
+  const raw = req.raw.url ?? req.url;
+  if (raw.startsWith(ENGINE_HTTP_PREFIX)) {
+    return `/engine${raw.slice(ENGINE_HTTP_PREFIX.length) || '/'}`;
+  }
+  return raw.startsWith('/engine') ? raw : `/engine${raw.startsWith('/') ? raw : `/${raw}`}`;
+}
+
+function childIngressUrl(req: FastifyRequest): string {
+  const raw = req.raw.url ?? req.url;
+  if (raw.startsWith('/api/')) {
+    return `/ingress${raw.slice('/api'.length)}`;
+  }
+  return raw.startsWith('/ingress') ? raw : `/ingress${raw.startsWith('/') ? raw : `/${raw}`}`;
+}
+
+function applyProxyHeaders(
+  reply: FastifyReply,
+  headers: Record<string, string | string[]>,
+): void {
+  for (const [key, value] of Object.entries(headers)) {
+    if (RESPONSE_HOP_BY_HOP.has(key.toLowerCase())) continue;
+    reply.header(key, value);
+  }
+}
+
+async function registerSandboxEngineApi(
+  api: FastifyInstance,
+  backend: WorkflowEngineBackend,
+  grants: Pick<WorkflowConnectionGrants, 'notUsableBy'>,
+): Promise<void> {
+  for (const route of ENGINE_ROUTES) {
+    if (route.method === 'GET' && route.path === '/runs/:id/events/stream') {
+      api.get('/runs/:id/events/stream', async (req, reply) => {
+        const { id } = req.params as { id: string };
+        const rawAfter = (req.query as { after?: string }).after;
+        const parsedAfter = rawAfter === undefined ? 0 : Number(rawAfter);
+        if (!Number.isInteger(parsedAfter) || parsedAfter < 0) {
+          return reply.code(400).send({ error: 'invalid after query parameter' });
+        }
+
+        const bufferedChunks: string[] = [];
+        let endedEarly = false;
+        let onLiveChunk: ((chunk: string) => void) | undefined;
+        let onLiveEnd: (() => void) | undefined;
+
+        let resolveHead!: (status: number) => void;
+        const headPromise = new Promise<number>((resolve) => {
+          resolveHead = resolve;
+        });
+
+        const stop = backend.openRunEventsStream(id, parsedAfter, {
+          onHead: (statusCode) => resolveHead(statusCode),
+          onChunk: (chunk) => {
+            if (onLiveChunk) onLiveChunk(chunk);
+            else bufferedChunks.push(chunk);
+          },
+          onEnd: () => {
+            if (onLiveEnd) onLiveEnd();
+            else endedEarly = true;
+          },
+        });
+
+        req.raw.on('close', stop);
+        const statusCode = await headPromise;
+        if (statusCode !== 200) {
+          stop();
+          if (statusCode === 404) {
+            return reply.code(404).send({ error: 'not found' });
+          }
+          sendError(reply, 'unavailable', 'Workflow engine sandbox is not ready');
+          return;
+        }
+
+        reply.hijack();
+        reply.raw.writeHead(200, {
+          'content-type': 'text/event-stream',
+          'cache-control': 'no-cache',
+          connection: 'keep-alive',
+        });
+        reply.raw.on('close', stop);
+
+        for (const chunk of bufferedChunks) {
+          reply.raw.write(chunk);
+        }
+        bufferedChunks.length = 0;
+
+        if (endedEarly) {
+          stop();
+          reply.raw.end();
+          return;
+        }
+
+        onLiveChunk = (chunk) => {
+          if (!reply.raw.destroyed) reply.raw.write(chunk);
+        };
+        onLiveEnd = () => {
+          stop();
+          if (!reply.raw.destroyed) reply.raw.end();
+        };
+      });
+      continue;
+    }
+
+    api.route({
+      method: route.method,
+      url: route.path,
+      handler: async (req, reply) => {
+        const hasBody = req.body !== undefined;
+        const bodyBuffer = hasBody
+          ? Buffer.isBuffer(req.body)
+            ? req.body
+            : typeof req.body === 'string'
+              ? Buffer.from(req.body)
+              : Buffer.from(JSON.stringify(req.body))
+          : undefined;
+        const headers = forwardHeaders(req.headers, ENGINE_STRIPPED_HEADERS, hasBody);
+        if (hasBody && !Buffer.isBuffer(req.body) && typeof req.body !== 'string') {
+          headers['content-type'] = 'application/json';
+        }
+
+        let res;
+        try {
+          res = await backend.injectHttp({
+            method: req.method,
+            url: childEngineUrl(req),
+            headers,
+            ...(bodyBuffer ? { bodyBase64: bodyBuffer.toString('base64') } : {}),
+          });
+        } catch {
+          sendError(reply, 'unavailable', 'Workflow engine sandbox is unavailable; retry shortly');
+          return;
+        }
+
+        if (route.connections === 'run-list' && res.statusCode === 200) {
+          const userId = actorOf(req as AppRequest).userId;
+          if (!userId) return [];
+          const parsed = JSON.parse(Buffer.from(res.bodyBase64, 'base64').toString('utf8')) as unknown;
+          return runsCallerMaySee(backend, grants, userId, parsed);
+        }
+
+        applyProxyHeaders(reply, res.headers);
+        reply.code(res.statusCode);
+        if (res.statusCode === 204 || res.statusCode === 304) {
+          return reply.send();
+        }
+        return reply.send(Buffer.from(res.bodyBase64, 'base64'));
+      },
+    });
+  }
+}
+
+async function registerSandboxIngress(
+  ingress: FastifyInstance,
+  backend: WorkflowEngineBackend,
+): Promise<void> {
+  // Capture exact raw bytes across all webhook content types inside this
+  // encapsulated scope so HMAC signatures inside the sandbox see identical bytes.
+  ingress.removeAllContentTypeParsers();
+  ingress.addContentTypeParser('*', { parseAs: 'buffer' }, (_req, body, done) => {
+    done(null, body);
+  });
+
+  for (const method of INGRESS_METHODS) {
+    for (const url of ['/hooks/*', '/triggers/:workflowId/:triggerId']) {
+      ingress.route({
+        method,
+        url,
+        config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+        handler: async (req, reply) => {
+          const rawBuf = Buffer.isBuffer(req.body) ? req.body : undefined;
+          const headers = forwardHeaders(req.headers, INGRESS_STRIPPED_HEADERS, Boolean(rawBuf));
+          let res;
+          try {
+            res = await backend.injectHttp({
+              method,
+              url: childIngressUrl(req),
+              headers,
+              ...(rawBuf && rawBuf.byteLength > 0 ? { bodyBase64: rawBuf.toString('base64') } : {}),
+            });
+          } catch {
+            return reply.code(503).send({ error: 'workflow engine sandbox unavailable' });
+          }
+
+          applyProxyHeaders(reply, res.headers);
+          reply.code(res.statusCode);
+          if (res.statusCode === 204 || res.statusCode === 304) {
+            return reply.send();
+          }
+          return reply.send(Buffer.from(res.bodyBase64, 'base64'));
+        },
+      });
+    }
+  }
+}
+
 export async function registerWorkflowEngine(
   app: FastifyInstance,
   options: RegisterWorkflowEngineOptions,
 ): Promise<void> {
-  const { ctx, featureContext, settings, grants } = options;
+  const { featureContext, settings, grants } = options;
+  const ctx = options.ctx;
+  const backend = options.backend;
+  if (!backend && !ctx) {
+    throw new Error('registerWorkflowEngine requires either backend or ctx');
+  }
+
+  const reader: WorkflowDocumentReader = backend
+    ? backend
+    : {
+        getWorkflow: (id) => ctx!.workflows.get(id),
+        getRunSnapshot: (id) => ctx!.runs.getSnapshot(id),
+      };
+
   const sessionGuards: Middleware[] = options.sessionGuard
     ? [options.sessionGuard]
     : [authGuard(featureContext.auth), defaultApiRateLimit()];
 
-  await app.register(async (api) => {
-    withZodCompilers(api);
-    // Auth and RBAC before Fastify validates the body, so a caller without
-    // the permission is 403 even when the payload would be 400.
-    api.addHook('onRequest', async (req, reply) => {
-      const authed = await runMiddlewares(sessionGuards, req as AppRequest, reply);
-      if (!authed) return;
-      const route = engineRouteOf(req);
-      if (!route) {
-        sendError(reply, 'not_found', 'Not found');
-        return;
-      }
-      const allowed = await runMiddlewares(
-        [requirePermissions(route.permission)],
-        req as AppRequest,
-        reply,
-      );
-      if (!allowed) return;
-      if (route.startsRun && (await settings.getConfig()).state !== 'enabled') {
-        sendError(reply, 'conflict', ENGINE_NOT_ACCEPTING_MESSAGE);
-        return;
-      }
-    });
-    api.addHook('preHandler', async (req, reply) => {
-      const route = engineRouteOf(req);
-      if (!route?.connections) return;
-      const userId = actorOf(req as AppRequest).userId;
-      if (!userId) {
-        sendError(reply, 'unauthenticated', 'Authentication required');
-        return;
-      }
-      if (route.connections === 'body' || route.connections === 'body-and-stored') {
-        const docs = await expandSubWorkflowDocuments([req.body], ctx);
-        if (await refuseForeignConnections(reply, grants, userId, docs)) return;
-      }
-      if (route.connections === 'body' || route.connections === 'run-list') return;
-      await refuseForeignConnections(reply, grants, userId, await storedDocumentsFor(route, req, ctx));
-    });
-    api.addHook('preSerialization', async (req, _reply, payload) => {
-      const route = engineRouteOf(req);
-      if (route?.connections !== 'run-list') return payload;
-      const userId = actorOf(req as AppRequest).userId;
-      if (!userId) return [];
-      return runsCallerMaySee(ctx, grants, userId, payload);
-    });
-    await api.register(credentialRoutes(ctx));
-    await api.register(pipeRoutes(ctx));
-    await api.register(previewRoutes());
-    await api.register(middlewareRoutes(ctx));
-    await api.register(workflowRoutes(ctx, { extra: false }));
-    await api.register(runRoutes(ctx, { extra: false }));
-    await api.register(variableRoutes(ctx, { extra: false }));
-  }, { prefix: ENGINE_HTTP_PREFIX });
+  const useSandboxProxy = Boolean(backend && (backend.mode === 'sandbox' || !ctx));
 
-  await app.register(async (ingress) => {
-    withZodCompilers(ingress);
-    await ingress.register(rateLimit, { global: false });
-    await ingress.register(triggerRoutes(ctx));
-  }, { prefix: '/api' });
+  await app.register(
+    async (api) => {
+      if (!useSandboxProxy) {
+        withZodCompilers(api);
+      }
+      // Auth and RBAC before Fastify validates the body, so a caller without
+      // the permission is 403 even when the payload would be 400.
+      api.addHook('onRequest', async (req, reply) => {
+        const authed = await runMiddlewares(sessionGuards, req as AppRequest, reply);
+        if (!authed) return;
+        const route = engineRouteOf(req);
+        if (!route) {
+          sendError(reply, 'not_found', 'Not found');
+          return;
+        }
+        const allowed = await runMiddlewares(
+          [requirePermissions(route.permission)],
+          req as AppRequest,
+          reply,
+        );
+        if (!allowed) return;
+        if (route.startsRun && (await settings.getConfig()).state !== 'enabled') {
+          sendError(reply, 'conflict', ENGINE_NOT_ACCEPTING_MESSAGE);
+          return;
+        }
+      });
+      api.addHook('preHandler', async (req, reply) => {
+        const route = engineRouteOf(req);
+        if (!route?.connections) return;
+        const userId = actorOf(req as AppRequest).userId;
+        if (!userId) {
+          sendError(reply, 'unauthenticated', 'Authentication required');
+          return;
+        }
+        if (route.connections === 'body' || route.connections === 'body-and-stored') {
+          const docs = await expandSubWorkflowDocuments([req.body], reader);
+          if (await refuseForeignConnections(reply, grants, userId, docs)) return;
+        }
+        if (route.connections === 'body' || route.connections === 'run-list') return;
+        await refuseForeignConnections(reply, grants, userId, await storedDocumentsFor(route, req, reader));
+      });
+
+      if (useSandboxProxy) {
+        await registerSandboxEngineApi(api, backend!, grants);
+      } else {
+        api.addHook('preSerialization', async (req, _reply, payload) => {
+          const route = engineRouteOf(req);
+          if (route?.connections !== 'run-list') return payload;
+          const userId = actorOf(req as AppRequest).userId;
+          if (!userId) return [];
+          return runsCallerMaySee(reader, grants, userId, payload);
+        });
+        await api.register(credentialRoutes(ctx!));
+        await api.register(pipeRoutes(ctx!));
+        await api.register(previewRoutes());
+        await api.register(middlewareRoutes(ctx!));
+        await api.register(workflowRoutes(ctx!, { extra: false }));
+        await api.register(runRoutes(ctx!, { extra: false }));
+        await api.register(variableRoutes(ctx!, { extra: false }));
+      }
+    },
+    { prefix: ENGINE_HTTP_PREFIX },
+  );
+
+  await app.register(
+    async (ingress) => {
+      await ingress.register(rateLimit, { global: false });
+      if (useSandboxProxy) {
+        await registerSandboxIngress(ingress, backend!);
+      } else {
+        withZodCompilers(ingress);
+        await ingress.register(triggerRoutes(ctx!));
+      }
+    },
+    { prefix: '/api' },
+  );
 
   if (options.startLifecycle) {
-    app.addHook('onReady', async () => {
-      await loadConfiguredPlugins(ctx.registry);
-      await ctx.scheduler.recover();
-      await ctx.cron.recover();
-      ctx.cron.start();
-    });
-    app.addHook('onClose', async () => {
-      ctx.cron.stop();
-      await Promise.race([
-        ctx.scheduler.idle(),
-        new Promise<void>((resolve) => setTimeout(resolve, ENGINE_IDLE_CLOSE_MS).unref()),
-      ]);
-      if (getProductionWorkflowEngine()?.ctx === ctx) {
-        await stopProductionWorkflowEngine();
-      } else {
-        ctx.close();
-      }
-    });
+    if (useSandboxProxy) {
+      app.addHook('onReady', async () => {
+        await backend!.startLifecycle();
+      });
+      app.addHook('onClose', async () => {
+        if (getProductionWorkflowEngine()?.backend === backend) {
+          await stopProductionWorkflowEngine();
+        } else {
+          await backend!.close();
+        }
+      });
+    } else {
+      app.addHook('onReady', async () => {
+        await loadConfiguredPlugins(ctx!.registry);
+        await ctx!.scheduler.recover();
+        await ctx!.cron.recover();
+        ctx!.cron.start();
+      });
+      app.addHook('onClose', async () => {
+        ctx!.cron.stop();
+        await Promise.race([
+          ctx!.scheduler.idle(),
+          new Promise<void>((resolve) => setTimeout(resolve, ENGINE_IDLE_CLOSE_MS).unref()),
+        ]);
+        if (getProductionWorkflowEngine()?.ctx === ctx) {
+          await stopProductionWorkflowEngine();
+        } else {
+          ctx!.close();
+        }
+      });
+    }
   }
 }

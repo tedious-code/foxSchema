@@ -3761,6 +3761,8 @@ export const TestIds = {
       workflowMultiHttpBatchSize: 'workflow-multi-http-batch-size',
       /** Input */
       workflowMultiHttpConcurrency: 'workflow-multi-http-concurrency',
+      /** button · Derive response name from request URL */
+      workflowMultiHttpDeriveName: (index: string | number) => `workflow-multi-http-derive-name-${index}`,
       /** span · Duplicate endpoint ID */
       workflowMultiHttpDupBadge: (index: string | number) => `workflow-multi-http-dup-badge-${index}`,
       /** div */
@@ -3787,6 +3789,8 @@ export const TestIds = {
       workflowMultiHttpRecordsPath: (index: string | number) => `workflow-multi-http-records-path-${index}`,
       /** Button · Remove endpoint */
       workflowMultiHttpRemove: (index: string | number) => `workflow-multi-http-remove-${index}`,
+      /** Select */
+      workflowMultiHttpResponseNaming: 'workflow-multi-http-response-naming',
       /** Input */
       workflowMultiHttpTagField: 'workflow-multi-http-tag-field',
       /** button */
@@ -5820,6 +5824,7 @@ export type TestId =
   | 'workflow-multi-http-add-endpoint'
   | 'workflow-multi-http-batch-size'
   | 'workflow-multi-http-concurrency'
+  | `workflow-multi-http-derive-name-${string}`
   | `workflow-multi-http-dup-badge-${string}`
   | `workflow-multi-http-dup-error-${string}`
   | `workflow-multi-http-empty-id-error-${string}`
@@ -5833,6 +5838,7 @@ export type TestId =
   | 'workflow-multi-http-output-mode'
   | `workflow-multi-http-records-path-${string}`
   | `workflow-multi-http-remove-${string}`
+  | 'workflow-multi-http-response-naming'
   | 'workflow-multi-http-tag-field'
   | `workflow-multi-http-toggle-${string}`
   | 'workflow-no-panes'

@@ -16,6 +16,8 @@ import {
 } from './HttpRequestEditor';
 import { Button, Input, Label, Select } from './controls';
 
+export type ResponseNamingScheme = 'output' | 'resp';
+
 export type MultiHttpEndpoint = HttpRequestValue & {
   id: string;
   recordsPath?: string;
@@ -23,6 +25,7 @@ export type MultiHttpEndpoint = HttpRequestValue & {
 
 type MultiHttpConfig = {
   endpoints: MultiHttpEndpoint[];
+  responseNaming?: ResponseNamingScheme;
   executionMode?: 'parallel' | 'linear';
   outputMode?: 'records' | 'merge';
   concurrency?: number;
@@ -37,7 +40,49 @@ interface Props {
   onChange: (config: Record<string, unknown>) => void;
 }
 
-function asEndpoints(value: unknown): MultiHttpEndpoint[] {
+export function defaultEndpointId(
+  index: number,
+  naming: ResponseNamingScheme = 'output',
+): string {
+  return `${naming}${index + 1}`;
+}
+
+export function deriveEndpointNameFromUrl(url: string, fallback: string): string {
+  try {
+    const trimmed = (url || '').trim();
+    if (!trimmed) return fallback;
+    const withProto =
+      trimmed.startsWith('http://') || trimmed.startsWith('https://')
+        ? trimmed
+        : `https://${trimmed}`;
+    const urlObj = new URL(withProto);
+    const cleanPath = urlObj.pathname.replace(/\.[a-zA-Z0-9]+$/, '');
+    const segments = cleanPath.split('/').filter(Boolean);
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const seg = segments[i]?.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+      if (seg && !/^\d+$/.test(seg) && !/^(v\d+|api|rest|json)$/i.test(seg)) {
+        return seg;
+      }
+    }
+    const last = segments[segments.length - 1]?.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+    if (last) return last;
+  } catch {
+    const clean = url
+      .split(/[?#]/)[0]
+      ?.split('/')
+      .filter(Boolean)
+      .pop()
+      ?.replace(/[^a-zA-Z0-9_]/g, '_')
+      .toLowerCase();
+    if (clean) return clean;
+  }
+  return fallback;
+}
+
+function asEndpoints(
+  value: unknown,
+  naming: ResponseNamingScheme = 'output',
+): MultiHttpEndpoint[] {
   if (!Array.isArray(value)) return [];
   return value.map((row, index) => {
     const item =
@@ -50,28 +95,30 @@ function asEndpoints(value: unknown): MultiHttpEndpoint[] {
       id:
         typeof item.id === 'string' && item.id
           ? item.id
-          : `endpoint-${index + 1}`,
+          : defaultEndpointId(index, naming),
       recordsPath:
         typeof item.recordsPath === 'string' ? item.recordsPath : '',
     };
   });
 }
 
-function nextUniqueEndpointId(endpoints: MultiHttpEndpoint[]): string {
+export function nextUniqueEndpointId(
+  endpoints: MultiHttpEndpoint[],
+  naming: ResponseNamingScheme = 'output',
+): string {
   const existing = new Set(endpoints.map((e) => (e.id ?? '').trim()));
-  let counter = endpoints.length + 1;
-  if (!existing.has(`endpoint-${counter}`)) {
-    return `endpoint-${counter}`;
-  }
-  counter = 1;
-  while (existing.has(`endpoint-${counter}`)) {
+  let counter = 1;
+  while (existing.has(`${naming}${counter}`)) {
     counter++;
   }
-  return `endpoint-${counter}`;
+  return `${naming}${counter}`;
 }
 
-function emptyEndpoint(idOrIndex: string | number): MultiHttpEndpoint {
-  const id = typeof idOrIndex === 'number' ? `endpoint-${idOrIndex}` : idOrIndex;
+function emptyEndpoint(
+  idOrIndex: string | number,
+  naming: ResponseNamingScheme = 'output',
+): MultiHttpEndpoint {
+  const id = typeof idOrIndex === 'number' ? `${naming}${idOrIndex}` : idOrIndex;
   return {
     ...EMPTY_HTTP_REQUEST,
     id,
@@ -92,7 +139,9 @@ function mergedPayloadAccess(id: string): string {
 }
 
 export function MultiHttpEditor({ config, credentials, onChange }: Props) {
-  const endpoints = asEndpoints(config.endpoints);
+  const responseNaming: ResponseNamingScheme =
+    config.responseNaming === 'resp' ? 'resp' : 'output';
+  const endpoints = asEndpoints(config.endpoints, responseNaming);
   const executionMode = config.executionMode === 'linear' ? 'linear' : 'parallel';
   const outputMode = config.outputMode === 'merge' ? 'merge' : 'records';
   const concurrency =
@@ -116,6 +165,7 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
     onChange({
       ...config,
       endpoints,
+      responseNaming,
       executionMode,
       outputMode,
       concurrency,
@@ -126,11 +176,44 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
     });
   };
 
+  const handleResponseNamingChange = (nextNaming: ResponseNamingScheme) => {
+    const defaultPattern = /^(output|resp|endpoint-)(\d+)$/;
+    const remapped = endpoints.map((ep) => {
+      const match = (ep.id ?? '').trim().match(defaultPattern);
+      if (match) {
+        const num = match[2];
+        return { ...ep, id: `${nextNaming}${num}` };
+      }
+      return ep;
+    });
+    patch({
+      responseNaming: nextNaming,
+      endpoints: remapped,
+    });
+  };
+
+  const deriveNameFromRequest = (index: number) => {
+    const ep = endpoints[index];
+    if (!ep || !ep.url) return;
+    const fallback = defaultEndpointId(index, responseNaming);
+    const derived = deriveEndpointNameFromUrl(ep.url, fallback);
+    const existing = new Set(
+      endpoints.filter((_, i) => i !== index).map((e) => (e.id ?? '').trim()),
+    );
+    let candidate = derived;
+    let counter = 2;
+    while (existing.has(candidate)) {
+      candidate = `${derived}_${counter++}`;
+    }
+    patchEndpointMeta(index, { id: candidate });
+  };
+
   useEffect(() => {
     if (Array.isArray(config.endpoints)) return;
     onChange({
       ...config,
-      endpoints: [emptyEndpoint(1)],
+      endpoints: [emptyEndpoint(1, responseNaming)],
+      responseNaming,
       executionMode: 'parallel',
       outputMode: 'records',
       concurrency: 0,
@@ -138,7 +221,7 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
       onError: 'fail',
       batchSize: 1000,
     });
-  }, [config, onChange]);
+  }, [config, onChange, responseNaming]);
 
   const updateEndpoint = (index: number, next: MultiHttpEndpoint) => {
     patch({
@@ -294,10 +377,32 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
               <>
                 <div className="multi-http-row-grid">
                   <div>
-                    <Label>Id</Label>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <Label style={{ margin: 0 }}>Response name / ID</Label>
+                      {Boolean(endpoint.url && endpoint.url.trim()) && (
+                        <button
+                          data-testid={`workflow-multi-http-derive-name-${index}`}
+                          type="button"
+                          className="linkish"
+                          style={{
+                            fontSize: '10px',
+                            background: 'transparent',
+                            border: 0,
+                            padding: 0,
+                            cursor: 'pointer',
+                            color: 'var(--accent, #38bdf8)',
+                          }}
+                          onClick={() => deriveNameFromRequest(index)}
+                          title="Derive response name from request URL"
+                        >
+                          From URL
+                        </button>
+                      )}
+                    </div>
                     <Input
                       data-testid={`workflow-multi-http-id-${index}`}
                       value={id}
+                      placeholder={defaultEndpointId(index, responseNaming)}
                       onChange={(event) =>
                         patchEndpointMeta(index, { id: event.target.value })
                       }
@@ -315,7 +420,7 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
                         data-testid={`workflow-multi-http-empty-id-error-${index}`}
                         className="field-error"
                       >
-                        Endpoint ID is required.
+                        Response name / ID is required.
                       </div>
                     )}
                   </div>
@@ -359,12 +464,27 @@ export function MultiHttpEditor({ config, credentials, onChange }: Props) {
           const nextIndex = endpoints.length;
           setExpanded((current) => ({ ...current, [nextIndex]: true }));
           patch({
-            endpoints: [...endpoints, emptyEndpoint(nextUniqueEndpointId(endpoints))],
+            endpoints: [
+              ...endpoints,
+              emptyEndpoint(nextUniqueEndpointId(endpoints, responseNaming), responseNaming),
+            ],
           });
         }}
       >
         <Plus /> Add endpoint
       </Button>
+
+      <Label>Default response naming</Label>
+      <Select
+        data-testid="workflow-multi-http-response-naming"
+        value={responseNaming}
+        onChange={(event) =>
+          handleResponseNamingChange(event.target.value as ResponseNamingScheme)
+        }
+      >
+        <option value="output">output1, output2, ...</option>
+        <option value="resp">resp1, resp2, ...</option>
+      </Select>
 
       <Label>Output mode</Label>
       <Select

@@ -51,6 +51,31 @@ export const SAMPLE_MULTI_DB_ETL_CONSOLIDATE_WORKFLOW_ID = 'sample-multi-db-etl-
 export const SAMPLE_PARTIAL_FAILURE_RECOVERY_WORKFLOW_ID = 'sample-partial-failure-recovery';
 export const SAMPLE_DEDUPE_NULLS_QUARANTINE_ETL_WORKFLOW_ID = 'sample-dedupe-nulls-quarantine-etl';
 export const SAMPLE_EMPTY_BATCH_AND_LOOP_EDGE_WORKFLOW_ID = 'sample-empty-batch-and-loop-edge';
+export const SAMPLE_CDC_WATERMARK_INCREMENTAL_SYNC_WORKFLOW_ID = 'sample-cdc-watermark-incremental-sync';
+export const SAMPLE_WEBHOOK_INGEST_AGGREGATE_DB_WORKFLOW_ID = 'sample-webhook-ingest-aggregate-db';
+export const SAMPLE_MAPPED_DB_COMPOSITE_UPSERT_WORKFLOW_ID = 'sample-mapped-db-composite-upsert';
+
+/** Demo nested tenant & user records for side-by-side ETL column mapping. */
+export const SAMPLE_TENANT_USERS_ETL = [
+  {
+    org: { tenant_code: 'tenant-alpha', name: 'Alpha Corp' },
+    user: { sub: 'usr_1001', full_name: 'Alice Vance', email: 'alice@alpha.example' },
+    billing: { balance_cents: 12500, currency: 'USD' },
+    metadata: { last_modified: 1730000000, status: 'active' },
+  },
+  {
+    org: { tenant_code: 'tenant-alpha', name: 'Alpha Corp' },
+    user: { sub: 'usr_1002', full_name: 'Bob Stone', email: 'bob@alpha.example' },
+    billing: { balance_cents: 8900, currency: 'USD' },
+    metadata: { last_modified: 1730000000, status: 'active' },
+  },
+  {
+    org: { tenant_code: 'tenant-beta', name: 'Beta LLC' },
+    user: { sub: 'usr_2001', full_name: 'Carol Danvers', email: 'carol@beta.example' },
+    billing: { balance_cents: 45000, currency: 'USD' },
+    metadata: { last_modified: 1730000000, status: 'active' },
+  },
+] as const;
 
 /** What "Add samples" opens on the canvas — the branch DAG, not the one-pipe starter. */
 export const SAMPLE_CANVAS_ID = SAMPLE_ORDERS_WORKFLOW_ID;
@@ -149,6 +174,52 @@ export const SAMPLE_EMPTY_BRANCH_ROWS = [
   { id: 401, lane: 'priority', group: 'alpha', score: 95 },
   { id: 402, lane: 'priority', group: 'beta', score: 88 },
   { id: 403, lane: 'priority', group: 'alpha', score: 91 },
+] as const;
+
+export const SAMPLE_CDC_CUSTOMER_CHANGES = [
+  {
+    customer_id: 'CUST-101',
+    name: 'Acme Corp',
+    plan: 'enterprise',
+    balance_cents: 550000,
+    op: 'UPDATE',
+    updated_at: '2026-11-20T02:15:00Z',
+  },
+  {
+    customer_id: 'CUST-102',
+    name: 'Beta Labs',
+    plan: 'starter',
+    balance_cents: 12000,
+    op: 'INSERT',
+    updated_at: '2026-11-20T03:00:00Z',
+  },
+  {
+    customer_id: 'CUST-103',
+    name: 'Gamma Systems',
+    plan: 'pro',
+    balance_cents: 89000,
+    op: 'UPDATE',
+    updated_at: '2026-11-20T03:45:00Z',
+  },
+] as const;
+
+export const SAMPLE_WEBHOOK_COMMERCE_ORDERS = [
+  {
+    order_id: 'ORD-901',
+    region: 'NA',
+    items: [
+      { item_id: 'ITEM-901-A', sku: 'SKU-LAPTOP-01', category: 'Hardware', qty: 2, unit_price: 1200 },
+      { item_id: 'ITEM-901-B', sku: 'SKU-MOUSE-04', category: 'Accessories', qty: 5, unit_price: 25 },
+    ],
+  },
+  {
+    order_id: 'ORD-902',
+    region: 'EU',
+    items: [
+      { item_id: 'ITEM-902-A', sku: 'SKU-MONITOR-02', category: 'Hardware', qty: 1, unit_price: 450 },
+      { item_id: 'ITEM-902-B', sku: 'SKU-CABLE-09', category: 'Accessories', qty: 10, unit_price: 12 },
+    ],
+  },
 ] as const;
 
 type SampleRecord = Record<string, unknown>;
@@ -2854,6 +2925,360 @@ const EMPTY_BATCH_AND_LOOP_EDGE: SampleWorkflow = {
   },
 };
 
+const CDC_WATERMARK_INCREMENTAL_SYNC: SampleWorkflow = {
+  id: SAMPLE_CDC_WATERMARK_INCREMENTAL_SYNC_WORKFLOW_ID,
+  name: '★ Sample · CDC Watermark Incremental Sync & Audit Log',
+  document: {
+    id: SAMPLE_CDC_WATERMARK_INCREMENTAL_SYNC_WORKFLOW_ID,
+    name: '★ Sample · CDC Watermark Incremental Sync & Audit Log',
+    description:
+      'Change Data Capture (CDC) and incremental watermark sync pattern. Processes changed customer records past a watermark timestamp, computes audit metadata and USD balance, upserts SQLite warehouse tables, and emits an incremental changes CSV.',
+    purpose:
+      'Demonstrate incremental Change Data Capture (CDC), watermark timestamp filtering, balance transformation, and audit trail logging.',
+    tags: ['sample', 'cdc', 'incremental', 'watermark', 'audit-log', 'sqlite'],
+    expectedResult:
+      'Extracts 3 customer change records, calculates USD balance and audit identifiers, upserts wf_warehouse_customers and wf_cdc_audit_log, and writes cdc_incremental_export.csv.',
+    origin: 'authored',
+    triggers: [
+      {
+        id: 'manual',
+        kind: 'manual',
+        enabled: true,
+        inputData: cloneRecords(SAMPLE_CDC_CUSTOMER_CHANGES),
+      },
+    ],
+    pipelines: [
+      {
+        id: 'cdc_pipeline',
+        name: 'CDC Delta Extraction & Upsert',
+        task: 'Extracts changed rows past watermark, computes audit logs, and writes to warehouse and audit tables.',
+        pipes: [
+          {
+            id: 'trigger_delta_stream',
+            role: 'source',
+            type: 'source.trigger.manual',
+            intent: 'Emit customer change events past watermark timestamp 2026-11-20T00:00:00Z',
+            config: {},
+          },
+          {
+            id: 'compute_delta_and_audit',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Format warehouse fields, calculate balance in USD, and generate audit tracking hashes',
+            config: {
+              script: `return records.map((r, idx) => ({
+  customer_id: String(r.customer_id),
+  customer_name: String(r.name),
+  subscription_tier: String(r.plan).toUpperCase(),
+  balance_usd: Number((r.balance_cents / 100).toFixed(2)),
+  change_op: String(r.op),
+  watermark_ts: String(r.updated_at),
+  audit_id: \`AUDIT-\${r.customer_id}-\${Date.parse(r.updated_at) || idx}\`,
+  synced_at: new Date().toISOString()
+}));`,
+            },
+          },
+          {
+            id: 'sink_warehouse_customers',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Upsert latest customer state to SQLite warehouse table wf_warehouse_customers',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'wf_warehouse_customers',
+              upsertKey: 'customer_id',
+              createTableIfMissing: true,
+            },
+          },
+          {
+            id: 'sink_cdc_audit_log',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Append immutable CDC change event record to wf_cdc_audit_log',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'wf_cdc_audit_log',
+              upsertKey: 'audit_id',
+              createTableIfMissing: true,
+            },
+          },
+          {
+            id: 'sink_cdc_export_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Export incremental CDC records to cdc_incremental_export.csv',
+            config: {
+              path: 'cdc_incremental_export.csv',
+              columns: ['audit_id', 'customer_id', 'customer_name', 'subscription_tier', 'balance_usd', 'change_op', 'watermark_ts'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+        ],
+        edges: [
+          { from: 'trigger_delta_stream', to: 'compute_delta_and_audit' },
+          { from: 'compute_delta_and_audit', to: 'sink_warehouse_customers' },
+          { from: 'compute_delta_and_audit', to: 'sink_cdc_audit_log' },
+          { from: 'compute_delta_and_audit', to: 'sink_cdc_export_csv' },
+        ],
+      },
+    ],
+  },
+};
+
+const WEBHOOK_INGEST_AGGREGATE_DB: SampleWorkflow = {
+  id: SAMPLE_WEBHOOK_INGEST_AGGREGATE_DB_WORKFLOW_ID,
+  name: '★ Sample · Webhook Ingest, Nested Flatten & Category Aggregation',
+  document: {
+    id: SAMPLE_WEBHOOK_INGEST_AGGREGATE_DB_WORKFLOW_ID,
+    name: '★ Sample · Webhook Ingest, Nested Flatten & Category Aggregation',
+    description:
+      'Simulates inbound webhook commerce events with nested item arrays. Unnests line items, validates prices, writes granular sales lines to SQLite, and aggregates category rollups in a downstream stage.',
+    purpose:
+      'Ingest simulated webhook event payloads with nested product arrays, flatten into granular line items, and aggregate category totals.',
+    tags: ['sample', 'webhook', 'nested-json', 'aggregation', 'multi-stage', 'sqlite'],
+    expectedResult:
+      'Stage 1 unrolls nested item lines into 4 sales rows and writes them to wf_webhook_sales_lines; Stage 2 aggregates revenue totals by category into wf_sales_category_summaries and sales_category_summaries.csv.',
+    origin: 'authored',
+    triggers: [
+      {
+        id: 'manual',
+        kind: 'manual',
+        enabled: true,
+        inputData: cloneRecords(SAMPLE_WEBHOOK_COMMERCE_ORDERS),
+      },
+    ],
+    pipelines: [
+      {
+        id: 'ingest_and_flatten',
+        name: '1. Ingest Webhook & Flatten Line Items',
+        task: 'Flattens nested array payloads, computes margin, and stores line-item events.',
+        pipes: [
+          {
+            id: 'webhook_inbound_stream',
+            role: 'source',
+            type: 'source.trigger.manual',
+            intent: 'Simulate nested webhook commerce order events with embedded items',
+            config: {},
+          },
+          {
+            id: 'flatten_nested_items',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Unnest line items array into flat relational row stream',
+            config: {
+              script: `const out = [];
+for (const order of records) {
+  const items = Array.isArray(order.items) ? order.items : [];
+  for (const item of items) {
+    const total_amount = Number(item.qty || 0) * Number(item.unit_price || 0);
+    out.push({
+      item_id: String(item.item_id),
+      order_id: String(order.order_id),
+      region: String(order.region),
+      sku: String(item.sku),
+      category: String(item.category),
+      quantity: Number(item.qty || 0),
+      unit_price: Number(item.unit_price || 0),
+      total_amount,
+      ingested_at: new Date().toISOString()
+    });
+  }
+}
+return out;`,
+            },
+          },
+          {
+            id: 'verify_sales_lines',
+            role: 'transform',
+            type: 'transform.verify',
+            intent: 'Verify line items have positive quantity and amount',
+            config: {
+              rules: [
+                { field: 'quantity', op: 'greater_than', value: 0 },
+                { field: 'total_amount', op: 'greater_than', value: 0 },
+              ],
+              onFail: 'drop',
+            },
+          },
+          {
+            id: 'sink_granular_sales',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Insert flat line item sales rows to SQLite wf_webhook_sales_lines',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'wf_webhook_sales_lines',
+              upsertKey: 'item_id',
+              createTableIfMissing: true,
+            },
+          },
+        ],
+        edges: [
+          { from: 'webhook_inbound_stream', to: 'flatten_nested_items' },
+          { from: 'flatten_nested_items', to: 'verify_sales_lines' },
+          { from: 'verify_sales_lines', to: 'sink_granular_sales' },
+        ],
+      },
+      {
+        id: 'aggregate_categories',
+        name: '2. Category Rollups & Export',
+        task: 'Queries sales lines from SQLite, calculates category revenue totals, and upserts summary table.',
+        pipes: [
+          {
+            id: 'query_sales_for_rollup',
+            role: 'source',
+            type: 'source.db.sql',
+            intent: 'Query granular sales records from SQLite',
+            config: {
+              dialect: 'sqlite',
+              sql: 'SELECT category, quantity, total_amount FROM wf_webhook_sales_lines ORDER BY category ASC;',
+            },
+          },
+          {
+            id: 'compute_category_totals',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Aggregate revenue and quantity by category',
+            config: {
+              script: `const map = new Map();
+for (const r of records) {
+  const cat = String(r.category);
+  const cur = map.get(cat) || { category: cat, total_items: 0, total_revenue: 0, line_count: 0 };
+  cur.total_items += Number(r.quantity || 0);
+  cur.total_revenue += Number(r.total_amount || 0);
+  cur.line_count += 1;
+  map.set(cat, cur);
+}
+return Array.from(map.values()).map(c => ({
+  ...c,
+  avg_line_amount: Number((c.total_revenue / (c.line_count || 1)).toFixed(2)),
+  summarized_at: new Date().toISOString()
+}));`,
+            },
+          },
+          {
+            id: 'sink_category_summary_db',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Upsert category rollups into SQLite table wf_sales_category_summaries',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'wf_sales_category_summaries',
+              upsertKey: 'category',
+              createTableIfMissing: true,
+            },
+          },
+          {
+            id: 'export_category_summary_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Export summary to sales_category_summaries.csv',
+            config: {
+              path: 'sales_category_summaries.csv',
+              columns: ['category', 'total_items', 'total_revenue', 'line_count', 'avg_line_amount', 'summarized_at'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+        ],
+        edges: [
+          { from: 'query_sales_for_rollup', to: 'compute_category_totals' },
+          { from: 'compute_category_totals', to: 'sink_category_summary_db' },
+          { from: 'compute_category_totals', to: 'export_category_summary_csv' },
+        ],
+      },
+    ],
+    dependencies: [
+      { from: 'ingest_and_flatten', to: 'aggregate_categories', on: 'success' },
+    ],
+  },
+};
+
+const MAPPED_DB_COMPOSITE_UPSERT: SampleWorkflow = {
+  id: SAMPLE_MAPPED_DB_COMPOSITE_UPSERT_WORKFLOW_ID,
+  name: '★ Sample · Mapped DB Insert with Composite Combination Keys',
+  document: {
+    id: SAMPLE_MAPPED_DB_COMPOSITE_UPSERT_WORKFLOW_ID,
+    name: '★ Sample · Mapped DB Insert with Composite Combination Keys',
+    description:
+      'ETL side-by-side mapping pipe: maps incoming nested objects (org.tenant_code, user.sub, billing.balance_cents) into table columns with inline JS transformations (cents to dollars) and composite combination keys (tenant_id, user_id) with an upsert update condition.',
+    purpose:
+      'Demonstrate generic object to database table column mapping with composite combination keys and condition joins.',
+    tags: ['sample', 'etl', 'mapping', 'composite-keys', 'upsert'],
+    expectedResult:
+      'Nested JSON records are mapped to wf_tenant_users table with cents converted to dollars and upserted by (tenant_id, user_id).',
+    origin: 'authored',
+    triggers: [
+      {
+        id: 'manual',
+        kind: 'manual',
+        enabled: true,
+        inputData: cloneRecords(SAMPLE_TENANT_USERS_ETL),
+      },
+    ],
+    pipelines: [
+      {
+        id: 'main',
+        name: 'ETL Column Mapping',
+        task: 'Map nested records to database table columns and upsert by combination keys',
+        pipes: [
+          {
+            id: 'manual_trigger',
+            role: 'source',
+            type: 'source.trigger.manual',
+            intent: 'Emit nested tenant and user records from manual trigger',
+            config: { triggerId: 'manual' },
+          },
+          {
+            id: 'mapped_insert',
+            role: 'sink',
+            type: 'sink.db.mapped-insert',
+            intent: 'Side-by-side mapped insert with composite combination keys (tenant_id, user_id)',
+            config: {
+              dialect: 'sqlite',
+              mode: 'mapped',
+              table: 'wf_tenant_users',
+              upsertKey: ['tenant_id', 'user_id'],
+              upsertKeys: ['tenant_id', 'user_id'],
+              upsertCondition: 'EXCLUDED.updated_at >= target.updated_at',
+              columnMapping: [
+                { targetColumn: 'tenant_id', sourcePath: 'org.tenant_code', isKey: true },
+                { targetColumn: 'user_id', sourcePath: 'user.sub', isKey: true },
+                { targetColumn: 'full_name', sourcePath: 'user.full_name' },
+                { targetColumn: 'email', sourcePath: 'user.email' },
+                { targetColumn: 'balance_usd', sourcePath: 'billing.balance_cents', expression: 'value / 100', defaultValue: 0 },
+                { targetColumn: 'status', sourcePath: 'metadata.status', defaultValue: 'pending' },
+                { targetColumn: 'updated_at', sourcePath: 'metadata.last_modified' },
+              ],
+            },
+          },
+          {
+            id: 'query_mapped_results',
+            role: 'source',
+            type: 'source.db.sql',
+            intent: 'Query the upserted table to verify mapped columns and calculated dollars',
+            config: {
+              dialect: 'sqlite',
+              sql: 'SELECT tenant_id, user_id, full_name, email, balance_usd, status, updated_at FROM wf_tenant_users ORDER BY tenant_id, user_id;',
+            },
+          },
+        ],
+        edges: [
+          { from: 'manual_trigger', to: 'mapped_insert', fromPort: 'out' },
+          { from: 'mapped_insert', to: 'query_mapped_results', fromPort: 'out' },
+        ],
+      },
+    ],
+  },
+};
+
 export const WORKFLOW_SAMPLES: SampleWorkflow[] = [
   HELLO,
   ORDERS,
@@ -2870,6 +3295,9 @@ export const WORKFLOW_SAMPLES: SampleWorkflow[] = [
   PARTIAL_FAILURE_RECOVERY,
   DEDUPE_NULLS_QUARANTINE_ETL,
   EMPTY_BATCH_AND_LOOP_EDGE,
+  CDC_WATERMARK_INCREMENTAL_SYNC,
+  WEBHOOK_INGEST_AGGREGATE_DB,
+  MAPPED_DB_COMPOSITE_UPSERT,
 ];
 
 export function sampleWorkflowIds(): string[] {

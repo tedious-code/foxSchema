@@ -2204,3 +2204,74 @@
   background: color-mix(in srgb, var(--warn, #f59e0b) 12%, transparent);
 }
 .fox-workflow .pipe-node[data-issue='run-stopped'] .pipe-issue-text { color: var(--muted); }
+
+/* Mapped DB Column Insert (ETL side-by-side mapping) */
+.fox-workflow .mapped-columns-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.fox-workflow .mapped-columns-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.fox-workflow .mapped-columns-table th {
+  text-align: left;
+  padding: 6px 8px;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fox-workflow .mapped-columns-table td {
+  padding: 4px 6px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.fox-workflow .mapped-key-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 4px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.fox-workflow .mapped-key-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.fox-workflow .mapped-key-btn.active {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.fox-workflow .mapped-sql-preview {
+  margin-top: 0.25rem;
+  padding: 8px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-x: auto;
+}

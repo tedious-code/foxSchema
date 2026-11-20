@@ -611,76 +611,184 @@ export function postgresCreateTableSql(
   };
 }
 
+export const columnMappingItemSchema = z.object({
+  targetColumn: z.string().min(1),
+  sourcePath: z.string().optional(),
+  sourceProperty: z.string().optional(),
+  expression: z.string().optional(),
+  transform: z.string().optional(),
+  defaultValue: z.unknown().optional(),
+  isKey: z.boolean().optional(),
+});
+export type ColumnMappingItem = z.infer<typeof columnMappingItemSchema>;
+
+export function resolveUpsertKeys(config: {
+  upsertKey?: string | string[];
+  upsertKeys?: string[];
+}): string[] | undefined {
+  if (Array.isArray(config.upsertKeys) && config.upsertKeys.length > 0) {
+    return config.upsertKeys.map((k) => k.trim()).filter(Boolean);
+  }
+  if (Array.isArray(config.upsertKey) && config.upsertKey.length > 0) {
+    return config.upsertKey.map((k) => k.trim()).filter(Boolean);
+  }
+  if (typeof config.upsertKey === 'string' && config.upsertKey.trim()) {
+    return [config.upsertKey.trim()];
+  }
+  return undefined;
+}
+
 const sinkConfigSchema = z
   .object({
-    /** `insert` writes records into `table`; `statement` runs `sql` once per record. */
-    mode: z.enum(['insert', 'statement']).default('insert'),
+    /** `insert` writes records into `table`; `statement` runs `sql` once per record; `mapped` uses explicit columnMapping. */
+    mode: z.enum(['insert', 'statement', 'mapped']).default('insert'),
     /** Target table, optionally schema-qualified. */
     table: z.string().min(1).optional(),
     /** Columns to write, in order. Empty takes every field of the batch's first record. */
     columns: z.array(z.string().min(1)).default([]),
+    /** Field-to-column mappings for side-by-side ETL mapping */
+    columnMapping: z.array(columnMappingItemSchema).optional(),
     /**
-     * Insert mode only: the column that identifies a row. With it, a record
-     * whose key is already in the table updates that row instead of adding
-     * one, so running the workflow again does not duplicate rows. The column
-     * needs a unique or primary-key constraint (a table this step creates has
-     * one on `id`). PostgreSQL and SQLite only. Without it, rows are inserted.
+     * Insert/mapped mode only: the column or columns that identify a row.
+     * Supports a single key string (e.g. 'id') or combination keys string[]
+     * (e.g. ['tenant_id', 'user_id']).
      */
-    upsertKey: z.string().min(1).optional(),
+    upsertKey: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
+    upsertKeys: z.array(z.string().min(1)).optional(),
+    /**
+     * Optional SQL condition clause for the upsert update (e.g. 'EXCLUDED.updated_at >= target.updated_at').
+     */
+    upsertCondition: z.string().optional(),
     /** Statement per record; `{{record.field}}` binds a field. */
     sql: z.string().min(1).optional(),
     ...connectionFields,
     /** Write each batch all-or-nothing, where the database can roll back. */
     transaction: z.boolean().default(true),
   })
-  .refine((config) => config.mode !== 'insert' || config.table, {
-    message: 'insert mode needs a table',
+  .refine((config) => (config.mode !== 'insert' && config.mode !== 'mapped') || config.table, {
+    message: 'insert and mapped modes need a table',
     path: ['table'],
   })
   .refine((config) => config.mode !== 'statement' || config.sql, {
     message: 'statement mode needs sql',
     path: ['sql'],
   })
-  .refine((config) => !config.upsertKey || config.mode === 'insert', {
+  .refine((config) => !resolveUpsertKeys(config) || config.mode === 'insert' || config.mode === 'mapped', {
     message: 'upsertKey applies to insert mode only',
     path: ['upsertKey'],
   })
-  .refine((config) => !config.upsertKey || config.columns.length === 0 || config.columns.includes(config.upsertKey), {
-    message: 'upsertKey must be one of the columns written',
-    path: ['upsertKey'],
-  });
+  .refine(
+    (config) => {
+      const keys = resolveUpsertKeys(config);
+      if (!keys) return true;
+      const effectiveColumns =
+        config.columnMapping && config.columnMapping.length > 0
+          ? config.columnMapping.map((m) => m.targetColumn)
+          : config.columns;
+      if (effectiveColumns.length === 0) return true;
+      return keys.every((key) => effectiveColumns.includes(key));
+    },
+    {
+      message: 'every upsertKey must be one of the columns written',
+      path: ['upsertKey'],
+    },
+  );
 
 /**
- * Turn an `INSERT` into an upsert on `key`: a row whose key already exists is
- * updated with the other written columns (or left alone when there are none).
- * Only when the step asks for it with `upsertKey`; a plain insert stays one.
+ * Turn an `INSERT` into an upsert on `key` or composite combination keys: a row
+ * whose key already exists is updated with the other written columns (or left
+ * alone when there are none). Optional update `condition` appends a WHERE clause.
  */
-export function upsertSql(sqlText: string, columns: string[], key: string, dialect: string): string {
+export function upsertSql(
+  sqlText: string,
+  columns: string[],
+  keyOrKeys: string | string[],
+  dialect: string,
+  condition?: string,
+): string {
   if (dialect !== 'postgres' && dialect !== 'sqlite') {
     throw new Error(`upsertKey is supported on PostgreSQL and SQLite, not ${dialect}`);
   }
   if (!sqlText.startsWith('INSERT INTO ')) return sqlText;
-  if (!columns.includes(key)) throw new Error(`upsertKey ${key} is not one of the columns written`);
-  const quotedKey = quoteQualifiedName(key, dialect);
+  const keys = Array.isArray(keyOrKeys) ? keyOrKeys : [keyOrKeys];
+  for (const key of keys) {
+    if (!columns.includes(key)) throw new Error(`upsertKey ${key} is not one of the columns written`);
+  }
+  const quotedKeys = keys.map((key) => quoteQualifiedName(key, dialect)).join(', ');
+  const keySet = new Set(keys);
   const updates = columns
-    .filter((column) => column !== key)
+    .filter((column) => !keySet.has(column))
     .map((column) => {
       const quoted = quoteQualifiedName(column, dialect);
       return `${quoted} = excluded.${quoted}`;
     });
-  return updates.length === 0
-    ? `${sqlText} ON CONFLICT (${quotedKey}) DO NOTHING`
-    : `${sqlText} ON CONFLICT (${quotedKey}) DO UPDATE SET ${updates.join(', ')}`;
+  let clause =
+    updates.length === 0
+      ? `${sqlText} ON CONFLICT (${quotedKeys}) DO NOTHING`
+      : `${sqlText} ON CONFLICT (${quotedKeys}) DO UPDATE SET ${updates.join(', ')}`;
+  if (updates.length > 0 && condition && condition.trim()) {
+    clause += ` WHERE ${condition.trim()}`;
+  }
+  return clause;
 }
 
 /**
- * One record per key, the last one winning. A single upsert statement may not
- * touch the same row twice, so duplicate keys in one batch must collapse first.
+ * One record per key (or composite combination keys), the last one winning.
+ * A single upsert statement may not touch the same row twice, so duplicate
+ * keys in one batch must collapse first.
  */
-function lastPerKey(records: Record<string, unknown>[], key: string): Record<string, unknown>[] {
+function lastPerKey(records: Record<string, unknown>[], keyOrKeys: string | string[]): Record<string, unknown>[] {
+  const keys = Array.isArray(keyOrKeys) ? keyOrKeys : [keyOrKeys];
   const byKey = new Map<string, Record<string, unknown>>();
-  for (const record of records) byKey.set(JSON.stringify(record[key] ?? null), record);
+  for (const record of records) {
+    const compositeKey = JSON.stringify(keys.map((k) => record[k] ?? null));
+    byKey.set(compositeKey, record);
+  }
   return [...byKey.values()];
+}
+
+/**
+ * Transforms incoming generic objects into database row objects by mapping
+ * dot-paths, evaluating transform expressions, and inserting fallback defaults.
+ */
+export function applyColumnMapping(
+  records: Record<string, unknown>[],
+  mappings: ColumnMappingItem[],
+): Record<string, unknown>[] {
+  if (records.length === 0 || mappings.length === 0) return records;
+
+  const compiled = mappings.map((m) => {
+    const expr = m.expression || m.transform;
+    if (expr && expr.trim() && expr.trim() !== 'value') {
+      try {
+        const fn = new Function('value', 'record', `return (${expr});`);
+        return { ...m, fn };
+      } catch {
+        return { ...m, fn: undefined };
+      }
+    }
+    return { ...m, fn: undefined };
+  });
+
+  return records.map((record) => {
+    const row: Record<string, unknown> = {};
+    for (const m of compiled) {
+      const prop = m.sourcePath || m.sourceProperty;
+      let val = prop ? getPath(record, prop) : undefined;
+      if (val === undefined || val === null) {
+        val = m.defaultValue !== undefined ? m.defaultValue : val;
+      }
+      if (val !== undefined && val !== null && m.fn) {
+        try {
+          val = m.fn(val, record);
+        } catch {
+          // Keep raw value if expression errors
+        }
+      }
+      row[m.targetColumn] = val;
+    }
+    return row;
+  });
 }
 
 const ddlLocks = new Map<string, Promise<void>>();
@@ -727,6 +835,7 @@ export async function ensureAutoTable(
   table: string,
   records: Record<string, unknown>[],
   columns: string[],
+  upsertKeys?: string[],
 ): Promise<void> {
   if (connection.dialect !== 'sqlite' && connection.dialect !== 'postgres') return;
   const key = autoTableLockKey(connection, table);
@@ -742,6 +851,17 @@ export async function ensureAutoTable(
             // SQLite has no ADD COLUMN IF NOT EXISTS; ignore duplicate-column errors.
           }
         }
+        if (upsertKeys && upsertKeys.length > 0) {
+          const cleanName = table.replace(/[^a-zA-Z0-9_]/g, '_');
+          const idxName = `uq_${cleanName}_${upsertKeys.map((k) => k.replace(/[^a-zA-Z0-9_]/g, '_')).join('_')}`.slice(0, 60);
+          const target = quoteQualifiedName(table, 'sqlite');
+          const quotedKeys = upsertKeys.map((k) => quoteQualifiedName(k, 'sqlite')).join(', ');
+          try {
+            await session.query(`CREATE UNIQUE INDEX IF NOT EXISTS "${idxName}" ON ${target} (${quotedKeys})`, []);
+          } catch {
+            // Best effort if index cannot be created
+          }
+        }
       });
       return;
     }
@@ -754,12 +874,23 @@ export async function ensureAutoTable(
       for (const alterSql of ddl.alterColumns) {
         await session.query(alterSql, []);
       }
+      if (upsertKeys && upsertKeys.length > 0) {
+        const cleanName = table.replace(/[^a-zA-Z0-9_]/g, '_');
+        const idxName = `uq_${cleanName}_${upsertKeys.map((k) => k.replace(/[^a-zA-Z0-9_]/g, '_')).join('_')}`.slice(0, 60);
+        const target = quoteQualifiedName(table, 'postgres');
+        const quotedKeys = upsertKeys.map((k) => quoteQualifiedName(k, 'postgres')).join(', ');
+        try {
+          await session.query(`CREATE UNIQUE INDEX IF NOT EXISTS "${idxName}" ON ${target} (${quotedKeys})`, []);
+        } catch {
+          // Best effort if index cannot be created
+        }
+      }
     });
   });
 }
 
 export class SqlSinkPipe implements SinkPipe {
-  readonly type = 'sink.db.sql';
+  readonly type: string = 'sink.db.sql';
   readonly role = 'sink';
 
   constructor(private readonly open: SqlRunner = foxSchemaDrivers) {}
@@ -788,32 +919,46 @@ export class SqlSinkPipe implements SinkPipe {
     const config = sinkConfigSchema.parse(context.pipe.config);
     const connection = await connectionFor(context, config);
     const scope = templateScope(context);
-    const records = config.upsertKey ? lastPerKey(batch.records, config.upsertKey) : batch.records;
-    const statements =
-      config.mode === 'insert'
-        ? insertStatements(records, config.table!, config.columns, connection.dialect)
-        : recordStatements(batch.records, config.sql!, scope, connection.dialect);
+
+    const isInsert = config.mode === 'insert' || config.mode === 'mapped';
+
+    // Apply columnMapping if provided or in mapped mode
+    const mappedRecords =
+      config.columnMapping && config.columnMapping.length > 0
+        ? applyColumnMapping(batch.records, config.columnMapping)
+        : batch.records;
+
+    const upsertKeys = resolveUpsertKeys(config);
+    const records = upsertKeys ? lastPerKey(mappedRecords, upsertKeys) : mappedRecords;
+
+    const effectiveColumns =
+      config.columnMapping && config.columnMapping.length > 0
+        ? config.columnMapping.map((m) => m.targetColumn)
+        : config.columns;
+
+    const statements = isInsert
+      ? insertStatements(records, config.table!, effectiveColumns, connection.dialect)
+      : recordStatements(batch.records, config.sql!, scope, connection.dialect);
 
     if (
       this.open === foxSchemaDrivers &&
-      config.mode === 'insert' &&
+      isInsert &&
       config.table &&
       (connection.dialect === 'sqlite' || connection.dialect === 'postgres')
     ) {
-      await ensureAutoTable(this.open, connection, config.table, records, config.columns);
+      await ensureAutoTable(this.open, connection, config.table, records, effectiveColumns, upsertKeys);
     }
 
     const returnedRows = await withSession(this.open, connection, config.transaction, async (session) => {
-      const insertColumns =
-        config.mode === 'insert'
-          ? config.columns.length > 0
-            ? config.columns
-            : Object.keys(records[0]!)
-          : [];
+      const insertColumns = isInsert
+        ? effectiveColumns.length > 0
+          ? effectiveColumns
+          : Object.keys(records[0]!)
+        : [];
       const rows: Record<string, unknown>[] = [];
       for (const statement of statements) {
-        const sqlText = config.upsertKey
-          ? upsertSql(statement.text, insertColumns, config.upsertKey, connection.dialect)
+        const sqlText = upsertKeys
+          ? upsertSql(statement.text, insertColumns, upsertKeys, connection.dialect, config.upsertCondition)
           : statement.text;
         const result = await session.query(sqlText, statement.params);
         if (result.length > 0) rows.push(...result);
@@ -827,5 +972,24 @@ export class SqlSinkPipe implements SinkPipe {
         records: returnedRows,
       };
     }
+  }
+}
+
+export class MappedDbSinkPipe extends SqlSinkPipe {
+  override readonly type = 'sink.db.mapped-insert';
+
+  override metadata(): PipeMetadata {
+    return definePipeMetadata({
+      type: this.type,
+      name: 'Mapped DB insert',
+      category: 'Output/Database',
+      family: 'database',
+      tags: ['sql', 'insert', 'mapping', 'upsert', 'etl'],
+      version: '0.1.0',
+      role: 'sink',
+      inputs: [{ name: 'in', type: 'records' }],
+      outputs: [{ name: 'out', type: 'records' }],
+      configSchema: sinkConfigSchema,
+    });
   }
 }

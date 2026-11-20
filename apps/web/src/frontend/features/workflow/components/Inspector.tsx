@@ -520,7 +520,10 @@ export function Inspector({
   const isDelimitedSource =
     data?.type === 'source.file.csv' || data?.type === 'source.file.text';
   // The SQL pipes' editor owns the connection, table, columns, and statement text.
-  const isSqlPipe = data?.type === 'source.db.sql' || data?.type === 'sink.db.sql';
+  const isSqlPipe =
+    data?.type === 'source.db.sql' ||
+    data?.type === 'sink.db.sql' ||
+    data?.type === 'sink.db.mapped-insert';
   const isScriptPipe = data?.type === 'transform.script';
   const isConditionPipe = data?.type === 'transform.condition';
   const isMapPipe = data?.type === 'transform.map';
@@ -533,7 +536,18 @@ export function Inspector({
     data?.type === 'source.db.mysql' ||
     data?.type === 'sink.postgres' ||
     data?.type === 'sink.mysql';
-  const SQL_OWNED_KEYS = new Set(['sql', 'dialect', 'schema', 'mode', 'table', 'columns']);
+  const SQL_OWNED_KEYS = new Set([
+    'sql',
+    'dialect',
+    'schema',
+    'mode',
+    'table',
+    'columns',
+    'upsertKey',
+    'upsertKeys',
+    'upsertCondition',
+    'columnMapping',
+  ]);
   const propertyKeys = Object.keys(properties).filter(
     (key) =>
       !isDelimitedSource &&
@@ -1362,7 +1376,11 @@ export function Inspector({
       {isSqlPipe && (
         <>
           <h4 className="inspector-section">
-            {data.type === 'sink.db.sql' ? 'SQL write' : 'SQL query'}
+            {data.type === 'sink.db.mapped-insert'
+              ? 'Mapped SQL write'
+              : data.type === 'sink.db.sql'
+                ? 'SQL write'
+                : 'SQL query'}
           </h4>
           <SqlPipeEditor
             key={pipeId}

@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1095** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1097** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -2023,8 +2023,20 @@ Every control has a test ID: **1095** buttons, text boxes, selects and textareas
   - `sql-pipe-connection-group-{group}` · div in FilterPicker · Filter by name, dialect, host…
   - `sql-pipe-connection-option-{id}` · data
   - `sql-pipe-connection-trigger` · button in FilterPicker · Filter by name, dialect, host…
+  - `workflow-sql-add-column-mapping` · Button
+  - `workflow-sql-automap` · Button · Populate columns from selected table
+  - `workflow-sql-default-{index}` · Input · null
+  - `workflow-sql-key-col-{index}` · button
+  - `workflow-sql-mapping-row-{index}` · tr
   - `workflow-sql-pipe-browse` · button
   - `workflow-sql-pipe-table-{objectType}-{name}` · button
+  - `workflow-sql-remove-col-{index}` · button
+  - `workflow-sql-source-prop-{index}` · Input · e.g. user.id
+  - `workflow-sql-table` · Input · Target table
+  - `workflow-sql-target-col-{index}` · Input · e.g. user_id
+  - `workflow-sql-transform-{index}` · Input · value.trim()
+  - `workflow-sql-upsert-condition` · Input · Update condition
+  - `workflow-sql-upsert-keys` · Input · Combination keys
 - **TriggerConfigurationDialog** · `features/workflow/components/TriggerConfigurationDialog.tsx`
   - `workflow-trigger-config` · section · Trigger configuration
   - `workflow-trigger-config-item-{id}` · button
@@ -2073,6 +2085,7 @@ Every control has a test ID: **1095** buttons, text boxes, selects and textareas
   - `workflow-designer-triggers` · Button
 - **WorkflowsPanel** · `features/workflow/components/WorkflowsPanel.tsx`
   - `workflow-add-sample` · Button
+  - `workflow-empty-add-samples` · Button
   - `workflow-list-file` · input
   - `workflow-list-open-in-designer-{id}` · button · Open in designer
 - **WorkflowView** · `features/workflow/components/WorkflowView.tsx`

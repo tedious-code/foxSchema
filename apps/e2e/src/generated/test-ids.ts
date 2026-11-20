@@ -3827,10 +3827,34 @@ export const TestIds = {
       sqlPipeConnectionOption: (id: string | number) => `sql-pipe-connection-option-${id}`,
       /** button · Filter by name, dialect, host… */
       sqlPipeConnectionTrigger: 'sql-pipe-connection-trigger',
+      /** Button */
+      workflowSqlAddColumnMapping: 'workflow-sql-add-column-mapping',
+      /** Button · Populate columns from selected table */
+      workflowSqlAutomap: 'workflow-sql-automap',
+      /** Input · null */
+      workflowSqlDefault: (index: string | number) => `workflow-sql-default-${index}`,
+      /** button */
+      workflowSqlKeyCol: (index: string | number) => `workflow-sql-key-col-${index}`,
+      /** tr */
+      workflowSqlMappingRow: (index: string | number) => `workflow-sql-mapping-row-${index}`,
       /** button */
       workflowSqlPipeBrowse: 'workflow-sql-pipe-browse',
       /** button */
       workflowSqlPipeTable: (objectType: string | number, name: string | number) => `workflow-sql-pipe-table-${objectType}-${name}`,
+      /** button */
+      workflowSqlRemoveCol: (index: string | number) => `workflow-sql-remove-col-${index}`,
+      /** Input · e.g. user.id */
+      workflowSqlSourceProp: (index: string | number) => `workflow-sql-source-prop-${index}`,
+      /** Input · Target table */
+      workflowSqlTable: 'workflow-sql-table',
+      /** Input · e.g. user_id */
+      workflowSqlTargetCol: (index: string | number) => `workflow-sql-target-col-${index}`,
+      /** Input · value.trim() */
+      workflowSqlTransform: (index: string | number) => `workflow-sql-transform-${index}`,
+      /** Input · Update condition */
+      workflowSqlUpsertCondition: 'workflow-sql-upsert-condition',
+      /** Input · Combination keys */
+      workflowSqlUpsertKeys: 'workflow-sql-upsert-keys',
     },
     TriggerConfigurationDialog: {
       /** section · Trigger configuration */
@@ -3927,6 +3951,8 @@ export const TestIds = {
     WorkflowsPanel: {
       /** Button */
       workflowAddSample: 'workflow-add-sample',
+      /** Button */
+      workflowEmptyAddSamples: 'workflow-empty-add-samples',
       /** input */
       workflowListFile: 'workflow-list-file',
       /** button · Open in designer */
@@ -5723,6 +5749,7 @@ export type TestId =
   | `workflow-designer-stage-overview-${string}`
   | 'workflow-designer-stage-select'
   | 'workflow-designer-triggers'
+  | 'workflow-empty-add-samples'
   | 'workflow-engine'
   | `workflow-engine-${string}`
   | 'workflow-engine-health'
@@ -5848,8 +5875,20 @@ export type TestId =
   | 'workflow-source-skip-empty'
   | 'workflow-source-skip-lines'
   | 'workflow-source-trim'
+  | 'workflow-sql-add-column-mapping'
+  | 'workflow-sql-automap'
+  | `workflow-sql-default-${string}`
+  | `workflow-sql-key-col-${string}`
+  | `workflow-sql-mapping-row-${string}`
   | 'workflow-sql-pipe-browse'
   | `workflow-sql-pipe-table-${string}-${string}`
+  | `workflow-sql-remove-col-${string}`
+  | `workflow-sql-source-prop-${string}`
+  | 'workflow-sql-table'
+  | `workflow-sql-target-col-${string}`
+  | `workflow-sql-transform-${string}`
+  | 'workflow-sql-upsert-condition'
+  | 'workflow-sql-upsert-keys'
   | `workflow-tab-${string}`
   | 'workflow-trigger-config'
   | `workflow-trigger-config-item-${string}`

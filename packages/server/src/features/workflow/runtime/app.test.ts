@@ -465,6 +465,7 @@ describe('foxflow api', () => {
     expect(body.pipes.map((c: { type: string }) => c.type)).toEqual([
       'human.gate',
       'logic.loop',
+      'sink.db.mapped-insert',
       'sink.db.sql',
       'sink.file.delimited',
       'sink.http',

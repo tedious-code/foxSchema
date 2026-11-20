@@ -18,6 +18,7 @@ describe('pipe SDK Phase 1 surface', () => {
     expect(types).toEqual([
       'human.gate',
       'logic.loop',
+      'sink.db.mapped-insert',
       'sink.db.sql',
       'sink.file.delimited',
       'sink.http',

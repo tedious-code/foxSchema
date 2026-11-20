@@ -2026,6 +2026,7 @@ Every control has a test ID: **1097** buttons, text boxes, selects and textareas
   - `workflow-sql-add-column-mapping` · Button
   - `workflow-sql-automap` · Button · Populate columns from selected table
   - `workflow-sql-default-{index}` · Input · null
+  - `workflow-sql-insert-upsert-key` · Input · Upsert key
   - `workflow-sql-key-col-{index}` · button
   - `workflow-sql-mapping-row-{index}` · tr
   - `workflow-sql-pipe-browse` · button

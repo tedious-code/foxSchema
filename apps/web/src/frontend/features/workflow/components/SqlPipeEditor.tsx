@@ -194,16 +194,43 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
   };
 
   const addMappingItem = () => {
-    const next = [...columnMapping, { targetColumn: '', sourceProperty: '' }];
+    const next = [...columnMapping, { targetColumn: '', sourcePath: '' }];
     onConfigChange({ ...config, columnMapping: next });
+  };
+
+  const updateTargetColumn = (index: number, newCol: string) => {
+    const oldCol = columnMapping[index]?.targetColumn;
+    const isKey = columnMapping[index]?.isKey;
+    let nextKeys = currentKeys;
+    if (oldCol && isKey && currentKeys.includes(oldCol)) {
+      nextKeys = currentKeys.map((k) => (k === oldCol ? newCol : k)).filter(Boolean);
+    }
+    const next = columnMapping.map((item, i) =>
+      i === index ? { ...item, targetColumn: newCol } : item,
+    );
+    onConfigChange({
+      ...config,
+      upsertKeys: nextKeys,
+      columnMapping: next,
+    });
   };
 
   const updateMappingItem = (index: number, patch: Partial<ColumnMappingItem>) => {
     const next = columnMapping.map((item, i) => {
       if (i !== index) return item;
       const merged = { ...item, ...patch };
-      if (!merged.defaultValue) delete merged.defaultValue;
-      if (!merged.transform) delete merged.transform;
+      if (patch.sourcePath !== undefined) {
+        delete merged.sourceProperty;
+      }
+      if (patch.transform !== undefined) {
+        delete merged.expression;
+        if (!patch.transform || !patch.transform.trim()) {
+          delete merged.transform;
+        }
+      }
+      if (!merged.defaultValue && merged.defaultValue !== 0 && merged.defaultValue !== false) {
+        delete merged.defaultValue;
+      }
       return merged;
     });
     onConfigChange({ ...config, columnMapping: next });
@@ -237,7 +264,7 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
   const previewCondition = typeof config.upsertCondition === 'string' ? config.upsertCondition.trim() : '';
   let previewSql = '';
   if (previewColumns.length > 0) {
-    previewSql = `INSERT INTO ${previewTable} (${previewColumns.join(', ')})\nVALUES (${previewColumns.map(() => '?').join(', ')})`;
+    previewSql = `INSERT INTO ${previewTable} AS target (${previewColumns.join(', ')})\nVALUES (${previewColumns.map(() => '?').join(', ')})`;
     if (currentKeys.length > 0) {
       const updateCols = previewColumns.filter((c) => !currentKeys.includes(c));
       if (updateCols.length > 0) {
@@ -409,6 +436,30 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
               });
             }}
           />
+          <label>Upsert key (optional)</label>
+          <Input
+            aria-label="Upsert key"
+            data-testid="workflow-sql-insert-upsert-key"
+            placeholder="e.g. id"
+            value={
+              typeof config.upsertKey === 'string'
+                ? config.upsertKey
+                : Array.isArray(config.upsertKey)
+                  ? config.upsertKey.join(', ')
+                  : ''
+            }
+            onChange={(event) => {
+              const val = event.target.value.trim();
+              onConfigChange({
+                ...config,
+                mode: 'insert',
+                upsertKey: val || undefined,
+              });
+            }}
+          />
+          <div className="hint">
+            With an upsert key, running the workflow again updates existing rows instead of adding duplicate records.
+          </div>
         </>
       )}
 
@@ -515,7 +566,7 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
                         data-testid={`workflow-sql-target-col-${index}`}
                         placeholder="e.g. user_id"
                         value={item.targetColumn}
-                        onChange={(e) => updateMappingItem(index, { targetColumn: e.target.value })}
+                        onChange={(e) => updateTargetColumn(index, e.target.value)}
                         className="text-xs py-1"
                       />
                     </td>
@@ -536,8 +587,8 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
                         aria-label={`Source property path ${index + 1}`}
                         data-testid={`workflow-sql-source-prop-${index}`}
                         placeholder="e.g. user.id"
-                        value={item.sourceProperty ?? item.sourcePath ?? ''}
-                        onChange={(e) => updateMappingItem(index, { sourceProperty: e.target.value })}
+                        value={item.sourcePath ?? item.sourceProperty ?? ''}
+                        onChange={(e) => updateMappingItem(index, { sourcePath: e.target.value })}
                         className="text-xs py-1 font-mono"
                       />
                     </td>

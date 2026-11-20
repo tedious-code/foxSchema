@@ -17,6 +17,7 @@
  * the dialect's own placeholder style, and table and column names are quoted
  * for the dialect.
  */
+import { createHash } from 'node:crypto';
 import { basename, dirname, join, resolve } from 'node:path';
 import * as z from 'zod';
 import {
@@ -34,6 +35,7 @@ import type { PipeContext, RecordBatch, SinkPipe, SourcePipe } from '../../regis
 import {
   batchSizeField,
   definePipeMetadata,
+  runSandboxedWithLogs,
   splitTemplate,
   type PipeMetadata,
 } from '../../sdk/index.js';
@@ -673,10 +675,29 @@ const sinkConfigSchema = z
     message: 'statement mode needs sql',
     path: ['sql'],
   })
+  .refine(
+    (config) => config.mode !== 'mapped' || (Array.isArray(config.columnMapping) && config.columnMapping.length > 0),
+    {
+      message: 'mapped mode requires at least one columnMapping',
+      path: ['columnMapping'],
+    },
+  )
   .refine((config) => !resolveUpsertKeys(config) || config.mode === 'insert' || config.mode === 'mapped', {
-    message: 'upsertKey applies to insert mode only',
+    message: 'upsertKey applies to insert and mapped modes only',
     path: ['upsertKey'],
   })
+  .refine(
+    (config) => {
+      const keys = resolveUpsertKeys(config);
+      if (!keys || keys.length === 0) return true;
+      const dialect = typeof config.dialect === 'string' ? config.dialect.toLowerCase() : 'sqlite';
+      return dialect === 'sqlite' || dialect === 'postgres';
+    },
+    {
+      message: 'upsertKey is supported on PostgreSQL and SQLite only',
+      path: ['dialect'],
+    },
+  )
   .refine(
     (config) => {
       const keys = resolveUpsertKeys(config);
@@ -714,6 +735,13 @@ export function upsertSql(
   for (const key of keys) {
     if (!columns.includes(key)) throw new Error(`upsertKey ${key} is not one of the columns written`);
   }
+
+  // Alias target table as "target" so condition expressions like EXCLUDED.col >= target.col work
+  let aliasedSql = sqlText;
+  if (!/\bAS\s+target\b/i.test(aliasedSql)) {
+    aliasedSql = aliasedSql.replace(/^INSERT INTO\s+([^\s(]+)/i, 'INSERT INTO $1 AS target');
+  }
+
   const quotedKeys = keys.map((key) => quoteQualifiedName(key, dialect)).join(', ');
   const keySet = new Set(keys);
   const updates = columns
@@ -724,8 +752,8 @@ export function upsertSql(
     });
   let clause =
     updates.length === 0
-      ? `${sqlText} ON CONFLICT (${quotedKeys}) DO NOTHING`
-      : `${sqlText} ON CONFLICT (${quotedKeys}) DO UPDATE SET ${updates.join(', ')}`;
+      ? `${aliasedSql} ON CONFLICT (${quotedKeys}) DO NOTHING`
+      : `${aliasedSql} ON CONFLICT (${quotedKeys}) DO UPDATE SET ${updates.join(', ')}`;
   if (updates.length > 0 && condition && condition.trim()) {
     clause += ` WHERE ${condition.trim()}`;
   }
@@ -749,46 +777,90 @@ function lastPerKey(records: Record<string, unknown>[], keyOrKeys: string | stri
 
 /**
  * Transforms incoming generic objects into database row objects by mapping
- * dot-paths, evaluating transform expressions, and inserting fallback defaults.
+ * dot-paths, evaluating transform expressions in a sandbox worker, and inserting fallback defaults.
  */
-export function applyColumnMapping(
+export async function applyColumnMapping(
   records: Record<string, unknown>[],
   mappings: ColumnMappingItem[],
-): Record<string, unknown>[] {
+): Promise<Record<string, unknown>[]> {
   if (records.length === 0 || mappings.length === 0) return records;
 
-  const compiled = mappings.map((m) => {
-    const expr = m.expression || m.transform;
-    if (expr && expr.trim() && expr.trim() !== 'value') {
-      try {
-        const fn = new Function('value', 'record', `return (${expr});`);
-        return { ...m, fn };
-      } catch {
-        return { ...m, fn: undefined };
-      }
-    }
-    return { ...m, fn: undefined };
+  const hasTransforms = mappings.some((m) => {
+    const expr = m.transform || m.expression;
+    return expr && expr.trim() && expr.trim() !== 'value';
   });
 
-  return records.map((record) => {
-    const row: Record<string, unknown> = {};
-    for (const m of compiled) {
-      const prop = m.sourcePath || m.sourceProperty;
-      let val = prop ? getPath(record, prop) : undefined;
-      if (val === undefined || val === null) {
-        val = m.defaultValue !== undefined ? m.defaultValue : val;
+  if (!hasTransforms) {
+    return records.map((record) => {
+      const row: Record<string, unknown> = {};
+      for (const m of mappings) {
+        const prop = m.sourcePath || m.sourceProperty;
+        let val = prop ? getPath(record, prop) : undefined;
+        if (val === undefined || val === null) {
+          val = m.defaultValue !== undefined ? m.defaultValue : val;
+        }
+        row[m.targetColumn] = val;
       }
-      if (val !== undefined && val !== null && m.fn) {
+      return row;
+    });
+  }
+
+  // Security: Run user JS in isolated sandbox with timeout and heap limit
+  const mappingDefs = mappings.map((m) => ({
+    targetColumn: m.targetColumn,
+    prop: m.sourcePath || m.sourceProperty,
+    expr: (m.transform || m.expression || '').trim(),
+    defaultValue: m.defaultValue,
+  }));
+
+  const body = `
+    const mappings = ${JSON.stringify(mappingDefs)};
+
+    function getPath(obj, path) {
+      if (!path || !obj) return obj;
+      const parts = path.split('.');
+      let current = obj;
+      for (const part of parts) {
+        if (current === null || current === undefined) return undefined;
+        current = current[part];
+      }
+      return current;
+    }
+
+    const compiled = mappings.map((m) => {
+      if (m.expr && m.expr !== 'value') {
         try {
-          val = m.fn(val, record);
-        } catch {
-          // Keep raw value if expression errors
+          return new Function('value', 'record', 'return (' + m.expr + ');');
+        } catch (err) {
+          throw new Error('Failed to compile transform expression "' + m.expr + '" for column "' + m.targetColumn + '": ' + (err && err.message ? err.message : String(err)));
         }
       }
-      row[m.targetColumn] = val;
-    }
-    return row;
-  });
+      return null;
+    });
+
+    return records.map((record, rowIndex) => {
+      const row = {};
+      for (let i = 0; i < mappings.length; i++) {
+        const m = mappings[i];
+        let val = m.prop ? getPath(record, m.prop) : undefined;
+        if (val === undefined || val === null) {
+          val = m.defaultValue !== undefined ? m.defaultValue : val;
+        }
+        if (val !== undefined && val !== null && compiled[i]) {
+          try {
+            val = compiled[i](val, record);
+          } catch (err) {
+            throw new Error('Failed to evaluate transform expression "' + m.expr + '" for column "' + m.targetColumn + '" on row ' + (rowIndex + 1) + ': ' + (err && err.message ? err.message : String(err)));
+          }
+        }
+        row[m.targetColumn] = val;
+      }
+      return row;
+    });
+  `;
+
+  const { result } = await runSandboxedWithLogs(body, records, { timeoutMs: 5000 });
+  return result as Record<string, unknown>[];
 }
 
 const ddlLocks = new Map<string, Promise<void>>();
@@ -829,6 +901,15 @@ function autoTableLockKey(connection: SqlConnection, table: string): string {
  * Serialized per target table and guarded in PostgreSQL by a transaction-scoped
  * advisory lock so concurrent pipeline batches never collide on `pg_type`.
  */
+function computeIndexName(table: string, keys: string[]): string {
+  const cleanTable = table.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 32);
+  const hash = createHash('sha256')
+    .update(`${table}:${keys.join(',')}`)
+    .digest('hex')
+    .slice(0, 10);
+  return `uq_${cleanTable}_${hash}`;
+}
+
 export async function ensureAutoTable(
   open: SqlRunner,
   connection: SqlConnection,
@@ -852,14 +933,13 @@ export async function ensureAutoTable(
           }
         }
         if (upsertKeys && upsertKeys.length > 0) {
-          const cleanName = table.replace(/[^a-zA-Z0-9_]/g, '_');
-          const idxName = `uq_${cleanName}_${upsertKeys.map((k) => k.replace(/[^a-zA-Z0-9_]/g, '_')).join('_')}`.slice(0, 60);
+          const idxName = computeIndexName(table, upsertKeys);
           const target = quoteQualifiedName(table, 'sqlite');
           const quotedKeys = upsertKeys.map((k) => quoteQualifiedName(k, 'sqlite')).join(', ');
           try {
             await session.query(`CREATE UNIQUE INDEX IF NOT EXISTS "${idxName}" ON ${target} (${quotedKeys})`, []);
-          } catch {
-            // Best effort if index cannot be created
+          } catch (err) {
+            throw new Error(`Could not ensure unique index for upsertKeys [${upsertKeys.join(', ')}] on table "${table}": ${(err as Error).message}`);
           }
         }
       });
@@ -875,14 +955,13 @@ export async function ensureAutoTable(
         await session.query(alterSql, []);
       }
       if (upsertKeys && upsertKeys.length > 0) {
-        const cleanName = table.replace(/[^a-zA-Z0-9_]/g, '_');
-        const idxName = `uq_${cleanName}_${upsertKeys.map((k) => k.replace(/[^a-zA-Z0-9_]/g, '_')).join('_')}`.slice(0, 60);
+        const idxName = computeIndexName(table, upsertKeys);
         const target = quoteQualifiedName(table, 'postgres');
         const quotedKeys = upsertKeys.map((k) => quoteQualifiedName(k, 'postgres')).join(', ');
         try {
           await session.query(`CREATE UNIQUE INDEX IF NOT EXISTS "${idxName}" ON ${target} (${quotedKeys})`, []);
-        } catch {
-          // Best effort if index cannot be created
+        } catch (err) {
+          throw new Error(`Could not ensure unique index for upsertKeys [${upsertKeys.join(', ')}] on table "${table}": ${(err as Error).message}`);
         }
       }
     });
@@ -925,7 +1004,7 @@ export class SqlSinkPipe implements SinkPipe {
     // Apply columnMapping if provided or in mapped mode
     const mappedRecords =
       config.columnMapping && config.columnMapping.length > 0
-        ? applyColumnMapping(batch.records, config.columnMapping)
+        ? await applyColumnMapping(batch.records, config.columnMapping)
         : batch.records;
 
     const upsertKeys = resolveUpsertKeys(config);
@@ -977,6 +1056,10 @@ export class SqlSinkPipe implements SinkPipe {
 
 export class MappedDbSinkPipe extends SqlSinkPipe {
   override readonly type = 'sink.db.mapped-insert';
+
+  override validateConfig(config: Record<string, unknown>): void {
+    super.validateConfig({ ...config, mode: 'mapped' });
+  }
 
   override metadata(): PipeMetadata {
     return definePipeMetadata({

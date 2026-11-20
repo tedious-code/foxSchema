@@ -3833,6 +3833,8 @@ export const TestIds = {
       workflowSqlAutomap: 'workflow-sql-automap',
       /** Input · null */
       workflowSqlDefault: (index: string | number) => `workflow-sql-default-${index}`,
+      /** Input · Upsert key */
+      workflowSqlInsertUpsertKey: 'workflow-sql-insert-upsert-key',
       /** button */
       workflowSqlKeyCol: (index: string | number) => `workflow-sql-key-col-${index}`,
       /** tr */
@@ -5878,6 +5880,7 @@ export type TestId =
   | 'workflow-sql-add-column-mapping'
   | 'workflow-sql-automap'
   | `workflow-sql-default-${string}`
+  | 'workflow-sql-insert-upsert-key'
   | `workflow-sql-key-col-${string}`
   | `workflow-sql-mapping-row-${string}`
   | 'workflow-sql-pipe-browse'

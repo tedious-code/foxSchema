@@ -122,8 +122,44 @@ describe('SqlPipeEditor', () => {
       expect.objectContaining({
         columnMapping: [
           { targetColumn: 'user_id', sourceProperty: 'user.sub', isKey: true },
-          { targetColumn: '', sourceProperty: '' },
+          { targetColumn: '', sourcePath: '' },
         ],
+      }),
+    );
+  });
+
+  it('exposes upsertKey input in insert mode and updates config', async () => {
+    const { onConfigChange } = renderEditor('sink.db.sql', 'foxschema-conn-1', {
+      mode: 'insert',
+      table: 'orders',
+      columns: ['id', 'total'],
+      upsertKey: 'id',
+    });
+
+    const keyInput = screen.getByTestId('workflow-sql-insert-upsert-key') as HTMLInputElement;
+    expect(keyInput.value).toBe('id');
+
+    fireEvent.change(keyInput, { target: { value: 'order_id' } });
+    expect(onConfigChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'insert',
+        upsertKey: 'order_id',
+      }),
+    );
+  });
+
+  it('updates upsertKeys when a key column is renamed', async () => {
+    const { onConfigChange } = renderEditor('sink.db.mapped-insert', 'foxschema-conn-1', {
+      table: 'users',
+      upsertKeys: ['user_id'],
+      columnMapping: [{ targetColumn: 'user_id', sourcePath: 'id', isKey: true }],
+    });
+
+    fireEvent.change(screen.getByTestId('workflow-sql-target-col-0'), { target: { value: 'uid' } });
+    expect(onConfigChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        upsertKeys: ['uid'],
+        columnMapping: [{ targetColumn: 'uid', sourcePath: 'id', isKey: true }],
       }),
     );
   });

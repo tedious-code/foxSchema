@@ -9,23 +9,14 @@
  */
 import { resolveDatabasePath } from '../../packages/workflow-engine/src/storage/database-path.js';
 import { openSqliteStores } from '../../packages/workflow-engine/src/storage/index.js';
-import { parseWorkflowInput } from '../../packages/workflow-engine/src/index.js';
+import { keyFromEnv, parseWorkflowInput } from '../../packages/workflow-engine/src/index.js';
 import { WORKFLOW_SAMPLES } from '../../apps/web/src/frontend/features/workflow/lib/workflowSamples.js';
-
-function resolveEncryptionKey(): Buffer {
-  const envKey = process.env.FOXFLOW_ENCRYPTION_KEY?.trim();
-  if (!envKey) return Buffer.alloc(32);
-  if (/^[0-9a-fA-F]{64}$/.test(envKey)) {
-    return Buffer.from(envKey, 'hex');
-  }
-  return Buffer.from(envKey, 'utf8');
-}
 
 async function seed() {
   const dbPath = resolveDatabasePath();
   const force = process.argv.includes('--force');
   console.log(`▶ Seeding ${WORKFLOW_SAMPLES.length} workflow samples into ${dbPath} (force: ${force}) …`);
-  const stores = openSqliteStores(dbPath, resolveEncryptionKey());
+  const stores = openSqliteStores(dbPath, keyFromEnv());
 
   const existingSummaries = await stores.workflows.summaries();
   const existingIds = new Set(existingSummaries.map((s) => s.id));

@@ -14,8 +14,10 @@ import {
   credentiallessPostgresOption,
   SqlSinkPipe,
   SqlSourcePipe,
+  applyColumnMapping,
   ensureAutoTable,
   postgresCreateTableSql,
+  resolveUpsertKeys,
   sqliteCreateTableSql,
   upsertSql,
   type SqlConnection,
@@ -455,6 +457,62 @@ describe('upsertKey on an insert step', () => {
     expect(result).toBe(
       'INSERT INTO "tenant_users" AS target ("tenant_id", "user_id", "name", "email") VALUES ($1, $2, $3, $4) ON CONFLICT ("tenant_id", "user_id") DO UPDATE SET "name" = excluded."name", "email" = excluded."email"',
     );
+  });
+
+  it('handles quoted table names with spaces correctly in upsertSql', () => {
+    const sql = 'INSERT INTO "sales orders" ("order_id", "total") VALUES (?, ?)';
+    const result = upsertSql(sql, ['order_id', 'total'], 'order_id', 'sqlite');
+    expect(result).toBe(
+      'INSERT INTO "sales orders" AS target ("order_id", "total") VALUES (?, ?) ON CONFLICT ("order_id") DO UPDATE SET "total" = excluded."total"',
+    );
+  });
+
+  it('parses comma-separated string in resolveUpsertKeys', () => {
+    expect(resolveUpsertKeys({ upsertKey: 'tenant_id, user_id' })).toEqual(['tenant_id', 'user_id']);
+  });
+
+  it('preserves native Date, Buffer, and BigInt for non-transformed columns while sandboxing transformed columns', async () => {
+    const now = new Date('2026-11-20T00:00:00Z');
+    const buf = Buffer.from('hello bytea');
+    const big = BigInt(9007199254740993);
+
+    const mapped = await applyColumnMapping(
+      [
+        {
+          createdAt: now,
+          binaryData: buf,
+          bigNumber: big,
+          rawCode: '  abc  ',
+        },
+      ],
+      [
+        { targetColumn: 'created_at', sourcePath: 'createdAt' },
+        { targetColumn: 'binary_data', sourcePath: 'binaryData' },
+        { targetColumn: 'big_number', sourcePath: 'bigNumber' },
+        { targetColumn: 'code', sourcePath: 'rawCode', transform: 'value.trim().toUpperCase()' },
+      ],
+      { timeoutMs: 1000 },
+    );
+
+    expect(mapped[0]?.code).toBe('ABC');
+    expect(mapped[0]?.created_at).toBe(now); // exact object identity preserved
+    expect(mapped[0]?.binary_data).toBe(buf); // exact Buffer preserved
+    expect(mapped[0]?.big_number).toBe(big); // BigInt preserved without throwing
+  });
+
+  it('rejects non-Postgres/non-SQLite connections when upsertKeys is configured', async () => {
+    const open: SqlRunner = async () => ({
+      query: async () => [],
+      transaction: async (work) => work(),
+      close: async () => undefined,
+    });
+    const sink = new SqlSinkPipe(open);
+    await expect(
+      sink.write(
+        batchOf([{ id: 1, name: 'test' }]),
+        context('sink.db.sql', 'sink', { table: 'users', upsertKey: 'id' }, saved('mysql')),
+      ),
+    ).rejects.toThrow(/upsertKey is supported on PostgreSQL and SQLite only, but connection uses mysql/);
   });
 
   it('appends upsertCondition to WHERE clause when updating', () => {

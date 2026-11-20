@@ -629,12 +629,18 @@ export function resolveUpsertKeys(config: {
   upsertKeys?: string[];
 }): string[] | undefined {
   if (Array.isArray(config.upsertKeys) && config.upsertKeys.length > 0) {
-    return config.upsertKeys.map((k) => k.trim()).filter(Boolean);
+    const keys = config.upsertKeys.map((k) => k.trim()).filter(Boolean);
+    return keys.length > 0 ? keys : undefined;
   }
   if (Array.isArray(config.upsertKey) && config.upsertKey.length > 0) {
-    return config.upsertKey.map((k) => k.trim()).filter(Boolean);
+    const keys = config.upsertKey.map((k) => k.trim()).filter(Boolean);
+    return keys.length > 0 ? keys : undefined;
   }
   if (typeof config.upsertKey === 'string' && config.upsertKey.trim()) {
+    if (config.upsertKey.includes(',')) {
+      const keys = config.upsertKey.split(',').map((k) => k.trim()).filter(Boolean);
+      return keys.length > 0 ? keys : undefined;
+    }
     return [config.upsertKey.trim()];
   }
   return undefined;
@@ -657,10 +663,12 @@ const sinkConfigSchema = z
      */
     upsertKey: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
     upsertKeys: z.array(z.string().min(1)).optional(),
-    /**
-     * Optional SQL condition clause for the upsert update (e.g. 'EXCLUDED.updated_at >= target.updated_at').
-     */
+    /** Optional SQL condition clause for the upsert update (e.g. 'EXCLUDED.updated_at >= target.updated_at'). */
     upsertCondition: z.string().optional(),
+    /** Timeout for mapping transforms in milliseconds (1 - 60,000). Defaults to 5,000. */
+    transformTimeoutMs: z.number().int().min(1).max(60_000).default(5_000).optional(),
+    /** Heap cap for transform worker in MB (16 - 4,096). Defaults to 128. */
+    transformMemoryMb: z.number().int().min(16).max(4_096).default(128).optional(),
     /** Statement per record; `{{record.field}}` binds a field. */
     sql: z.string().min(1).optional(),
     ...connectionFields,
@@ -690,8 +698,11 @@ const sinkConfigSchema = z
     (config) => {
       const keys = resolveUpsertKeys(config);
       if (!keys || keys.length === 0) return true;
-      const dialect = typeof config.dialect === 'string' ? config.dialect.toLowerCase() : 'sqlite';
-      return dialect === 'sqlite' || dialect === 'postgres';
+      if (config.dialect) {
+        const d = config.dialect.toLowerCase();
+        return d === 'sqlite' || d === 'postgres';
+      }
+      return true;
     },
     {
       message: 'upsertKey is supported on PostgreSQL and SQLite only',
@@ -715,6 +726,38 @@ const sinkConfigSchema = z
     },
   );
 
+/** Adds `AS target` alias to the target table of an INSERT INTO statement safely without regex back-tracking. */
+function aliasInsertTarget(sqlText: string): string {
+  if (/\bAS\s+target\b/i.test(sqlText)) return sqlText;
+  const prefixMatch = /^INSERT INTO\s+/i.exec(sqlText);
+  if (!prefixMatch) return sqlText;
+  let i = prefixMatch[0].length;
+  let inQuote = false;
+  const start = i;
+  while (i < sqlText.length) {
+    const ch = sqlText[i];
+    if (ch === '"') {
+      if (inQuote && sqlText[i + 1] === '"') {
+        i += 2;
+        continue;
+      }
+      inQuote = !inQuote;
+    } else if (!inQuote) {
+      if (ch === '(') break;
+      if (/\s/.test(ch)) {
+        const rest = sqlText.slice(i).trimStart();
+        if (/^(VALUES|AS)\b/i.test(rest)) {
+          break;
+        }
+      }
+    }
+    i++;
+  }
+  const target = sqlText.slice(start, i).trim();
+  if (!target) return sqlText;
+  return `${sqlText.slice(0, start)}${target} AS target ${sqlText.slice(i).trimStart()}`;
+}
+
 /**
  * Turn an `INSERT` into an upsert on `key` or composite combination keys: a row
  * whose key already exists is updated with the other written columns (or left
@@ -737,10 +780,7 @@ export function upsertSql(
   }
 
   // Alias target table as "target" so condition expressions like EXCLUDED.col >= target.col work
-  let aliasedSql = sqlText;
-  if (!/\bAS\s+target\b/i.test(aliasedSql)) {
-    aliasedSql = aliasedSql.replace(/^INSERT INTO\s+([^\s(]+)/i, 'INSERT INTO $1 AS target');
-  }
+  const aliasedSql = aliasInsertTarget(sqlText);
 
   const quotedKeys = keys.map((key) => quoteQualifiedName(key, dialect)).join(', ');
   const keySet = new Set(keys);
@@ -782,85 +822,101 @@ function lastPerKey(records: Record<string, unknown>[], keyOrKeys: string | stri
 export async function applyColumnMapping(
   records: Record<string, unknown>[],
   mappings: ColumnMappingItem[],
+  options?: { timeoutMs?: number; memoryMb?: number },
 ): Promise<Record<string, unknown>[]> {
   if (records.length === 0 || mappings.length === 0) return records;
 
-  const hasTransforms = mappings.some((m) => {
-    const expr = m.transform || m.expression;
-    return expr && expr.trim() && expr.trim() !== 'value';
+  // 1. Map all rows in-process first. Preserves native types (Date, Buffer, BigInt, etc.)
+  const inProcessRows: Record<string, unknown>[] = records.map((record) => {
+    const row: Record<string, unknown> = {};
+    for (const m of mappings) {
+      if (!m.targetColumn) continue;
+      const prop = m.sourcePath || m.sourceProperty;
+      let val = prop ? getPath(record, prop) : undefined;
+      if (val === undefined || val === null) {
+        val = m.defaultValue !== undefined ? m.defaultValue : val;
+      }
+      row[m.targetColumn] = val;
+    }
+    return row;
   });
 
-  if (!hasTransforms) {
-    return records.map((record) => {
-      const row: Record<string, unknown> = {};
-      for (const m of mappings) {
-        const prop = m.sourcePath || m.sourceProperty;
-        let val = prop ? getPath(record, prop) : undefined;
-        if (val === undefined || val === null) {
-          val = m.defaultValue !== undefined ? m.defaultValue : val;
-        }
-        row[m.targetColumn] = val;
-      }
-      return row;
-    });
+  const transformedItems = mappings.filter((m) => {
+    const expr = (m.transform || m.expression || '').trim();
+    return expr && expr !== 'value';
+  });
+
+  if (transformedItems.length === 0) {
+    return inProcessRows;
   }
 
-  // Security: Run user JS in isolated sandbox with timeout and heap limit
-  const mappingDefs = mappings.map((m) => ({
+  // 2. Security: Run only user transform expressions in worker sandbox with budget.
+  // Send only the inputs for transformed columns to avoid converting non-transformed columns (Dates, Buffers, BigInts).
+  const transformInputs = records.map((record) => {
+    const inputs: Record<string, unknown> = {};
+    for (const m of transformedItems) {
+      const prop = m.sourcePath || m.sourceProperty;
+      let val = prop ? getPath(record, prop) : undefined;
+      if (val === undefined || val === null) {
+        val = m.defaultValue !== undefined ? m.defaultValue : val;
+      }
+      inputs[m.targetColumn] = val;
+    }
+    return inputs;
+  });
+
+  const transformDefs = transformedItems.map((m) => ({
     targetColumn: m.targetColumn,
-    prop: m.sourcePath || m.sourceProperty,
     expr: (m.transform || m.expression || '').trim(),
-    defaultValue: m.defaultValue,
   }));
 
   const body = `
-    const mappings = ${JSON.stringify(mappingDefs)};
-
-    function getPath(obj, path) {
-      if (!path || !obj) return obj;
-      const parts = path.split('.');
-      let current = obj;
-      for (const part of parts) {
-        if (current === null || current === undefined) return undefined;
-        current = current[part];
+    const defs = ${JSON.stringify(transformDefs)};
+    const compiled = defs.map((d) => {
+      try {
+        return new Function('value', 'return (' + d.expr + ');');
+      } catch (err) {
+        throw new Error('Failed to compile transform expression "' + d.expr + '" for column "' + d.targetColumn + '": ' + (err && err.message ? err.message : String(err)));
       }
-      return current;
-    }
-
-    const compiled = mappings.map((m) => {
-      if (m.expr && m.expr !== 'value') {
-        try {
-          return new Function('value', 'record', 'return (' + m.expr + ');');
-        } catch (err) {
-          throw new Error('Failed to compile transform expression "' + m.expr + '" for column "' + m.targetColumn + '": ' + (err && err.message ? err.message : String(err)));
-        }
-      }
-      return null;
     });
 
-    return records.map((record, rowIndex) => {
-      const row = {};
-      for (let i = 0; i < mappings.length; i++) {
-        const m = mappings[i];
-        let val = m.prop ? getPath(record, m.prop) : undefined;
-        if (val === undefined || val === null) {
-          val = m.defaultValue !== undefined ? m.defaultValue : val;
-        }
-        if (val !== undefined && val !== null && compiled[i]) {
+    return records.map((inputRow, rowIndex) => {
+      const out = {};
+      for (let i = 0; i < defs.length; i++) {
+        const d = defs[i];
+        let val = inputRow[d.targetColumn];
+        if (val !== undefined && val !== null) {
           try {
-            val = compiled[i](val, record);
+            val = compiled[i](val);
           } catch (err) {
-            throw new Error('Failed to evaluate transform expression "' + m.expr + '" for column "' + m.targetColumn + '" on row ' + (rowIndex + 1) + ': ' + (err && err.message ? err.message : String(err)));
+            throw new Error('Failed to evaluate transform expression "' + d.expr + '" for column "' + d.targetColumn + '" on row ' + (rowIndex + 1) + ': ' + (err && err.message ? err.message : String(err)));
           }
         }
-        row[m.targetColumn] = val;
+        out[d.targetColumn] = val;
       }
-      return row;
+      return out;
     });
   `;
 
-  const { result } = await runSandboxedWithLogs(body, records, { timeoutMs: 5000 });
-  return result as Record<string, unknown>[];
+  const timeoutMs = options?.timeoutMs ?? 5_000;
+  const memoryMb = options?.memoryMb ?? 128;
+
+  const { result } = await runSandboxedWithLogs(body, transformInputs, {
+    timeoutMs,
+    maxOldGenerationSizeMb: memoryMb,
+  });
+
+  const transformedOutputs = result as Record<string, unknown>[];
+  for (let i = 0; i < inProcessRows.length; i++) {
+    const transformedRow = transformedOutputs[i];
+    if (transformedRow) {
+      for (const d of transformDefs) {
+        inProcessRows[i][d.targetColumn] = transformedRow[d.targetColumn];
+      }
+    }
+  }
+
+  return inProcessRows;
 }
 
 const ddlLocks = new Map<string, Promise<void>>();
@@ -896,11 +952,6 @@ function autoTableLockKey(connection: SqlConnection, table: string): string {
   ].join(':');
 }
 
-/**
- * Ensures the auto-created target table and columns exist before batch writes.
- * Serialized per target table and guarded in PostgreSQL by a transaction-scoped
- * advisory lock so concurrent pipeline batches never collide on `pg_type`.
- */
 function computeIndexName(table: string, keys: string[]): string {
   const cleanTable = table.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 32);
   const hash = createHash('sha256')
@@ -910,6 +961,11 @@ function computeIndexName(table: string, keys: string[]): string {
   return `uq_${cleanTable}_${hash}`;
 }
 
+/**
+ * Ensures the auto-created target table and columns exist before batch writes.
+ * Serialized per target table and guarded in PostgreSQL by a transaction-scoped
+ * advisory lock so concurrent pipeline batches never collide on `pg_type`.
+ */
 export async function ensureAutoTable(
   open: SqlRunner,
   connection: SqlConnection,
@@ -1004,10 +1060,20 @@ export class SqlSinkPipe implements SinkPipe {
     // Apply columnMapping if provided or in mapped mode
     const mappedRecords =
       config.columnMapping && config.columnMapping.length > 0
-        ? await applyColumnMapping(batch.records, config.columnMapping)
+        ? await applyColumnMapping(batch.records, config.columnMapping, {
+            timeoutMs: config.transformTimeoutMs,
+            memoryMb: config.transformMemoryMb,
+          })
         : batch.records;
 
     const upsertKeys = resolveUpsertKeys(config);
+    if (upsertKeys && upsertKeys.length > 0) {
+      if (connection.dialect !== 'postgres' && connection.dialect !== 'sqlite') {
+        throw new Error(
+          `upsertKey is supported on PostgreSQL and SQLite only, but connection uses ${connection.dialect}`,
+        );
+      }
+    }
     const records = upsertKeys ? lastPerKey(mappedRecords, upsertKeys) : mappedRecords;
 
     const effectiveColumns =

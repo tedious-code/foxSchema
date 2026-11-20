@@ -101,6 +101,16 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
         ? (config.upsertKey as string[])
         : rawMapping.filter((m) => m.isKey).map((m) => m.targetColumn).filter(Boolean);
 
+  const configKeys = Array.isArray(config.upsertKeys)
+    ? config.upsertKeys.join(', ')
+    : Array.isArray(config.upsertKey)
+      ? config.upsertKey.join(', ')
+      : typeof config.upsertKey === 'string'
+        ? config.upsertKey
+        : '';
+  const [insertUpsertKeyText, setInsertUpsertKeyText] = useState<string | null>(null);
+  const displayInsertUpsertKey = insertUpsertKeyText !== null ? insertUpsertKeyText : configKeys;
+
   const columnMapping: ColumnMappingItem[] = rawMapping.map((item) => ({
     ...item,
     isKey: item.isKey ?? (item.targetColumn ? currentKeys.includes(item.targetColumn) : false),
@@ -176,19 +186,23 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
     onConfigChange({ ...config, sql: sql.trim() ? `${sql.trimEnd()}\n\n${select}` : select });
   };
 
+  const deriveUpsertKeys = (mappings: ColumnMappingItem[]): string[] => {
+    return mappings
+      .filter((m) => m.isKey && m.targetColumn && m.targetColumn.trim())
+      .map((m) => m.targetColumn.trim());
+  };
+
   const toggleKey = (index: number) => {
     const item = columnMapping[index];
-    if (!item || !item.targetColumn) return;
-    const willBeKey = !item.isKey;
+    if (!item) return;
     const updatedMappings = columnMapping.map((col, i) =>
-      i === index ? { ...col, isKey: willBeKey } : col,
+      i === index ? { ...col, isKey: !col.isKey } : col,
     );
-    const nextKeys = willBeKey
-      ? Array.from(new Set([...currentKeys, item.targetColumn]))
-      : currentKeys.filter((k) => k !== item.targetColumn);
+    const nextKeys = deriveUpsertKeys(updatedMappings);
     onConfigChange({
       ...config,
       upsertKeys: nextKeys,
+      upsertKey: undefined,
       columnMapping: updatedMappings,
     });
   };
@@ -199,18 +213,14 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
   };
 
   const updateTargetColumn = (index: number, newCol: string) => {
-    const oldCol = columnMapping[index]?.targetColumn;
-    const isKey = columnMapping[index]?.isKey;
-    let nextKeys = currentKeys;
-    if (oldCol && isKey && currentKeys.includes(oldCol)) {
-      nextKeys = currentKeys.map((k) => (k === oldCol ? newCol : k)).filter(Boolean);
-    }
     const next = columnMapping.map((item, i) =>
       i === index ? { ...item, targetColumn: newCol } : item,
     );
+    const nextKeys = deriveUpsertKeys(next);
     onConfigChange({
       ...config,
       upsertKeys: nextKeys,
+      upsertKey: undefined,
       columnMapping: next,
     });
   };
@@ -237,14 +247,12 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
   };
 
   const removeMappingItem = (index: number) => {
-    const removed = columnMapping[index];
     const next = columnMapping.filter((_, i) => i !== index);
-    const nextKeys = removed?.targetColumn
-      ? currentKeys.filter((k) => k !== removed.targetColumn)
-      : currentKeys;
+    const nextKeys = deriveUpsertKeys(next);
     onConfigChange({
       ...config,
       upsertKeys: nextKeys,
+      upsertKey: undefined,
       columnMapping: next,
     });
   };
@@ -440,25 +448,61 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
           <Input
             aria-label="Upsert key"
             data-testid="workflow-sql-insert-upsert-key"
-            placeholder="e.g. id"
-            value={
-              typeof config.upsertKey === 'string'
-                ? config.upsertKey
-                : Array.isArray(config.upsertKey)
-                  ? config.upsertKey.join(', ')
-                  : ''
-            }
+            placeholder="e.g. id, or id, tenant_id"
+            value={displayInsertUpsertKey}
             onChange={(event) => {
-              const val = event.target.value.trim();
-              onConfigChange({
-                ...config,
-                mode: 'insert',
-                upsertKey: val || undefined,
-              });
+              const raw = event.target.value;
+              setInsertUpsertKeyText(raw);
+              const parts = raw.split(',').map((p) => p.trim()).filter(Boolean);
+              if (raw.trim() === '') {
+                const { upsertKey: _k, upsertKeys: _ks, ...rest } = config;
+                onConfigChange({ ...rest, mode: 'insert' });
+              } else if (parts.length > 1) {
+                onConfigChange({
+                  ...config,
+                  mode: 'insert',
+                  upsertKey: undefined,
+                  upsertKeys: parts,
+                });
+              } else if (parts.length === 1 && !raw.includes(',')) {
+                onConfigChange({
+                  ...config,
+                  mode: 'insert',
+                  upsertKey: parts[0],
+                  upsertKeys: undefined,
+                });
+              }
+            }}
+            onBlur={() => {
+              if (insertUpsertKeyText !== null) {
+                const raw = insertUpsertKeyText;
+                setInsertUpsertKeyText(null);
+                const parts = raw.split(',').map((p) => p.trim()).filter(Boolean);
+                if (parts.length > 1) {
+                  onConfigChange({
+                    ...config,
+                    mode: 'insert',
+                    upsertKey: undefined,
+                    upsertKeys: parts,
+                  });
+                } else if (parts.length === 1) {
+                  onConfigChange({
+                    ...config,
+                    mode: 'insert',
+                    upsertKey: parts[0],
+                    upsertKeys: undefined,
+                  });
+                } else {
+                  const { upsertKey: _k, upsertKeys: _ks, ...rest } = config;
+                  onConfigChange({ ...rest, mode: 'insert' });
+                }
+              }
             }}
           />
           <div className="hint">
-            With an upsert key, running the workflow again updates existing rows instead of adding duplicate records.
+            {dialect !== 'sqlite' && dialect !== 'postgres' && dialect !== 'sql'
+              ? `Upsert keys are supported on PostgreSQL and SQLite only; connection uses ${dialect}.`
+              : 'With an upsert key (or comma-separated combination keys), running the workflow again updates existing rows instead of adding duplicate records.'}
           </div>
         </>
       )}
@@ -503,7 +547,9 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
             }}
           />
           <div className="hint">
-            Combination keys identify existing records. Matching keys update rows; non-matching keys insert new rows. Key columns are omitted from UPDATE SET.
+            {dialect !== 'sqlite' && dialect !== 'postgres' && dialect !== 'sql'
+              ? `Upsert keys are supported on PostgreSQL and SQLite only; connection uses ${dialect}.`
+              : 'Combination keys identify existing records. Matching keys update rows; non-matching keys insert new rows. Key columns are omitted from UPDATE SET.'}
           </div>
 
           <label>Update condition (optional)</label>

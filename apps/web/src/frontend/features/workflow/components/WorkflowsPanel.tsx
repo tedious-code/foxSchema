@@ -259,11 +259,25 @@ export function WorkflowsPanel({
       {loading ? (
         <p className="empty">Loading workflows…</p>
       ) : filtered.length === 0 ? (
-        <p className="empty">
-          {workflows.length === 0
-            ? 'No workflows yet. Name one above to start building, or add the built-in samples.'
-            : 'No workflows match that search.'}
-        </p>
+        <div className="empty">
+          <p>
+            {workflows.length === 0
+              ? 'No workflows yet. Name one above to start building, or add the built-in samples.'
+              : 'No workflows match that search.'}
+          </p>
+          {workflows.length === 0 && (
+            <div className="mt-3 flex justify-center">
+              <Button
+                data-testid="workflow-empty-add-samples"
+                variant="primary"
+                disabled={!canDesign}
+                onClick={() => void installSamples()}
+              >
+                <Sparkles /> Add built-in samples
+              </Button>
+            </div>
+          )}
+        </div>
       ) : (
         <table className="workflows-table">
           <thead>

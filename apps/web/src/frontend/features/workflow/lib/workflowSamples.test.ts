@@ -15,6 +15,7 @@ import {
   SAMPLE_HELLO_PEOPLE,
   SAMPLE_HELLO_WORKFLOW_ID,
   SAMPLE_LINEAR_API_FAILFAST_DB_WORKFLOW_ID,
+  SAMPLE_MAPPED_DB_COMPOSITE_UPSERT_WORKFLOW_ID,
   SAMPLE_MULTI_API_FANOUT_WORKFLOW_ID,
   SAMPLE_MULTI_API_MERGE_TO_DB_WORKFLOW_ID,
   SAMPLE_MULTI_DB_ETL_CONSOLIDATE_WORKFLOW_ID,
@@ -421,6 +422,112 @@ describe('workflow samples', () => {
     const broken = result.find((r) => r.endpoint === 'broken_hub')!;
     expect(broken.has_error).toBe(true);
     expect(broken.error_message).toContain('HTTP 404');
+  });
+
+  it('CDC watermark sample script computes audit hashes and USD balance from cents', () => {
+    const found = sample('sample-cdc-watermark-incremental-sync');
+    const parsed = parseWorkflow(found.document);
+    const scriptPipe = parsed.pipelines[0]!.pipes.find((p) => p.id === 'compute_delta_and_audit');
+    expect(scriptPipe).toBeDefined();
+
+    const fn = new Function('records', scriptPipe!.config.script as string);
+    const input = [
+      {
+        customer_id: 'CUST-1',
+        name: 'Alpha Co',
+        plan: 'pro',
+        balance_cents: 25400,
+        op: 'UPDATE',
+        updated_at: '2026-11-20T01:00:00Z',
+      },
+    ];
+    const out = fn(input) as {
+      customer_id: string;
+      customer_name: string;
+      subscription_tier: string;
+      balance_usd: number;
+      change_op: string;
+      audit_id: string;
+    }[];
+
+    expect(out).toHaveLength(1);
+    expect(out[0]!.customer_id).toBe('CUST-1');
+    expect(out[0]!.customer_name).toBe('Alpha Co');
+    expect(out[0]!.subscription_tier).toBe('PRO');
+    expect(out[0]!.balance_usd).toBe(254);
+    expect(out[0]!.change_op).toBe('UPDATE');
+    expect(out[0]!.audit_id).toContain('AUDIT-CUST-1');
+  });
+
+  it('webhook ingest and rollup sample scripts flatten nested lines and compute category rollups', () => {
+    const found = sample('sample-webhook-ingest-aggregate-db');
+    const parsed = parseWorkflow(found.document);
+    const flattenPipe = parsed.pipelines[0]!.pipes.find((p) => p.id === 'flatten_nested_items');
+    expect(flattenPipe).toBeDefined();
+
+    const flattenFn = new Function('records', flattenPipe!.config.script as string);
+    const nestedEvents = [
+      {
+        order_id: 'ORD-1',
+        region: 'US',
+        items: [
+          { item_id: 'IT-1', sku: 'SKU-A', category: 'Gadgets', qty: 3, unit_price: 10 },
+          { item_id: 'IT-2', sku: 'SKU-B', category: 'Books', qty: 1, unit_price: 25 },
+        ],
+      },
+    ];
+    const flattened = flattenFn(nestedEvents) as {
+      item_id: string;
+      order_id: string;
+      category: string;
+      total_amount: number;
+    }[];
+
+    expect(flattened).toHaveLength(2);
+    expect(flattened[0]!.item_id).toBe('IT-1');
+    expect(flattened[0]!.total_amount).toBe(30);
+    expect(flattened[1]!.item_id).toBe('IT-2');
+    expect(flattened[1]!.total_amount).toBe(25);
+
+    const rollupPipe = parsed.pipelines[1]!.pipes.find((p) => p.id === 'compute_category_totals');
+    expect(rollupPipe).toBeDefined();
+    const rollupFn = new Function('records', rollupPipe!.config.script as string);
+    const rollups = rollupFn(flattened) as {
+      category: string;
+      total_items: number;
+      total_revenue: number;
+      avg_line_amount: number;
+    }[];
+
+    expect(rollups).toHaveLength(2);
+    const gadgets = rollups.find((r) => r.category === 'Gadgets')!;
+    expect(gadgets.total_items).toBe(3);
+    expect(gadgets.total_revenue).toBe(30);
+    expect(gadgets.avg_line_amount).toBe(30);
+  });
+
+  it('mapped db composite upsert sample defines side-by-side mapping with combination keys and condition', () => {
+    const parsed = parseWorkflow(sample(SAMPLE_MAPPED_DB_COMPOSITE_UPSERT_WORKFLOW_ID).document);
+    expect(parsed.pipelines).toHaveLength(1);
+    const sinkPipe = parsed.pipelines[0]!.pipes.find((p) => p.id === 'mapped_insert');
+    expect(sinkPipe).toBeDefined();
+    expect(sinkPipe!.type).toBe('sink.db.mapped-insert');
+    expect(sinkPipe!.config.mode).toBe('mapped');
+    expect(sinkPipe!.config.table).toBe('wf_tenant_users');
+    expect(sinkPipe!.config.upsertKeys).toEqual(['tenant_id', 'user_id']);
+    expect(sinkPipe!.config.upsertCondition).toBe('EXCLUDED.updated_at >= target.updated_at');
+
+    const mappings = sinkPipe!.config.columnMapping as Array<{
+      targetColumn: string;
+      sourcePath: string;
+      expression?: string;
+      defaultValue?: unknown;
+      isKey?: boolean;
+    }>;
+    expect(mappings).toHaveLength(7);
+    expect(mappings.find((m) => m.targetColumn === 'tenant_id')?.isKey).toBe(true);
+    expect(mappings.find((m) => m.targetColumn === 'user_id')?.isKey).toBe(true);
+    expect(mappings.find((m) => m.targetColumn === 'balance_usd')?.expression).toBe('value / 100');
   });
 
   it('saveSampleWorkflows PUTs each sample by id', async () => {

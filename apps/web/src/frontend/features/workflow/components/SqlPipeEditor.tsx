@@ -11,7 +11,12 @@
  */
 import Editor from '@monaco-editor/react';
 import { useEffect, useState } from 'react';
-import { linkedConnectionId, type WorkflowConnectionSummary } from '@foxschema/workflow-contract';
+import { Key, Plus, Sparkles, Trash2 } from 'lucide-react';
+import {
+  linkedConnectionId,
+  type ColumnMappingItem,
+  type WorkflowConnectionSummary,
+} from '@foxschema/workflow-contract';
 import { useAuthStore } from '@/platform/authStore';
 import { monacoLanguage } from '@/features/sql-editor/monaco';
 import { loadSchema } from '@/shared/api/schemaApi';
@@ -24,9 +29,9 @@ import { workflowConnections } from '../api/workflowApi';
 import { invalidateEngineQueries } from '../api/engineQueries';
 import { JSON_EDITOR_OPTIONS, useJsonEditorTheme } from '../lib/jsonEditorOptions';
 import { toast } from '../lib/notify';
-import { Input, Select } from './controls';
+import { Button, Input, Select } from './controls';
 
-export type SqlPipeType = 'source.db.sql' | 'sink.db.sql';
+export type SqlPipeType = 'source.db.sql' | 'sink.db.sql' | 'sink.db.mapped-insert';
 
 interface Props {
   type: SqlPipeType;
@@ -72,10 +77,44 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
   const connection = connections?.find((candidate) => candidate.id === connectionId);
   const schema = typeof config.schema === 'string' && config.schema ? config.schema : connection?.schema;
   const dialect = connection?.dialect ?? (typeof config.dialect === 'string' ? config.dialect : 'sql');
-  const mode = type === 'source.db.sql' ? 'query' : config.mode === 'statement' ? 'statement' : 'insert';
+  const isMappedPipe = type === 'sink.db.mapped-insert';
+  const isSink = type === 'sink.db.sql' || isMappedPipe;
+  const mode = type === 'source.db.sql'
+    ? 'query'
+    : isMappedPipe
+      ? 'mapped'
+      : config.mode === 'statement'
+        ? 'statement'
+        : config.mode === 'mapped'
+          ? 'mapped'
+          : 'insert';
   const sql = typeof config.sql === 'string' ? config.sql : '';
   const tablesKey = `${connectionId ?? ''}\0${schema ?? ''}`;
   const tables = loaded?.key === tablesKey ? loaded.tables : null;
+
+  const rawMapping = Array.isArray(config.columnMapping) ? (config.columnMapping as ColumnMappingItem[]) : [];
+  const currentKeys: string[] = Array.isArray(config.upsertKeys)
+    ? (config.upsertKeys as string[])
+    : typeof config.upsertKey === 'string' && config.upsertKey.trim()
+      ? config.upsertKey.split(',').map((k) => k.trim()).filter(Boolean)
+      : Array.isArray(config.upsertKey)
+        ? (config.upsertKey as string[])
+        : rawMapping.filter((m) => m.isKey).map((m) => m.targetColumn).filter(Boolean);
+
+  const configKeys = Array.isArray(config.upsertKeys)
+    ? config.upsertKeys.join(', ')
+    : Array.isArray(config.upsertKey)
+      ? config.upsertKey.join(', ')
+      : typeof config.upsertKey === 'string'
+        ? config.upsertKey
+        : '';
+  const [insertUpsertKeyText, setInsertUpsertKeyText] = useState<string | null>(null);
+  const displayInsertUpsertKey = insertUpsertKeyText !== null ? insertUpsertKeyText : configKeys;
+
+  const columnMapping: ColumnMappingItem[] = rawMapping.map((item) => ({
+    ...item,
+    isKey: item.isKey ?? (item.targetColumn ? currentKeys.includes(item.targetColumn) : false),
+  }));
 
   const link = async (id: string) => {
     if (!id) {
@@ -112,20 +151,140 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
 
   const pickTable = (table: TableSchema) => {
     const columns = table.columns.map((column) => column.name);
-    if (type === 'sink.db.sql') {
+    const tableName = [schema, table.name].filter(Boolean).map((part) => namePart(part!)).join('.');
+    const pkCols = table.primaryKey?.columns ?? [];
+
+    if (mode === 'mapped') {
+      const mappings: ColumnMappingItem[] = table.columns.map((column) => ({
+        targetColumn: column.name,
+        sourceProperty: column.name,
+        isKey: pkCols.includes(column.name),
+      }));
+      onConfigChange({
+        ...config,
+        mode: 'mapped',
+        table: tableName,
+        columnMapping: mappings,
+        ...(pkCols.length > 0 ? { upsertKeys: pkCols } : {}),
+      });
+      return;
+    }
+
+    if (type === 'sink.db.sql' && mode === 'insert') {
       onConfigChange({
         ...config,
         mode: 'insert',
-        table: [schema, table.name].filter(Boolean).map((part) => namePart(part!)).join('.'),
+        table: tableName,
         columns,
       });
       return;
     }
+
     const quoted = (name: string) => quoteSqlIdentifier(name, dialect);
     const from = [schema, table.name].filter(Boolean).map((part) => quoted(part!)).join('.');
     const select = `SELECT ${columns.length ? columns.map(quoted).join(', ') : '*'}\nFROM ${from}`;
     onConfigChange({ ...config, sql: sql.trim() ? `${sql.trimEnd()}\n\n${select}` : select });
   };
+
+  const deriveUpsertKeys = (mappings: ColumnMappingItem[]): string[] => {
+    return mappings
+      .filter((m) => m.isKey && m.targetColumn && m.targetColumn.trim())
+      .map((m) => m.targetColumn.trim());
+  };
+
+  const toggleKey = (index: number) => {
+    const item = columnMapping[index];
+    if (!item) return;
+    const updatedMappings = columnMapping.map((col, i) =>
+      i === index ? { ...col, isKey: !col.isKey } : col,
+    );
+    const nextKeys = deriveUpsertKeys(updatedMappings);
+    onConfigChange({
+      ...config,
+      upsertKeys: nextKeys,
+      upsertKey: undefined,
+      columnMapping: updatedMappings,
+    });
+  };
+
+  const addMappingItem = () => {
+    const next = [...columnMapping, { targetColumn: '', sourcePath: '' }];
+    onConfigChange({ ...config, columnMapping: next });
+  };
+
+  const updateTargetColumn = (index: number, newCol: string) => {
+    const next = columnMapping.map((item, i) =>
+      i === index ? { ...item, targetColumn: newCol } : item,
+    );
+    const nextKeys = deriveUpsertKeys(next);
+    onConfigChange({
+      ...config,
+      upsertKeys: nextKeys,
+      upsertKey: undefined,
+      columnMapping: next,
+    });
+  };
+
+  const updateMappingItem = (index: number, patch: Partial<ColumnMappingItem>) => {
+    const next = columnMapping.map((item, i) => {
+      if (i !== index) return item;
+      const merged = { ...item, ...patch };
+      if (patch.sourcePath !== undefined) {
+        delete merged.sourceProperty;
+      }
+      if (patch.transform !== undefined) {
+        delete merged.expression;
+        if (!patch.transform || !patch.transform.trim()) {
+          delete merged.transform;
+        }
+      }
+      if (!merged.defaultValue && merged.defaultValue !== 0 && merged.defaultValue !== false) {
+        delete merged.defaultValue;
+      }
+      return merged;
+    });
+    onConfigChange({ ...config, columnMapping: next });
+  };
+
+  const removeMappingItem = (index: number) => {
+    const next = columnMapping.filter((_, i) => i !== index);
+    const nextKeys = deriveUpsertKeys(next);
+    onConfigChange({
+      ...config,
+      upsertKeys: nextKeys,
+      upsertKey: undefined,
+      columnMapping: next,
+    });
+  };
+
+  const autoMapFromLoadedTable = () => {
+    if (!tables || tables.length === 0) return;
+    const rawTable = typeof config.table === 'string' ? config.table : '';
+    const cleanTable = rawTable.includes('.') ? rawTable.split('.').pop() : rawTable;
+    const match = tables.find((t) => t.name === cleanTable || t.name === rawTable) ?? tables[0];
+    if (!match) return;
+    pickTable(match);
+  };
+
+  // Live SQL preview for mapped mode
+  const previewColumns = columnMapping.map((m) => m.targetColumn).filter(Boolean);
+  const previewTable = typeof config.table === 'string' && config.table ? config.table : 'target_table';
+  const previewCondition = typeof config.upsertCondition === 'string' ? config.upsertCondition.trim() : '';
+  let previewSql = '';
+  if (previewColumns.length > 0) {
+    previewSql = `INSERT INTO ${previewTable} AS target (${previewColumns.join(', ')})\nVALUES (${previewColumns.map(() => '?').join(', ')})`;
+    if (currentKeys.length > 0) {
+      const updateCols = previewColumns.filter((c) => !currentKeys.includes(c));
+      if (updateCols.length > 0) {
+        previewSql += `\nON CONFLICT (${currentKeys.join(', ')}) DO UPDATE SET\n  ${updateCols.map((c) => `${c} = EXCLUDED.${c}`).join(',\n  ')}`;
+        if (previewCondition) {
+          previewSql += `\nWHERE ${previewCondition}`;
+        }
+      } else {
+        previewSql += `\nON CONFLICT (${currentKeys.join(', ')}) DO NOTHING`;
+      }
+    }
+  }
 
   return (
     <div className="sql-pipe-editor">
@@ -222,8 +381,8 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
                 ))}
               </ul>
               <div className="hint">
-                {type === 'sink.db.sql'
-                  ? 'Pick the table to insert into; its columns become the column list.'
+                {isSink
+                  ? 'Pick the table to write into; its columns populate target fields.'
                   : 'Pick a table to add a SELECT of its columns.'}
               </div>
             </>
@@ -231,62 +390,316 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
         </>
       )}
 
-      {type === 'sink.db.sql' && (
+      {isSink && !isMappedPipe && (
         <>
           <label>Write mode</label>
           <Select
             aria-label="Write mode"
             value={mode ?? 'insert'}
             onChange={(event) => {
-              const nextMode = event.target.value as 'insert' | 'statement';
+              const nextMode = event.target.value as 'insert' | 'statement' | 'mapped';
               onConfigChange({ ...config, mode: nextMode });
             }}
           >
             <option value="insert">Insert rows into table</option>
+            <option value="mapped">Mapped column insert / upsert (ETL)</option>
             <option value="statement">Run SQL statement per record</option>
           </Select>
-          {(mode ?? 'insert') === 'insert' && (
-            <>
-              <label>Target table</label>
-              <Input
-                aria-label="Target table"
-                placeholder={schema ? `${schema}.orders` : 'orders'}
-                value={typeof config.table === 'string' ? config.table : ''}
-                onChange={(event) =>
-                  onConfigChange({
-                    ...config,
-                    mode: 'insert',
-                    table: event.target.value,
-                  })
-                }
-              />
-              <label>Columns (comma-separated, optional)</label>
-              <Input
-                aria-label="Columns"
-                placeholder="Leave blank to insert all record fields"
-                value={
-                  Array.isArray(config.columns)
-                    ? config.columns.map(String).join(', ')
-                    : ''
-                }
-                onChange={(event) => {
-                  const cols = event.target.value
-                    .split(',')
-                    .map((col) => col.trim())
-                    .filter(Boolean);
-                  onConfigChange({
-                    ...config,
-                    mode: 'insert',
-                    columns: cols,
-                  });
-                }}
-              />
-            </>
-          )}
         </>
       )}
 
-      {mode !== 'insert' && (
+      {mode === 'insert' && (
+        <>
+          <label>Target table</label>
+          <Input
+            aria-label="Target table"
+            placeholder={schema ? `${schema}.orders` : 'orders'}
+            value={typeof config.table === 'string' ? config.table : ''}
+            onChange={(event) =>
+              onConfigChange({
+                ...config,
+                mode: 'insert',
+                table: event.target.value,
+              })
+            }
+          />
+          <label>Columns (comma-separated, optional)</label>
+          <Input
+            aria-label="Columns"
+            placeholder="Leave blank to insert all record fields"
+            value={
+              Array.isArray(config.columns)
+                ? config.columns.map(String).join(', ')
+                : ''
+            }
+            onChange={(event) => {
+              const cols = event.target.value
+                .split(',')
+                .map((col) => col.trim())
+                .filter(Boolean);
+              onConfigChange({
+                ...config,
+                mode: 'insert',
+                columns: cols,
+              });
+            }}
+          />
+          <label>Upsert key (optional)</label>
+          <Input
+            aria-label="Upsert key"
+            data-testid="workflow-sql-insert-upsert-key"
+            placeholder="e.g. id, or id, tenant_id"
+            value={displayInsertUpsertKey}
+            onChange={(event) => {
+              const raw = event.target.value;
+              setInsertUpsertKeyText(raw);
+              const parts = raw.split(',').map((p) => p.trim()).filter(Boolean);
+              if (raw.trim() === '') {
+                const { upsertKey: _k, upsertKeys: _ks, ...rest } = config;
+                onConfigChange({ ...rest, mode: 'insert' });
+              } else if (parts.length > 1) {
+                onConfigChange({
+                  ...config,
+                  mode: 'insert',
+                  upsertKey: undefined,
+                  upsertKeys: parts,
+                });
+              } else if (parts.length === 1 && !raw.includes(',')) {
+                onConfigChange({
+                  ...config,
+                  mode: 'insert',
+                  upsertKey: parts[0],
+                  upsertKeys: undefined,
+                });
+              }
+            }}
+            onBlur={() => {
+              if (insertUpsertKeyText !== null) {
+                const raw = insertUpsertKeyText;
+                setInsertUpsertKeyText(null);
+                const parts = raw.split(',').map((p) => p.trim()).filter(Boolean);
+                if (parts.length > 1) {
+                  onConfigChange({
+                    ...config,
+                    mode: 'insert',
+                    upsertKey: undefined,
+                    upsertKeys: parts,
+                  });
+                } else if (parts.length === 1) {
+                  onConfigChange({
+                    ...config,
+                    mode: 'insert',
+                    upsertKey: parts[0],
+                    upsertKeys: undefined,
+                  });
+                } else {
+                  const { upsertKey: _k, upsertKeys: _ks, ...rest } = config;
+                  onConfigChange({ ...rest, mode: 'insert' });
+                }
+              }
+            }}
+          />
+          <div className="hint">
+            {dialect !== 'sqlite' && dialect !== 'postgres' && dialect !== 'sql'
+              ? `Upsert keys are supported on PostgreSQL and SQLite only; connection uses ${dialect}.`
+              : 'With an upsert key (or comma-separated combination keys), running the workflow again updates existing rows instead of adding duplicate records.'}
+          </div>
+        </>
+      )}
+
+      {mode === 'mapped' && (
+        <div className="mapped-columns-container">
+          <label>Target table</label>
+          <Input
+            aria-label="Target table"
+            data-testid="workflow-sql-table"
+            placeholder={schema ? `${schema}.users` : 'users'}
+            value={typeof config.table === 'string' ? config.table : ''}
+            onChange={(event) =>
+              onConfigChange({
+                ...config,
+                mode: 'mapped',
+                table: event.target.value,
+              })
+            }
+          />
+
+          <label>Combination keys (composite upsert, comma-separated)</label>
+          <Input
+            aria-label="Combination keys"
+            data-testid="workflow-sql-upsert-keys"
+            placeholder="e.g. tenant_id, user_id"
+            value={currentKeys.join(', ')}
+            onChange={(event) => {
+              const keys = event.target.value
+                .split(',')
+                .map((k) => k.trim())
+                .filter(Boolean);
+              const updatedMappings = columnMapping.map((col) => ({
+                ...col,
+                isKey: keys.includes(col.targetColumn),
+              }));
+              onConfigChange({
+                ...config,
+                upsertKeys: keys,
+                ...(columnMapping.length > 0 ? { columnMapping: updatedMappings } : {}),
+              });
+            }}
+          />
+          <div className="hint">
+            {dialect !== 'sqlite' && dialect !== 'postgres' && dialect !== 'sql'
+              ? `Upsert keys are supported on PostgreSQL and SQLite only; connection uses ${dialect}.`
+              : 'Combination keys identify existing records. Matching keys update rows; non-matching keys insert new rows. Key columns are omitted from UPDATE SET.'}
+          </div>
+
+          <label>Update condition (optional)</label>
+          <Input
+            aria-label="Update condition"
+            data-testid="workflow-sql-upsert-condition"
+            placeholder="e.g. EXCLUDED.updated_at >= target.updated_at"
+            value={typeof config.upsertCondition === 'string' ? config.upsertCondition : ''}
+            onChange={(event) =>
+              onConfigChange({
+                ...config,
+                upsertCondition: event.target.value || undefined,
+              })
+            }
+          />
+          <div className="hint">
+            Appended as a WHERE clause to DO UPDATE SET (e.g. to ignore outdated record streams).
+          </div>
+
+          <div className="flex items-center justify-between mt-2 mb-1">
+            <label className="m-0 font-medium text-slate-200">Side-by-side Column Mapping</label>
+            {tables && tables.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                data-testid="workflow-sql-automap"
+                onClick={autoMapFromLoadedTable}
+                title="Populate columns from selected table"
+              >
+                <Sparkles size={12} className="mr-1 text-amber-400" /> Auto-map
+              </Button>
+            )}
+          </div>
+
+          <div className="overflow-x-auto rounded border border-slate-700 bg-slate-900/60 p-1">
+            <table className="mapped-columns-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '28%' }}>Target DB Column</th>
+                  <th style={{ width: '38px', textAlign: 'center' }} title="Mark as combination key">Key</th>
+                  <th style={{ width: '30%' }}>Source Object Path</th>
+                  <th style={{ width: '22%' }}>Transform (JS)</th>
+                  <th style={{ width: '15%' }}>Default</th>
+                  <th style={{ width: '28px' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {columnMapping.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="text-center py-3 text-slate-400 text-xs">
+                      No column mappings yet. Click &quot;Add column mapping&quot; or pick a table above.
+                    </td>
+                  </tr>
+                )}
+                {columnMapping.map((item, index) => (
+                  <tr key={index} data-testid={`workflow-sql-mapping-row-${index}`}>
+                    <td>
+                      <Input
+                        aria-label={`Target column ${index + 1}`}
+                        data-testid={`workflow-sql-target-col-${index}`}
+                        placeholder="e.g. user_id"
+                        value={item.targetColumn}
+                        onChange={(e) => updateTargetColumn(index, e.target.value)}
+                        className="text-xs py-1"
+                      />
+                    </td>
+                    <td className="text-center">
+                      <button
+                        type="button"
+                        aria-label={`Toggle combination key for ${item.targetColumn || `column ${index + 1}`}`}
+                        data-testid={`workflow-sql-key-col-${index}`}
+                        className={`mapped-key-btn ${item.isKey ? 'active' : ''}`}
+                        title={item.isKey ? 'Part of combination key' : 'Click to make part of combination key'}
+                        onClick={() => toggleKey(index)}
+                      >
+                        <Key size={12} />
+                      </button>
+                    </td>
+                    <td>
+                      <Input
+                        aria-label={`Source property path ${index + 1}`}
+                        data-testid={`workflow-sql-source-prop-${index}`}
+                        placeholder="e.g. user.id"
+                        value={item.sourcePath ?? item.sourceProperty ?? ''}
+                        onChange={(e) => updateMappingItem(index, { sourcePath: e.target.value })}
+                        className="text-xs py-1 font-mono"
+                      />
+                    </td>
+                    <td>
+                      <Input
+                        aria-label={`Transform expression ${index + 1}`}
+                        data-testid={`workflow-sql-transform-${index}`}
+                        placeholder="value.trim()"
+                        value={item.transform ?? item.expression ?? ''}
+                        onChange={(e) => updateMappingItem(index, { transform: e.target.value })}
+                        className="text-xs py-1 font-mono"
+                      />
+                    </td>
+                    <td>
+                      <Input
+                        aria-label={`Default value ${index + 1}`}
+                        data-testid={`workflow-sql-default-${index}`}
+                        placeholder="null"
+                        value={item.defaultValue !== undefined ? String(item.defaultValue) : ''}
+                        onChange={(e) => updateMappingItem(index, { defaultValue: e.target.value })}
+                        className="text-xs py-1"
+                      />
+                    </td>
+                    <td className="text-center">
+                      <button
+                        type="button"
+                        aria-label={`Remove mapping ${index + 1}`}
+                        data-testid={`workflow-sql-remove-col-${index}`}
+                        className="text-slate-400 hover:text-rose-400 p-1"
+                        onClick={() => removeMappingItem(index)}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex items-center gap-2 mt-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              data-testid="workflow-sql-add-column-mapping"
+              onClick={addMappingItem}
+            >
+              <Plus size={13} className="mr-1" /> Add column mapping
+            </Button>
+          </div>
+
+          <div className="hint">
+            Source paths support dot notation (e.g. <code>profile.billing.cents</code>). Transform expressions receive <code>value</code> and <code>record</code> (e.g. <code>value / 100</code>).
+          </div>
+
+          {previewSql && (
+            <>
+              <label className="text-xs text-slate-400 mt-2">Generated SQL Preview</label>
+              <pre className="mapped-sql-preview">{previewSql}</pre>
+            </>
+          )}
+        </div>
+      )}
+
+      {mode === 'statement' || mode === 'query' ? (
         <>
           <label>{mode === 'statement' ? 'Statement per record' : 'SQL'}</label>
           <div className="monaco-frame">
@@ -306,7 +719,7 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
             {'{{vars.name}}'} and {'{{trigger.field}}'} are bound as parameters, never pasted into the SQL.
           </div>
         </>
-      )}
+      ) : null}
     </div>
   );
 }

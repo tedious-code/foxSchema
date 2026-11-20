@@ -93,3 +93,14 @@ export interface WorkflowConnectionSummary {
 
 /** The part of the saved engine settings the engine itself applies. */
 export type EngineRuntimeConfig = Pick<WorkflowEngineConfig, 'state' | 'maxParallel' | 'sinks'>;
+
+/** A single target-column to source-property mapping in mapped database insert. */
+export interface ColumnMappingItem {
+  targetColumn: string;
+  sourcePath?: string;
+  sourceProperty?: string;
+  expression?: string;
+  transform?: string;
+  defaultValue?: unknown;
+  isKey?: boolean;
+}

@@ -54,7 +54,11 @@ beforeEach(() => {
   vi.mocked(loadSchema).mockResolvedValue({ tables: [ORDERS] } as never);
 });
 
-function renderEditor(type: 'source.db.sql' | 'sink.db.sql', credentialId = '', config: Record<string, unknown> = {}) {
+function renderEditor(
+  type: 'source.db.sql' | 'sink.db.sql' | 'sink.db.mapped-insert',
+  credentialId = '',
+  config: Record<string, unknown> = {},
+) {
   const onConfigChange = vi.fn();
   const onCredentialChange = vi.fn();
   render(
@@ -100,6 +104,132 @@ describe('SqlPipeEditor', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'orders' }));
 
     expect(onConfigChange).toHaveBeenCalledWith({ mode: 'insert', table: 'public.orders', columns: ['id', 'total'] });
+  });
+
+  it('renders side-by-side mapping editor for sink.db.mapped-insert and adds a mapping', async () => {
+    const { onConfigChange } = renderEditor('sink.db.mapped-insert', 'foxschema-conn-1', {
+      table: 'dw_users',
+      columnMapping: [{ targetColumn: 'user_id', sourceProperty: 'user.sub', isKey: true }],
+      upsertKeys: ['user_id'],
+    });
+
+    expect(screen.getByTestId('workflow-sql-table')).toBeTruthy();
+    expect(screen.getByTestId('workflow-sql-upsert-keys')).toBeTruthy();
+    expect((screen.getByTestId('workflow-sql-target-col-0') as HTMLInputElement).value).toBe('user_id');
+
+    fireEvent.click(screen.getByTestId('workflow-sql-add-column-mapping'));
+    expect(onConfigChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        columnMapping: [
+          { targetColumn: 'user_id', sourceProperty: 'user.sub', isKey: true },
+          { targetColumn: '', sourcePath: '' },
+        ],
+      }),
+    );
+  });
+
+  it('exposes upsertKey input in insert mode and updates config with single or combination keys', async () => {
+    const { onConfigChange } = renderEditor('sink.db.sql', 'foxschema-conn-1', {
+      mode: 'insert',
+      table: 'orders',
+      columns: ['id', 'total'],
+      upsertKey: 'id',
+    });
+
+    const keyInput = screen.getByTestId('workflow-sql-insert-upsert-key') as HTMLInputElement;
+    expect(keyInput.value).toBe('id');
+
+    fireEvent.change(keyInput, { target: { value: 'order_id' } });
+    expect(onConfigChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'insert',
+        upsertKey: 'order_id',
+      }),
+    );
+
+    fireEvent.change(keyInput, { target: { value: 'tenant_id, user_id' } });
+    expect(onConfigChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'insert',
+        upsertKeys: ['tenant_id', 'user_id'],
+      }),
+    );
+  });
+
+  it('updates upsertKeys when a key column is renamed, even if cleared first', async () => {
+    const { onConfigChange } = renderEditor('sink.db.mapped-insert', 'foxschema-conn-1', {
+      table: 'users',
+      upsertKeys: ['user_id'],
+      columnMapping: [{ targetColumn: 'user_id', sourcePath: 'id', isKey: true }],
+    });
+
+    // Clear the column name first
+    fireEvent.change(screen.getByTestId('workflow-sql-target-col-0'), { target: { value: '' } });
+    expect(onConfigChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        upsertKeys: [],
+        columnMapping: [{ targetColumn: '', sourcePath: 'id', isKey: true }],
+      }),
+    );
+
+    // Type new column name
+    fireEvent.change(screen.getByTestId('workflow-sql-target-col-0'), { target: { value: 'uid' } });
+    expect(onConfigChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        upsertKeys: ['uid'],
+        columnMapping: [{ targetColumn: 'uid', sourcePath: 'id', isKey: true }],
+      }),
+    );
+  });
+
+  it('toggles combination keys and updates upsertKeys in mapped mode', async () => {
+    const { onConfigChange } = renderEditor('sink.db.sql', 'foxschema-conn-1', {
+      mode: 'mapped',
+      table: 'tenant_users',
+      columnMapping: [
+        { targetColumn: 'tenant_id', sourceProperty: 'org.id', isKey: true },
+        { targetColumn: 'user_id', sourceProperty: 'user.id', isKey: false },
+      ],
+      upsertKeys: ['tenant_id'],
+    });
+
+    fireEvent.click(screen.getByTestId('workflow-sql-key-col-1'));
+    expect(onConfigChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        upsertKeys: ['tenant_id', 'user_id'],
+        columnMapping: [
+          { targetColumn: 'tenant_id', sourceProperty: 'org.id', isKey: true },
+          { targetColumn: 'user_id', sourceProperty: 'user.id', isKey: true },
+        ],
+      }),
+    );
+  });
+
+  it('populates mapped columns and combination primary keys when picking table in mapped mode', async () => {
+    const COMPOSITE_TABLE = {
+      name: 'tenant_memberships',
+      objectType: 'TABLE',
+      columns: [{ name: 'tenant_id' }, { name: 'member_id' }, { name: 'role' }],
+      primaryKey: { name: 'pk_tenant_members', columns: ['tenant_id', 'member_id'] },
+      indices: [],
+      foreignKeys: [],
+    };
+    vi.mocked(loadSchema).mockResolvedValue({ tables: [COMPOSITE_TABLE] } as never);
+
+    const { onConfigChange } = renderEditor('sink.db.mapped-insert', 'foxschema-conn-1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Browse tables' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'tenant_memberships' }));
+
+    expect(onConfigChange).toHaveBeenCalledWith({
+      mode: 'mapped',
+      table: 'public.tenant_memberships',
+      upsertKeys: ['tenant_id', 'member_id'],
+      columnMapping: [
+        { targetColumn: 'tenant_id', sourceProperty: 'tenant_id', isKey: true },
+        { targetColumn: 'member_id', sourceProperty: 'member_id', isKey: true },
+        { targetColumn: 'role', sourceProperty: 'role', isKey: false },
+      ],
+    });
   });
 
   it('warns when the linked connection was saved without its password', async () => {

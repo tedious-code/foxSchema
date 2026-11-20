@@ -80,6 +80,7 @@ import {
   HttpTransformPipe,
 } from '../http/index.js';
 import {
+  MappedDbSinkPipe,
   MysqlSinkPipe,
   MysqlSourcePipe,
   PostgresSinkPipe,
@@ -128,6 +129,7 @@ export function createDefaultPipeRegistry(): PipeRegistry {
     new SplitPipe(),
     new LoopPipe(),
     new SqlSinkPipe(),
+    new MappedDbSinkPipe(),
     new PostgresSinkPipe(),
     new MysqlSinkPipe(),
     new HttpSinkPipe(),

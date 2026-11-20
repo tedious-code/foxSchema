@@ -15,11 +15,17 @@ export { MysqlSourcePipe, type MysqlClient, type MysqlClientFactory } from './my
 export { MysqlSinkPipe, fallbackMysqlType } from './mysql.js';
 export {
   NATIVE_ADDON_SQL_DIALECTS,
+  MappedDbSinkPipe,
   SqlSinkPipe,
   SqlSourcePipe,
+  applyColumnMapping,
+  columnMappingItemSchema,
   connectionFromSecret,
+  resolveUpsertKeys,
   runSqlScript,
   setSqlRunnerDelegate,
+  upsertSql,
+  type ColumnMappingItem,
   type RunSqlScriptOptions,
   type SqlConnection,
   type SqlRunner,

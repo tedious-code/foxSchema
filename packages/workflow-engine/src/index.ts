@@ -54,11 +54,17 @@ export {
 } from './pipes/trigger/index.js';
 export {
   NATIVE_ADDON_SQL_DIALECTS,
+  MappedDbSinkPipe,
   PostgresSinkPipe,
   PostgresSourcePipe,
   SqlSinkPipe,
   SqlSourcePipe,
+  applyColumnMapping,
+  columnMappingItemSchema,
+  resolveUpsertKeys,
   setSqlRunnerDelegate,
+  upsertSql,
+  type ColumnMappingItem,
   type PostgresClient,
   type PostgresClientFactory,
   type SqlConnection,

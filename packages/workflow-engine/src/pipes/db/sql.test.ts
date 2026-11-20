@@ -10,11 +10,14 @@ import { describe, expect, it } from 'vitest';
 import type { CredentialStore } from '../../common/index.js';
 import type { PipeContext, RecordBatch } from '../../registry/index.js';
 import {
+  MappedDbSinkPipe,
   credentiallessPostgresOption,
   SqlSinkPipe,
   SqlSourcePipe,
+  applyColumnMapping,
   ensureAutoTable,
   postgresCreateTableSql,
+  resolveUpsertKeys,
   sqliteCreateTableSql,
   upsertSql,
   type SqlConnection,
@@ -326,10 +329,10 @@ describe('sink.db.sql', () => {
         'postgres',
       ),
     ).toBe(
-      'INSERT INTO "workflow_orders" ("id", "customer", "amount") VALUES ($1, $2, $3) ON CONFLICT ("id") DO UPDATE SET "customer" = excluded."customer", "amount" = excluded."amount"',
+      'INSERT INTO "workflow_orders" AS target ("id", "customer", "amount") VALUES ($1, $2, $3) ON CONFLICT ("id") DO UPDATE SET "customer" = excluded."customer", "amount" = excluded."amount"',
     );
     expect(upsertSql('INSERT INTO "ids" ("id") VALUES (?)', ['id'], 'id', 'sqlite')).toBe(
-      'INSERT INTO "ids" ("id") VALUES (?) ON CONFLICT ("id") DO NOTHING',
+      'INSERT INTO "ids" AS target ("id") VALUES (?) ON CONFLICT ("id") DO NOTHING',
     );
     expect(() => upsertSql('INSERT INTO t (a) VALUES (?)', ['a'], 'id', 'sqlite')).toThrow(/not one of the columns/);
     expect(() => upsertSql('INSERT INTO t (id) VALUES (?)', ['id'], 'id', 'mysql')).toThrow(/PostgreSQL and SQLite/);
@@ -436,7 +439,7 @@ describe('upsertKey on an insert step', () => {
     );
     expect(session.queries).toEqual([
       {
-        sql: 'INSERT INTO "customers" ("id", "name") VALUES ($1, $2), ($3, $4) ON CONFLICT ("id") DO UPDATE SET "name" = excluded."name"',
+        sql: 'INSERT INTO "customers" AS target ("id", "name") VALUES ($1, $2), ($3, $4) ON CONFLICT ("id") DO UPDATE SET "name" = excluded."name"',
         params: [1, 'last', 2, 'b'],
       },
     ]);
@@ -444,8 +447,255 @@ describe('upsertKey on an insert step', () => {
 
   it('refuses a key on a statement step, or one that is not written', () => {
     const sink = new SqlSinkPipe();
-    expect(() => sink.validateConfig({ mode: 'statement', sql: 'SELECT 1', upsertKey: 'id' })).toThrow(/insert mode only/);
+    expect(() => sink.validateConfig({ mode: 'statement', sql: 'SELECT 1', upsertKey: 'id' })).toThrow(/insert and mapped modes only/);
     expect(() => sink.validateConfig({ table: 't', columns: ['name'], upsertKey: 'id' })).toThrow(/one of the columns/);
+  });
+
+  it('supports composite combination keys and excludes keys from update set', () => {
+    const sql = 'INSERT INTO "tenant_users" ("tenant_id", "user_id", "name", "email") VALUES ($1, $2, $3, $4)';
+    const result = upsertSql(sql, ['tenant_id', 'user_id', 'name', 'email'], ['tenant_id', 'user_id'], 'postgres');
+    expect(result).toBe(
+      'INSERT INTO "tenant_users" AS target ("tenant_id", "user_id", "name", "email") VALUES ($1, $2, $3, $4) ON CONFLICT ("tenant_id", "user_id") DO UPDATE SET "name" = excluded."name", "email" = excluded."email"',
+    );
+  });
+
+  it('handles quoted table names with spaces correctly in upsertSql', () => {
+    const sql = 'INSERT INTO "sales orders" ("order_id", "total") VALUES (?, ?)';
+    const result = upsertSql(sql, ['order_id', 'total'], 'order_id', 'sqlite');
+    expect(result).toBe(
+      'INSERT INTO "sales orders" AS target ("order_id", "total") VALUES (?, ?) ON CONFLICT ("order_id") DO UPDATE SET "total" = excluded."total"',
+    );
+  });
+
+  it('parses comma-separated string in resolveUpsertKeys', () => {
+    expect(resolveUpsertKeys({ upsertKey: 'tenant_id, user_id' })).toEqual(['tenant_id', 'user_id']);
+  });
+
+  it('preserves native Date, Buffer, and BigInt for non-transformed columns while sandboxing transformed columns', async () => {
+    const now = new Date('2026-11-20T00:00:00Z');
+    const buf = Buffer.from('hello bytea');
+    const big = BigInt(9007199254740993);
+
+    const mapped = await applyColumnMapping(
+      [
+        {
+          createdAt: now,
+          binaryData: buf,
+          bigNumber: big,
+          rawCode: '  abc  ',
+        },
+      ],
+      [
+        { targetColumn: 'created_at', sourcePath: 'createdAt' },
+        { targetColumn: 'binary_data', sourcePath: 'binaryData' },
+        { targetColumn: 'big_number', sourcePath: 'bigNumber' },
+        { targetColumn: 'code', sourcePath: 'rawCode', transform: 'value.trim().toUpperCase()' },
+      ],
+      { timeoutMs: 1000 },
+    );
+
+    expect(mapped[0]?.code).toBe('ABC');
+    expect(mapped[0]?.created_at).toBe(now); // exact object identity preserved
+    expect(mapped[0]?.binary_data).toBe(buf); // exact Buffer preserved
+    expect(mapped[0]?.big_number).toBe(big); // BigInt preserved without throwing
+  });
+
+  it('rejects non-Postgres/non-SQLite connections when upsertKeys is configured', async () => {
+    const open: SqlRunner = async () => ({
+      query: async () => [],
+      transaction: async (work) => work(),
+      close: async () => undefined,
+    });
+    const sink = new SqlSinkPipe(open);
+    await expect(
+      sink.write(
+        batchOf([{ id: 1, name: 'test' }]),
+        context('sink.db.sql', 'sink', { table: 'users', upsertKey: 'id' }, saved('mysql')),
+      ),
+    ).rejects.toThrow(/upsertKey is supported on PostgreSQL and SQLite only, but connection uses mysql/);
+  });
+
+  it('appends upsertCondition to WHERE clause when updating', () => {
+    const sql = 'INSERT INTO "tenant_users" ("tenant_id", "user_id", "name") VALUES ($1, $2, $3)';
+    const result = upsertSql(
+      sql,
+      ['tenant_id', 'user_id', 'name'],
+      ['tenant_id', 'user_id'],
+      'postgres',
+      'EXCLUDED.updated_at >= target.updated_at',
+    );
+    expect(result).toBe(
+      'INSERT INTO "tenant_users" AS target ("tenant_id", "user_id", "name") VALUES ($1, $2, $3) ON CONFLICT ("tenant_id", "user_id") DO UPDATE SET "name" = excluded."name" WHERE EXCLUDED.updated_at >= target.updated_at',
+    );
+  });
+
+  it('maps nested dot-paths and applies transform expressions and default fallbacks', async () => {
+    const queries: { sql: string; params: readonly unknown[] }[] = [];
+    const open: SqlRunner = async () => ({
+      query: async (sql, params) => {
+        queries.push({ sql, params });
+        return [];
+      },
+      transaction: async (work) => work(),
+      close: async () => undefined,
+    });
+
+    const sink = new SqlSinkPipe(open);
+    await sink.write(
+      {
+        id: 'b1',
+        partitionId: '0',
+        records: [
+          {
+            user: { tenant_code: 'T-100', user_id: 'U-1', full_name: ' Bob ' },
+            billing: { balance_cents: 25000 },
+          },
+          {
+            user: { tenant_code: 'T-100', user_id: 'U-2', full_name: 'Carol' },
+            billing: {}, // balance_cents missing -> fallback used
+          },
+        ],
+      },
+      {
+        workflowRunId: 'r',
+        pipelineId: 'p',
+        pipe: {
+          id: 'map-sink',
+          type: 'sink.db.sql',
+          role: 'sink',
+          config: {
+            dialect: 'postgres',
+            mode: 'mapped',
+            table: 'tenant_users',
+            upsertKeys: ['tenant_id', 'user_id'],
+            columnMapping: [
+              { targetColumn: 'tenant_id', sourcePath: 'user.tenant_code' },
+              { targetColumn: 'user_id', sourcePath: 'user.user_id' },
+              { targetColumn: 'name', sourcePath: 'user.full_name', expression: 'value.trim()' },
+              { targetColumn: 'balance_usd', sourcePath: 'billing.balance_cents', expression: 'value / 100', defaultValue: 0 },
+            ],
+          },
+          concurrency: 1,
+        },
+        credentials: { revealSecret: async () => undefined } as unknown as CredentialStore,
+      },
+    );
+
+    expect(queries).toHaveLength(1);
+    expect(queries[0]!.sql).toBe(
+      'INSERT INTO "tenant_users" AS target ("tenant_id", "user_id", "name", "balance_usd") VALUES ($1, $2, $3, $4), ($5, $6, $7, $8) ON CONFLICT ("tenant_id", "user_id") DO UPDATE SET "name" = excluded."name", "balance_usd" = excluded."balance_usd"',
+    );
+    expect(queries[0]!.params).toEqual(['T-100', 'U-1', 'Bob', 250, 'T-100', 'U-2', 'Carol', 0]);
+  });
+
+  it('executes MappedDbSinkPipe with composite combination keys and condition on SQLite', async () => {
+    const queries: { sql: string; params: readonly unknown[] }[] = [];
+    const open: SqlRunner = async () => ({
+      query: async (sql, params) => {
+        queries.push({ sql, params });
+        return [];
+      },
+      transaction: async (work) => work(),
+      close: async () => undefined,
+    });
+
+    const sink = new MappedDbSinkPipe(open);
+    await sink.write(
+      {
+        id: 'b1',
+        partitionId: '0',
+        records: [
+          {
+            org: { tenant_code: 'T-100' },
+            user: { sub: 'U-1', full_name: ' Alice Vance ', email: 'alice@alpha.example' },
+            billing: { balance_cents: 12500 },
+            metadata: { last_modified: 1730000000, status: 'active' },
+          },
+        ],
+      },
+      {
+        workflowRunId: 'r',
+        pipelineId: 'p',
+        pipe: {
+          id: 'mapped-sink',
+          type: 'sink.db.mapped-insert',
+          role: 'sink',
+          config: {
+            dialect: 'sqlite',
+            mode: 'mapped',
+            table: 'wf_tenant_users',
+            upsertKeys: ['tenant_id', 'user_id'],
+            upsertCondition: 'EXCLUDED.updated_at >= target.updated_at',
+            columnMapping: [
+              { targetColumn: 'tenant_id', sourcePath: 'org.tenant_code', isKey: true },
+              { targetColumn: 'user_id', sourcePath: 'user.sub', isKey: true },
+              { targetColumn: 'full_name', sourcePath: 'user.full_name', transform: 'value.trim()' },
+              { targetColumn: 'email', sourcePath: 'user.email' },
+              { targetColumn: 'balance_usd', sourcePath: 'billing.balance_cents', expression: 'value / 100', defaultValue: 0 },
+              { targetColumn: 'status', sourcePath: 'metadata.status', defaultValue: 'pending' },
+              { targetColumn: 'updated_at', sourcePath: 'metadata.last_modified' },
+            ],
+          },
+          concurrency: 1,
+        },
+        credentials: { revealSecret: async () => undefined } as unknown as CredentialStore,
+      },
+    );
+
+    expect(queries).toHaveLength(1);
+    expect(queries[0]!.sql).toBe(
+      'INSERT INTO "wf_tenant_users" AS target ("tenant_id", "user_id", "full_name", "email", "balance_usd", "status", "updated_at") VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT ("tenant_id", "user_id") DO UPDATE SET "full_name" = excluded."full_name", "email" = excluded."email", "balance_usd" = excluded."balance_usd", "status" = excluded."status", "updated_at" = excluded."updated_at" WHERE EXCLUDED.updated_at >= target.updated_at',
+    );
+    expect(queries[0]!.params).toEqual(['T-100', 'U-1', 'Alice Vance', 'alice@alpha.example', 125, 'active', 1730000000]);
+  });
+
+  it('fails with clear error when a transform expression cannot be evaluated', async () => {
+    const sink = new MappedDbSinkPipe();
+    await expect(
+      sink.write(
+        { id: 'b1', partitionId: '0', records: [{ amount: 'not_a_number' }] },
+        {
+          workflowRunId: 'r',
+          pipelineId: 'p',
+          pipe: {
+            id: 'err-pipe',
+            type: 'sink.db.mapped-insert',
+            role: 'sink',
+            config: {
+              dialect: 'sqlite',
+              table: 'users',
+              columnMapping: [
+                { targetColumn: 'total', sourcePath: 'amount', expression: 'value.invalidMethod()' },
+              ],
+            },
+            concurrency: 1,
+          },
+          credentials: { revealSecret: async () => undefined } as unknown as CredentialStore,
+        },
+      ),
+    ).rejects.toThrow(/Failed to evaluate transform expression/);
+  });
+
+  it('rejects unsupported dialects when upsertKey is set', () => {
+    const sink = new SqlSinkPipe();
+    expect(() =>
+      sink.validateConfig({
+        table: 'users',
+        columns: ['id'],
+        upsertKey: 'id',
+        dialect: 'mysql',
+      }),
+    ).toThrow(/PostgreSQL and SQLite only/);
+  });
+
+  it('rejects mapped mode when columnMapping is empty or missing', () => {
+    const sink = new MappedDbSinkPipe();
+    expect(() =>
+      sink.validateConfig({
+        table: 'users',
+        columnMapping: [],
+      }),
+    ).toThrow(/at least one columnMapping/);
   });
 });
 

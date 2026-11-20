@@ -44,6 +44,12 @@ const configSchema = z
   .object({
     endpoints: z.array(endpointSchema).min(1).max(64),
     /**
+     * Default naming convention for endpoint responses:
+     * - `output`: output1, output2, ...
+     * - `resp`: resp1, resp2, ...
+     */
+    responseNaming: z.enum(['output', 'resp']).default('output').optional(),
+    /**
      * Execution mode:
      * - `parallel`: all endpoints run concurrently (or up to `concurrency`).
      * - `linear`: endpoints run sequentially one after another in order.
@@ -119,6 +125,11 @@ export class MultiHttpSourcePipe implements SourcePipe {
                 ...httpRequestJsonSchema.properties,
               },
             },
+          },
+          responseNaming: {
+            type: 'string',
+            enum: ['output', 'resp'],
+            default: 'output',
           },
           executionMode: {
             type: 'string',

@@ -117,7 +117,7 @@ describe('MultiHttpEditor', () => {
       expect.objectContaining({
         endpoints: expect.arrayContaining([
           expect.objectContaining({ id: 'first' }),
-          expect.objectContaining({ id: 'endpoint-2' }),
+          expect.objectContaining({ id: 'output1' }),
         ]),
       }),
     );
@@ -304,13 +304,13 @@ describe('MultiHttpEditor', () => {
     expect(screen.queryByTestId('workflow-multi-http-id-1')).not.toBeNull();
   });
 
-  it('generates a unique non-colliding ID when endpoint-2 already exists', () => {
+  it('generates a unique non-colliding ID when output2 already exists', () => {
     const onChange = vi.fn();
     render(
       <MultiHttpEditor
         config={{
           endpoints: [
-            { id: 'endpoint-2', url: 'https://example.test/a' },
+            { id: 'output2', url: 'https://example.test/a' },
           ],
         }}
         credentials={[]}
@@ -322,9 +322,123 @@ describe('MultiHttpEditor', () => {
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
         endpoints: expect.arrayContaining([
-          expect.objectContaining({ id: 'endpoint-2' }),
-          expect.objectContaining({ id: 'endpoint-1' }),
+          expect.objectContaining({ id: 'output2' }),
+          expect.objectContaining({ id: 'output1' }),
         ]),
+      }),
+    );
+  });
+
+  it('allows setting default response naming to resp and renames default endpoints', () => {
+    const onChange = vi.fn();
+    render(
+      <MultiHttpEditor
+        config={{
+          responseNaming: 'output',
+          endpoints: [
+            { id: 'output1', url: 'https://example.test/a' },
+            { id: 'output2', url: 'https://example.test/b' },
+            { id: 'custom_service', url: 'https://example.test/c' },
+          ],
+        }}
+        credentials={[]}
+        onChange={onChange}
+      />,
+    );
+
+    const select = screen.getByTestId('workflow-multi-http-response-naming') as HTMLSelectElement;
+    expect(select.value).toBe('output');
+
+    fireEvent.change(select, { target: { value: 'resp' } });
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        responseNaming: 'resp',
+        endpoints: [
+          expect.objectContaining({ id: 'resp1' }),
+          expect.objectContaining({ id: 'resp2' }),
+          expect.objectContaining({ id: 'custom_service' }), // preserved!
+        ],
+      }),
+    );
+  });
+
+  it('allows modifying default response name per request directly in input', () => {
+    const onChange = vi.fn();
+    render(
+      <MultiHttpEditor
+        config={{
+          endpoints: [
+            { id: 'output1', url: 'https://example.test/users' },
+          ],
+        }}
+        credentials={[]}
+        onChange={onChange}
+      />,
+    );
+
+    const idInput = screen.getByTestId('workflow-multi-http-id-0');
+    fireEvent.change(idInput, { target: { value: 'users_list' } });
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpoints: [
+          expect.objectContaining({ id: 'users_list' }),
+        ],
+      }),
+    );
+  });
+
+  it('derives endpoint response name from request URL when clicking From URL', () => {
+    const onChange = vi.fn();
+    render(
+      <MultiHttpEditor
+        config={{
+          endpoints: [
+            { id: 'output1', url: 'https://api.github.com/v1/repositories' },
+          ],
+        }}
+        credentials={[]}
+        onChange={onChange}
+      />,
+    );
+
+    const deriveBtn = screen.getByTestId('workflow-multi-http-derive-name-0');
+    fireEvent.click(deriveBtn);
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpoints: [
+          expect.objectContaining({ id: 'repositories' }),
+        ],
+      }),
+    );
+  });
+
+  it('ensures derived response name is unique when another endpoint shares the name', () => {
+    const onChange = vi.fn();
+    render(
+      <MultiHttpEditor
+        config={{
+          endpoints: [
+            { id: 'users', url: 'https://api.github.com/v1/users' },
+            { id: 'output2', url: 'https://other-service.test/api/users' },
+          ],
+        }}
+        credentials={[]}
+        onChange={onChange}
+      />,
+    );
+
+    const deriveBtn = screen.getByTestId('workflow-multi-http-derive-name-1');
+    fireEvent.click(deriveBtn);
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        endpoints: [
+          expect.objectContaining({ id: 'users' }),
+          expect.objectContaining({ id: 'users_2' }),
+        ],
       }),
     );
   });

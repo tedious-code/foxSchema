@@ -100,12 +100,19 @@ modules/     One folder per domain, named to match the frontend feature
 | `schema-diff` | Comparing two schemas, and browsing one. `normalizeDefinitionText` is shared with Lokee |
 | `migrations` | Generating DDL, ordering drops, validating a plan |
 | `lokee-weave` | Content-addressed schema versioning and revert |
-| `sql-editor` | FoxScript parsing, code cells, SELECT aliasing, the fail-closed SQL subset Redis and MongoDB run (`sql-subset.ts`) |
+| `query-subset` | The fail-closed SQL subset Redis and MongoDB run (`query-subset.ts`) |
+| `sql-editor` | FoxScript parsing, code cells, SELECT aliasing, column origins |
 | `access` | Permission intent, effective access, GRANT/REVOKE and account DDL (facades; emitters live in `providers/<dialect>`) |
 | `utilities` | DBA queries: server insights, index fragmentation (`isSafeIndexFragmentationCustomSql`: one read-only SELECT; Db2 defrag is `providers/db2/db2.index-fragmentation.ts`), backup/restore command builders, SQL Tracer, safe column change (`planColumnChange` in `column-change.ts`; per-engine SQL in `providers/<d>/*.column-change.ts`, registered in `column-change.registry.ts` — all 14 SQL engines; omit one to answer "not yet"). A type change is `alterTypeSteps` in place by default; large-table mode is `rebuildSteps` + `progressSql` (`columnChangeLargeTable`). |
 
 `dialect` and `sql-text` are the foundations: the other folders build on
 them, never the reverse.
+
+The **core** is `interfaces/`, `cores/`, the `dialect`, `sql-text`,
+`schema-diff`, `migrations` and `query-subset` domains, and each provider's
+`*.sql-dialect.ts`, `*.settings.ts` and `*.connection.ts`. Everything else is a
+feature built on it. `src/core-boundary.test.ts` fails when a core file imports
+a feature file.
 
 Code outside this package imports the `@foxschema/sql` barrel; the frontend
 imports the same names from `@foxschema/ui-shared`. Module paths

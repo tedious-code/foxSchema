@@ -35,9 +35,9 @@
  * functions and no expressions here. Not "not yet" — admitting any of them
  * means the intent can no longer be checked by inspection.
  */
-import { isKnownEngine } from '../capabilities/feature-reasons.js';
+import { isKnownEngine } from '../dialect/known-engine.js';
 import { hasSqlDialect } from '../dialect/sql-dialect-keys.js';
-import { splitTopLevel } from './column-origin.js';
+import { splitTopLevel } from '../sql-text/split-top-level.js';
 
 export interface SubsetColumnEq {
   column: string;

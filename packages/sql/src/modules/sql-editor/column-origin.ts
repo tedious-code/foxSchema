@@ -29,6 +29,7 @@
  * the reader does is act on it.
  */
 import type { TableSchema } from '../../interfaces/schema.interface.js';
+import { splitTopLevel } from '../sql-text/split-top-level.js';
 
 /** How the table for a column was established. */
 export type OriginConfidence =
@@ -197,63 +198,6 @@ function resolveTable(name: string, tables: readonly TableSchema[]): TableSchema
   if (exact) return exact;
   const bare = bareName(name);
   return tables.find((t) => bareName(t.name) === bare);
-}
-
-/**
- * Split `text` on top-level occurrences of `sep` — outside parentheses and
- * outside quoted text (`'…'`, `"…"`, `` `…` ``, `[…]`).
- *
- * `sep` is either a punctuation character (`,`) or a keyword (`AND`). A
- * keyword matches case-insensitively and only on word boundaries, so
- * `name LIKE '%AND%'` and a column called `brand` stay in one piece.
- *
- * This is the one top-level splitter — do not add a second scanner.
- */
-export function splitTopLevel(text: string, sep: string): string[] {
-  const isKeyword = /^[A-Za-z]/.test(sep);
-  const lowerSep = sep.toLowerCase();
-  const items: string[] = [];
-  let depth = 0;
-  let current = '';
-  let quote: '"' | '`' | "'" | '[' | null = null;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]!;
-    if (quote) {
-      current += ch;
-      if (quote === '[' && ch === ']') quote = null;
-      else if (ch === quote) {
-        if ((quote === '"' || quote === "'") && text[i + 1] === quote) {
-          current += text[++i];
-          continue;
-        }
-        quote = null;
-      }
-      continue;
-    }
-    if (ch === '"' || ch === '`' || ch === "'" || ch === '[') {
-      quote = ch === '[' ? '[' : ch;
-      current += ch;
-      continue;
-    }
-    if (ch === '(') { depth++; current += ch; continue; }
-    if (ch === ')') { depth = Math.max(0, depth - 1); current += ch; continue; }
-    const hit =
-      depth === 0 &&
-      (isKeyword
-        ? text.slice(i, i + sep.length).toLowerCase() === lowerSep &&
-          !/[\w$]/.test(text[i - 1] ?? '') &&
-          !/[\w$]/.test(text[i + sep.length] ?? '')
-        : ch === sep);
-    if (hit) {
-      items.push(current.trim());
-      current = '';
-      i += sep.length - 1;
-      continue;
-    }
-    current += ch;
-  }
-  if (current.trim()) items.push(current.trim());
-  return items;
 }
 
 /** Split a SELECT list on commas that are not inside parens or quotes. */

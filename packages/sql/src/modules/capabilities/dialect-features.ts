@@ -41,7 +41,8 @@ import { userManagementSupport } from '../access/user-sql.js';
 import { nonSqlPermissionsReason } from '../access/non-sql-engines.js';
 import { supportsCommandMode } from '../command-mode/cli.registry.js';
 import { PROVIDER_SETTINGS, dialectHasTransactions } from '../../providers/provider-settings.js';
-import { fallbackReason, isKnownEngine, unknownEngineReason } from './feature-reasons.js';
+import { isKnownEngine } from '../dialect/known-engine.js';
+import { fallbackReason, unknownEngineReason } from './feature-reasons.js';
 import { schemaCompareSupport } from './schema-compare.js';
 
 export { schemaCompareBlocker } from './schema-compare.js';

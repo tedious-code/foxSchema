@@ -37,13 +37,13 @@ export {
 export type { BuiltMigrationFile, MigrationFile, MigrationFileHeader } from './modules/migrations/migration-file.js';
 export { findDropDependencies } from './modules/migrations/dependency-scan.js';
 export type { DropDependency, DropDependencyOptions } from './modules/migrations/dependency-scan.js';
-export { isSubsetDialect, pageSubsetSelect, parseSqlSubset, subsetValue } from './modules/sql-editor/sql-subset.js';
+export { isSubsetDialect, pageSubsetSelect, parseSqlSubset, subsetValue } from './modules/query-subset/query-subset.js';
 export type {
   SubsetIntent,
   SubsetParse,
   SubsetValue,
   SubsetColumnEq,
-} from './modules/sql-editor/sql-subset.js';
+} from './modules/query-subset/query-subset.js';
 export { identityInsertSupport, identityInsertFor } from './modules/dialect/identity-insert.js';
 // Lokee Weave — content-addressed schema versioning for Compare Schema.
 export {
@@ -505,6 +505,7 @@ export {
 } from './cores/schema-to-tables.js';
 export type { FkRow } from './cores/schema-to-tables.js';
 
+export { splitTopLevel } from './modules/sql-text/split-top-level.js';
 export { autoAliasSelectColumns, type AliasedSelect } from './modules/sql-editor/select-alias.js';
 export {
   canCreateAccountSomehow,
@@ -519,7 +520,6 @@ export {
   fromClauseEntries,
   rowKeyFor,
   splitSelectItems,
-  splitTopLevel,
   tablesInOrigins,
   type AttributeOptions,
   type CollapsedColumns,

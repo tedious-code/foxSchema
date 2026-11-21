@@ -6,7 +6,7 @@
  * SQL against MongoDB, through the endpoint the SQL editor runs every
  * statement with (`POST /api/sql/execute`).
  *
- * MongoDB speaks no SQL, so Fox translates a small subset (sql-subset.ts) and
+ * MongoDB speaks no SQL, so Fox translates a small subset (query-subset.ts) and
  * refuses everything else. These tests check both halves against the real
  * server: what the subset does is what MongoDB then holds, read back with
  * mongosh rather than through the app; and what it refuses leaves the

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isSubsetDialect, pageSubsetSelect, parseSqlSubset, subsetValue, type SubsetIntent } from './sql-subset.js';
+import { isSubsetDialect, pageSubsetSelect, parseSqlSubset, subsetValue, type SubsetIntent } from './query-subset.js';
 
 const ok = (sql: string): SubsetIntent => {
   const r = parseSqlSubset(sql);

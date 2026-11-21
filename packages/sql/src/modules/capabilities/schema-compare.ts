@@ -13,7 +13,8 @@
  */
 import { hasSqlDialect } from '../dialect/sql-dialect-keys.js';
 import type { FeatureSupport } from './dialect-features.js';
-import { fallbackReason, isKnownEngine, unknownEngineReason } from './feature-reasons.js';
+import { isKnownEngine } from '../dialect/known-engine.js';
+import { fallbackReason, unknownEngineReason } from './feature-reasons.js';
 
 /** Engines a connection can use that have no schema to compare, and why. */
 const NO_SCHEMA: Record<string, string> = {

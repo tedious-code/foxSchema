@@ -77,8 +77,11 @@ and the FoxAgent import list from points 1–2.
 
 The split landed in the plan's order (0 → 4 → 1+2 → 3), one commit per phase,
 each green on `npx vitest run`, `npm run typecheck`, `npm run lint` and
-`npm run lint:security` before the next began. Phase 5 (publishing) stays
-deferred, as decided.
+`npm run lint:security` before the next began. Phase 5 is done up to the
+publish itself, which stays deferred as decided: `publish:db-db2` and
+`publish:features` stage the new packages (features stays private until
+`PUBLISHABLE` is set), and `npm run smoke:packed` installs all four packed
+tarballs into an empty project and checks them as an outside consumer.
 
 | Phase | Result |
 | --- | --- |
@@ -86,6 +89,7 @@ deferred, as decided.
 | 4 | `packages/db-db2` holds the Db2 adapter, provider, env and SSL code. `@foxschema/db` has an idempotent plugin registry (`registerDialectPlugin`, different implementation or built-in dialect throws, test reset; point 6). `openDatabase` / `ConnectionFactory.create` load the add-on on first connect; a missing add-on names the package to install. |
 | 1+2 | `packages/features`: 238 files moved with `git mv` (history kept). Only **three** core helpers were missing from the sql barrel, so they became real exports and **there is no `@foxschema/sql/internal`** (point 4). An AST codemod moved 364 imported names in 26 consumer files. |
 | 3 | API lock (`packages/sql/api/exports.txt`, 207 names), 800 KB size budget in `prepare-publish.mjs` (sql packs to 575 KB unpacked, from 1.9 MB), one-way rules in `purity.test.ts` (sql), `packages/features/src/purity.test.ts` and `packages/db/src/package-boundary.test.ts`, docs. |
+| 5 (ready) | Staging scripts for `db-db2` and `features`; `scripts/publish/smoke-packed.mjs` passes: plain-Node load, browser bundle, SQLite through `db` with no `ibm_db` installed, the add-on hint without `db-db2`, discovery with it. It also caught a misleading Db2 message ("ibm_db is installed but its clidriver is missing" when ibm_db was absent), fixed. |
 
 ### Deliberate differences from the plan
 

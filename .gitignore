@@ -58,6 +58,8 @@ apps/cli/ui-dist/
 apps/cli/npm-pack/
 packages/sql/npm-pack/
 packages/db/npm-pack/
+packages/db-db2/npm-pack/
+packages/features/npm-pack/
 
 # Turborepo task cache. Local only — remote caching is not configured.
 .turbo/

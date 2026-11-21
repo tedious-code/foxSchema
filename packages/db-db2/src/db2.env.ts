@@ -50,6 +50,16 @@ export function setupDb2ClientEnv(): void {
   }
 }
 
+/** True when the ibm_db package itself resolves (its clidriver may still be missing). */
+export function hasIbmDb(): boolean {
+  try {
+    nodeRequire.resolve('ibm_db/package.json');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** True when ibm_db's installer/clidriver directory is present on disk. */
 export function hasDb2Clidriver(): boolean {
   try {

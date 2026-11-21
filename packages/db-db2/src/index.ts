@@ -19,7 +19,7 @@
 import { IBM_DB_VERSION } from '@foxschema/sql';
 import { registerDialectPlugin, type DialectPlugin } from '@foxschema/db';
 import { db2Adapter } from './db2.adapter.js';
-import { hasDb2Clidriver, setupDb2ClientEnv } from './db2.env.js';
+import { hasDb2Clidriver, hasIbmDb, setupDb2ClientEnv } from './db2.env.js';
 import { Db2Provider } from './db2.provider.js';
 
 const INSTALL_COMMAND = `foxschema drivers install db2   # or: npm install ibm_db@${IBM_DB_VERSION} --foreground-scripts -w @foxschema/db`;
@@ -34,8 +34,10 @@ export const dialectPlugin: DialectPlugin = {
   prepareDriver: setupDb2ClientEnv,
   // `require('ibm_db')` can still succeed with the clidriver download skipped,
   // and then fails on first use with a bindings-path dump. Say so up front.
+  // An ibm_db that is not installed at all is left to the ordinary
+  // "not installed" check.
   checkDriver: () =>
-    hasDb2Clidriver()
+    !hasIbmDb() || hasDb2Clidriver()
       ? undefined
       : {
           installCommand: INSTALL_COMMAND,
@@ -52,4 +54,4 @@ export function registerDb2(): void {
 
 export { db2Adapter } from './db2.adapter.js';
 export { Db2Provider } from './db2.provider.js';
-export { hasDb2Clidriver, setupDb2ClientEnv } from './db2.env.js';
+export { hasDb2Clidriver, hasIbmDb, setupDb2ClientEnv } from './db2.env.js';

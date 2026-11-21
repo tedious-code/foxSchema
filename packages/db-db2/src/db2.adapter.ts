@@ -1,6 +1,6 @@
 import { type ConnectionOptions, type DriverAdapter, IBM_DB_VERSION, normalizeAuthMethod, unsupportedAuthMethodMessage } from '@foxschema/sql';
 import { BoundedPoolCache, assertSafeIdentifier, disposePoolEndOrClose, requireDriver } from '@foxschema/db';
-import { setupDb2ClientEnv, hasDb2Clidriver } from './db2.env.js';
+import { setupDb2ClientEnv, hasDb2Clidriver, hasIbmDb } from './db2.env.js';
 import { explainDb2ConnectError, resolveDb2SslConnectionString, shouldRetryDb2Authentication, alternateDb2Authentication } from './db2.ssl.js';
 
 /**
@@ -17,7 +17,9 @@ class Db2Adapter implements DriverAdapter {
   private load(): any {
     if (this.driver) return this.driver;
     setupDb2ClientEnv(); // point at the bundled clidriver before native load
-    if (!hasDb2Clidriver()) {
+    // Only a present ibm_db can be missing its clidriver; an absent one gets
+    // requireDriver's "not installed" hint below instead.
+    if (hasIbmDb() && !hasDb2Clidriver()) {
       throw new Error(
         'ibm_db is installed but its CLI driver (clidriver) is missing. ' +
           'On Windows this usually means scripts were skipped — reinstall with: ' +

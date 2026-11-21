@@ -623,7 +623,7 @@ CI pushes both registries when these Actions secrets are set:
 The build copies the checkout, so the engine submodules must be present first.
 
 ```bash
-git submodule update --init          # packages/sql, features, db, db-db2
+git submodule update --init          # packages/sql, db, db-db2
 docker build --platform=linux/amd64 -t foxschema .
 # or:  docker compose -f docker-compose.app.yml up -d --build
 ```

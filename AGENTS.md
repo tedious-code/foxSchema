@@ -4,10 +4,11 @@ Fox Schema (`foxschema`) is a database schema diff & migration tool: an npm-work
 monorepo delivered as a web app (`apps/web` = React/Vite UI + `packages/server`
 Fastify API), a CLI (`apps/cli`), the dialect engine (`packages/sql` +
 `packages/db`, with Db2 as the `packages/db-db2` add-on), and the product
-features built on it (`packages/features`). Those four packages are **git
-submodules** (public repos `tedious-code/foxschema-{sql,features,db,db-db2}`):
-run `git submodule update --init` after cloning or creating a worktree, and
-change them in their own repo first (CONTRIBUTING.md, "Engine packages"). The workflow engine runs in-process in `packages/server` ([docs/guides/workflow.md](docs/guides/workflow.md)).
+features built on it (`packages/features`, an ordinary folder here). The three
+engine packages are **git submodules** (public repos
+`tedious-code/foxschema-{sql,db,db-db2}`): run `git submodule update --init`
+after cloning or creating a worktree, and change them in their own repo first
+(CONTRIBUTING.md, "Engine packages"). The workflow engine runs in-process in `packages/server` ([docs/guides/workflow.md](docs/guides/workflow.md)).
 See `README.md` and `CONTRIBUTING.md` for the product overview and the canonical
 dev/test/build commands.
 

@@ -73,12 +73,13 @@ the Playwright E2E suite (see below).
 
 ### Engine packages (git submodules)
 
-`packages/sql`, `packages/features`, `packages/db` and `packages/db-db2` each live
-in their own public repository and are git submodules here:
+`packages/sql`, `packages/db` and `packages/db-db2` are the publishable engine
+libraries. Each lives in its own public repository and is a git submodule here:
 [foxschema-sql](https://github.com/tedious-code/foxschema-sql),
-[foxschema-features](https://github.com/tedious-code/foxschema-features),
 [foxschema-db](https://github.com/tedious-code/foxschema-db),
 [foxschema-db-db2](https://github.com/tedious-code/foxschema-db-db2).
+`packages/features` is app code (the server and web app use it constantly, and
+it is not published), so it stays an ordinary folder in this repository.
 npm workspaces and every test treat them exactly as before. Changing one takes two
 commits:
 

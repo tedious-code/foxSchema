@@ -124,3 +124,9 @@ workspaces, the tests and the builds are unchanged. CI checks out submodules,
 and the version-bump workflow no longer touches them. The old
 `scripts/sync-public-packages.sh` mirror is gone. The workflow is in
 CONTRIBUTING.md, "Engine packages".
+
+**Revised the same day:** `packages/features` came back into this repository as
+an ordinary folder. It is app code — the server and web app change it with
+almost every feature, and it is not published — so a separate repository only
+added a second PR to each of those changes. `tedious-code/foxschema-features`
+is no longer used. The three publishable engine packages stay submodules.

@@ -11,9 +11,12 @@
  */
 export { fetchAppInfo } from './api/authApi';
 export type { AppInfo } from './api/authApi';
+export { useLinkCodePurpose } from './lib/linkCode';
 
 export const loadAuthPage = () => import('./components/AuthPage').then((m) => ({ default: m.AuthPage }));
 export const loadOnboardingWizard = () =>
   import('./components/OnboardingWizard').then((m) => ({ default: m.OnboardingWizard }));
+export const loadSignedInLinkNotice = () =>
+  import('./components/SignedInLinkNotice').then((m) => ({ default: m.SignedInLinkNotice }));
 export const loadAccountBanners = () =>
   import('./components/AccountBanners').then((m) => ({ default: m.AccountBanners }));

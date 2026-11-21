@@ -5,6 +5,18 @@ const SHOWN_KEY = 'signup.wizard_shown';
 // Cap on how long the outbound WordPress webhook call may block a request —
 // without it a hung/slow endpoint ties up the Node request indefinitely.
 const WEBHOOK_TIMEOUT_MS = 5000;
+export const DEFAULT_SIGNUP_WEBHOOK_URL = 'https://foxschema.com/wp-json/foxschema/v1/signup';
+
+/**
+ * Where an opt-in goes: the Fox sign-up archive on foxschema.com unless
+ * `SIGNUP_WEBHOOK_URL` names another; null when it is `off`. Only ever used
+ * with the person's consent (the wizard, or "Email me Fox news").
+ */
+export function signupWebhookUrl(): string | null {
+  const raw = (process.env.SIGNUP_WEBHOOK_URL ?? '').trim();
+  if (raw.toLowerCase() === 'off') return null;
+  return raw || DEFAULT_SIGNUP_WEBHOOK_URL;
+}
 
 /**
  * First-run "stay in the loop" wizard: captures an email, forwards it to the
@@ -67,9 +79,9 @@ export class SignupModule {
     await this.appSettings.set(SHOWN_KEY, 'true');
   }
 
-  /** POST to the WordPress signup webhook; a no-op when none is configured (local dev). */
+  /** POST to the signup archive on foxschema.com (or `SIGNUP_WEBHOOK_URL`); a no-op when that is `off`. */
   private async forward(email: string, source: 'web' | 'cli'): Promise<void> {
-    const url = process.env.SIGNUP_WEBHOOK_URL;
+    const url = signupWebhookUrl();
     if (!url) return;
     const res = await fetch(url, {
       method: 'POST',

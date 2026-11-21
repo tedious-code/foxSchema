@@ -1,6 +1,6 @@
 {
   "name": "@foxschema/db-db2",
-  "version": "0.3.22",
+  "version": "0.3.24",
   "description": "IBM Db2 for @foxschema/db: the ibm_db adapter and schema provider, as an add-on so other installs skip the ~59 MB driver.",
   "type": "module",
   "license": "Apache-2.0",

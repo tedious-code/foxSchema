@@ -19,7 +19,13 @@ User install channels: [docs/guides/install.md](docs/guides/install.md). Release
 
 ## First-time setup
 
+The engine packages are git submodules (see **Engine packages** below), so clone
+with them:
+
 ```bash
+git clone --recurse-submodules https://github.com/tedious-code/foxSchema.git
+# already cloned? git submodule update --init
+git config submodule.recurse true # keep them in step on pull / checkout / switch
 npm install                       # installs the whole workspace
 
 # Start the 6 test databases (Postgres, MySQL, MariaDB, SQL Server, Oracle, Db2)
@@ -56,12 +62,34 @@ the Playwright E2E suite (see below).
 | Workspace | What it is |
 |-----------|------------|
 | [`packages/sql`](packages/sql) | Dialect knowledge: diff, migration generation, statement splitting, type mapping. Pure and browser-safe — zero deps, no Node built-ins. SQL lexing lives in `src/modules/sql-text/` (one tokenizer + per-dialect readings); do not add a second scanner. |
+| [`packages/features`](packages/features) | Product features on `packages/sql`: access, DBA utilities, backup, Lokee Weave, SQL editor helpers. Pure. |
 | [`packages/db`](packages/db) | The Node runtime: introspection, drivers, pooling, migration execution. Depends on `packages/sql`. |
+| [`packages/db-db2`](packages/db-db2) | IBM Db2 as an add-on to `packages/db`. |
 | [`packages/server`](packages/server) | Fastify HTTP API, feature modules, metadata store. |
 | [`packages/workflow-engine`](packages/workflow-engine) | Workflow runtime, SQLite stores, built-in pipes. |
 | [`apps/web`](apps/web) | React/Vite UI and the entry point that serves it (also used by the CLI launcher and Docker). |
 | [`apps/cli`](apps/cli) | Public `foxschema` CLI — browser launcher, desktop shortcut, line commands, Ink TUI. |
 | [`apps/e2e`](apps/e2e) | Playwright E2E tests against the dockerized databases. |
+
+### Engine packages (git submodules)
+
+`packages/sql`, `packages/features`, `packages/db` and `packages/db-db2` each live
+in their own public repository and are git submodules here:
+[foxschema-sql](https://github.com/tedious-code/foxschema-sql),
+[foxschema-features](https://github.com/tedious-code/foxschema-features),
+[foxschema-db](https://github.com/tedious-code/foxschema-db),
+[foxschema-db-db2](https://github.com/tedious-code/foxschema-db-db2).
+npm workspaces and every test treat them exactly as before. Changing one takes two
+commits:
+
+1. In the submodule (`cd packages/sql`): branch, commit, push, and open a PR in
+   that repository. Its tests run from this repository's root (`npx vitest run
+   packages/sql`), because they import their sibling workspaces.
+2. Here: once that is merged, `git -C packages/sql pull` and commit the new
+   submodule pointer in the foxSchema PR that needs it.
+
+A submodule shows as `modified` in `git status` until its pointer is committed.
+`git submodule status` shows the commit each one is pinned to.
 
 The design, the migration pipeline, and the dialect system are described in
 [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) — read it before non-trivial changes.

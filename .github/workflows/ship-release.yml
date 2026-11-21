@@ -58,6 +58,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          submodules: true
           ref: ${{ needs.resolve-tag.outputs.tag }}
 
       - uses: actions/setup-node@v5
@@ -100,6 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          submodules: true
           ref: ${{ needs.resolve-tag.outputs.tag }}
 
       - name: Compose image tags

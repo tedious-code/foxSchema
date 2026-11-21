@@ -4,13 +4,8 @@
  * CodeCellResult.
  */
 import { parentPort, workerData } from 'node:worker_threads';
-import {
-  neutralizeCodeCellHostBreakouts,
-  renderSqlQuery,
-  sqlTag,
-  isSqlQuery,
-  type SqlQuery,
-} from '@foxschema/db';
+import { renderSqlQuery, sqlTag, isSqlQuery, type SqlQuery } from '@foxschema/db';
+import { neutralizeCodeCellHostBreakouts } from '@foxschema/features';
 import { executeCodeCellNode, type CodeCellLast, type CodeCellVars } from './code-cell-node-exec.service';
 import type { CellQueryResponse } from './code-cell-bridge.service';
 import { errorMessage } from '@foxschema/sql';

@@ -1,4 +1,4 @@
-import { setupDb2ClientEnv } from '@foxschema/db';
+import { registerDb2 } from '@foxschema/db-db2';
 import { startServer } from './api/server';
 
 // Load a local .env (SSO credentials, UPDATE_FEED_URL, etc.) from the working
@@ -9,7 +9,8 @@ try {
   /* no .env file — fine */
 }
 
-setupDb2ClientEnv();
+// Db2 is an add-on to @foxschema/db; the app always ships it.
+registerDb2();
 
 // startServer is async now (Fastify's listen is). Without awaiting, a boot
 // failure would surface as an unhandled rejection with no exit code.

@@ -40,7 +40,7 @@ describe('resolveFragmentationSchema', () => {
   });
 
   it('lets MySQL probe build when only option.database is set', async () => {
-    const { buildIndexFragmentationQuery } = await import('@foxschema/db');
+    const { buildIndexFragmentationQuery } = await import('@foxschema/features');
     const schema = resolveFragmentationSchema('mysql', '', { database: 'orders_db' });
     const q = buildIndexFragmentationQuery({
       dialect: 'mysql',

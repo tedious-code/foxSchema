@@ -18,6 +18,13 @@ import { errorMessage } from '@foxschema/sql';
 
 const nodeRequire = createRequire(import.meta.url);
 
+/**
+ * The one place drivers resolve from. Add-ons (@foxschema/db-db2) resolve
+ * their driver here too, so a driver installed for @foxschema/db is found
+ * whichever package asks for it.
+ */
+export const driverRequire: NodeJS.Require = nodeRequire;
+
 export interface RequireDriverOptions {
   /** Module to load when it differs from the package (mysql2 → `mysql2/promise`). */
   specifier?: string;

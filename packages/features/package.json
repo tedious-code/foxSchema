@@ -1,0 +1,28 @@
+{
+  "name": "@foxschema/features",
+  "version": "0.1.0",
+  "description": "Fox Schema product features on top of @foxschema/sql: access and users, DBA utilities, backup, Lokee Weave schema history, SQL editor helpers, command mode and the capability table. Pure and runtime-neutral like @foxschema/sql.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "private": true,
+  "//": "Private, and built to be publishable later: like @foxschema/sql, `exports` points at TS source for the workspace (see the note in packages/sql/package.json). Its only runtime dependency is @foxschema/sql.",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@foxschema/sql": "*"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
+    "prepare-publish": "node scripts/prepare-publish.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tedious-code/foxschema.git",
+    "directory": "packages/features"
+  }
+}

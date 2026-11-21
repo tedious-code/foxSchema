@@ -10,7 +10,8 @@
  */
 import { join } from 'node:path';
 import type http from 'node:http';
-import { ConnectionFactory, setupDb2ClientEnv } from '@foxschema/db';
+import { ConnectionFactory } from '@foxschema/db';
+import { registerDb2 } from '@foxschema/db-db2';
 import { createFastifyApp } from './api/fastify-server';
 import { sweepOnBoot } from './api/server';
 import { assertListenPosture, defaultListenHost } from './platform/runtime/deployment';
@@ -43,7 +44,7 @@ export interface StartedUiServer {
 export async function startUiServer(opts: StartUiServerOptions = {}): Promise<StartedUiServer> {
   const host = opts.host ?? process.env.LISTEN_HOST ?? defaultListenHost();
   assertListenPosture(host);
-  setupDb2ClientEnv();
+  registerDb2();
 
   // The caller supplies the frontend's location. This package must not assume
   // where an application keeps its build output, so there is no default: the

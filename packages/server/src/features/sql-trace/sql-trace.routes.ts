@@ -14,7 +14,7 @@
  * connection id, and the trace's owner must be able to open the connection.
  */
 import type { FastifyReply } from 'fastify';
-import { dialectSupportsDbaUtility, type TraceMode } from '@foxschema/sql';
+import { dialectSupportsDbaUtility, type TraceMode } from '@foxschema/features';
 import { Router } from '../../platform/http/router';
 import type { AppRequest, AuthedRequest } from '../../platform/http/types';
 import { scopeOf, type WorkspaceScope } from '../../platform/http/scope';

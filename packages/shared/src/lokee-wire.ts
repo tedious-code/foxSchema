@@ -26,15 +26,8 @@
  * `ChangeOperation`, `LokeeObjectType` — stay there and are re-exported below
  * where the wire needs them.
  */
-import type {
-  ChangeOperation,
-  SchemaCompareResult,
-  LokeeObjectType,
-  ObjectBlueprint,
-  ObjectChangeKind,
-  ReversalPlan,
-  TableDiff,
-} from '@foxschema/sql';
+import type { SchemaCompareResult, TableDiff } from '@foxschema/sql';
+import type { ChangeOperation, LokeeObjectType, ObjectBlueprint, ObjectChangeKind, ReversalPlan } from '@foxschema/features';
 
 /** How a version came to exist. */
 /**

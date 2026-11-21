@@ -1,0 +1,27 @@
+{
+  // Build config for @foxschema/db-db2, the same shape as packages/db's:
+  // a Node runtime package, resolving its workspace dependencies to their
+  // BUILT types so tsc does not compile their sources into this package.
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["es2022"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "strict": true,
+    "declaration": true,
+    "declarationMap": false,
+    "sourceMap": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": ["node"],
+    "paths": {
+      "@foxschema/sql": ["../sql/dist/index.d.ts"],
+      "@foxschema/db": ["../db/dist/index.d.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts", "src/**/*.it.test.ts"]
+}

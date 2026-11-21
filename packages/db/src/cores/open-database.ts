@@ -18,6 +18,7 @@
  */
 import { ConnectionFactory } from './connection-factory.js';
 import { getAdapter } from '../providers/adapter-registry.js';
+import { ensureDialect } from '../plugins/dialect-plugin.js';
 import type { ConnectionOptions } from '@foxschema/sql';
 
 export interface OpenDatabase {
@@ -53,6 +54,7 @@ export async function openDatabase(
   options: ConnectionOptions,
   opts: { pooled?: boolean } = {}
 ): Promise<OpenDatabase> {
+  await ensureDialect(dialect);
   const adapter = getAdapter(dialect);
   const connection = await ConnectionFactory.create(dialect, options, opts);
   let closed = false;

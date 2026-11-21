@@ -22,7 +22,8 @@
  * internal. See docs/architecture/FEATURE-DEPENDENCY-RULES.md.
  *
  * From other packages, the frontend imports only browser-safe ones: dialect
- * code through `@foxschema/ui-shared` (never `@foxschema/sql` directly), wire
+ * code through `@foxschema/ui-shared` (never `@foxschema/sql` or
+ * `@foxschema/features` directly), wire
  * contracts from `@foxschema/shared`, and the workflow contract. Never the
  * server or the driver runtime.
  *
@@ -203,13 +204,13 @@ describe('frontend layering', () => {
     expect(banned).toEqual([]);
   });
 
-  it('dialect code comes through @foxschema/ui-shared, never @foxschema/sql', () => {
-    // @foxschema/sql is the engine the server, the CLI and the driver layer
-    // share. The frontend's part of it is the named list in packages/ui-shared,
-    // so the browser taking on more of the engine is a change to that list, not
-    // one more import somewhere in a feature.
+  it('dialect code comes through @foxschema/ui-shared, never @foxschema/sql or @foxschema/features', () => {
+    // @foxschema/sql and @foxschema/features are the engine the server, the CLI
+    // and the driver layer share. The frontend's part of it is the named list
+    // in packages/ui-shared, so the browser taking on more of the engine is a
+    // change to that list, not one more import somewhere in a feature.
     const direct = imports
-      .filter((i) => i.spec === '@foxschema/sql' || i.spec.startsWith('@foxschema/sql/'))
+      .filter((i) => /^@foxschema\/(sql|features)(\/|$)/.test(i.spec))
       .map((i) => `${i.from} → ${i.spec}`);
     expect(direct).toEqual([]);
   });

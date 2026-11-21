@@ -5,21 +5,8 @@
  *
  * Shared Database Access probe for POST /schema/db-access.
  */
-import {
-  ConnectionFactory,
-  buildDbAccessPrincipalQueries,
-  buildDbAccessPrivilegeQueries,
-  dialectSupportsDbAccess,
-  normalizeDbPrincipals,
-  principalsFromPrivileges,
-  normalizeDbPrivileges,
-  reconcileDbAccess,
-  impliedFixedRolePrivileges,
-  type ConnectionOptions,
-  type DbAccessSupport,
-  type DbPrincipal,
-  type DbPrivilege,
-} from '@foxschema/db';
+import { ConnectionFactory, type ConnectionOptions } from '@foxschema/db';
+import { buildDbAccessPrincipalQueries, buildDbAccessPrivilegeQueries, dialectSupportsDbAccess, normalizeDbPrincipals, principalsFromPrivileges, normalizeDbPrivileges, reconcileDbAccess, impliedFixedRolePrivileges, type DbAccessSupport, type DbPrincipal, type DbPrivilege } from '@foxschema/features';
 import { errorMessage } from '@foxschema/sql';
 
 export type DbAccessProbeSuccess = {

@@ -1,5 +1,5 @@
 import { type DriverAdapter } from '@foxschema/sql';
-import { db2Adapter } from './db2/db2.adapter.js';
+import { addonPackageFor, missingAddonMessage } from '../plugins/addon-packages.js';
 import { postgresAdapter } from './postgres/postgres.adapter.js';
 import { mysqlAdapter } from './mysql/mysql.adapter.js';
 import { sqlServerAdapter } from './sqlServer/sqlserver.adapter.js';
@@ -13,9 +13,10 @@ import { mongoDbAdapter } from './mongodb/mongodb.adapter.js';
 import { redisAdapter } from './redis/redis.adapter.js';
 
 // Register a dialect's native driver adapter here — one line per platform.
+// Db2 is an add-on (@foxschema/db-db2) and joins this map through
+// registerDialectPlugin (plugins/dialect-plugin.ts).
 // MariaDB shares the mysql2 adapter (same wire protocol & driver).
 export const ADAPTERS: Record<string, DriverAdapter> = {
-  [db2Adapter.dialect]: db2Adapter,
   [postgresAdapter.dialect]: postgresAdapter,
   cockroachdb: postgresAdapter, // Postgres wire-compatible — shares the pg adapter.
   yugabytedb: postgresAdapter,  // Postgres wire-compatible — shares the pg adapter.
@@ -39,6 +40,7 @@ export const ADAPTERS: Record<string, DriverAdapter> = {
 export function getAdapter(dialect: string): DriverAdapter {
   const adapter = ADAPTERS[dialect.toLowerCase()];
   if (!adapter) {
+    if (addonPackageFor(dialect)) throw new Error(missingAddonMessage(dialect));
     throw new Error(`Unsupported dialect: ${dialect}`);
   }
   return adapter;

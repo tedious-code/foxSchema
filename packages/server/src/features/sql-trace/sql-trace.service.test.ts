@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { describe, expect, it, vi } from 'vitest';
-import { buildDbaUtilityQuery, TRACE_MAX_EVENTS, TRACE_MAX_MS, type UserSessionRow } from '@foxschema/sql';
+import { buildDbaUtilityQuery, TRACE_MAX_EVENTS, TRACE_MAX_MS, type UserSessionRow } from '@foxschema/features';
 import { SqlActivityFeed, type SqlActivity } from '../../platform/sql-activity/sql-activity';
 import { LIVE_POLL_MIN_MS, MAX_TRACES_PER_OWNER, STOPPED_TRACE_KEEP_MS, SqlTraceService, type ProbeSessions } from './sql-trace.service';
 

@@ -11,14 +11,10 @@
   "dependencies": {
     "@foxschema/sql": "*"
   },
-  "optionalDependencies": {
-    "ibm_db": "4.1.0"
-  },
   "peerDependencies": {
     "@clickhouse/client": "1.25.0",
     "@duckdb/node-api": "^1.5.4-r.1",
     "better-sqlite3": ">=12",
-    "ibm_db": "^4.1.0",
     "mongodb": ">=6",
     "mssql": "12.7.14",
     "mysql2": "3.24.6",
@@ -34,9 +30,6 @@
       "optional": true
     },
     "better-sqlite3": {
-      "optional": true
-    },
-    "ibm_db": {
       "optional": true
     },
     "mongodb": {
@@ -70,7 +63,6 @@
     "mariadb",
     "sqlserver",
     "oracle",
-    "db2",
     "clickhouse",
     "duckdb",
     "sqlite",

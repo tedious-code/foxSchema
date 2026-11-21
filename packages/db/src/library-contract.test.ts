@@ -48,9 +48,11 @@ describe('every driver a dialect needs is declared', () => {
 
   it('finds the drivers at all, so the checks below are not vacuous', () => {
     // A broken walker would make every assertion here pass by checking nothing.
-    expect(drivers.length).toBeGreaterThanOrEqual(10);
+    expect(drivers.length).toBeGreaterThanOrEqual(9);
     expect(drivers).toContain('pg');
     expect(drivers).toContain('oracledb');
+    // Db2's ibm_db belongs to the @foxschema/db-db2 add-on, not to this package.
+    expect(drivers).not.toContain('ibm_db');
   });
 
   it('lists each one in peerDependencies', () => {

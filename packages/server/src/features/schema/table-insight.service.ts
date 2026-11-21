@@ -5,15 +5,8 @@
  *
  * Catalog-only table insight for Peek / explorer. Never COUNT(DISTINCT).
  */
-import {
-  ConnectionFactory,
-  buildTableInsightQuery,
-  dialectSupportsTableInsight,
-  normalizeTableInsightRows,
-  type ConnectionOptions,
-  type TableInsightResult,
-  type TableInsightSupport,
-} from '@foxschema/db';
+import { ConnectionFactory, type ConnectionOptions } from '@foxschema/db';
+import { buildTableInsightQuery, dialectSupportsTableInsight, normalizeTableInsightRows, type TableInsightResult, type TableInsightSupport } from '@foxschema/features';
 
 export async function probeTableInsight(opts: {
   dialect: string;

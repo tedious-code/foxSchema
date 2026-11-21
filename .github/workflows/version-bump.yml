@@ -62,11 +62,12 @@ jobs:
           # not change, and consumers could not tell a dialect change from a UI
           # fix. Bump it by hand when its surface or behaviour changes:
           #   npm version <patch|minor|major> -w @foxschema/sql --no-git-tag-version
-          # packages/db stays in lockstep: it is an internal workspace package,
-          # not published, so its number is only ever cosmetic.
+          # packages/db and packages/db-db2 stay in lockstep: internal workspace packages,
+          # not published, so their numbers are only ever cosmetic.
           for f in \
             package.json \
             packages/db/package.json \
+            packages/db-db2/package.json \
             apps/web/package.json \
             apps/cli/package.json; do
             jq --arg v "$V" '.version = $v' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
@@ -91,6 +92,7 @@ jobs:
             package.json \
             package-lock.json \
             packages/db/package.json \
+            packages/db-db2/package.json \
             apps/web/package.json \
             apps/cli/package.json
           # No [skip ci]. GitHub honours that marker on *every* push event for

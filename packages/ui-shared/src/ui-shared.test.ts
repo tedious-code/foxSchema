@@ -3,11 +3,12 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * `@foxschema/ui-shared` is a door into `@foxschema/sql`, not a second copy of it.
+ * `@foxschema/ui-shared` is a door into `@foxschema/sql` and
+ * `@foxschema/features`, not a second copy of them.
  *
  * The frontend and the server must agree on what a dialect means: the DDL the
  * browser shows for review is the DDL the server would generate. That holds
- * only while every name here is the `@foxschema/sql` export itself. A wrapper
+ * only while every name here is the engine's own export. A wrapper
  * or a copy would compile, pass its own tests, and drift.
  */
 import { describe, expect, it } from 'vitest';
@@ -15,6 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as sql from '@foxschema/sql';
+import * as features from '@foxschema/features';
 import * as facade from './index';
 
 const SRC = path.dirname(fileURLToPath(import.meta.url));
@@ -34,23 +36,25 @@ function stripComments(src: string): string {
 }
 
 describe('@foxschema/ui-shared', () => {
-  it('re-exports @foxschema/sql by reference, never a copy', () => {
+  it('re-exports @foxschema/sql and @foxschema/features by reference, never a copy', () => {
     const names = Object.keys(facade);
     // Guards against the loop below passing because it checked nothing.
     expect(names.length).toBeGreaterThan(100);
-    const copies = names.filter(
-      (name) => (facade as Record<string, unknown>)[name] !== (sql as Record<string, unknown>)[name]
-    );
+    const source = { ...features, ...sql } as Record<string, unknown>;
+    const copies = names.filter((name) => (facade as Record<string, unknown>)[name] !== source[name]);
     expect(copies).toEqual([]);
+    // Both halves are really used, so neither import above is decoration.
+    expect(names.some((n) => n in sql)).toBe(true);
+    expect(names.some((n) => n in features)).toBe(true);
   });
 
-  it('depends on nothing but @foxschema/sql', () => {
+  it('depends on nothing but @foxschema/sql and @foxschema/features', () => {
     const files = sourceFiles(SRC);
     expect(files.length).toBeGreaterThan(0);
     const offenders = files.flatMap((file) =>
       [...stripComments(fs.readFileSync(file, 'utf8')).matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)]
         .map((m) => m[1]!)
-        .filter((spec) => spec !== '@foxschema/sql' && !spec.startsWith('.'))
+        .filter((spec) => spec !== '@foxschema/sql' && spec !== '@foxschema/features' && !spec.startsWith('.'))
         .map((spec) => `${path.relative(SRC, file)} → ${spec}`)
     );
     expect(offenders).toEqual([]);

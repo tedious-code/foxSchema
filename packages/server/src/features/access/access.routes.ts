@@ -23,12 +23,9 @@ import {
   probeSessionLocks,
   probeTableHealth,
 } from './dba-utilities.service';
-import type { DbaUtilityKind } from '@foxschema/db';
+import type { DbaUtilityKind } from '@foxschema/features';
 import { probeDbAccess } from './db-access.service';
-import {
-  buildIndexFragmentationCustomTemplate,
-  dialectSupportsIndexFragmentation,
-} from '@foxschema/db';
+import { buildIndexFragmentationCustomTemplate, dialectSupportsIndexFragmentation } from '@foxschema/features';
 import { sendError, sendThrown } from '../../platform/http/respond';
 
 export interface AccessRouteDeps {

@@ -112,5 +112,15 @@ tarballs into an empty project and checks them as an outside consumer.
   until `scripts/bundle-foxschema.mjs` also takes `packages/db-db2` and calls
   `registerDb2()`. The multi-dialect node (`n8n-nodes-fox-schema-sql-builder`)
   has no Db2 and imports no moved name, so it is unaffected.
-- **FoxAgent** still points at `packages/core`, which was removed before this
-  split, and already handles it being missing. This split does not change that.
+- **FoxAgent** is archived (2026-11-21): its pipeline engine moved into foxSchema's
+  workflow engine, so it no longer consumes these packages.
+
+## Afterwards: one repository per package (2026-11-21)
+
+The four packages moved to their own public repositories, with their history
+(`git subtree split`; `features` starts at its creation in #626), and are git
+submodules here: `tedious-code/foxschema-{sql,features,db,db-db2}`. npm
+workspaces, the tests and the builds are unchanged. CI checks out submodules,
+and the version-bump workflow no longer touches them. The old
+`scripts/sync-public-packages.sh` mirror is gone. The workflow is in
+CONTRIBUTING.md, "Engine packages".

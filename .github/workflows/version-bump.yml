@@ -21,6 +21,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
+          submodules: true
           # Use a PAT or the default GITHUB_TOKEN.
           # GITHUB_TOKEN is enough for pushing to non-protected branches.
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -56,18 +57,13 @@ jobs:
         if: steps.ver.outputs.skip != 'true'
         run: |
           V=${{ steps.ver.outputs.new }}
-          # packages/sql is deliberately NOT here. It is published to npm on its
-          # own line, so its version has to describe *its* API — bumping it with
-          # every app release would ship a new @foxschema/sql whose contents did
-          # not change, and consumers could not tell a dialect change from a UI
-          # fix. Bump it by hand when its surface or behaviour changes:
-          #   npm version <patch|minor|major> -w @foxschema/sql --no-git-tag-version
-          # packages/db and packages/db-db2 stay in lockstep: internal workspace packages,
-          # not published, so their numbers are only ever cosmetic.
+          # packages/sql, db, db-db2 and features are deliberately NOT here.
+          # They are git submodules (their own repos, tedious-code/foxschema-*)
+          # on their own release lines, so a version describes *their* API, not
+          # an app release, and this repository cannot commit inside them
+          # anyway. Bump one by hand in its repo when its surface changes.
           for f in \
             package.json \
-            packages/db/package.json \
-            packages/db-db2/package.json \
             apps/web/package.json \
             apps/cli/package.json; do
             jq --arg v "$V" '.version = $v' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
@@ -91,8 +87,6 @@ jobs:
           git add \
             package.json \
             package-lock.json \
-            packages/db/package.json \
-            packages/db-db2/package.json \
             apps/web/package.json \
             apps/cli/package.json
           # No [skip ci]. GitHub honours that marker on *every* push event for

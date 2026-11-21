@@ -541,6 +541,10 @@ Every control has a test ID: **1098** buttons, text boxes, selects and textareas
   - `auth-redeem-submit` · button
   - `auth-sent-back` · button · Back to sign in
   - `auth-sent-enter-code` · button · I have a code
+- **SignedInLinkNotice** · `features/auth/components/SignedInLinkNotice.tsx`
+  - `auth-link-sign-out` · button · Sign out and continue
+  - `auth-link-signed-in` · div
+  - `auth-link-stay` · button · Stay signed in as
 - **SignupWizard** · `features/auth/components/SignupWizard.tsx`
   - `signup-wizard` · div · Get product updates
   - `signup-wizard-email` · input · your@email.com

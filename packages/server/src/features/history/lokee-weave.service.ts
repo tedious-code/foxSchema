@@ -27,39 +27,8 @@
  */
 import type { WorkspaceScope } from '../../platform/http/scope';
 import { createHash, randomUUID } from 'node:crypto';
-import {
-  CompareModule,
-  assembleBlueprint,
-  migrationFromCompare,
-  canonicalizeSchema,
-  changeKindsByOwner,
-  collapseObjectHistory,
-  countSourceLines,
-  databaseIdentity,
-  hashObject,
-  hydrateTableSchemas,
-  isLokeeTableLikeType,
-  objectKeyKind,
-  objectKeyOwner,
-  mergeBody,
-  planReversal,
-  renderLokeeObjectScript,
-  roundTrips,
-  shapeKey,
-  splitBody,
-  stableStringify,
-  weave,
-  type CanonicalObject,
-  type DatabaseIdentityInput,
-  type HashOptions,
-  type LokeeObjectType,
-  type MigrationStep,
-  type ObjectChange,
-  type ObjectChangeKind,
-  type SchemaCompareResult,
-  type StoredWeaveObject,
-  type TableSchema,
-} from '@foxschema/sql';
+import { CompareModule, type MigrationStep, type SchemaCompareResult, type TableSchema } from '@foxschema/sql';
+import { assembleBlueprint, migrationFromCompare, canonicalizeSchema, changeKindsByOwner, collapseObjectHistory, countSourceLines, databaseIdentity, hashObject, hydrateTableSchemas, isLokeeTableLikeType, objectKeyKind, objectKeyOwner, mergeBody, planReversal, renderLokeeObjectScript, roundTrips, shapeKey, splitBody, stableStringify, weave, type CanonicalObject, type DatabaseIdentityInput, type HashOptions, type LokeeObjectType, type ObjectChange, type ObjectChangeKind, type StoredWeaveObject } from '@foxschema/features';
 import { getStore } from '../../database/store';
 import type {
   CaptureResult,

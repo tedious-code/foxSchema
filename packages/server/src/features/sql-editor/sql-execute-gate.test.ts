@@ -9,7 +9,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import type { Permission } from '@foxschema/shared';
-import { dialectFeatureReason } from '@foxschema/sql';
+import { dialectFeatureReason } from '@foxschema/features';
 import { fakeReply, routeHandler } from '../../platform/http/route-doubles';
 import { createEditorRoutes } from './editor.routes';
 import { runStatements } from './sql-execute.service';

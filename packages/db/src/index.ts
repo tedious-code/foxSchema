@@ -26,7 +26,7 @@ export { ConnectionFactory } from './cores/connection-factory.js';
 // replacing it.
 export { openDatabase, queryOnce, type OpenDatabase } from './cores/open-database.js';
 export { DriverDetector, readInstalledPackageVersion } from './cores/driver-detector.js';
-export { driverLoadReason, redactInstallPaths } from './cores/driver-loader.js';
+export { driverLoadReason, driverRequire, redactInstallPaths, requireDriver } from './cores/driver-loader.js';
 export { assertSafeIdentifier } from './cores/sql-identifier.js';
 export {
   assertSafeEmbeddedDatabasePath,
@@ -38,11 +38,21 @@ export {
   nonSecretFingerprint,
   credentialedCacheKey,
 } from './cores/pool-cache.js';
-export { setupDb2ClientEnv, hasDb2Clidriver } from './providers/db2/db2.env.js';
 
 // Provider/adapter registries
 export { getAdapter, ADAPTERS } from './providers/adapter-registry.js';
 export { getRegisteredProvider, PROVIDERS } from './providers/provider-registry.js';
+// Add-on dialects (Db2 lives in @foxschema/db-db2).
+export {
+  registerDialectPlugin,
+  dialectPlugin,
+  loadDialectPlugin,
+  ensureDialect,
+  resetDialectPluginsForTest,
+  type DialectPlugin,
+  type DriverProblem,
+} from './plugins/dialect-plugin.js';
+export { addonPackageFor, missingAddonMessage } from './plugins/addon-packages.js';
 export {
   noopLogger,
   safeTarget,

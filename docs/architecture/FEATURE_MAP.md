@@ -526,7 +526,7 @@ erDiagram
 
 ## Engines and capabilities
 
-From `dialectFeatures()` (`packages/sql/src/modules/capabilities/dialect-features.ts`),
+From `dialectFeatures()` (`packages/features/src/modules/capabilities/dialect-features.ts`),
 the one table every screen asks. "—" has a reason string the UI shows.
 
 | Engine | Schema compare | DB access | User mgmt | Command mode | Row editing | Transactions | E2E suite |

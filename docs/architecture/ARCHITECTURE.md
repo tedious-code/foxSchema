@@ -365,7 +365,7 @@ largest files when it fails. Everything else loads when it is used:
   the migration generator with the first browse or compare (`loadSqlGenerator`), and
   `sqlGenerator()` throws if a path uses it earlier, rather than returning an empty
   script. The Compare button asks `schemaCompareBlocker` from
-  `packages/sql/src/modules/capabilities/schema-compare.ts`, which reads the dialect key
+  `packages/features/src/modules/capabilities/schema-compare.ts`, which reads the dialect key
   list (`SQL_DIALECT_KEYS`, checked against `DIALECT_MAP` by `satisfies`) instead of
   loading every dialect.
 - **Sign-in, onboarding and the signup offer** are lazy: a signed-in first page does not
@@ -433,6 +433,7 @@ Constraints:
 1. Create the dialect files in `packages/sql/src/providers/<name>/` and the driver files in `packages/db/src/providers/<name>/`
 2. Register in `provider-settings.ts`, `adapter-registry.ts`, `provider-registry.ts`, `modules/dialect/registry.ts`
    (and `modules/access/user-sql.registry.ts` / `modules/access/access-sql.registry.ts` when the engine has account or GRANT SQL).
+   Those registries, and the feature files below, are in `packages/features/src` (`providers/<name>/` there holds the dialect's feature SQL).
    Backup/restore commands: `<d>.backup.ts` in `modules/utilities/backup.registry.ts`. A `history` query, where the engine records its backups, lets the panel list them; a server-side SQL backup can be run from the panel, a restore never is.
    Safe column change: `<d>.column-change.ts` in `modules/utilities/column-change.registry.ts`. Omit the engine to answer "not yet"; do not guess SQL. Implement `alterTypeSteps` (in-place) and, if the engine can, `rebuildSteps` + `progressSql` (large-table mode). A change the engine cannot make belongs on `refuse`, not as SQL that fails there. SQLite still has no type-change path (table rebuild).
 3. Add the dialect name to the `Dialect` union **and** the `DIALECTS` array in

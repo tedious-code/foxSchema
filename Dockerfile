@@ -31,7 +31,7 @@ RUN if [ "$WITH_DB2" = "true" ]; then \
       echo '>> building with Db2 (ibm_db) — use linux/amd64'; \
     else \
       echo '>> building without Db2 (WITH_DB2=false)'; \
-      node -e "const fs=require('fs');for(const f of ['apps/web/package.json','packages/db/package.json']){const p=JSON.parse(fs.readFileSync(f));if(p.optionalDependencies){delete p.optionalDependencies.ibm_db;}fs.writeFileSync(f,JSON.stringify(p,null,2)+'\n');}"; \
+      node -e "const fs=require('fs');for(const f of ['apps/web/package.json','packages/db-db2/package.json']){const p=JSON.parse(fs.readFileSync(f));if(p.optionalDependencies){delete p.optionalDependencies.ibm_db;}fs.writeFileSync(f,JSON.stringify(p,null,2)+'\n');}"; \
     fi
 
 # `npm install`, not `npm ci`, and deliberately so — this is the one place the

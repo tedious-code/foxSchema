@@ -54,7 +54,7 @@ function monorepoRootFromWeb(webRoot: string): string | null {
 async function driverLoads(pkg: string): Promise<boolean> {
   try {
     if (pkg === 'ibm_db') {
-      const { setupDb2ClientEnv } = await import('@foxschema/db');
+      const { setupDb2ClientEnv } = await import('@foxschema/db-db2');
       setupDb2ClientEnv();
     }
     require(pkg);

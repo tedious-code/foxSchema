@@ -2,6 +2,8 @@
 import { type ConnectionOptions, type PositionalRows, errorMessage } from '@foxschema/sql';
 import { getProviderSettings } from '@foxschema/sql';
 import { getAdapter, ADAPTERS } from '../providers/adapter-registry.js';
+import { addonPackageFor } from '../plugins/addon-packages.js';
+import { dialectPlugin } from '../plugins/plugin-store.js';
 import { circuitKey, dbCircuitBreaker } from './circuit-breaker.js';
 import { noopLogger, safeTarget, type AppLogger } from './logger.js';
 
@@ -34,6 +36,11 @@ export class ConnectionFactory {
     options: ConnectionOptions,
     opts: { pooled?: boolean } = {}
   ): Promise<any> {
+    if (addonPackageFor(provider) && !dialectPlugin(provider)) {
+      // Imported here, not at the top: the plugin loader reaches the provider
+      // registry, whose providers import this file.
+      await (await import('../plugins/dialect-plugin.js')).ensureDialect(provider);
+    }
     const adapter = getAdapter(provider);
     const connectionString = getProviderSettings(provider).buildConnectionString(options);
     // Acquire is where an unreachable target costs the most: every caller waits

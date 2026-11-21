@@ -20,7 +20,7 @@
  */
 import fs from 'node:fs';
 import { afterAll, describe, expect, it } from 'vitest';
-import { buildBackupCommands, type BackupCommands } from '@foxschema/sql';
+import { buildBackupCommands, type BackupCommands } from '@foxschema/features';
 import { getSourceConfig, hasConfig } from '../helpers/db-config.js';
 import { isEnvironmentFailure, runStatements, tryCleanup } from '../helpers/sql-exec.js';
 

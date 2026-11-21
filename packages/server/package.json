@@ -22,6 +22,8 @@
     "@fastify/rate-limit": "11.2.2",
     "@fastify/static": "10.1.10",
     "@foxschema/db": "*",
+    "@foxschema/db-db2": "*",
+    "@foxschema/features": "*",
     "@foxschema/shared": "*",
     "@foxschema/sql": "*",
     "@foxschema/workflow-contract": "*",

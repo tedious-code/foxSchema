@@ -1024,6 +1024,14 @@ export const TestIds = {
       /** button · I have a code */
       authSentEnterCode: 'auth-sent-enter-code',
     },
+    SignedInLinkNotice: {
+      /** button · Sign out and continue */
+      authLinkSignOut: 'auth-link-sign-out',
+      /** div */
+      authLinkSignedIn: 'auth-link-signed-in',
+      /** button · Stay signed in as */
+      authLinkStay: 'auth-link-stay',
+    },
     SignupWizard: {
       /** div · Get product updates */
       signupWizard: 'signup-wizard',
@@ -4252,6 +4260,9 @@ export type TestId =
   | 'auth-forgot-send'
   | 'auth-forgot-sent'
   | 'auth-have-code'
+  | 'auth-link-sign-out'
+  | 'auth-link-signed-in'
+  | 'auth-link-stay'
   | 'auth-login-email'
   | 'auth-login-form'
   | 'auth-login-submit'

@@ -132,7 +132,10 @@ be asked for them.
 Each dialect spans both packages: `sql-dialect.ts` / `settings.ts` under
 `packages/sql/src/providers/<dialect>/`, and `adapter.ts` / `provider.ts` under
 `packages/db/src/providers/<dialect>/`
-(settings, adapter, provider, sql-dialect). The exact contract — required vs.
+(settings, adapter, provider, sql-dialect). Db2's adapter and provider are the
+exception: they live in the add-on package `packages/db-db2`. Feature SQL for a
+dialect (accounts, grants, backup, column change, DBA utilities, …) goes in
+`packages/features/src/providers/<dialect>/`. The exact contract — required vs.
 optional hooks, cross-cutting invariants (casing, index/FK naming, DROP ordering),
 and per-dialect gotchas — is documented in
 [`packages/sql/src/providers/DIALECTS.md`](packages/sql/src/providers/DIALECTS.md),
@@ -141,7 +144,7 @@ Read `DIALECTS.md` before touching any `*.sql-dialect.ts` or `sql-generator.modu
 Wire-compatible relatives (MariaDB/TiDB, Cockroach/Yugabyte/Redshift, Azure SQL)
 must go through `dialectFamily()` in `packages/sql/src/providers/provider-settings.ts`
 — do not re-list `d === 'mysql' || d === 'mariadb' || …`. Backup/restore commands
-are `<d>.backup.ts` registered in `packages/sql/src/modules/utilities/backup.registry.ts`.
+are `<d>.backup.ts` registered in `packages/features/src/modules/utilities/backup.registry.ts`.
 
 ## Conventions worth knowing
 

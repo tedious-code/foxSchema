@@ -24,18 +24,8 @@
  */
 import { afterAll, describe, expect, it } from 'vitest';
 import { ConnectionFactory, getAdapter } from '@foxschema/db';
-import {
-  buildAccessSql,
-  buildGrantRevokeSql,
-  describeHeldPrivilege,
-  privilegesForPrincipal,
-  principalKey,
-  splitHeldPrivileges,
-  type ConnectionOptions,
-  type DbPrivilege,
-  type DbPrivilegeObjectType,
-  type GridObjectKind,
-} from '@foxschema/sql';
+import { type ConnectionOptions } from '@foxschema/sql';
+import { buildAccessSql, buildGrantRevokeSql, describeHeldPrivilege, privilegesForPrincipal, principalKey, splitHeldPrivileges, type DbPrivilege, type DbPrivilegeObjectType, type GridObjectKind } from '@foxschema/features';
 import { probeDbAccess } from './db-access.service.js';
 
 const RUN = process.env.FOX_IT_DB === '1';

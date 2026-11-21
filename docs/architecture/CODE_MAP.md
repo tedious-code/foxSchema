@@ -9,6 +9,11 @@ packages/sql                Dialect knowledge: SQL generation, schema compare,
                             statement splitting, type mapping. No dependencies,
                             no Node built-ins — it runs in a browser too.
 
+packages/features           Product features built on sql: access and users, DBA
+                            utilities, backup, Lokee Weave, SQL editor helpers,
+                            command mode, the capability table. Pure like sql,
+                            and depends only on it.
+
 packages/ui-shared          The part of sql the web app may use: each name the
                             frontend needs, re-exported by reference. The
                             frontend imports this, never sql directly.
@@ -21,6 +26,13 @@ packages/db                 Database drivers and the connection runtime: connect
                             `_id` as text, matches an ObjectId hex a SELECT showed,
                             and projects only named columns (Mongo would otherwise
                             add `_id` to every find).
+
+packages/db-db2             IBM Db2 as an add-on to db: the ibm_db adapter, schema
+                            provider and clidriver set-up. Registers itself through
+                            db's `registerDialectPlugin` (`plugins/dialect-plugin.ts`);
+                            the app and CLI call `registerDb2()` at startup, and
+                            `openDatabase('db2')` loads it on demand. db never
+                            imports it. Db2 *SQL* stays in sql.
 
 packages/shared             Contracts the frontend, server and CLI must agree on:
                             permission names, error codes, wire message shapes,
@@ -57,18 +69,22 @@ The in-process workflow engine is `packages/server/src/features/workflow/runtime
 Imports may only run in one direction:
 
 ```
-sql  ←  db         ←  server  ←  web (serving entry only), cli
-sql  ←  ui-shared  ←  web (frontend)
-sql  ←  shared     ←  server, web, cli
+sql  ←  features
+sql  ←  db  ←  db-db2
+sql, features, db, db-db2  ←  server  ←  web (serving entry only), cli
+sql, features  ←  ui-shared  ←  web (frontend)
+sql, features  ←  shared     ←  server, web, cli
 workflow-contract  ←  server, web, workflow-engine
 sql, db  ←  workflow-engine  ←  server
 ```
 
-`packages/sql/src/purity.test.ts`, `packages/shared/src/purity.test.ts`,
+`packages/sql/src/purity.test.ts`, `packages/features/src/purity.test.ts`,
+`packages/shared/src/purity.test.ts`,
 `packages/ui-shared/src/ui-shared.test.ts` and
 `apps/web/src/frontend/architecture.test.ts` enforce this. The frontend must
 never import `@foxschema/db` or `@foxschema/server`, and takes dialect code
-from `@foxschema/ui-shared`, never `@foxschema/sql` directly.
+from `@foxschema/ui-shared`, never `@foxschema/sql` or `@foxschema/features`
+directly.
 
 ### Nav registry — `packages/shared/src/nav.ts`
 
@@ -80,12 +96,9 @@ flags (`workflow`, `enterprise.channels`).
 
 ```
 interfaces/  The shared vocabulary: TableSchema, TableDiff, MigrationStep.
-providers/   One folder per dialect — settings, SqlDialect, and Access SQL (`*.user-sql.ts`, `*.access-sql.ts`).
-             Backup/restore commands are `*.backup.ts` (registered in `modules/utilities/backup.registry.ts`).
-             Safe column-change steps are `*.column-change.ts` (registered in
-             `modules/utilities/column-change.registry.ts`).
-             Drop Type steps are `*.type-drop.ts` (registered in
-             `modules/utilities/type-drop.registry.ts`).
+providers/   One folder per dialect — settings (`*.settings.ts`), SqlDialect
+             (`*.sql-dialect.ts`) and connection helpers. Feature SQL per
+             dialect lives in packages/features/src/providers.
              `dialectFamily()` in `provider-settings.ts` maps wire-compatible
              relatives onto mysql / postgres / sqlserver.
 cores/       Connection strings, and shaping catalog rows into TableSchema.
@@ -99,13 +112,40 @@ modules/     One folder per domain, named to match the frontend feature
 | `sql-text` | Shared tokenizer (`sql-tokens.ts`), per-dialect readings (`sql-readings.ts`), statement splitting, and SQL templating. Classifiers (`sqlStatementCategories`, …) take the destination dialect and ask every way it can lex the text. Code fences that reach the database are `--` comments. CREATE / ALTER FUNCTION, PROCEDURE and TRIGGER bodies stay one statement (inner `;` do not split). |
 | `schema-diff` | Comparing two schemas, and browsing one. `normalizeDefinitionText` is shared with Lokee |
 | `migrations` | Generating DDL, ordering drops, validating a plan |
-| `lokee-weave` | Content-addressed schema versioning and revert |
-| `sql-editor` | FoxScript parsing, code cells, SELECT aliasing, the fail-closed SQL subset Redis and MongoDB run (`sql-subset.ts`) |
-| `access` | Permission intent, effective access, GRANT/REVOKE and account DDL (facades; emitters live in `providers/<dialect>`) |
-| `utilities` | DBA queries: server insights, index fragmentation (`isSafeIndexFragmentationCustomSql`: one read-only SELECT; Db2 defrag is `providers/db2/db2.index-fragmentation.ts`), backup/restore command builders, SQL Tracer, safe column change (`planColumnChange` in `column-change.ts`; per-engine SQL in `providers/<d>/*.column-change.ts`, registered in `column-change.registry.ts` — all 14 SQL engines; omit one to answer "not yet"). A type change is `alterTypeSteps` in place by default; large-table mode is `rebuildSteps` + `progressSql` (`columnChangeLargeTable`). |
+| `query-subset` | The fail-closed SQL subset Redis and MongoDB run (`query-subset.ts`) |
 
 `dialect` and `sql-text` are the foundations: the other folders build on
 them, never the reverse.
+
+Everything here is the **core**: what a schema-diff-and-migrate tool needs on
+its own. `src/core-boundary.test.ts` fails if a file that is not core (a
+feature domain, or a provider concern other than sql-dialect / settings /
+connection) appears in this package, or if a core file imports one.
+
+## Product features — `packages/features/src`
+
+```
+providers/   Feature SQL per dialect: Access SQL (`*.user-sql.ts`, `*.access-sql.ts`,
+             `*.os-account.ts`), backup/restore commands (`*.backup.ts`, registered in
+             `modules/utilities/backup.registry.ts`), safe column change
+             (`*.column-change.ts`, registered in `modules/utilities/column-change.registry.ts`),
+             Drop Type (`*.type-drop.ts`, in `modules/utilities/type-drop.registry.ts`),
+             DBA utilities, index fragmentation, table insight and command mode (`*.cli.ts`).
+modules/     One folder per feature domain.
+```
+
+| Folder | What it covers |
+|---|---|
+| `lokee-weave` | Content-addressed schema versioning and revert |
+| `sql-editor` | FoxScript parsing, code cells, SELECT aliasing, column origins |
+| `access` | Permission intent, effective access, GRANT/REVOKE and account DDL (facades; emitters live in `providers/<dialect>`) |
+| `utilities` | DBA queries: server insights, index fragmentation (`isSafeIndexFragmentationCustomSql`: one read-only SELECT; Db2 defrag is `providers/db2/db2.index-fragmentation.ts`), backup/restore command builders, SQL Tracer, safe column change (`planColumnChange` in `column-change.ts`; per-engine SQL in `providers/<d>/*.column-change.ts`, registered in `column-change.registry.ts` — all 14 SQL engines; omit one to answer "not yet"). A type change is `alterTypeSteps` in place by default; large-table mode is `rebuildSteps` + `progressSql` (`columnChangeLargeTable`). |
+| `command-mode` | Per-engine CLI command builders |
+| `capabilities` | Which feature each engine supports, and the reason when not |
+
+Features import core code only through the `@foxschema/sql` barrel, never by
+path (`src/purity.test.ts`); domains may depend on each other but not in a
+cycle (`src/modules/architecture.test.ts`).
 
 Code outside this package imports the `@foxschema/sql` barrel; the frontend
 imports the same names from `@foxschema/ui-shared`. Module paths
@@ -283,19 +323,19 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | A new feature | `npm run feature:new -- <id>`: scaffolds the server module and the web feature and registers both ([FEATURE-MODULE-GUIDE.md](FEATURE-MODULE-GUIDE.md)) |
 | A new server feature by hand | its folder + `index.ts`, then one line in `packages/server/src/app/feature-registry.ts` |
 | Dialect-specific SQL | `packages/sql/src/providers/<dialect>/` |
-| A new driver | `packages/db/src/providers/<dialect>/` |
+| A new driver | `packages/db/src/providers/<dialect>/` (a driver too heavy for every install becomes an add-on package, like `packages/db-db2`) |
 | Something the frontend and backend both need | `packages/shared/src/` |
 | The browser needs a function or type from `@foxschema/sql` | Add it to `packages/ui-shared/src/index.ts`, then import it from `@foxschema/ui-shared` |
 | New screen or panel | `apps/web/src/frontend/features/<domain>/` |
 | Reusable UI or helper | `apps/web/src/frontend/shared/` |
 | Calling an API endpoint | use `api` from `@/shared/api/client` — never `fetch` directly |
-| SQL for permissions or accounts | `packages/sql/src/modules/access/` (facade) + `packages/sql/src/providers/<dialect>/*.user-sql.ts` / `*.access-sql.ts`. Db2 OS-user docker steps: `buildDb2OsUserInstructions`. |
-| Backup / restore commands for an engine | `packages/sql/src/providers/<dialect>/*.backup.ts` registered in `modules/utilities/backup.registry.ts`. Saved folder/format defaults: `packages/server/src/features/backup/`. |
-| Safe column-change SQL for an engine | `packages/sql/src/providers/<dialect>/*.column-change.ts` registered in `modules/utilities/column-change.registry.ts`. The facade (`planColumnChange`) finds impact, blockers, and lossy type-conversion warnings; omit the engine to answer "not yet" rather than guessed SQL. Implement `alterTypeSteps` (in-place default) and optionally `rebuildSteps` + `progressSql` (large-table mode). A change the engine cannot make is `refuse`. The panel is `apps/web/.../ColumnChangePanel.tsx`; Run / Execute all go through `POST /api/sql/execute`. |
-| Drop Type SQL for an engine | `packages/sql/src/providers/<dialect>/*.type-drop.ts` registered in `modules/utilities/type-drop.registry.ts`. The facade (`planTypeDrop`) finds the columns, types and dependents; the dialect gives `kindOf`, `suggestReplacement`, `convertColumnSteps` (throw to refuse a column) and `dropStep` (never CASCADE). Omit the engine to answer "no user-defined types". The panel is `apps/web/.../TypeDropPanel.tsx`. |
+| SQL for permissions or accounts | `packages/features/src/modules/access/` (facade) + `packages/features/src/providers/<dialect>/*.user-sql.ts` / `*.access-sql.ts`. Db2 OS-user docker steps: `buildDb2OsUserInstructions`. |
+| Backup / restore commands for an engine | `packages/features/src/providers/<dialect>/*.backup.ts` registered in `modules/utilities/backup.registry.ts`. Saved folder/format defaults: `packages/server/src/features/backup/`. |
+| Safe column-change SQL for an engine | `packages/features/src/providers/<dialect>/*.column-change.ts` registered in `modules/utilities/column-change.registry.ts`. The facade (`planColumnChange`) finds impact, blockers, and lossy type-conversion warnings; omit the engine to answer "not yet" rather than guessed SQL. Implement `alterTypeSteps` (in-place default) and optionally `rebuildSteps` + `progressSql` (large-table mode). A change the engine cannot make is `refuse`. The panel is `apps/web/.../ColumnChangePanel.tsx`; Run / Execute all go through `POST /api/sql/execute`. |
+| Drop Type SQL for an engine | `packages/features/src/providers/<dialect>/*.type-drop.ts` registered in `modules/utilities/type-drop.registry.ts`. The facade (`planTypeDrop`) finds the columns, types and dependents; the dialect gives `kindOf`, `suggestReplacement`, `convertColumnSteps` (throw to refuse a column) and `dropStep` (never CASCADE). Omit the engine to answer "no user-defined types". The panel is `apps/web/.../TypeDropPanel.tsx`. |
 | Home Services / engine reachability | `packages/server/src/features/system/service-status.ts` (`GET /api/system/services`). Types in `packages/shared/src/service-status.ts`. The card is `apps/web/.../app/shell/ServiceStatusCard.tsx`. |
 | Home Drivers inventory | `packages/server/src/features/system/drivers.service.ts` (`GET /api/system/drivers`, install/update/remove). Types in `packages/shared/src/driver-inventory.ts`. The card is `apps/web/.../app/shell/DriverInventoryCard.tsx`. |
-| A dialect capability the app must branch on | `packages/sql/src/modules/capabilities/` (`dialect-features.ts`) and `packages/sql/src/modules/dialect/` |
+| A dialect capability the app must branch on | `packages/features/src/modules/capabilities/` (`dialect-features.ts`) and `packages/sql/src/modules/dialect/` |
 | Guard or cross-cutting HTTP concern | `packages/server/src/platform/` |
 | How a dialect lexes SQL (permission gates, splitter) | `packages/sql/src/modules/sql-text/sql-readings.ts` + `sql-tokens.ts`. Do not add a second scanner. |
 | Workspace membership, invites, public / private | `packages/server/src/features/workspaces/`; request scope is `platform/workspaces`. Services take `WorkspaceScope` (`scopeOf(req)`). |

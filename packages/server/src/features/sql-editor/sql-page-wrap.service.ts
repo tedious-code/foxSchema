@@ -11,17 +11,8 @@
  */
 
 import { isPageableStatement } from '@foxschema/db';
-import {
-  findTopLevelOrderByIndex,
-  isSafeSeekColumn,
-  isSubsetDialect,
-  isTsqlDialect,
-  pageSubsetSelect,
-  parseTopLevelOrderBy,
-  placeholderStyleFor,
-  quoteSqlIdentifier,
-  renderPlaceholder,
-} from '@foxschema/sql';
+import { isSubsetDialect, isTsqlDialect, pageSubsetSelect, placeholderStyleFor, quoteSqlIdentifier, renderPlaceholder } from '@foxschema/sql';
+import { findTopLevelOrderByIndex, isSafeSeekColumn, parseTopLevelOrderBy } from '@foxschema/features';
 
 export { isPageableStatement };
 
@@ -173,7 +164,7 @@ export function wrapSqlForPage(
   const fetchLimit = limit + 1; // +1 probe row
 
   // Redis and MongoDB read SQL through a small parser with no subqueries: the
-  // page goes onto the statement itself (sql-subset.ts).
+  // page goes onto the statement itself (query-subset.ts).
   if (isSubsetDialect(d)) return pageSubsetSelect(inner, offset, fetchLimit);
 
   if (isTsqlDialect(d)) {

@@ -551,7 +551,7 @@ const ObjectNode: React.FC<{
   /** Offer "From": the object reads as rows (a table, an MQT, a Redis key). */
   const canInsertFrom = table.objectType === 'TABLE' || table.objectType === 'MQT';
   // Redis and MongoDB read SQL through a small parser: one bare table name, no
-  // alias and no `alias.column` (sql-subset.ts refuses both).
+  // alias and no `alias.column` (query-subset.ts refuses both).
   const subset = isSubsetDialect(dialect);
   const insertName = quoteIdentifierIfNeeded(table.name, dialect);
   const schemaName = schema?.trim();

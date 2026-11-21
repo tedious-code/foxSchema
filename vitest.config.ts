@@ -7,8 +7,10 @@ const pkg = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 const aliases = [
   { find: /^@\//, replacement: pkg('./apps/web/src/frontend/') },
   { find: '@foxschema/sql', replacement: pkg('./packages/sql/src/index.ts') },
+  { find: '@foxschema/features', replacement: pkg('./packages/features/src/index.ts') },
   { find: '@foxschema/db/mail', replacement: pkg('./packages/db/src/mail/smtp.ts') },
   { find: /^@foxschema\/db$/, replacement: pkg('./packages/db/src/index.ts') },
+  { find: /^@foxschema\/db-db2$/, replacement: pkg('./packages/db-db2/src/index.ts') },
   { find: '@foxschema/shared', replacement: pkg('./packages/shared/src/index.ts') },
   { find: '@foxschema/ui-shared', replacement: pkg('./packages/ui-shared/src/index.ts') },
   { find: '@foxschema/server', replacement: pkg('./packages/server/src/index.ts') },
@@ -71,10 +73,12 @@ export default defineConfig({
           // FOX_VERIFY_MAIL_URL off: first-run setup sends a verification code,
           // and without SMTP that goes to the Fox mail service on foxschema.com.
           // A suite must never mail the real one; those that test it run their
-          // own stand-in.
+          // own stand-in. The same for opt-ins (SIGNUP_WEBHOOK_URL), which
+          // default to the sign-up archive there.
           env: {
             FOXFLOW_FILES_DIR: tmpdir(),
             FOX_VERIFY_MAIL_URL: 'off',
+            SIGNUP_WEBHOOK_URL: 'off',
             FOXFLOW_ENCRYPTION_KEY: '0'.repeat(64),
           },
           testTimeout: 15_000,

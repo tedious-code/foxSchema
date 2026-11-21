@@ -10,7 +10,7 @@
  * written by hand into the metadata database, comes back as something the
  * engine can still honour rather than as a command that fails.
  */
-import { backupSupport, normalizeBackupSettings, type BackupSettings } from '@foxschema/sql';
+import { backupSupport, normalizeBackupSettings, type BackupSettings } from '@foxschema/features';
 import { getStore } from '../../database/store';
 
 interface Row {

@@ -24,11 +24,11 @@ Measured at the time of writing: `packages/server` 96% kebab, `packages/sql`
 94% kebab, frontend features 93% camel.
 
 **The one exception**: a frontend file that is a thin re-export facade over
-`@foxschema/sql` keeps the package's kebab-case name, so the two line up by
+`@foxschema/sql` or `@foxschema/features` keeps the package's kebab-case name, so the two line up by
 sight — `shared/lib/sql-splitter.ts` ↔ `modules/sql-text/sql-splitter.ts`. The
 names match up to the package's role suffix, so `shared/lib/sql-generator.ts`
 pairs with `modules/migrations/sql-generator.module.ts`. The frontend reaches
-`@foxschema/sql` only through `@foxschema/ui-shared`, so a facade is a file
+both packages only through `@foxschema/ui-shared`, so a facade is a file
 that imports from `@foxschema/ui-shared`. Nothing else in the frontend uses
 kebab-case.
 

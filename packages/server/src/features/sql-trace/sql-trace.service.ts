@@ -19,15 +19,7 @@
  * other people's SQL, and the log is not the place for it.
  */
 import { randomUUID } from 'node:crypto';
-import {
-  buildDbaUtilityQuery,
-  traceText,
-  TRACE_MAX_EVENTS,
-  TRACE_MAX_MS,
-  type TraceEvent,
-  type TraceMode,
-  type UserSessionRow,
-} from '@foxschema/sql';
+import { buildDbaUtilityQuery, traceText, TRACE_MAX_EVENTS, TRACE_MAX_MS, type TraceEvent, type TraceMode, type UserSessionRow } from '@foxschema/features';
 import { ServiceError } from '../../platform/contracts/actor';
 import type { SqlActivity, SqlActivityFeed } from '../../platform/sql-activity/sql-activity';
 

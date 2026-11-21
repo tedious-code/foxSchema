@@ -145,6 +145,15 @@ export function isSsoProviderId(id: string): id is SsoProviderId {
   return (SSO_PROVIDER_IDS as string[]).includes(id);
 }
 
+/**
+ * The security a port implies when none is given: 465 is implicit TLS (RFC
+ * 8314). STARTTLS there waits for a greeting the server never sends in the
+ * clear, so every invite and reset email timed out.
+ */
+export function defaultSecurity(port: number): SmtpSecurity {
+  return port === 465 ? 'tls' : 'starttls';
+}
+
 /** A public URL an email may link to: http(s), no path beyond `/`, no credentials. */
 export function normalizePublicUrl(raw: string): string {
   const trimmed = (raw ?? '').trim();
@@ -236,7 +245,7 @@ export class SignInSettings {
     const host = env('SMTP_HOST');
     const from = env('SMTP_FROM');
     if (!host || !from) return null;
-    const security = (env('SMTP_SECURITY') || 'starttls') as SmtpSecurity;
+    const security = (env('SMTP_SECURITY') || defaultSecurity(Number(env('SMTP_PORT')))) as SmtpSecurity;
     return {
       smtp: {
         host,
@@ -280,14 +289,17 @@ export class SignInSettings {
     if (this.envMail()) throw new Error('Email is set by environment variables on the server.');
     const host = (input.host ?? '').trim();
     const from = (input.from ?? '').trim();
-    const security = (input.security ?? 'starttls') as SmtpSecurity;
     const port = Number(input.port);
+    const security = (input.security || defaultSecurity(port)) as SmtpSecurity;
     if (!host) throw new Error('SMTP host is required.');
     if (!/^[^\s@<>]+@[^\s@<>]+$/.test(from.replace(/^.*<([^>]+)>\s*$/, '$1'))) {
       throw new Error('Sender must be an email address, optionally with a name: Fox <fox@example.com>.');
     }
     if (!SECURITIES.includes(security)) throw new Error('Security must be tls, starttls or none.');
     if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Port must be between 1 and 65535.');
+    if (port === 465 && security === 'starttls') {
+      throw new Error('Port 465 uses TLS from the first byte: choose TLS (465), or STARTTLS on port 587.');
+    }
     const existing = parse<StoredMail>(await this.settings.get(MAIL_KEY));
     const newPassword = input.password ?? '';
     const stored: StoredMail = {

@@ -180,3 +180,29 @@ npm run build -w @foxschema/cli
 node apps/cli/scripts/prepare-publish.mjs
 # inspect apps/cli/npm-pack/ — do not npm publish unless intentional
 ```
+
+---
+
+## Library packages (not published yet)
+
+The engine is four workspace packages, published by hand when a release of them
+is scheduled — never by the tag workflow above:
+
+| Package | Staging | Depends on |
+| --- | --- | --- |
+| `@foxschema/sql` | `npm run publish:sql` | nothing |
+| `@foxschema/db` | `npm run publish:db` | `@foxschema/sql` |
+| `@foxschema/db-db2` | `npm run publish:db-db2` | `@foxschema/db`, `@foxschema/sql` (+ optional `ibm_db`) |
+| `@foxschema/features` | `npm run publish:features` | `@foxschema/sql` — stays private until `PUBLISHABLE` is set in its staging script |
+
+Each `publish:*` builds the package and writes `packages/<name>/npm-pack/`,
+pinning workspace dependencies to the versions alongside. Before publishing any of
+them, run the consumer smoke test, which installs the packed tarballs into an empty
+project and uses them as an outsider would (needs the network for better-sqlite3):
+
+```bash
+npm run smoke:packed
+```
+
+Publish in dependency order — `sql`, then `db`, then `db-db2` (and `features`) —
+because each staged manifest pins the one before it.

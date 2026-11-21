@@ -21,14 +21,8 @@ import {
   isDatagridAction,
   type Permission,
 } from '@foxschema/shared';
-import {
-  dialectFeatureReason,
-  dialectHasTransactions,
-  errorMessage,
-  isTransactionControl,
-  sqlStatementCategories,
-  statementVerb,
-} from '@foxschema/sql';
+import { dialectHasTransactions, errorMessage, isTransactionControl, sqlStatementCategories, statementVerb } from '@foxschema/sql';
+import { dialectFeatureReason } from '@foxschema/features';
 import { isSingleSqlStatement } from '../../platform/statements/single-statement';
 import { clampOffset, parseSqlOrderBy, parseSqlSeek } from './sql-page-wrap.service';
 import { makeBeamCellQueryRunner, makeCellQueryRunner } from './code-cell-query.service';

@@ -14,7 +14,7 @@ import type { ConnectionResolver } from '../../platform/connections/resolve';
 import type { CaptureSource } from '@foxschema/shared';
 import type { LokeeWeaveStore } from './lokee-weave.service';
 import { LOKEE_FULL_SCOPE } from './lokee-scope';
-import { schemaCompareSupport } from '@foxschema/sql';
+import { schemaCompareSupport } from '@foxschema/features';
 import { ServiceError } from '../../platform/contracts/actor';
 
 export type CaptureLiveSchema = (

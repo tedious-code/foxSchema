@@ -66,10 +66,11 @@ export default defineConfig({
       // bundler catches a mismatch.
       { find: /^@\//, replacement: pkg('./src/frontend/') },
       // The frontend imports dialect code only through @foxschema/ui-shared
-      // (architecture.test.ts); @foxschema/sql is aliased because ui-shared
-      // re-exports it.
+      // (architecture.test.ts); @foxschema/sql and @foxschema/features are
+      // aliased because ui-shared re-exports them.
       { find: '@foxschema/ui-shared', replacement: pkg('../../packages/ui-shared/src/index.ts') },
       { find: '@foxschema/sql', replacement: pkg('../../packages/sql/src/index.ts') },
+      { find: '@foxschema/features', replacement: pkg('../../packages/features/src/index.ts') },
       // Shared is browser-safe by contract (packages/shared/src/purity.test.ts),
       // so unlike @foxschema/db it belongs in the frontend bundle.
       { find: '@foxschema/shared', replacement: pkg('../../packages/shared/src/index.ts') },

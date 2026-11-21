@@ -2,20 +2,8 @@
  * Shared index-fragmentation probe used by /schema/index-fragmentation
  * and the batch utility endpoint.
  */
-import {
-  ConnectionFactory,
-  buildIndexDefragSql,
-  buildIndexFragmentationCustomTemplate,
-  buildIndexFragmentationQuery,
-  buildIndexUsageQueries,
-  dialectSupportsIndexFragmentation,
-  isSafeIndexFragmentationCustomSql,
-  mergeIndexUsageRows,
-  normalizeIndexFragmentationRows,
-  type ConnectionOptions,
-  type IndexFragmentationRow,
-  type IndexFragmentationSupport,
-} from '@foxschema/db';
+import { ConnectionFactory, type ConnectionOptions } from '@foxschema/db';
+import { buildIndexDefragSql, buildIndexFragmentationCustomTemplate, buildIndexFragmentationQuery, buildIndexUsageQueries, dialectSupportsIndexFragmentation, isSafeIndexFragmentationCustomSql, mergeIndexUsageRows, normalizeIndexFragmentationRows, type IndexFragmentationRow, type IndexFragmentationSupport } from '@foxschema/features';
 import { dialectFamily } from '@foxschema/sql';
 
 export type FragProbeResult = {

@@ -25,6 +25,7 @@ const SHIPPED = [
   'apps/cli/package.json',
   'packages/sql/package.json',
   'packages/db/package.json',
+  'packages/db-db2/package.json',
 ];
 
 const LICENSE_FILES = ['LICENSE', 'LICENSE.md', 'LICENSE.txt', 'LICENCE', 'license', 'License'];

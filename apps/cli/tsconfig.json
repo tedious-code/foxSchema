@@ -17,6 +17,7 @@
       "@foxschema/sql": ["../../packages/sql/src/index.ts"],
       "@foxschema/db": ["../../packages/db/src/index.ts"],
       "@foxschema/db/mail": ["../../packages/db/src/mail/smtp.ts"],
+      "@foxschema/db-db2": ["../../packages/db-db2/src/index.ts"],
       "@foxschema/shared": ["../../packages/shared/src/index.ts"],
       "@foxschema/server": ["../../packages/server/src/index.ts"]
     }

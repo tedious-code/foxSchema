@@ -1,8 +1,10 @@
-import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
+import { driverRequire as nodeRequire } from '@foxschema/db';
 
-const nodeRequire = createRequire(import.meta.url);
+// ibm_db resolves from @foxschema/db's require site, not this package's: the
+// app and CLI install drivers into @foxschema/db, and a sibling package's
+// node_modules is not searched from here.
 
 let configured = false;
 

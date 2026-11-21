@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@foxschema/db": "*",
+    "@foxschema/db-db2": "*",
     "@foxschema/server": "*",
     "@foxschema/shared": "*",
     "@foxschema/sql": "*",

@@ -19,7 +19,8 @@ import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { driverLoadReason, hasDb2Clidriver, redactInstallPaths, setupDb2ClientEnv } from '@foxschema/db';
+import { driverLoadReason, redactInstallPaths } from '@foxschema/db';
+import { hasDb2Clidriver, setupDb2ClientEnv } from '@foxschema/db-db2';
 
 const nodeRequire = createRequire(import.meta.url);
 

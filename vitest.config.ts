@@ -9,6 +9,7 @@ const aliases = [
   { find: '@foxschema/sql', replacement: pkg('./packages/sql/src/index.ts') },
   { find: '@foxschema/db/mail', replacement: pkg('./packages/db/src/mail/smtp.ts') },
   { find: /^@foxschema\/db$/, replacement: pkg('./packages/db/src/index.ts') },
+  { find: /^@foxschema\/db-db2$/, replacement: pkg('./packages/db-db2/src/index.ts') },
   { find: '@foxschema/shared', replacement: pkg('./packages/shared/src/index.ts') },
   { find: '@foxschema/ui-shared', replacement: pkg('./packages/ui-shared/src/index.ts') },
   { find: '@foxschema/server', replacement: pkg('./packages/server/src/index.ts') },

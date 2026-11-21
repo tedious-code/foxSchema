@@ -61,6 +61,7 @@ const isPascal = (name: string) => /^[A-Z]/.test(name);
 const PACKAGE_ROOTS = [
   'packages/sql/src',
   'packages/db/src',
+  'packages/db-db2/src',
   'packages/server/src',
   'packages/shared/src',
   'packages/ui-shared/src',

@@ -15,6 +15,11 @@ import { runOpen, runStop } from './commands/open';
 import { runDrivers } from './commands/drivers';
 import { runShortcut } from './commands/shortcut';
 import { VERSION } from './version';
+import { registerDb2 } from '@foxschema/db-db2';
+
+// Db2 is an add-on to @foxschema/db; the CLI always ships it (ibm_db itself
+// stays an opt-in driver: `foxschema drivers install db2`).
+registerDb2();
 
 /** Shared connection-ref options (saved name or inline) for single-connection commands. */
 function withRefOptions(cmd: import('commander').Command): import('commander').Command {

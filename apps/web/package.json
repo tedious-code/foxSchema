@@ -26,6 +26,7 @@
     "@fastify/cors": "11.4.1",
     "@fastify/static": "10.1.10",
     "@foxschema/db": "*",
+    "@foxschema/db-db2": "*",
     "@foxschema/server": "*",
     "@foxschema/shared": "*",
     "@foxschema/ui-shared": "*",

@@ -21,7 +21,9 @@ import {
   type VerifyDriverResult,
 } from '../../internal/driver-install';
 
-const KNOWN_PACKAGES = new Set(Object.values(ADAPTERS).map((adapter) => adapter.packageName));
+// Read on each call, not at import: add-on dialects (Db2) join ADAPTERS when
+// the host registers them, which can be after this module loads.
+const knownPackages = () => new Set(Object.values(ADAPTERS).map((adapter) => adapter.packageName));
 
 const LATEST_TTL_MS = 30 * 60 * 1000;
 const LATEST_TIMEOUT_MS = 4_000;
@@ -38,7 +40,7 @@ export function clearDriverLatestCache(): void {
 export function knownDriverPackage(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   const name = raw.trim();
-  return KNOWN_PACKAGES.has(name) ? name : null;
+  return knownPackages().has(name) ? name : null;
 }
 
 function dialectLabel(dialect: string): string {

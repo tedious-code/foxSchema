@@ -22,6 +22,13 @@ packages/db                 Database drivers and the connection runtime: connect
                             and projects only named columns (Mongo would otherwise
                             add `_id` to every find).
 
+packages/db-db2             IBM Db2 as an add-on to db: the ibm_db adapter, schema
+                            provider and clidriver set-up. Registers itself through
+                            db's `registerDialectPlugin` (`plugins/dialect-plugin.ts`);
+                            the app and CLI call `registerDb2()` at startup, and
+                            `openDatabase('db2')` loads it on demand. db never
+                            imports it. Db2 *SQL* stays in sql.
+
 packages/shared             Contracts the frontend, server and CLI must agree on:
                             permission names, error codes, wire message shapes,
                             the COMMUNITY_NAV registry (`nav.ts`), the
@@ -290,7 +297,7 @@ the page-epoch guard, bookmarks and recents, SQL variables.
 | A new feature | `npm run feature:new -- <id>`: scaffolds the server module and the web feature and registers both ([FEATURE-MODULE-GUIDE.md](FEATURE-MODULE-GUIDE.md)) |
 | A new server feature by hand | its folder + `index.ts`, then one line in `packages/server/src/app/feature-registry.ts` |
 | Dialect-specific SQL | `packages/sql/src/providers/<dialect>/` |
-| A new driver | `packages/db/src/providers/<dialect>/` |
+| A new driver | `packages/db/src/providers/<dialect>/` (a driver too heavy for every install becomes an add-on package, like `packages/db-db2`) |
 | Something the frontend and backend both need | `packages/shared/src/` |
 | The browser needs a function or type from `@foxschema/sql` | Add it to `packages/ui-shared/src/index.ts`, then import it from `@foxschema/ui-shared` |
 | New screen or panel | `apps/web/src/frontend/features/<domain>/` |

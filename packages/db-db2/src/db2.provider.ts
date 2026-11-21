@@ -1,4 +1,4 @@
-import { ConnectionFactory } from "../../cores/connection-factory.js";
+import { ConnectionFactory } from '@foxschema/db';
 import { type ConnectionOptions, type SchemaProvider, errorMessage } from '@foxschema/sql';
 
 import {

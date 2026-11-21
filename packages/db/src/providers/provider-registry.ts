@@ -1,5 +1,5 @@
 import { type SchemaProvider } from '@foxschema/sql';
-import { Db2Provider } from './db2/db2.provider.js';
+import { addonPackageFor, missingAddonMessage } from '../plugins/addon-packages.js';
 import { PostgresProvider } from './postgres/postgres.provider.js';
 import { MysqlProvider } from './mysql/mysql.provider.js';
 import { MariadbProvider } from './mysql/mariadb.provider.js';
@@ -17,7 +17,6 @@ import { RedisProvider } from './redis/redis.provider.js';
 
 // Register a dialect's schema provider (queries) here — one line per platform.
 export const PROVIDERS: Record<string, SchemaProvider> = {
-  db2: new Db2Provider(),
   postgres: new PostgresProvider(),
   mysql: new MysqlProvider(),
   mariadb: new MariadbProvider(),
@@ -39,6 +38,7 @@ export const PROVIDERS: Record<string, SchemaProvider> = {
 export function getRegisteredProvider(dialect: string): SchemaProvider {
   const provider = PROVIDERS[dialect.toLowerCase()];
   if (!provider) {
+    if (addonPackageFor(dialect)) throw new Error(missingAddonMessage(dialect));
     throw new Error(`No provider registered for dialect: ${dialect}`);
   }
   return provider;

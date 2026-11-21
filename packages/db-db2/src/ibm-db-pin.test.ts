@@ -14,7 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { IBM_DB_VERSION } from '@foxschema/sql';
 
-const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../..');
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
 function manifest(rel: string): {
   optionalDependencies?: Record<string, string>;
@@ -24,10 +24,16 @@ function manifest(rel: string): {
 }
 
 describe('ibm_db is pinned to one release', () => {
-  it('packages/db installs exactly IBM_DB_VERSION', () => {
+  it('@foxschema/db-db2 installs exactly IBM_DB_VERSION', () => {
+    expect(manifest('packages/db-db2/package.json').optionalDependencies?.ibm_db).toBe(IBM_DB_VERSION);
+  });
+
+  it('@foxschema/db does not install ibm_db at all', () => {
+    // Db2 is the add-on's job; a pin left here would download the driver for
+    // every user of @foxschema/db again.
     const db = manifest('packages/db/package.json');
-    expect(db.optionalDependencies?.ibm_db).toBe(IBM_DB_VERSION);
-    expect(db.peerDependencies?.ibm_db).toBe(`^${IBM_DB_VERSION}`);
+    expect(db.optionalDependencies?.ibm_db).toBeUndefined();
+    expect(db.peerDependencies?.ibm_db).toBeUndefined();
   });
 
   it('apps/web installs exactly IBM_DB_VERSION', () => {

@@ -132,7 +132,8 @@ be asked for them.
 Each dialect spans both packages: `sql-dialect.ts` / `settings.ts` under
 `packages/sql/src/providers/<dialect>/`, and `adapter.ts` / `provider.ts` under
 `packages/db/src/providers/<dialect>/`
-(settings, adapter, provider, sql-dialect). The exact contract — required vs.
+(settings, adapter, provider, sql-dialect). Db2's adapter and provider are the
+exception: they live in the add-on package `packages/db-db2`. The exact contract — required vs.
 optional hooks, cross-cutting invariants (casing, index/FK naming, DROP ordering),
 and per-dialect gotchas — is documented in
 [`packages/sql/src/providers/DIALECTS.md`](packages/sql/src/providers/DIALECTS.md),

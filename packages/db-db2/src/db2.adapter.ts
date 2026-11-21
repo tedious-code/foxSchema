@@ -1,9 +1,7 @@
 import { type ConnectionOptions, type DriverAdapter, IBM_DB_VERSION, normalizeAuthMethod, unsupportedAuthMethodMessage } from '@foxschema/sql';
-import { assertSafeIdentifier } from '../../cores/sql-identifier.js';
-import { BoundedPoolCache, disposePoolEndOrClose } from '../../cores/pool-cache.js';
+import { BoundedPoolCache, assertSafeIdentifier, disposePoolEndOrClose, requireDriver } from '@foxschema/db';
 import { setupDb2ClientEnv, hasDb2Clidriver } from './db2.env.js';
 import { explainDb2ConnectError, resolveDb2SslConnectionString, shouldRetryDb2Authentication, alternateDb2Authentication } from './db2.ssl.js';
-import { requireDriver } from '../../cores/driver-loader.js';
 
 /**
  * ibm_db adapter. Pooled via the driver's built-in Pool so each schema load

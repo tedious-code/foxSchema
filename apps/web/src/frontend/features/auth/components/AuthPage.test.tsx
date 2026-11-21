@@ -42,6 +42,8 @@ vi.mock('./SsoButtons', () => ({ SsoButtons: () => null }));
 
 import { useAuthStore } from '@/platform/authStore';
 import { AuthPage } from './AuthPage';
+import { SignedInLinkNotice } from './SignedInLinkNotice';
+import { useLinkCodePurpose } from '../lib/linkCode';
 
 const ADMIN = { id: 'u1', email: 'owner@example.com', onboardingCompleted: true, role: 'admin', permissions: [] };
 const GOOD = 'blue-lantern-42';
@@ -307,5 +309,51 @@ describe('a demo install', () => {
   it('shows nothing extra on an ordinary install, or when the server did not say', async () => {
     await signInScreen({ on: false });
     expect(screen.queryByTestId('auth-demo-hint')).toBeNull();
+  });
+});
+
+describe('an emailed link in a browser that is already signed in', () => {
+  // The routing App.tsx does: the notice while signed in, the sign-in page once signed out.
+  const Shell: React.FC = () => {
+    const status = useAuthStore((st) => st.status);
+    const [purpose, dismiss] = useLinkCodePurpose(status);
+    if (status === 'anon') return <AuthPage />;
+    if (purpose) return <SignedInLinkNotice purpose={purpose} onStay={dismiss} />;
+    return <div data-testid="workspace" />;
+  };
+
+  it('offers to sign out, then opens the code form with the link\'s code', async () => {
+    window.history.replaceState(null, '', '/#reset=QRST-UVWX-YZ23');
+    apiInspectCode.mockResolvedValue({ email: 'owner@example.com', purpose: 'reset' });
+    apiSetupState.mockResolvedValue({ setupRequired: false });
+    useAuthStore.setState({ status: 'ready', user: ADMIN as never, setupState: null });
+    render(<Shell />);
+
+    expect(screen.getByTestId('auth-link-signed-in').textContent).toMatch(/owner@example\.com/);
+    fireEvent.click(screen.getByTestId('auth-link-sign-out'));
+
+    await waitFor(() => expect(screen.getByTestId('auth-redeem-form')).toBeTruthy());
+    expect(apiInspectCode).toHaveBeenCalledWith('QRST-UVWX-YZ23');
+    expect(window.location.hash).toBe('');
+  });
+
+  it('stays signed in and drops the code when asked', () => {
+    window.history.replaceState(null, '', '/#invite=ABCD-EFGH-JKMN');
+    useAuthStore.setState({ status: 'ready', user: ADMIN as never, setupState: null });
+    render(<Shell />);
+    fireEvent.click(screen.getByTestId('auth-link-stay'));
+    expect(screen.getByTestId('workspace')).toBeTruthy();
+    expect(window.location.hash).toBe('');
+  });
+
+  it('shows the notice when a link is pasted into a signed-in tab', async () => {
+    useAuthStore.setState({ status: 'ready', user: ADMIN as never, setupState: null });
+    render(<Shell />);
+    expect(screen.getByTestId('workspace')).toBeTruthy();
+    window.history.replaceState(null, '', '/#invite=WXYZ-2345-6789');
+    act(() => {
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    });
+    expect(screen.getByTestId('auth-link-signed-in')).toBeTruthy();
   });
 });

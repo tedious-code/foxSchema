@@ -119,7 +119,7 @@ docker compose -f docker-compose.app.yml up -d
 | `APP_DB_URL` | — | Connection URL for the metadata store when engine is `postgres`/`mysql`. |
 | `APP_KEY_SCHEME` | `v1` | `v1` = key used directly. `v2` = key bound to `APP_USER_EMAIL` (anti-copy); leave `v1` for stateless servers. |
 | `LOCAL_SINGLE_USER` | `true` | Whether this is a personal install (`true`) or a shared server (`false`). Sign-in is required either way; this only decides machine-level actions (installing drivers, self-update, changing the metadata DB, host cloud credentials), which a shared server refuses. |
-| `SIGNUP_WEBHOOK_URL` | — | Optional. The first-open subscriber wizard posts here (WordPress `/foxschema/v1/signup`, which emails contact@foxschema.com), and so does a new account whose owner ticks **Email me Fox news** at sign-up or when accepting an invite (unticked by default; never on a password reset). Without it, subscribing is a local no-op and never blocks sign-up. |
+| `SIGNUP_WEBHOOK_URL` | `https://foxschema.com/wp-json/foxschema/v1/signup` | Where opt-ins go: the first-open subscriber wizard, and a new account whose owner ticks **Email me Fox news** at sign-up or when accepting an invite (unticked by default; never on a password reset). The default is the Fox sign-up archive on foxschema.com. `off` keeps them on this install. A failure never blocks sign-up. |
 | `SIGNUP_WEBHOOK_SECRET` | — | Optional shared secret sent as `X-Foxschema-Signup-Secret`. |
 | `UPDATE_FEED_URL` | npm `foxschema/latest` | Version check for in-app update toasts. Default is the npm registry. The “What’s new” link opens the matching GitHub Release page. Set `off` to disable. |
 | `APP_VERSION` | from `package.json` | Running version compared against the feed. The CLI sets this from the installed npm package. |
@@ -144,6 +144,7 @@ docker compose -f docker-compose.app.yml up -d
 | `FOX_ADMIN_POLICY` | — | `one` or `several`. When set, it is the install’s admin policy and the Access control switch is read-only. Unset: stored setting (new installs default to **one**; an upgrade with more than one active admin is set to **several**). |
 | `FOX_REGISTRATION_GRACE_DAYS` | `7` | How long the owner of a personal install may use Fox through the `foxschema open` launch link before creating an account. `0` asks for the account straight away. See [Using Fox before creating an account](#using-fox-before-creating-an-account). |
 | `FOX_VERIFY_MAIL_URL` | `https://foxschema.com/wp-json/foxschema/v1/verify-email` | Where email-verification codes go when the install has no SMTP relay. `off` sends them nowhere: a new account then stays unverified until email is set up. See [Fox mail service](#fox-mail-service). |
+| `FOX_ACCOUNT_MAIL_URL` | `https://foxschema.com/wp-json/foxschema/v1/account-email` | Where password-reset and invite emails go when the install has no SMTP relay. `off` (or `FOX_VERIFY_MAIL_URL=off`) writes those codes to the server log instead. See [Fox mail service](#fox-mail-service). |
 | `FOX_SETUP_ALLOW_LOCAL_WITHOUT_CODE` | off | Skip the first-run setup code for a direct loopback request. The `foxschema open` launcher sets this because it binds only to loopback. Never enable it behind a reverse proxy: an unlabelled proxy request is indistinguishable from a local one. |
 | `NODE_ENV` | `production` | Set in the image; enforces that `APP_ENCRYPTION_KEY` is present. |
 | `FOX_ALLOWED_ORIGINS` | — | Comma-separated browser origins allowed to call the API with cookies. When set, it is the entire allowlist. See [Origin policy](#origin-policy). |
@@ -177,9 +178,10 @@ started; it does not start it. The Workflow rail item is on (`NAV_FLAGS.workflow
 
 On **first UI boot of a brand-new install** (before login), Fox can show a skippable
 welcome form that collects an email for product updates. Routes are public:
-`GET /api/signup/state`, `POST /api/signup`, `POST /api/signup/skip`. Configure
-`SIGNUP_WEBHOOK_URL` (+ optional secret) so submissions reach foxschema.com;
-otherwise subscribe still dismisses locally.
+`GET /api/signup/state`, `POST /api/signup`, `POST /api/signup/skip`.
+Submissions go to the Fox sign-up archive on foxschema.com unless
+`SIGNUP_WEBHOOK_URL` names another endpoint (+ optional secret) or is `off`,
+in which case subscribe only dismisses the wizard locally.
 
 **Existing installs:** upgrading keeps your `/data` (or `APP_DB_*`) metadata DB.
 The upgrade migration marks the wizard as already shown, so people who already
@@ -378,6 +380,26 @@ Content-Type: application/json
 
 Any `2xx` means sent. Any other status, or no answer within 5 seconds, is
 reported to the person, with **Send a new code** to retry.
+
+Password-reset and invite codes go the same way when there is no SMTP relay:
+
+```http
+POST https://foxschema.com/wp-json/foxschema/v1/account-email
+Content-Type: application/json
+
+{ "purpose": "invite", "email": "new@example.com", "code": "ABCD-EFGH-JKMN",
+  "expiresAt": "2026-10-14T12:30:00.000Z", "link": "https://fox.example.com/#invite=ABCD-EFGH-JKMN" }
+```
+
+`link` is sent only when the install has a public URL. The service puts it in
+the email only when it is https on a host name (http for `localhost`) and its
+fragment carries the same code, and it prints the link's host next to it.
+When the service fails, the code is written to the server log and the failure
+is reported: an admin sees **failed** with the code to pass on.
+
+The site side is [`packaging/wordpress/foxschema-mail.php`](../../packaging/wordpress/foxschema-mail.php).
+It keeps a private **Fox sign-ups** list in wp-admin: one row per address that
+came through for an account email or a news opt-in, with no codes.
 Fox checks the code itself; the service never learns whether it was entered.
 
 What the endpoint must do, since anyone can call it:
@@ -388,8 +410,9 @@ What the endpoint must do, since anyone can call it:
 - Accept only a valid address and a code matching `^[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$`.
 - Rate-limit per address and per client IP, and not store the code.
 
-The address is sent to foxschema.com for delivery; set `FOX_VERIFY_MAIL_URL=off`
-(or configure SMTP) for an install that must not do that.
+The address is sent to foxschema.com for delivery and recorded in its sign-up
+list; set `FOX_VERIFY_MAIL_URL=off` (or configure SMTP) for an install that
+must not do that.
 
 ### Email for invites and resets
 

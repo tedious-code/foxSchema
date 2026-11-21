@@ -5,16 +5,18 @@
  *
  * Delivering reset, invite and email-verification codes.
  *
- * Reset and invite codes go by email when an SMTP relay is configured. Without
- * one, the code goes to the server log, the same channel as the first-run
- * setup code: whoever reads that log already runs the install and could change
- * any password in its database. `foxschema reset-password` does the same from
+ * Reset and invite codes go by email when an SMTP relay is configured. The
+ * server log is their last resort, the same channel as the first-run setup
+ * code: whoever reads that log already runs the install and could change any
+ * password in its database. `foxschema reset-password` does the same from
  * a terminal on the machine.
  *
- * A verification code proves someone reads mail at an address, so it never
- * goes to the log. Without SMTP it goes through the Fox mail service on
- * foxschema.com (`FOX_VERIFY_MAIL_URL`), which sends a fixed message with the
- * code; docs/guides/DEPLOYMENT.md describes the endpoint.
+ * Without SMTP, all three go through the Fox mail service on foxschema.com
+ * (`FOX_VERIFY_MAIL_URL`, `FOX_ACCOUNT_MAIL_URL`), which sends a fixed
+ * message with the code; docs/guides/DEPLOYMENT.md describes the endpoints.
+ * A reset or invite code falls back to the server log when the service is
+ * off or fails. A verification code proves someone reads mail at an
+ * address, so it never goes to the log.
  *
  * Links point at the configured public URL only. Built from the request's
  * Host header, a reset link would point wherever the requester said.
@@ -42,6 +44,22 @@ export function verifyMailServiceUrl(): string | null {
   const raw = (process.env.FOX_VERIFY_MAIL_URL ?? '').trim();
   if (raw.toLowerCase() === 'off') return null;
   return raw || DEFAULT_VERIFY_MAIL_URL;
+}
+
+export const DEFAULT_ACCOUNT_MAIL_URL = 'https://foxschema.com/wp-json/foxschema/v1/account-email';
+
+/**
+ * Where reset and invite emails go when this install has no mail server: the
+ * Fox mail service unless `FOX_ACCOUNT_MAIL_URL` names another. Off (null)
+ * when that is `off`, or when `FOX_VERIFY_MAIL_URL=off` already said this
+ * install must not send addresses to foxschema.com; the code then goes to
+ * the server log.
+ */
+export function accountMailServiceUrl(): string | null {
+  if (!verifyMailServiceUrl()) return null;
+  const raw = (process.env.FOX_ACCOUNT_MAIL_URL ?? '').trim();
+  if (raw.toLowerCase() === 'off') return null;
+  return raw || DEFAULT_ACCOUNT_MAIL_URL;
 }
 
 /** A link that opens the right page with the code filled in, or '' without a public URL. */
@@ -121,9 +139,9 @@ function verifyMessage(issued: IssuedCode) {
 export class AuthMailer {
   constructor(private settings = new SignInSettings()) {}
 
-  /** Whether codes go out by email or to the server log. */
+  /** Whether codes go out by email (this install's relay, or the Fox mail service) or to the server log. */
   async delivery(): Promise<Delivery> {
-    return (await this.settings.mail()) ? 'email' : 'log';
+    return (await this.settings.mail()) || accountMailServiceUrl() ? 'email' : 'log';
   }
 
   async link(purpose: PasswordCodePurpose, code: string): Promise<string> {
@@ -139,15 +157,51 @@ export class AuthMailer {
     const mail = await this.settings.mail();
     const link = await this.link(purpose, issued.code);
     if (!mail) {
-      getLogger().warn(
-        `${purpose === 'reset' ? 'Password reset' : 'Invite'} code for ${issued.email}: ${issued.code} ` +
-          `(valid until ${issued.expiresAt}). Set up email under Admin → Sign-in to send these to the person instead.`
-      );
+      const service = accountMailServiceUrl();
+      if (service) {
+        try {
+          await this.sendThroughService(service, purpose, issued, link);
+          return 'email';
+        } catch (error: unknown) {
+          // Still reachable from the log, then reported like a failed SMTP send.
+          this.logCode(purpose, issued);
+          throw error;
+        }
+      }
+      this.logCode(purpose, issued);
       return 'log';
     }
     const { subject, text, html } = message(purpose, issued, link, invitedBy);
     await smtpSend(mail.smtp, { from: mail.from, to: [issued.email], subject, text, html });
     return 'email';
+  }
+
+  private logCode(purpose: PasswordCodePurpose, issued: IssuedCode): void {
+    getLogger().warn(
+      `${purpose === 'reset' ? 'Password reset' : 'Invite'} code for ${issued.email}: ${issued.code} ` +
+        `(valid until ${issued.expiresAt}). Set up email under Admin → Sign-in to send these to the person instead.`
+    );
+  }
+
+  /**
+   * Hand a reset or invite code to the Fox mail service, which sends a fixed
+   * message: the address, the code, its lifetime and (when this install has a
+   * public URL) the link, whose host it prints. Nothing else is sent.
+   */
+  private async sendThroughService(url: string, purpose: PasswordCodePurpose, issued: IssuedCode, link: string) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        purpose,
+        email: issued.email,
+        code: issued.code,
+        expiresAt: issued.expiresAt,
+        ...(link ? { link } : {}),
+      }),
+      signal: AbortSignal.timeout(VERIFY_SERVICE_TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(`The Fox mail service could not send it (${res.status}).`);
   }
 
   /**

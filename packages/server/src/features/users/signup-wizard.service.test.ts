@@ -4,7 +4,7 @@ process.env.APP_DB_PATH = ':memory:';
 process.env.APP_ENCRYPTION_KEY = '0'.repeat(64);
 
 import { AppSettingsStore } from '../../platform/settings/app-settings.service';
-import { SignupModule } from './signup-wizard.service';
+import { DEFAULT_SIGNUP_WEBHOOK_URL, SignupModule } from './signup-wizard.service';
 
 const appSettings = new AppSettingsStore();
 const signup = new SignupModule(appSettings);
@@ -12,7 +12,7 @@ const signup = new SignupModule(appSettings);
 describe('SignupModule', () => {
   beforeEach(async () => {
     vi.unstubAllGlobals();
-    delete process.env.SIGNUP_WEBHOOK_URL;
+    process.env.SIGNUP_WEBHOOK_URL = 'off';
     delete process.env.SIGNUP_WEBHOOK_SECRET;
     // Each test's assertions assume a fresh "not yet resolved" wizard — reset
     // the shared in-memory app_settings row rather than isolating per-test DBs.
@@ -40,10 +40,21 @@ describe('SignupModule', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('submit() resolves the wizard immediately when no webhook is configured', async () => {
+  it('submit() resolves the wizard immediately when the webhook is off', async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
     const result = await signup.submit('dev@example.com', 'web');
     expect(result).toEqual({ ok: true });
     expect(await signup.getState()).toEqual({ shown: true });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('defaults to the sign-up archive on foxschema.com when no webhook is named', async () => {
+    delete process.env.SIGNUP_WEBHOOK_URL;
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    vi.stubGlobal('fetch', fetchSpy);
+    expect(await signup.submit('dev@example.com', 'web')).toEqual({ ok: true });
+    expect(fetchSpy.mock.calls[0]![0]).toBe(DEFAULT_SIGNUP_WEBHOOK_URL);
   });
 
   it('submit() posts to the configured webhook with the secret header and marks shown on success', async () => {

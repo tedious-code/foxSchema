@@ -66,7 +66,7 @@ describe('"Email me Fox news" on a new account', () => {
   });
 
   afterAll(async () => {
-    delete process.env.SIGNUP_WEBHOOK_URL;
+    process.env.SIGNUP_WEBHOOK_URL = 'off';
     delete process.env.SIGNUP_WEBHOOK_SECRET;
     await new Promise((r) => webhook.close(r));
   });

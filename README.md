@@ -167,7 +167,9 @@ CommonJS at runtime. Requires **Node ≥ 22.5**.
 | Workspace | Role |
 |-----------|------|
 | `packages/sql` | Dialect knowledge: SQL generation, compare, splitting, type mapping (pure, zero deps) |
+| `packages/features` | Product features on top of `packages/sql`: access, DBA utilities, backup, Lokee Weave, SQL editor helpers (pure) |
 | `packages/db` | Node runtime: drivers, pooling, migration execution (depends on `packages/sql`) |
+| `packages/db-db2` | IBM Db2 as an add-on to `packages/db`, so other installs skip the ~59 MB driver |
 | `packages/server` | Fastify HTTP API, feature modules, metadata store |
 | `packages/workflow-engine` | Workflow runtime, stores, built-in pipes |
 | `apps/web` | React UI + the entry point that serves it (CLI launcher + Docker) |

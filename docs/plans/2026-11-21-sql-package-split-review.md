@@ -72,3 +72,41 @@ publishing is actually scheduled:**
 If you'd rather do the features split now anyway, keep the plan's order (0 → 4 → 1+2
 → 3), but land 1+2 as **one** PR in a quiet window, together with the n8n bundle updates
 and the FoxAgent import list from points 1–2.
+
+## Implemented (2026-11-21)
+
+The split landed in the plan's order (0 → 4 → 1+2 → 3), one commit per phase,
+each green on `npx vitest run`, `npm run typecheck`, `npm run lint` and
+`npm run lint:security` before the next began. Phase 5 (publishing) stays
+deferred, as decided.
+
+| Phase | Result |
+| --- | --- |
+| 0 | `query-subset` is a core domain; `splitTopLevel` is in `sql-text`, `isKnownEngine` in `dialect`. Importers were repointed directly, so **no re-exports were left at old paths** (point 5 above is moot). `core-boundary.test.ts` added. |
+| 4 | `packages/db-db2` holds the Db2 adapter, provider, env and SSL code. `@foxschema/db` has an idempotent plugin registry (`registerDialectPlugin`, different implementation or built-in dialect throws, test reset; point 6). `openDatabase` / `ConnectionFactory.create` load the add-on on first connect; a missing add-on names the package to install. |
+| 1+2 | `packages/features`: 238 files moved with `git mv` (history kept). Only **three** core helpers were missing from the sql barrel, so they became real exports and **there is no `@foxschema/sql/internal`** (point 4). An AST codemod moved 364 imported names in 26 consumer files. |
+| 3 | API lock (`packages/sql/api/exports.txt`, 207 names), 800 KB size budget in `prepare-publish.mjs` (sql packs to 575 KB unpacked, from 1.9 MB), one-way rules in `purity.test.ts` (sql), `packages/features/src/purity.test.ts` and `packages/db/src/package-boundary.test.ts`, docs. |
+
+### Deliberate differences from the plan
+
+- **`IBM_DB_VERSION` stays in `@foxschema/sql`.** The browser's install hints use
+  it (through ui-shared), and `@foxschema/db-db2` is Node-only.
+- **`ibm_db` is an optional dependency of `@foxschema/db-db2`**, not a hard one, so
+  a machine without build tools still installs the monorepo. Drivers still
+  resolve from `@foxschema/db`'s require site (`driverRequire`), where the app
+  and CLI install them.
+- **`foxschema drivers install db2` still installs `ibm_db`.** The add-on is not
+  published yet, and the CLI already bundles it.
+- **The CLI bundles `@foxschema/db-db2`** with `ibm_db` external, as before,
+  instead of marking the add-on external (point 3). The bundle registers Db2 at
+  startup and never reaches the runtime `import()`.
+
+### Still open, outside this repo
+
+- **`n8n-nodes-db2-sql-builder`** bundles `packages/db/src/index.ts` and the two
+  registries from a sibling checkout. After this merges, its bundle has no Db2
+  until `scripts/bundle-foxschema.mjs` also takes `packages/db-db2` and calls
+  `registerDb2()`. The multi-dialect node (`n8n-nodes-fox-schema-sql-builder`)
+  has no Db2 and imports no moved name, so it is unaffected.
+- **FoxAgent** still points at `packages/core`, which was removed before this
+  split, and already handles it being missing. This split does not change that.

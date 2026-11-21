@@ -140,7 +140,7 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
 - **Index reorg (Utils / Edit table):** Db2 cannot reorganise a single index
   (`REORG INDEX name` → SQL0270N reason 89). Defrag emits
   `CALL SYSPROC.ADMIN_CMD('REORG INDEXES ALL FOR TABLE …')` then `RUNSTATS`
-  (`providers/db2/db2.index-fragmentation.ts`). Quote names as `SYSCAT` stores
+  (`packages/features/src/providers/db2/db2.index-fragmentation.ts`). Quote names as `SYSCAT` stores
   them: fold the **schema** to uppercase (it is what the user typed in the
   connection, and schema browse looks it up with `toUpperCase()`), but quote the
   **table exactly as given** — every caller passes the name schema browse read
@@ -236,6 +236,8 @@ Each dialect lives in `providers/<name>/<name>.sql-dialect.ts`.
 3. `modifyColumnStatements` must preserve **nullability + identity** (MODIFY/ALTER
    COLUMN usually replaces the full definition).
 4. Register in `modules/dialect/registry.ts` + `adapter-registry.ts`.
+   The feature files below live in **`packages/features/src`** (same
+   `providers/<name>/` layout), not in this package.
    If the engine has accounts, add `<name>.user-sql.ts` and register it in
    `modules/access/user-sql.registry.ts`. If it has GRANT/REVOKE, add
    `<name>.access-sql.ts` (or re-export an existing emitter) in

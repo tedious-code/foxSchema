@@ -19,7 +19,7 @@
  *   node packages/sql/scripts/prepare-publish.mjs
  *   npm publish packages/sql/npm-pack
  */
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -84,7 +84,23 @@ writeFileSync(
   ) + '\n'
 );
 
-console.log(`✔ ${outDir}`);
+// Size budget. Product features moved to @foxschema/features so this package
+// stays the lean engine; a feature drifting back in shows up here first.
+const BUDGET_KB = 800;
+const sizeOf = (dir) =>
+  readdirSync(dir, { withFileTypes: true }).reduce((sum, e) => {
+    const full = join(dir, e.name);
+    return sum + (e.isDirectory() ? sizeOf(full) : statSync(full).size);
+  }, 0);
+const unpackedKb = Math.round(sizeOf(outDir) / 1024);
+if (unpackedKb > BUDGET_KB) {
+  throw new Error(
+    `@foxschema/sql is ${unpackedKb} KB unpacked, over its ${BUDGET_KB} KB budget. ` +
+      'Did a feature land in packages/sql instead of packages/features?'
+  );
+}
+
+console.log(`✔ ${outDir}  (${unpackedKb} KB unpacked, budget ${BUDGET_KB} KB)`);
 // Version is bumped by hand — this package is on its own release line, so the
 // app's version-bump workflow does not touch it. Print it loudly: publishing a
 // version that was not bumped is the easy mistake here, and npm will reject it

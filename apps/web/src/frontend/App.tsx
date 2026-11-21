@@ -14,12 +14,20 @@ import { DemoBanner } from '@/app/shell/DemoBanner';
 import { CommandPalette } from '@/app/shell/CommandPalette';
 import { WORKSPACE_VIEWS, redirectFor } from '@/app/features/featureRegistry';
 import type { ActiveView } from '@/platform/viewIds';
-import { loadAccountBanners, loadAuthPage, loadOnboardingWizard } from '@/features/auth';
+import {
+  loadAccountBanners,
+  loadAuthPage,
+  loadOnboardingWizard,
+  loadSignedInLinkNotice,
+  useLinkCodePurpose,
+} from '@/features/auth';
 
 // Only someone signed out or not yet onboarded sees these, so a signed-in
 // first page does not carry them.
 const AuthPage = lazy(loadAuthPage);
 const OnboardingWizard = lazy(loadOnboardingWizard);
+// Only a signed-in browser that opens an emailed invite or reset link sees this.
+const SignedInLinkNotice = lazy(loadSignedInLinkNotice);
 // Only an owner without an account yet, or an email still to verify, sees these.
 const AccountBanners = lazy(loadAccountBanners);
 
@@ -118,6 +126,7 @@ const Workspace: React.FC = () => {
 const App: React.FC = () => {
   const { status, init } = useAuthStore();
   const { apply, hydrateFromServer } = useUiStore();
+  const [linkPurpose, dismissLink] = useLinkCodePurpose(status);
 
   useEffect(() => {
     apply(); // apply locally-saved appearance immediately
@@ -175,6 +184,14 @@ const App: React.FC = () => {
     return (
       <Suspense fallback={<LoadingScreen />}>
         <AuthPage />
+      </Suspense>
+    );
+  }
+  // An emailed invite or reset link, opened where someone is already signed in.
+  if (linkPurpose && (status === 'ready' || status === 'onboarding')) {
+    return (
+      <Suspense fallback={<LoadingScreen />}>
+        <SignedInLinkNotice purpose={linkPurpose} onStay={dismissLink} />
       </Suspense>
     );
   }

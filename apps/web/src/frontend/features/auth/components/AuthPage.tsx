@@ -25,6 +25,7 @@ import { AuthError } from './AuthError';
 import { NewPasswordFields, NewsOptIn, newPasswordError, useCapsLock, CapsLockHint } from './NewPasswordFields';
 import { ForgotPasswordView, RedeemCodeView } from './PasswordRecovery';
 import { authInputCls, authLabelCls, authLinkCls, authSubmitCls } from './authStyles';
+import { clearLinkCode, peekLinkCode } from '../lib/linkCode';
 
 /** Surface an `?sso_error=…` returned by a failed SSO callback. */
 function readSsoError(): string | null {
@@ -39,11 +40,10 @@ function readSsoError(): string | null {
  * shared along with the URL.
  */
 function takeCodeFromLink(): string {
-  if (typeof window === 'undefined') return '';
-  const match = /^#(?:reset|invite)=([^&]+)/.exec(window.location.hash);
-  if (!match) return '';
-  window.history.replaceState(null, '', window.location.pathname + window.location.search);
-  return decodeURIComponent(match[1]!);
+  const found = peekLinkCode();
+  if (!found) return '';
+  clearLinkCode();
+  return found.code;
 }
 
 /**

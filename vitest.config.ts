@@ -71,10 +71,12 @@ export default defineConfig({
           // FOX_VERIFY_MAIL_URL off: first-run setup sends a verification code,
           // and without SMTP that goes to the Fox mail service on foxschema.com.
           // A suite must never mail the real one; those that test it run their
-          // own stand-in.
+          // own stand-in. The same for opt-ins (SIGNUP_WEBHOOK_URL), which
+          // default to the sign-up archive there.
           env: {
             FOXFLOW_FILES_DIR: tmpdir(),
             FOX_VERIFY_MAIL_URL: 'off',
+            SIGNUP_WEBHOOK_URL: 'off',
             FOXFLOW_ENCRYPTION_KEY: '0'.repeat(64),
           },
           testTimeout: 15_000,

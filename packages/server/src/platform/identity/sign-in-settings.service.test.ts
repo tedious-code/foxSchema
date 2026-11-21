@@ -20,6 +20,8 @@ const ENV_KEYS = [
   'SSO_GOOGLE_CLIENT_SECRET',
   'SMTP_HOST',
   'SMTP_FROM',
+  'SMTP_PORT',
+  'SMTP_SECURITY',
   'APP_PUBLIC_URL',
   'SSO_REDIRECT_BASE',
   'SSO_GOOGLE_CONNECT_GCP',
@@ -101,6 +103,24 @@ describe('email', () => {
   it('refuses a bad sender or port', async () => {
     await expect(settings.saveMail({ host: 'h', port: 587, from: 'not an address' })).rejects.toThrow(/Sender/);
     await expect(settings.saveMail({ host: 'h', port: 0, from: 'a@b.com' })).rejects.toThrow(/Port/);
+  });
+
+  it('takes TLS for port 465 when no security is given (Hostinger, and STARTTLS there never answers)', async () => {
+    await settings.saveMail({ host: 'smtp.hostinger.com', port: 465, from: 'no-reply@example.com' });
+    expect((await settings.mail())?.smtp).toMatchObject({ port: 465, security: 'tls' });
+    await settings.saveMail({ host: 'smtp.example.com', port: 587, from: 'no-reply@example.com' });
+    expect((await settings.mail())?.smtp).toMatchObject({ port: 587, security: 'starttls' });
+
+    process.env.SMTP_HOST = 'smtp.hostinger.com';
+    process.env.SMTP_FROM = 'no-reply@example.com';
+    process.env.SMTP_PORT = '465';
+    expect((await settings.mail())?.smtp).toMatchObject({ port: 465, security: 'tls', host: 'smtp.hostinger.com' });
+  });
+
+  it('refuses STARTTLS on port 465, which waits for a greeting that never comes', async () => {
+    await expect(
+      settings.saveMail({ host: 'smtp.hostinger.com', port: 465, security: 'starttls', from: 'a@b.com' })
+    ).rejects.toThrow(/465/);
   });
 });
 

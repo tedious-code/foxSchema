@@ -365,7 +365,7 @@ largest files when it fails. Everything else loads when it is used:
   the migration generator with the first browse or compare (`loadSqlGenerator`), and
   `sqlGenerator()` throws if a path uses it earlier, rather than returning an empty
   script. The Compare button asks `schemaCompareBlocker` from
-  `packages/sql/src/modules/capabilities/schema-compare.ts`, which reads the dialect key
+  `packages/features/src/modules/capabilities/schema-compare.ts`, which reads the dialect key
   list (`SQL_DIALECT_KEYS`, checked against `DIALECT_MAP` by `satisfies`) instead of
   loading every dialect.
 - **Sign-in, onboarding and the signup offer** are lazy: a signed-in first page does not

@@ -19,7 +19,7 @@ import { targetKey, targetLocks } from '../../platform/guards/target-lock';
 import { LOKEE_FULL_SCOPE } from './lokee-scope';
 import type { ConnectionRef } from '../../platform/connections/resolve';
 import type { ConnectionOptions, MigrationModule } from '@foxschema/db';
-import { schemaCompareSupport } from '@foxschema/sql';
+import { schemaCompareSupport } from '@foxschema/features';
 import { sendError, sendThrown } from '../../platform/http/respond';
 import type { ForceMigrateErrorCode, LokeeRevertErrorCode } from '@foxschema/shared';
 

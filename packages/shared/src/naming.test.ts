@@ -60,6 +60,7 @@ const isPascal = (name: string) => /^[A-Z]/.test(name);
 
 const PACKAGE_ROOTS = [
   'packages/sql/src',
+  'packages/features/src',
   'packages/db/src',
   'packages/db-db2/src',
   'packages/server/src',
@@ -111,10 +112,11 @@ describe('file naming', () => {
   });
 
   it('frontend non-component files are camelCase, except facades', () => {
-    // A thin re-export over @foxschema/sql keeps the package's kebab name so
-    // the two line up by sight — see docs/conventions/CONVENTIONS.md. The frontend reaches
-    // @foxschema/sql only through @foxschema/ui-shared, so that import is what
-    // marks a facade.
+    const ENGINE_FILES = ['packages/sql/src', 'packages/features/src'].flatMap((r) => sourceFiles(path.join(REPO, r)));
+    // A thin re-export over @foxschema/sql or @foxschema/features keeps the
+    // package's kebab name so the two line up by sight — see
+    // docs/conventions/CONVENTIONS.md. The frontend reaches both only through
+    // @foxschema/ui-shared, so that import is what marks a facade.
     const offenders = frontendFiles
       .filter((f) => f.endsWith('.ts'))
       .filter((f) => {
@@ -127,7 +129,7 @@ describe('file naming', () => {
         // (`sql-generator.ts` ↔ `sql-generator.module.ts`).
         const isFacade =
           /from\s+['"]@foxschema\/ui-shared['"]/.test(body) &&
-          sourceFiles(path.join(REPO, 'packages/sql/src')).some((p) => stem(p) === name);
+          ENGINE_FILES.some((p) => stem(p) === name);
         return !isFacade;
       })
       .map(rel);

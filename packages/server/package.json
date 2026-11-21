@@ -23,6 +23,7 @@
     "@fastify/static": "10.1.10",
     "@foxschema/db": "*",
     "@foxschema/db-db2": "*",
+    "@foxschema/features": "*",
     "@foxschema/shared": "*",
     "@foxschema/sql": "*",
     "@foxschema/workflow-contract": "*",

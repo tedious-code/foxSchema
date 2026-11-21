@@ -13,7 +13,8 @@
  *
  * Everything else may depend on those two and on each other, as long as the
  * result stays acyclic. A cycle means two domains are really one, and neither
- * can be read, tested or moved on its own.
+ * can be read, tested or moved on its own. Feature domains live in
+ * @foxschema/features.
  *
  * `purity.test.ts` covers the other half of this package's contract: no
  * dependencies and no Node built-ins.
@@ -80,7 +81,7 @@ describe('module domains', () => {
   it('covers every domain', () => {
     // Without this, a broken walker would make the rules below pass by
     // checking nothing.
-    expect(domains.length).toBeGreaterThanOrEqual(8);
+    expect(domains.length).toBeGreaterThanOrEqual(5);
     expect(edges.length).toBeGreaterThan(0);
     for (const foundation of FOUNDATIONS) expect(domains).toContain(foundation);
   });

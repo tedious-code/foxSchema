@@ -34,14 +34,8 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { afterAll, describe, expect, it } from 'vitest';
 import { ConnectionFactory, getAdapter } from '@foxschema/db';
-import {
-  backupHistoryQuery,
-  buildBackupCommands,
-  normalizeBackupHistory,
-  type BackupCommands,
-  type BackupConnection,
-  type ConnectionOptions,
-} from '@foxschema/sql';
+import { type ConnectionOptions } from '@foxschema/sql';
+import { backupHistoryQuery, buildBackupCommands, normalizeBackupHistory, type BackupCommands, type BackupConnection } from '@foxschema/features';
 import { wrapSqlForPage } from '../sql-editor/sql-page-wrap.service.js';
 
 const RUN = process.env.FOX_IT_DB === '1';

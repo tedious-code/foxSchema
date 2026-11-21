@@ -76,9 +76,9 @@ describe('@foxschema/shared stays browser-safe', () => {
     expect(offenders((spec) => NODE_BUILTINS.test(spec))).toEqual([]);
   });
 
-  it('depends on no package except @foxschema/sql', () => {
+  it('depends on no package except @foxschema/sql and @foxschema/features', () => {
     const bare = (spec: string) => !spec.startsWith('.') && !spec.startsWith('node:');
-    expect(offenders((spec) => bare(spec) && spec !== '@foxschema/sql')).toEqual([]);
+    expect(offenders((spec) => bare(spec) && spec !== '@foxschema/sql' && spec !== '@foxschema/features')).toEqual([]);
   });
 
   it('never reaches back into an app or the server', () => {

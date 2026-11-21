@@ -3,15 +3,15 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * The core of this package must not import a feature.
+ * This package is the core, and only the core.
  *
  * Core is what a schema-diff-and-migrate tool needs on its own: interfaces,
  * cores, the dialect / sql-text / schema-diff / migrations / query-subset
  * domains, and each provider's sql-dialect, settings and connection files.
- * Everything else (access, utilities, Lokee Weave, the SQL editor, command
- * mode, capabilities, and the provider concern files behind them) is a
- * feature built on top. Imports run one way, so the core can be read, tested
- * and shipped without the features.
+ * Product features (access, utilities, Lokee Weave, the SQL editor, command
+ * mode, capabilities, and the provider concern files behind them) live in
+ * @foxschema/features, which builds on this package. A feature file landing
+ * here would quietly make it part of the published engine again.
  */
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
@@ -50,11 +50,15 @@ const files = sourceFiles(SRC).map((f) => path.relative(SRC, f).split(path.sep).
 const core = files.filter(isCore);
 
 describe('@foxschema/sql core boundary', () => {
-  it('finds both halves', () => {
-    // A broken classifier would pass the rule below by checking nothing.
+  it('finds the core', () => {
+    // A broken walker would pass the rules below by checking nothing.
     expect(core.length).toBeGreaterThan(60);
-    expect(files.length - core.length).toBeGreaterThan(60);
     for (const domain of CORE_DOMAINS) expect(core.some((f) => f.startsWith(`modules/${domain}/`))).toBe(true);
+  });
+
+  it('holds no feature file (those belong in @foxschema/features)', () => {
+    const outside = files.filter((f) => f !== 'index.ts' && !isCore(f));
+    expect(outside).toEqual([]);
   });
 
   it('no core file imports a feature file', () => {

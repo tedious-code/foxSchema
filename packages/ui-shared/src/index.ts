@@ -59,9 +59,18 @@ export type {
 
 // What each engine supports, and why not when it does not.
 export {
-  dialectFeatureReason, dialectFeatures, hasSqlDialect, schemaCompareBlocker, supportsDialectFeature,
+  hasSqlDialect,
 } from '@foxschema/sql';
-export type { DialectFeature, FeatureSupport } from '@foxschema/sql';
+export {
+  dialectFeatureReason,
+  dialectFeatures,
+  schemaCompareBlocker,
+  supportsDialectFeature,
+} from '@foxschema/features';
+export type {
+  DialectFeature,
+  FeatureSupport,
+} from '@foxschema/features';
 
 // SQL text: splitting statements, classifying them, quoting names, code-cell fences.
 export {
@@ -100,79 +109,239 @@ export type {
 
 // Schema history (Lokee Weave): labels and change kinds.
 export {
-  CHANGE_KIND_LABEL, CHANGE_KIND_TITLE, isLokeeTableLikeType, lokeeColumnChangeSubtitle,
-  lokeeTypeLabel, stableStringify,
-} from '@foxschema/sql';
+  CHANGE_KIND_LABEL,
+  CHANGE_KIND_TITLE,
+  isLokeeTableLikeType,
+  lokeeColumnChangeSubtitle,
+  lokeeTypeLabel,
+  stableStringify,
+} from '@foxschema/features';
 export type {
-  LokeeObjectType, ObjectChangeKind, ReversalRisk, StoredWeaveObject,
-} from '@foxschema/sql';
+  LokeeObjectType,
+  ObjectChangeKind,
+  ReversalRisk,
+  StoredWeaveObject,
+} from '@foxschema/features';
 
 // The SQL editor: FoxScript, code cells, SELECT parsing, the SQL subset.
 export {
-  CODE_CELL_ALLOWED_PACKAGES, CODE_CELL_KIND_LABEL, attributeResultColumns, cloneCodeCellLast,
-  collapsedColumnsFor, compileFoxScriptPlan, foxScriptExecutableTexts, isCodeCellLast,
-  isCodeCellVars, isSubsetDialect, normalizeCodeCellReturn, parseCodeCellImports, parseFoxScript, parseSqlSubset,
-  parseTopLevelOrderBy, prepareCodeCellImports, resolveCodeCellImportBindings, rowKeyFor,
-  runCodeCellBody, splitSelectItems, splitTopLevel, subsetValue, tablesInOrigins,
-  uniqueKeyCoversOrder, uniqueKeysFromTable,
+  isSubsetDialect,
+  parseSqlSubset,
+  splitTopLevel,
+  subsetValue,
 } from '@foxschema/sql';
+export {
+  CODE_CELL_ALLOWED_PACKAGES,
+  CODE_CELL_KIND_LABEL,
+  attributeResultColumns,
+  cloneCodeCellLast,
+  collapsedColumnsFor,
+  compileFoxScriptPlan,
+  foxScriptExecutableTexts,
+  isCodeCellLast,
+  isCodeCellVars,
+  normalizeCodeCellReturn,
+  parseCodeCellImports,
+  parseFoxScript,
+  parseTopLevelOrderBy,
+  prepareCodeCellImports,
+  resolveCodeCellImportBindings,
+  rowKeyFor,
+  runCodeCellBody,
+  splitSelectItems,
+  tablesInOrigins,
+  uniqueKeyCoversOrder,
+  uniqueKeysFromTable,
+} from '@foxschema/features';
 export type {
-  CodeCellAllowedPackage, CodeCellErr, CodeCellImportSpec, CodeCellLast, CodeCellOk, CodeCellResult,
-  CodeCellVars, FoxScriptBlock, FoxScriptBlockKind, FoxScriptCodeBlock, FoxScriptDiagnostic,
-  FoxScriptDocument, FoxScriptExecutionPlan, FoxScriptPlanStep, FoxScriptRange, FoxScriptSqlBlock,
+  CodeCellAllowedPackage,
+  CodeCellErr,
+  CodeCellImportSpec,
+  CodeCellLast,
+  CodeCellOk,
+  CodeCellResult,
+  CodeCellVars,
+  FoxScriptBlock,
+  FoxScriptBlockKind,
+  FoxScriptCodeBlock,
+  FoxScriptDiagnostic,
+  FoxScriptDocument,
+  FoxScriptExecutionPlan,
+  FoxScriptPlanStep,
+  FoxScriptRange,
+  FoxScriptSqlBlock,
   RunCodeCellBodyArgs,
-} from '@foxschema/sql';
+} from '@foxschema/features';
 
 // Command mode: a statement wrapped for the engine's own client.
-export { buildCliCommand, formatCommand } from '@foxschema/sql';
-export type { CliTarget, CommandFormat } from '@foxschema/sql';
+export {
+  buildCliCommand,
+  formatCommand,
+} from '@foxschema/features';
+export type {
+  CliTarget,
+  CommandFormat,
+} from '@foxschema/features';
 
 // Database access: grants, accounts, effective access.
 export {
-  ACCESS_PERMISSIONS, ACCESS_PRESETS, DB2_DOCKER_CONTAINER, DB2_OS_PASSWORD_LENGTH,
-  DEFAULT_DB2_RUN_MODE, PASSWORD_PLACEHOLDER, PERMISSION_DESCRIPTORS, PERMISSION_RISK,
-  accessCapabilities, accessFamily, accessStatementPlace, allPrivilegeTargets, availablePermissions,
-  buildAccessReconciliationSql, buildAccessReport, buildAccessSql, buildDb2OsUserInstructions,
-  buildGrantRevokeSql, buildUserSql, cellSupport, compileGridChanges, compileObjectGrid,
-  describeAllowAll, describeHeldPrivilege, describePermission, dialectSupportsDbAccess,
-  diffAccessDesired, expandToInstance, findAllowAll, findAllowAllByName, generateDb2OsPassword,
-  gridColumnsFor, gridObjectKey, groupDbPrincipals, groupPrivileges, heldGridPermissions,
-  highestRisk, invertAccessRequest, osAccountSteps, permissionsForPreset, permissionsForPrivilege,
-  presetForPermissions, principalsWithAccessTo, privilegeTargetLabel, privilegesForPrincipal,
-  prunedPermissions, qualifyDatabaseSql, resolveEffectiveAccess, resolveRoleChain,
-  splitHeldPrivileges, supportsAccessBuilder, userCreateModes, userManagementSupport,
+  ACCESS_PERMISSIONS,
+  ACCESS_PRESETS,
+  DB2_DOCKER_CONTAINER,
+  DB2_OS_PASSWORD_LENGTH,
+  DEFAULT_DB2_RUN_MODE,
+  PASSWORD_PLACEHOLDER,
+  PERMISSION_DESCRIPTORS,
+  PERMISSION_RISK,
+  accessCapabilities,
+  accessFamily,
+  accessStatementPlace,
+  allPrivilegeTargets,
+  availablePermissions,
+  buildAccessReconciliationSql,
+  buildAccessReport,
+  buildAccessSql,
+  buildDb2OsUserInstructions,
+  buildGrantRevokeSql,
+  buildUserSql,
+  cellSupport,
+  compileGridChanges,
+  compileObjectGrid,
+  describeAllowAll,
+  describeHeldPrivilege,
+  describePermission,
+  dialectSupportsDbAccess,
+  diffAccessDesired,
+  expandToInstance,
+  findAllowAll,
+  findAllowAllByName,
+  generateDb2OsPassword,
+  gridColumnsFor,
+  gridObjectKey,
+  groupDbPrincipals,
+  groupPrivileges,
+  heldGridPermissions,
+  highestRisk,
+  invertAccessRequest,
+  osAccountSteps,
+  permissionsForPreset,
+  permissionsForPrivilege,
+  presetForPermissions,
+  principalsWithAccessTo,
+  privilegeTargetLabel,
+  privilegesForPrincipal,
+  prunedPermissions,
+  qualifyDatabaseSql,
+  resolveEffectiveAccess,
+  resolveRoleChain,
+  splitHeldPrivileges,
+  supportsAccessBuilder,
+  userCreateModes,
+  userManagementSupport,
   validateDb2OsPassword,
-} from '@foxschema/sql';
+} from '@foxschema/features';
 export type {
-  AccessCapabilities, AccessDesiredState, AccessDiffEntry, AccessDiffResult, AccessDiffStatus,
-  AccessFinding, AccessPermission, AccessPreset, AccessPrincipal, AccessReport, AccessScope,
-  AccessSource, AccessSourceKind, AccessWarningLevel, AllowAll, CellSupport, Db2RunMode,
-  DbPrincipal, DbPrincipalKind, DbPrivilege, DbPrivilegeObjectType, EffectiveAccess, EffectiveEntry,
-  EffectiveObject, GeneratedPermissionSql, GeneratedStatement, GeneratedUserSql, GridChanges,
-  GridObjectKind, GridRow, OsAccountSteps, PermissionDescriptor, PermissionRequest, PermissionRisk,
-  PermissionWarning, PrincipalAccessRow, PrincipalType, PrivilegeGroup, UserAction, UserAlteration,
-  UserCreateMode, UserManagementSupport, UserRequest,
-} from '@foxschema/sql';
+  AccessCapabilities,
+  AccessDesiredState,
+  AccessDiffEntry,
+  AccessDiffResult,
+  AccessDiffStatus,
+  AccessFinding,
+  AccessPermission,
+  AccessPreset,
+  AccessPrincipal,
+  AccessReport,
+  AccessScope,
+  AccessSource,
+  AccessSourceKind,
+  AccessWarningLevel,
+  AllowAll,
+  CellSupport,
+  Db2RunMode,
+  DbPrincipal,
+  DbPrincipalKind,
+  DbPrivilege,
+  DbPrivilegeObjectType,
+  EffectiveAccess,
+  EffectiveEntry,
+  EffectiveObject,
+  GeneratedPermissionSql,
+  GeneratedStatement,
+  GeneratedUserSql,
+  GridChanges,
+  GridObjectKind,
+  GridRow,
+  OsAccountSteps,
+  PermissionDescriptor,
+  PermissionRequest,
+  PermissionRisk,
+  PermissionWarning,
+  PrincipalAccessRow,
+  PrincipalType,
+  PrivilegeGroup,
+  UserAction,
+  UserAlteration,
+  UserCreateMode,
+  UserManagementSupport,
+  UserRequest,
+} from '@foxschema/features';
 
 // DBA utilities: index maintenance, sizes, backup and restore commands.
 export {
-  backupFileName, backupHistoryQuery, backupSupport, buildBackupCommands, buildIndexDefragSql,
-  buildIndexDropSql, buildIndexFragmentationCustomTemplate, buildLockWaitProbeQuery,
-  buildSessionControlSql, buildTableHealthProbeQuery, buildTableMaintenanceSql,
-  defaultBackupSettings, dialectSupportsDbaUtility, dialectSupportsIndexFragmentation,
-  dialectSupportsSessionLocks, dialectSupportsTableMaintenance, formatBytes, formatPct,
-  formatRowCount, fragmentationSeverity, groupObjectSizes, indexMaintenanceVerb,
-  indexTableSizeGroups, lookupIndexSizeRow, normalizeBackupHistory, normalizeLockWaitRows,
-  normalizeTableHealthRows, buildBlockingChains, parseTableList,
-} from '@foxschema/sql';
+  backupFileName,
+  backupHistoryQuery,
+  backupSupport,
+  buildBackupCommands,
+  buildIndexDefragSql,
+  buildIndexDropSql,
+  buildIndexFragmentationCustomTemplate,
+  buildLockWaitProbeQuery,
+  buildSessionControlSql,
+  buildTableHealthProbeQuery,
+  buildTableMaintenanceSql,
+  defaultBackupSettings,
+  dialectSupportsDbaUtility,
+  dialectSupportsIndexFragmentation,
+  dialectSupportsSessionLocks,
+  dialectSupportsTableMaintenance,
+  formatBytes,
+  formatPct,
+  formatRowCount,
+  fragmentationSeverity,
+  groupObjectSizes,
+  indexMaintenanceVerb,
+  indexTableSizeGroups,
+  lookupIndexSizeRow,
+  normalizeBackupHistory,
+  normalizeLockWaitRows,
+  normalizeTableHealthRows,
+  buildBlockingChains,
+  parseTableList,
+} from '@foxschema/features';
 export type {
-  BackupCommands, BackupHistoryEntry, BackupRunsOn, BackupScope, BackupSettings,
-  BlockingChain, DbaUtilityKind, LockWaitRow, SessionControlAction, SessionLocksSupport,
-  TableHealthRow, TableMaintenanceAction, TableMaintenanceSupport, TableSizeGroup,
-} from '@foxschema/sql';
+  BackupCommands,
+  BackupHistoryEntry,
+  BackupRunsOn,
+  BackupScope,
+  BackupSettings,
+  BlockingChain,
+  DbaUtilityKind,
+  LockWaitRow,
+  SessionControlAction,
+  SessionLocksSupport,
+  TableHealthRow,
+  TableMaintenanceAction,
+  TableMaintenanceSupport,
+  TableSizeGroup,
+} from '@foxschema/features';
 
 // Safe column change: what a rename or type change touches, and its steps as SQL to review.
-export { DEFAULT_COLUMN_CHANGE_BATCH, COLUMN_CHANGE_PHASES, planColumnChange, columnChangeLargeTable } from '@foxschema/sql';
+export {
+  DEFAULT_COLUMN_CHANGE_BATCH,
+  COLUMN_CHANGE_PHASES,
+  planColumnChange,
+  columnChangeLargeTable,
+} from '@foxschema/features';
 export type {
   ColumnChange,
   ColumnChangeImpact,
@@ -183,12 +352,27 @@ export type {
   ColumnChangeProgressSql,
   ColumnDependent,
   ColumnReferenceLine,
-} from '@foxschema/sql';
+} from '@foxschema/features';
 
 // Drop Type: what a user-defined type is used by, and the steps that drop it.
-export { planTypeDrop, userTypesOf, dialectSupportsTypeDrop } from '@foxschema/sql';
-export type { TypeColumnUse, TypeDropImpact, TypeDropPlan, UserTypeKind } from '@foxschema/sql';
+export {
+  planTypeDrop,
+  userTypesOf,
+  dialectSupportsTypeDrop,
+} from '@foxschema/features';
+export type {
+  TypeColumnUse,
+  TypeDropImpact,
+  TypeDropPlan,
+  UserTypeKind,
+} from '@foxschema/features';
 
 // SQL Tracer: shapes and bounds (the server redacts; the screen only shows).
-export { TRACE_MAX_EVENTS, TRACE_MAX_MS } from '@foxschema/sql';
-export type { TraceEvent, TraceMode } from '@foxschema/sql';
+export {
+  TRACE_MAX_EVENTS,
+  TRACE_MAX_MS,
+} from '@foxschema/features';
+export type {
+  TraceEvent,
+  TraceMode,
+} from '@foxschema/features';

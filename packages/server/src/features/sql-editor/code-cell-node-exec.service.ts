@@ -11,14 +11,13 @@ import * as lodash from 'lodash-es';
 import * as dateFns from 'date-fns';
 // Locale entry, not the package root — the root pulls in every locale dataset.
 import { faker } from '@faker-js/faker/locale/en';
-import {
-  runCodeCellBody,
-  type CodeCellLast,
-  type CodeCellVars,
-  type CodeCellResult,
-} from '@foxschema/db';
+import { runCodeCellBody, type CodeCellLast, type CodeCellVars, type CodeCellResult } from '@foxschema/features';
 
-export type { CodeCellLast, CodeCellVars, CodeCellResult } from '@foxschema/db';
+export type {
+  CodeCellLast,
+  CodeCellVars,
+  CodeCellResult,
+} from '@foxschema/features';
 
 const MODULES: Record<string, object> = {
   lodash: lodash as object,

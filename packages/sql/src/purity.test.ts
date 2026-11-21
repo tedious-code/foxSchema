@@ -54,6 +54,12 @@ describe('@foxschema/sql stays runtime-neutral', () => {
     expect(offenders((spec) => spec.startsWith('node:'))).toEqual([]);
   });
 
+  it('imports no @foxschema/features, @foxschema/db or @foxschema/db-db2 (dependencies run one way only)', () => {
+    expect(
+      offenders((spec) => /^@foxschema\/(features|db-db2)(\/|$)/.test(spec))
+    ).toEqual([]);
+  });
+
   it('imports no @foxschema/db (the dependency runs one way only)', () => {
     expect(
       offenders((spec) => spec === '@foxschema/db' || spec.startsWith('@foxschema/db/'))

@@ -8,7 +8,7 @@ import { randomBytes } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { BrowserCodeCellKind } from '@foxschema/db';
-import { isCodeCellLast, isCodeCellVars } from '@foxschema/db';
+import { isCodeCellLast, isCodeCellVars } from '@foxschema/features';
 import type { CodeCellLast, CodeCellResult, CodeCellVars } from './code-cell-node-exec.service';
 import {
   isCellDoneMessage,

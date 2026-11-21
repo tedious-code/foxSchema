@@ -5,41 +5,9 @@
  *
  * Shared DBA utility probes for /schema/dba-utility.
  */
-import {
-  ConnectionFactory,
-  buildDbaUtilityQuery,
-  dialectSupportsDbaUtility,
-  normalizeConnectionPoolRows,
-  normalizeObjectSizeRows,
-  normalizeSystemInfoRows,
-  normalizeUserSessionRows,
-  type ConnectionOptions,
-  type ConnectionPoolInfo,
-  type DbaUtilityKind,
-  type DbaUtilitySupport,
-  type ObjectSizeRow,
-  type SystemInfoMetric,
-  type UserSessionRow,
-} from '@foxschema/db';
-import {
-  buildBlockingChains,
-  buildLockWaitProbeQuery,
-  buildSessionControlSql,
-  buildTableHealthProbeQuery,
-  buildTableMaintenanceSql,
-  dbaPrivilegeRemedy,
-  dialectSupportsSessionLocks,
-  dialectSupportsTableMaintenance,
-  normalizeLockWaitRows,
-  normalizeTableHealthRows,
-  type BlockingChain,
-  type LockWaitRow,
-  type SessionControlAction,
-  type SessionLocksSupport,
-  type TableHealthRow,
-  type TableMaintenanceAction,
-  type TableMaintenanceSupport,
-} from '@foxschema/sql';
+import { ConnectionFactory, type ConnectionOptions } from '@foxschema/db';
+import { buildDbaUtilityQuery, dialectSupportsDbaUtility, normalizeConnectionPoolRows, normalizeObjectSizeRows, normalizeSystemInfoRows, normalizeUserSessionRows, type ConnectionPoolInfo, type DbaUtilityKind, type DbaUtilitySupport, type ObjectSizeRow, type SystemInfoMetric, type UserSessionRow } from '@foxschema/features';
+import { buildBlockingChains, buildLockWaitProbeQuery, buildSessionControlSql, buildTableHealthProbeQuery, buildTableMaintenanceSql, dbaPrivilegeRemedy, dialectSupportsSessionLocks, dialectSupportsTableMaintenance, normalizeLockWaitRows, normalizeTableHealthRows, type BlockingChain, type LockWaitRow, type SessionControlAction, type SessionLocksSupport, type TableHealthRow, type TableMaintenanceAction, type TableMaintenanceSupport } from '@foxschema/features';
 import { redactCredentials } from '../../platform/http/redact';
 
 export type DbaUtilityProbeSuccess = {

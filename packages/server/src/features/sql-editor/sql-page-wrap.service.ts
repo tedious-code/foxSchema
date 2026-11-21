@@ -11,17 +11,8 @@
  */
 
 import { isPageableStatement } from '@foxschema/db';
-import {
-  findTopLevelOrderByIndex,
-  isSafeSeekColumn,
-  isSubsetDialect,
-  isTsqlDialect,
-  pageSubsetSelect,
-  parseTopLevelOrderBy,
-  placeholderStyleFor,
-  quoteSqlIdentifier,
-  renderPlaceholder,
-} from '@foxschema/sql';
+import { isSubsetDialect, isTsqlDialect, pageSubsetSelect, placeholderStyleFor, quoteSqlIdentifier, renderPlaceholder } from '@foxschema/sql';
+import { findTopLevelOrderByIndex, isSafeSeekColumn, parseTopLevelOrderBy } from '@foxschema/features';
 
 export { isPageableStatement };
 

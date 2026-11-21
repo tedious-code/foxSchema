@@ -1,5 +1,6 @@
 import { ConnectionFactory, getAdapter, type ConnectionOptions } from '@foxschema/db';
-import { autoAliasSelectColumns, errorMessage, isSubsetDialect } from '@foxschema/sql';
+import { errorMessage, isSubsetDialect } from '@foxschema/sql';
+import { autoAliasSelectColumns } from '@foxschema/features';
 import { redactCredentials } from '../../platform/http/redact';
 import { isPageableStatement, syntaxProbeSql, trimPageProbe, wrapSqlForOrderedPage, wrapSqlForPage, wrapSqlForSeek, type SqlSeek } from './sql-page-wrap.service';
 

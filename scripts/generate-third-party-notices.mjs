@@ -24,6 +24,7 @@ const SHIPPED = [
   'apps/web/package.json',
   'apps/cli/package.json',
   'packages/sql/package.json',
+  'packages/features/package.json',
   'packages/db/package.json',
   'packages/db-db2/package.json',
 ];

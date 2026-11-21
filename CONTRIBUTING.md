@@ -142,7 +142,7 @@ Read `DIALECTS.md` before touching any `*.sql-dialect.ts` or `sql-generator.modu
 Wire-compatible relatives (MariaDB/TiDB, Cockroach/Yugabyte/Redshift, Azure SQL)
 must go through `dialectFamily()` in `packages/sql/src/providers/provider-settings.ts`
 — do not re-list `d === 'mysql' || d === 'mariadb' || …`. Backup/restore commands
-are `<d>.backup.ts` registered in `packages/sql/src/modules/utilities/backup.registry.ts`.
+are `<d>.backup.ts` registered in `packages/features/src/modules/utilities/backup.registry.ts`.
 
 ## Conventions worth knowing
 

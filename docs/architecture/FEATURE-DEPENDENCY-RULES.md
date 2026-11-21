@@ -39,8 +39,10 @@ database/   metadata store and migrations
    (`ServerFeatureModule`) is in `platform/feature-module.ts` for that reason.
 5. `api/` declares no business route and imports no feature; it mounts what
    the registry returns, runs `onBoot`, and calls `registerFastify` through it.
-6. A feature does not reimplement drivers (`@foxschema/db`) or dialect SQL
-   (`@foxschema/sql`); dialect strings go in `packages/sql/src/providers/`.
+6. A feature does not reimplement drivers (`@foxschema/db`), dialect SQL
+   (`@foxschema/sql`) or feature SQL (`@foxschema/features`); dialect
+   definitions go in `packages/sql/src/providers/`, per-dialect feature SQL
+   (access, backup, utilities, …) in `packages/features/src/providers/`.
 7. Workspace-owned data is reached through `platform/connections` and the
    services that take a `WorkspaceScope`, never by raw SQL from another feature.
 

@@ -1,0 +1,406 @@
+/**
+ * Fox Schema (@foxschema/sql)
+ * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Safe column change: what renaming a column or changing its type touches,
+ * and the SQL to do it the safe way, step by step, for review. Fox runs none
+ * of it (docs/plans/2026-11-01-safe-column-change.md).
+ *
+ * A rename alone is one step: every engine here renames in place, instantly.
+ * A type change adds a new column, keeps it in step with a trigger where the
+ * engine has them, copies in batches, checks, switches the names over in one
+ * go, and drops the old column last. This facade checks the input and finds
+ * the impact; each dialect's provider file writes its SQL.
+ */
+import type { ColumnInfo, TableSchema } from '@foxschema/sql';
+import { PROVIDER_SETTINGS } from '@foxschema/sql';
+import { quoteIdentifierIfNeeded } from '@foxschema/sql';
+import { resolveColumnChange } from './column-change.registry.js';
+import { normType, shapeOf } from './column-type-shape.js';
+import type {
+  ColumnChangeContext,
+  ColumnChangeImpact,
+  ColumnChangeInput,
+  ColumnChangePhase,
+  ColumnChangePlan,
+  ColumnDependent,
+  ColumnReferenceLine,
+} from './column-change.types.js';
+
+export const DEFAULT_COLUMN_CHANGE_BATCH = 10_000;
+
+export const COLUMN_CHANGE_PHASES: Array<{
+  id: ColumnChangePhase;
+  title: string;
+  blurb: string;
+}> = [
+  { id: 'add', title: 'Add the new column', blurb: 'Nullable, no default — existing rows are not rewritten.' },
+  {
+    id: 'copy',
+    title: 'Copy the data',
+    blurb: 'A loop of batched UPDATEs until every row is copied. Preview the loop, or Run it here with progress.',
+  },
+  {
+    id: 'finish',
+    title: 'Constraints, triggers, description',
+    blurb: 'Move indexes, keys and comments, recreate table triggers, then switch over.',
+  },
+];
+
+const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+const engineName = (dialect: string) => PROVIDER_SETTINGS[dialect.toLowerCase()]?.label ?? dialect;
+const has = (cols: readonly string[], name: string) => cols.some((c) => same(c, name));
+const escapeWord = (word: string) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const wordIn = (text: string, word: string) =>
+  new RegExp(`(^|[^A-Za-z0-9_])${escapeWord(word)}([^A-Za-z0-9_]|$)`, 'i').test(text);
+
+/**
+ * Every whole-word occurrence of `word`, as a fresh matcher.
+ *
+ * Lookarounds rather than the boundary groups `wordIn` uses: a consuming group
+ * would swallow the character between two adjacent occurrences and report one
+ * of them, and these offsets are what the UI highlights.
+ */
+const wordMatcher = (word: string) =>
+  new RegExp(`(?<![A-Za-z0-9_])${escapeWord(word)}(?![A-Za-z0-9_])`, 'gi');
+
+/**
+ * The lines of `definition` that name `column`, with where on each line it sits
+ * and, when renaming, the line as it would read afterwards.
+ *
+ * A text match, like the rest of this impact: a name inside a string literal or
+ * a comment counts. That errs towards showing a reader a line they can dismiss
+ * rather than hiding one they needed.
+ */
+const QUOTE_PAIRS: ReadonlyArray<readonly [string, string]> = [
+  ['"', '"'],
+  ['`', '`'],
+  ['[', ']'],
+];
+
+/**
+ * What one occurrence becomes under the new name.
+ *
+ * A new name that would need quoting — `order status`, a reserved word — cannot
+ * go in bare: the line we show as what the SQL needs to say would not parse,
+ * while the plan's own `ALTER` quotes it. Where the definition already quotes
+ * the old name those quotes stay and only the word inside changes, so the
+ * result is never quoted twice. A plain name is returned untouched, so every
+ * ordinary rename reads exactly as it did.
+ */
+function replacementFor(
+  text: string,
+  start: number,
+  end: number,
+  newName: string,
+  dialect?: string
+): string {
+  const quoted = QUOTE_PAIRS.find(([open, close]) => text[start - 1] === open && text[end] === close);
+  if (quoted) return newName.split(quoted[1]).join(quoted[1] + quoted[1]);
+  return dialect ? quoteIdentifierIfNeeded(newName, dialect) : newName;
+}
+
+export function columnReferenceLines(
+  definition: string,
+  column: string,
+  newName?: string,
+  /** For quoting the new name where it needs it. Left out: inserted as given. */
+  dialect?: string
+): ColumnReferenceLine[] {
+  if (!definition || !column) return [];
+  const out: ColumnReferenceLine[] = [];
+  const lines = definition.split(/\r\n|\r|\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const text = lines[i]!.replace(/\s+$/, '');
+    const matcher = wordMatcher(column);
+    const matches: Array<{ start: number; end: number }> = [];
+    for (let m = matcher.exec(text); m !== null; m = matcher.exec(text)) {
+      matches.push({ start: m.index, end: m.index + m[0].length });
+    }
+    if (matches.length === 0) continue;
+    const renamed =
+      newName && newName !== column
+        ? // Right to left, so an earlier replacement cannot move a later offset.
+          matches.reduceRight(
+            (acc, { start, end }) =>
+              acc.slice(0, start) + replacementFor(text, start, end, newName, dialect) + acc.slice(end),
+            text
+          )
+        : undefined;
+    out.push({ line: i + 1, text, matches, ...(renamed === undefined ? {} : { renamed }) });
+  }
+  return out;
+}
+
+export function planColumnChange(input: ColumnChangeInput): ColumnChangePlan {
+  const dialect = resolveColumnChange(input.dialect);
+  if (!dialect) return { ok: false, error: `Safe column change is not available for ${engineName(input.dialect)} yet.` };
+
+  const column = input.table.columns.find((c) => same(c.name, input.column));
+  if (!column) return { ok: false, error: `${input.table.name} has no column ${input.column}.` };
+
+  const targetName = input.change.newName?.trim() || column.name;
+  const targetType = input.change.newType?.trim() || column.type;
+  const renamed = targetName !== column.name;
+  const typeChanged = normType(targetType) !== normType(column.type);
+  const impact = findImpact(input, column, typeChanged ? targetType : undefined);
+
+  if (!renamed && !typeChanged) return { ok: false, error: 'Nothing to change: the name and the type are as they are now.', impact };
+  if (renamed && input.table.columns.some((c) => c !== column && same(c.name, targetName))) {
+    return { ok: false, error: `${input.table.name} already has a column ${targetName}.`, impact };
+  }
+
+  const warnings: string[] = [];
+  if (impact.views.length > 0) {
+    warnings.push(`Views that may use the column: ${impact.views.join(', ')}. Check them after the change.`);
+  }
+  if (impact.triggers.length > 0) {
+    warnings.push(`Triggers that may use the column: ${impact.triggers.map((t) => t.name).join(', ')}.`);
+  }
+  if (impact.functions.length > 0) {
+    warnings.push(`Functions that may use the column: ${impact.functions.join(', ')}. Check them after the change.`);
+  }
+  if (impact.procedures.length > 0) {
+    warnings.push(`Procedures that may use the column: ${impact.procedures.join(', ')}. Check them after the change.`);
+  }
+
+  const primaryKey = input.table.primaryKey?.columns?.length
+    ? input.table.primaryKey.columns
+    : input.table.columns.filter((c) => c.primaryKey).map((c) => c.name);
+  const ctx: ColumnChangeContext = {
+    schema: input.schema,
+    table: input.table.name,
+    column,
+    targetName,
+    targetType,
+    newColumn: `${targetName}__new`,
+    oldColumn: `${column.name}__old`,
+    primaryKey,
+    indexes: impact.indexes,
+    outboundForeignKeys: impact.outboundForeignKeys,
+    triggers: impact.triggers,
+    sortingKey: input.table.orderBy ?? [],
+    tableIndexes: input.table.indices ?? [],
+    batchSize: Math.max(1, Math.floor(input.batchSize ?? DEFAULT_COLUMN_CHANGE_BATCH)),
+    typeChanged,
+  };
+
+  // The engine's own reason first: "ClickHouse will not rename a sorting-key
+  // column" says more than the general primary-key refusal below.
+  const refused = dialect.refuse?.(ctx, { renamed, typeChanged });
+  if (refused) return { ok: false, error: refused, impact };
+  if (impact.inPrimaryKey) {
+    return { ok: false, error: 'Changing a primary key column is not covered yet.', impact };
+  }
+  if (impact.inboundForeignKeys.length > 0) {
+    const from = [...new Set(impact.inboundForeignKeys.map((f) => f.table))].join(', ');
+    return { ok: false, error: `Other tables' foreign keys point at this column (${from}). Changing a referenced column is not covered yet.`, impact };
+  }
+
+  if (!typeChanged) return { ok: true, mode: 'rename', impact, steps: dialect.renameSteps(ctx), warnings };
+
+  const copy = Boolean(input.largeTable);
+  if (copy && !(dialect.rebuildSteps && dialect.progressSql)) {
+    return { ok: false, error: `Large-table mode is not available for ${engineName(input.dialect)}: the change runs in place.`, impact };
+  }
+  if (column.identity) {
+    return {
+      ok: false,
+      error: copy ? 'An identity column cannot be copied this way.' : 'Changing the type of an identity column is not covered yet.',
+      impact,
+    };
+  }
+  if (copy) {
+    if (primaryKey.length === 0) {
+      return { ok: false, error: 'The table needs a primary key: the copy works through it in batches.', impact };
+    }
+    for (const name of [ctx.newColumn, ctx.oldColumn]) {
+      if (input.table.columns.some((c) => same(c.name, name))) {
+        return { ok: false, error: `${input.table.name} already has a column ${name}, which this plan needs for a while.`, impact };
+      }
+    }
+  }
+  if (dialect.foreignKeyTypesMustMatch) {
+    for (const fk of impact.outboundForeignKeys) {
+      const parent = input.tables.find((t) => same(t.name, fk.referencedTable));
+      const position = fk.columns.findIndex((c) => same(c, column.name));
+      const parentColumn = parent?.columns.find((c) => same(c.name, fk.referencedColumns[position] ?? ''));
+      if (parentColumn && normType(parentColumn.type) !== normType(targetType)) {
+        return {
+          ok: false,
+          error:
+            `${column.name} has a foreign key to ${fk.referencedTable}.${parentColumn.name} (${parentColumn.type}). ` +
+            `${engineName(input.dialect)} needs both sides of a foreign key to have the same type: change ${fk.referencedTable}.${parentColumn.name} first, or keep ${parentColumn.type}.`,
+          impact,
+        };
+      }
+    }
+  }
+  if (copy && dialect.rebuildSteps && dialect.progressSql) {
+    if (!dialect.triggers) {
+      warnings.push('This engine has no triggers here: writes during the copy are caught by running the copy once more before the switch-over.');
+    }
+    return { ok: true, mode: 'copy', impact, steps: dialect.rebuildSteps(ctx), warnings, progress: dialect.progressSql(ctx) };
+  }
+
+  if (dialect.viewsBlockTypeChange && impact.views.length > 0) {
+    const at = warnings.findIndex((w) => w.startsWith('Views that may use the column'));
+    warnings.splice(
+      at,
+      1,
+      `${engineName(input.dialect)} refuses to change the type of a column a view uses. ` +
+        `If ${impact.views.join(', ')} ${impact.views.length === 1 ? 'uses' : 'use'} it, drop ${impact.views.length === 1 ? 'it' : 'them'} first and recreate after.`
+    );
+  }
+  const size = largeTableNote(input.table.name, input.estimatedRows, input.sizeBytes);
+  if (size) warnings.push(size);
+  const steps = [...dialect.alterTypeSteps(ctx), ...(renamed ? dialect.renameSteps(ctx) : [])];
+  return { ok: true, mode: 'direct', impact, steps, warnings };
+}
+
+/** From here an in-place type change is worth thinking twice about. */
+export const LARGE_TABLE_ROWS = 1_000_000;
+export const LARGE_TABLE_BYTES = 1024 ** 3;
+
+const roughly = (n: number) =>
+  n >= 1e9 ? `${(n / 1e9).toFixed(1)} billion` : n >= 1e6 ? `${(n / 1e6).toFixed(1)} million` : n.toLocaleString('en-US');
+const roughBytes = (n: number) => (n >= 1024 ** 4 ? `${(n / 1024 ** 4).toFixed(1)} TB` : `${(n / 1024 ** 3).toFixed(1)} GB`);
+
+/** Why an in-place ALTER may hurt on this table, or undefined when it is small or its size is unknown. */
+export function largeTableNote(table: string, rows?: number | null, bytes?: number | null): string | undefined {
+  const manyRows = typeof rows === 'number' && rows >= LARGE_TABLE_ROWS;
+  const manyBytes = typeof bytes === 'number' && bytes >= LARGE_TABLE_BYTES;
+  if (!manyRows && !manyBytes) return undefined;
+  const sized = [
+    typeof rows === 'number' ? `about ${roughly(rows)} rows` : '',
+    typeof bytes === 'number' ? roughBytes(bytes) : '',
+  ]
+    .filter(Boolean)
+    .join(', ');
+  return (
+    `${table} is large (${sized}). An in-place type change can rewrite the whole table and block writes until it ` +
+    'finishes. Turn on large-table mode to copy in batches while the table stays writable.'
+  );
+}
+
+function findImpact(input: ColumnChangeInput, column: ColumnInfo, newType: string | undefined): ColumnChangeImpact {
+  const { table } = input;
+  const name = column.name;
+  const inPrimaryKey = column.primaryKey || has(table.primaryKey?.columns ?? [], name);
+  const outboundForeignKeys = (table.foreignKeys ?? []).filter((fk) => has(fk.columns, name));
+  const inboundForeignKeys = input.tables
+    .filter((t) => t !== table && t.objectType !== 'VIEW')
+    .flatMap((t) =>
+      (t.foreignKeys ?? [])
+        .filter(
+          (fk) =>
+            same(fk.referencedTable, table.name) &&
+            (!fk.referencedSchema || !input.schema || same(fk.referencedSchema, input.schema)) &&
+            has(fk.referencedColumns, name)
+        )
+        .map((foreignKey) => ({ table: t.name, foreignKey }))
+    );
+  // One filter feeds both the name lists and `dependents`, so they cannot drift.
+  const matchingIn = (objectType: TableSchema['objectType']) =>
+    input.tables.filter(
+      (t) =>
+        t.objectType === objectType &&
+        t.definition &&
+        wordIn(t.definition, table.name) &&
+        wordIn(t.definition, name)
+    );
+  const matchedViews = matchingIn('VIEW');
+  const matchedFunctions = matchingIn('FUNCTION');
+  const matchedProcedures = matchingIn('PROCEDURE');
+  const indexes = (table.indices ?? []).filter(
+    (i) => has(i.columns, name) || (i.filter ? wordIn(i.filter, name) : false)
+  );
+  const onTable = (table.triggers ?? []).filter((t) => !t.definition || wordIn(t.definition, name));
+  const extraTriggers = input.tables
+    .filter((t) => t.objectType === 'TRIGGER' && t.definition && wordIn(t.definition, table.name) && wordIn(t.definition, name))
+    .map((t) => ({ name: t.name, definition: t.definition }));
+  const triggers = [
+    ...onTable,
+    ...extraTriggers.filter((t) => !onTable.some((x) => same(x.name, t.name))),
+  ];
+  const views = matchedViews.map((t) => t.name);
+  const functions = matchedFunctions.map((t) => t.name);
+  const procedures = matchedProcedures.map((t) => t.name);
+  const newName = input.change.newName?.trim();
+  // The lines are for a rename, where stored SQL must say the new name. A type
+  // change alone gets the one-line "may use" warnings and no more.
+  const renaming = Boolean(newName && newName !== name);
+  const dependent = (
+    objectType: ColumnDependent['objectType'],
+    objName: string,
+    definition: string | undefined
+  ): ColumnDependent[] => {
+    const references = columnReferenceLines(definition ?? '', name, newName, input.dialect);
+    if (references.length === 0) return [];
+    return [{ name: objName, objectType, definition: definition ?? '', references }];
+  };
+  const dependents: ColumnDependent[] = renaming
+    ? [
+        ...matchedViews.flatMap((t) => dependent('VIEW', t.name, t.definition)),
+        ...matchedFunctions.flatMap((t) => dependent('FUNCTION', t.name, t.definition)),
+        ...matchedProcedures.flatMap((t) => dependent('PROCEDURE', t.name, t.definition)),
+        ...triggers.flatMap((t) => dependent('TRIGGER', t.name, t.definition)),
+      ]
+    : [];
+
+  return {
+    inPrimaryKey,
+    indexes,
+    outboundForeignKeys,
+    inboundForeignKeys,
+    triggers,
+    views,
+    functions,
+    procedures,
+    dependents,
+    lossy: newType ? lossyConversion(column.type, newType) : undefined,
+  };
+}
+
+/** Why moving values from `from` to `to` can lose data or fail, or undefined when it should not. */
+export function lossyConversion(from: string, to: string): string | undefined {
+  const a = shapeOf(from);
+  const b = shapeOf(to);
+  if (a.kind === 'text' && b.kind === 'bool') {
+    return `Converting text (${from}) to boolean (${to}): only values that read as true or false convert; other values stop the copy with an error.`;
+  }
+  if (b.kind === 'bool' && a.kind !== 'bool') return `Only values that read as true or false convert to ${to}.`;
+  if (a.kind === 'text' && (b.kind === 'int' || b.kind === 'decimal' || b.kind === 'float')) {
+    return `Converting text (${from}) to a number (${to}): values that are not a valid ${to} stop the copy with an error.`;
+  }
+  if (a.kind === 'text' && b.kind !== 'text') return `Text that is not a valid ${to} stops the copy with an error.`;
+  if (a.kind === 'text' && b.kind === 'text' && b.size !== undefined && (a.size === undefined || b.size < a.size)) {
+    return `Narrowing ${from} to ${to}: values longer than ${b.size} characters do not fit.`;
+  }
+  if (a.kind === 'int' && b.kind === 'int' && (b.size ?? 0) < (a.size ?? 0)) {
+    return `Narrowing ${from} to ${to}: numbers outside ${to}'s range do not fit.`;
+  }
+  if (a.kind === 'float' && b.kind === 'float' && (b.size ?? 0) < (a.size ?? 0)) {
+    return `Narrowing ${from} to ${to}: some values lose precision.`;
+  }
+  if (a.kind === 'float' && (b.kind === 'int' || b.kind === 'decimal')) return `Fractions are rounded to fit ${to}.`;
+  if (a.kind === 'decimal' && b.kind === 'int' && (a.scale ?? 0) > 0) return `Fractions are rounded to fit ${to}.`;
+  if (a.kind === 'decimal' && b.kind === 'decimal') {
+    if ((b.scale ?? 0) < (a.scale ?? 0)) return `Fewer decimal places: values are rounded to fit ${to}.`;
+    if (b.size !== undefined && a.size !== undefined && b.size - (b.scale ?? 0) < a.size - (a.scale ?? 0)) {
+      return `Fewer digits before the decimal point: large values do not fit ${to}.`;
+    }
+  }
+  if (a.kind === 'datetimetz' && b.kind === 'datetime') return 'The time zone offset is dropped.';
+  if ((a.kind === 'datetime' || a.kind === 'datetimetz') && b.kind === 'date') return 'The time of day is dropped.';
+  const widening =
+    (a.kind === 'int' && (b.kind === 'decimal' || b.kind === 'float')) ||
+    (a.kind === 'date' && (b.kind === 'datetime' || b.kind === 'datetimetz')) ||
+    (a.kind === 'datetime' && b.kind === 'datetimetz');
+  if (a.kind !== 'other' && b.kind !== 'other' && a.kind !== b.kind && b.kind !== 'text' && !widening) {
+    return `Converting ${from} to ${to} may fail on some values.`;
+  }
+  return undefined;
+}

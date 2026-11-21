@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1099** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1100** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1994,6 +1994,7 @@ Every control has a test ID: **1099** buttons, text boxes, selects and textareas
   - `workflow-multi-http-add-endpoint` · Button
   - `workflow-multi-http-batch-size` · Input
   - `workflow-multi-http-concurrency` · Input
+  - `workflow-multi-http-derive-name-{index}` · button · Derive response name from request URL
   - `workflow-multi-http-dup-badge-{index}` · span · Duplicate endpoint ID
   - `workflow-multi-http-dup-error-{index}` · div
   - `workflow-multi-http-empty-id-error-{index}` · div
@@ -2007,6 +2008,7 @@ Every control has a test ID: **1099** buttons, text boxes, selects and textareas
   - `workflow-multi-http-output-mode` · Select
   - `workflow-multi-http-records-path-{index}` · Input
   - `workflow-multi-http-remove-{index}` · Button · Remove endpoint
+  - `workflow-multi-http-response-naming` · Select
   - `workflow-multi-http-tag-field` · Input
   - `workflow-multi-http-toggle-{index}` · button
 - **Palette** · `features/workflow/components/Palette.tsx`

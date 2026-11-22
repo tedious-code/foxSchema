@@ -294,7 +294,7 @@ describe('MultiHttpSourcePipe', () => {
           },
         ],
       }),
-    ).rejects.toThrow(/"empty" response is empty/);
+    ).rejects.toThrow(/"empty" recordsPath "data\.items" matched nothing in the response/);
   });
 
   it('splits the combined result into batches with a resumable offset cursor', async () => {
@@ -795,5 +795,114 @@ describe('MultiHttpSourcePipe', () => {
 
     expect(maxInFlight).toBeLessThanOrEqual(2);
     expect(rows.map((r) => r._endpoint)).toEqual(['e1', 'e2', 'e3', 'e4', 'e5']);
+  });
+});
+
+describe('MultiHttpSourcePipe: failures you can trace', () => {
+  /** A context whose pipe logger records warnings, as the executor's does in the run timeline. */
+  function loggedContext(config: Record<string, unknown>, warnings: string[]): PipeContext {
+    const log = { info() {}, warn: (message: string) => void warnings.push(message), error() {} };
+    return {
+      ...context(config),
+      infrastructure: { logger: log, secrets: { get: async () => undefined }, http: { fetch } },
+    } as PipeContext;
+  }
+
+  async function read(pipe: MultiHttpSourcePipe, ctx: PipeContext): Promise<Record<string, unknown>[]> {
+    const records: Record<string, unknown>[] = [];
+    for await (const batch of pipe.read(ctx)) records.push(...batch.records);
+    return records;
+  }
+
+  /** 500 for `/bad`, a small JSON array for anything else. */
+  const oneBad: typeof fetch = (async (input: unknown) =>
+    String(input).includes('/bad')
+      ? new Response('boom', { status: 500 })
+      : new Response(JSON.stringify([{ ok: 1 }]), { status: 200, headers: { 'content-type': 'application/json' } })) as typeof fetch;
+
+  it('logs a skipped endpoint in records mode instead of dropping it silently', async () => {
+    const warnings: string[] = [];
+    const rows = await read(
+      new MultiHttpSourcePipe(oneBad),
+      loggedContext(
+        {
+          onError: 'skip',
+          endpoints: [
+            { id: 'good', url: 'https://example.test/good' },
+            { id: 'bad', url: 'https://example.test/bad' },
+          ],
+        },
+        warnings,
+      ),
+    );
+    expect(rows.map((r) => r._endpoint)).toEqual(['good']);
+    expect(warnings).toEqual([expect.stringMatching(/^HTTP multi endpoint "bad" returned 500.*\(skipped, onError: skip\)$/)]);
+  });
+
+  it('logs a skipped endpoint in merge mode too', async () => {
+    const warnings: string[] = [];
+    await read(
+      new MultiHttpSourcePipe(oneBad),
+      loggedContext(
+        { onError: 'skip', outputMode: 'merge', endpoints: [{ id: 'bad', url: 'https://example.test/bad' }] },
+        warnings,
+      ),
+    );
+    expect(warnings).toEqual([expect.stringMatching(/"bad".*skipped/)]);
+  });
+
+  it('names the endpoint when the request never gets a response', async () => {
+    const unreachable = (async () => {
+      throw new TypeError('fetch failed', { cause: new Error('getaddrinfo ENOTFOUND no-such-host.invalid') });
+    }) as typeof fetch;
+    await expect(
+      collect(new MultiHttpSourcePipe(unreachable), {
+        endpoints: [{ id: 'gone', url: 'https://no-such-host.invalid/x' }],
+      }),
+    ).rejects.toThrow(/HTTP multi endpoint "gone" request failed: .*ENOTFOUND no-such-host\.invalid/);
+  });
+
+  it('says a recordsPath matched nothing in records mode, as merge mode does', async () => {
+    await expect(
+      collect(new MultiHttpSourcePipe(stubFetch({ data: { rows: [] } })), {
+        endpoints: [{ id: 'typo', url: 'https://example.test/x', recordsPath: 'data.rowz' }],
+      }),
+    ).rejects.toThrow(/"typo" recordsPath "data\.rowz" matched nothing in the response/);
+  });
+
+  it('says a text response is not JSON, rather than blaming a recordsPath that is not set', async () => {
+    const html = (async () =>
+      new Response('<!DOCTYPE html><html></html>', { status: 200, headers: { 'content-type': 'text/html' } })) as typeof fetch;
+    await expect(
+      collect(new MultiHttpSourcePipe(html), { endpoints: [{ id: 'page', url: 'https://example.test/page' }] }),
+    ).rejects.toThrow(/"page" returned text, not JSON/);
+  });
+
+  it('warns when a template has no value, and still sends the request as before', async () => {
+    const warnings: string[] = [];
+    const seen: string[] = [];
+    const rows = await read(
+      new MultiHttpSourcePipe(stubFetch([{ id: 1 }], seen)),
+      loggedContext(
+        {
+          endpoints: [
+            {
+              id: 'posts',
+              url: 'https://example.test/posts',
+              variables: { uid: '3' },
+              query: [
+                { key: 'userId', value: '{{nope}}', enabled: true },
+                { key: 'owner', value: '{{vars.uid}}', enabled: true },
+              ],
+            },
+          ],
+        },
+        warnings,
+      ),
+    );
+    expect(rows).toHaveLength(1);
+    expect(seen[0]).toContain('userId=');
+    expect(seen[0]).toContain('owner=3');
+    expect(warnings).toEqual([expect.stringMatching(/"posts".*\{\{nope\}\} has no value/)]);
   });
 });

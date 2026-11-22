@@ -5,7 +5,7 @@
  *
  * Workflow engine — moved from FoxAgent (packages/sdk/src/index.ts).
  */
-export { interpolate, interpolateDeep, splitTemplate } from './pipe/template.js';
+export { interpolate, interpolateDeep, missingTemplatePaths, splitTemplate } from './pipe/template.js';
 export {
   definePipeMetadata,
   type PipeMetadata,

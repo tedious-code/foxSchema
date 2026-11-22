@@ -24,7 +24,7 @@ import {
   mergeCookies,
   type StoredCookie,
 } from './cookies.js';
-import { interpolate, interpolateDeep } from '../../sdk/index.js';
+import { interpolate, interpolateDeep, missingTemplatePaths } from '../../sdk/index.js';
 import { assertHttpTargetAllowed } from './http-target.js';
 
 export interface HttpExecuteOptions {
@@ -45,6 +45,12 @@ export interface HttpExecuteOptions {
   trigger?: Record<string, unknown>;
   fetch?: typeof fetch;
   signal?: AbortSignal;
+  /**
+   * Told which `{{…}}` paths in the request (URL, enabled params and headers,
+   * auth, body) have no value. They are still sent as empty strings, as they
+   * always were; this only lets the caller say so.
+   */
+  onMissingTemplate?: (paths: string[]) => void;
 }
 
 export interface HttpExecuteResult {
@@ -208,10 +214,19 @@ export async function executeHttpRequest(
     cookies = request.session.enabled ? cookiesFromSecret(secret) : cookies;
   }
 
-  const resolved = resolveRequest(request, {
-    ...variables,
-    secrets: flattenSecrets(secret),
-  });
+  const templateValues = { ...variables, secrets: flattenSecrets(secret) };
+  if (options.onMissingTemplate) {
+    const sent = {
+      url: request.url,
+      query: request.query.filter((row) => row.enabled !== false),
+      headers: request.headers.filter((row) => row.enabled !== false),
+      auth: request.auth,
+      body: { ...request.body, schema: undefined },
+    };
+    const missing = missingTemplatePaths(sent, templateValues);
+    if (missing.length > 0) options.onMissingTemplate(missing);
+  }
+  const resolved = resolveRequest(request, templateValues);
 
   let result = await dispatch(resolved, secret, cookies, options);
   cookies = request.session.enabled

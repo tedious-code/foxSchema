@@ -40,6 +40,7 @@ import {
   type PipeMetadata,
 } from '../../sdk/index.js';
 import { requirePipeSecret, templateScope } from '../pipe-context.js';
+import { gateForHandle, type GateSession } from './shared-handle-gate.js';
 
 /** A connection as a database credential resolves to it. */
 export interface SqlConnection {
@@ -231,11 +232,15 @@ const foxSchemaDrivers: SqlRunner = async ({ dialect, schema, option }, { dedica
     throw error;
   }
   const canRollBack = db.dialectSupportsTransactionalRollback(dialect);
+  // SQLite and DuckDB adapters share one handle per file even when asked for a
+  // dedicated one; the gate keeps sessions out of each other's transactions.
+  const gate = gateForHandle(handle);
+  const session: GateSession = Symbol('sql-session');
   return {
-    query: (sql, params) => adapter.query<Record<string, unknown>>(handle, sql, params),
+    query: (sql, params) => gate.run(session, () => adapter.query<Record<string, unknown>>(handle, sql, params)),
     async transaction(work) {
       if (!canRollBack) return work();
-      await adapter.beginTransaction(handle);
+      await gate.begin(session, () => adapter.beginTransaction(handle));
       try {
         const result = await work();
         await adapter.commitTransaction(handle);
@@ -244,9 +249,14 @@ const foxSchemaDrivers: SqlRunner = async ({ dialect, schema, option }, { dedica
         // The statement's own error is the one worth reporting.
         await adapter.rollbackTransaction(handle).catch(() => undefined);
         throw error;
+      } finally {
+        gate.release(session);
       }
     },
-    close: () => db.ConnectionFactory.close(dialect, handle),
+    close: async () => {
+      gate.release(session);
+      await db.ConnectionFactory.close(dialect, handle);
+    },
   };
 };
 

@@ -11,6 +11,7 @@ export {
   type PostgresClientFactory,
 } from './postgres.js';
 export { PostgresSourcePipe } from './postgres-source.js';
+export { SharedHandleGate, gateForHandle, type GateSession } from './shared-handle-gate.js';
 export { MysqlSourcePipe, type MysqlClient, type MysqlClientFactory } from './mysql-source.js';
 export { MysqlSinkPipe, fallbackMysqlType } from './mysql.js';
 export {

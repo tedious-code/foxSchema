@@ -13,6 +13,7 @@ import type { EngineRuntimeConfig } from '@foxschema/shared';
 import {
   NATIVE_ADDON_SQL_DIALECTS,
   decodeKey,
+  gateForHandle,
   runSandboxedWithLogs,
   type CreateCredentialInput,
   type CredentialMeta,
@@ -423,14 +424,39 @@ export class WorkflowSandboxClient implements WorkflowEngineBackend {
       return timer;
     };
 
+    // The SQLite and DuckDB adapters hand every session on a file the same
+    // handle, `dedicated` or not. The gate keeps one session's statements and
+    // BEGIN out of another's open transaction on that handle.
+    const gate = gateForHandle(handle);
+    const owner = Symbol(sessionId);
     this.sqlSessions.set(sessionId, {
       dialect: params.dialect,
       handle,
-      query: (sql, sqlParams) => adapter.query<Record<string, unknown>>(handle, sql, sqlParams),
-      beginTransaction: () => adapter.beginTransaction(handle),
-      commitTransaction: () => adapter.commitTransaction(handle),
-      rollbackTransaction: () => adapter.rollbackTransaction(handle),
-      close: () => db.ConnectionFactory.close(params.dialect, handle),
+      query: (sql, sqlParams) => gate.run(owner, () => adapter.query<Record<string, unknown>>(handle, sql, sqlParams)),
+      beginTransaction: () => gate.begin(owner, () => adapter.beginTransaction(handle)),
+      commitTransaction: async () => {
+        try {
+          await adapter.commitTransaction(handle);
+        } finally {
+          gate.release(owner);
+        }
+      },
+      rollbackTransaction: async () => {
+        try {
+          await adapter.rollbackTransaction(handle);
+        } finally {
+          gate.release(owner);
+        }
+      },
+      close: async () => {
+        // A session closed mid-transaction (idle timeout, sandbox crash) must
+        // not leave the shared handle in its transaction, or locked for others.
+        if (gate.holds(owner)) {
+          await adapter.rollbackTransaction(handle).catch(() => undefined);
+          gate.release(owner);
+        }
+        await db.ConnectionFactory.close(params.dialect, handle);
+      },
       idleTimer: makeIdleTimer(),
     });
 

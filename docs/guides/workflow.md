@@ -242,6 +242,13 @@ them on save and re-reads them every **30 seconds**.
   `FOXFLOW_SANDBOX_EXTRA_READ_DIRS`, `FOXFLOW_SANDBOX_EXTRA_WRITE_DIRS`,
   `FOXFLOW_SANDBOX_ALLOW_ADDONS=true`, `FOXFLOW_SANDBOX_WORKER_BUNDLE`, and
   `FOXFLOW_SANDBOX_MODE=in-process` (debug fallback).
+- **SQLite and DuckDB sessions share one handle per file.** The adapters cache
+  one handle per path and ignore `pooled: false`, so a "dedicated" workflow
+  session is not dedicated. `SharedHandleGate`
+  (`packages/workflow-engine/src/pipes/db/shared-handle-gate.ts`) makes the other
+  sessions on that handle wait while one holds a transaction. Without it, two
+  batches reaching one SQLite write pipe at once (a Merge of two sources) failed
+  with `cannot start a transaction within a transaction`.
 - **Sink batch claims are per run.** Postgres/MySQL write pipes scope the
   idempotency claim to `[workflowRunId, batch.id]` so a retry inside one run
   dedupes, but the next scheduled run is not suppressed.

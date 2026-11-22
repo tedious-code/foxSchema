@@ -77,3 +77,7 @@ workflow-files/
 foxflow.sqlite
 foxflow.sqlite-shm
 foxflow.sqlite-wal
+
+# DuckDB backups (FOX_DUCKDB_BACKUP_DIR defaults to ./backups under the server's cwd)
+/backups/
+apps/web/backups/

@@ -770,7 +770,9 @@ saved credential at the top, then a tool:
     `redis-cli --rdb`) — the file is written where you paste and run the command.
   - **Database server** (SQL Server `BACKUP DATABASE`, Oracle Data Pump, Db2,
     ClickHouse, CockroachDB, DuckDB `EXPORT DATABASE`) — the folder is a path,
-    DIRECTORY object, or allowed disk *on that server*.
+    DIRECTORY object, or allowed disk *on that server*. DuckDB runs inside Fox's
+    own server and may only write inside its backups folder
+    (`FOX_DUCKDB_BACKUP_DIR`, `./backups` by default).
   - **Cloud** (Redshift snapshots) — there is no file to place.
 
   Commands never contain the password (the notes say how the tool asks for it).

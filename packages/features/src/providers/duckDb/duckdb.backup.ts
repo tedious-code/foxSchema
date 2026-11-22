@@ -29,7 +29,7 @@ export const duckDbBackup: BackupDialect = {
   runsOn: 'server',
   folder: {
     label: 'Folder',
-    hint: 'On the machine running Fox Schema, which opens the DuckDB file. It must already exist; the backup is a new folder inside it.',
+    hint: 'On the machine running Fox Schema, which opens the DuckDB file. DuckDB may only write inside the server\'s backups folder (FOX_DUCKDB_BACKUP_DIR, ./backups by default). It must already exist; the backup is a new folder inside it.',
     defaultValue: './backups',
   },
   formats: [

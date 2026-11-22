@@ -6,7 +6,7 @@
  * Workflow engine — moved from FoxAgent (apps/api/src/cron.test.ts).
  */
 import { createHash, randomBytes } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   openSqliteStores,
   CronCoordinator,
@@ -126,5 +126,81 @@ describe('CronCoordinator', () => {
     });
     expect(invocations).toHaveLength(1);
     stores.close();
+  });
+
+  it('start() fires at the cron minute, not up to a poll interval later', async () => {
+    // Booted 47.3 s into the minute: a fixed 30 s interval would tick at
+    // :17.3 and fire every occurrence ~17 s late.
+    vi.useFakeTimers({ now: new Date('2026-07-14T10:04:47.300Z') });
+    try {
+      const stores = openSqliteStores(':memory:', randomBytes(32));
+      await stores.workflows.put({
+        id: 'scheduled',
+        name: 'scheduled',
+        version: 1,
+        pipelines: [
+          {
+            id: 'load',
+            name: 'load',
+            pipes: [
+              {
+                id: 'source',
+                role: 'source',
+                type: 'source.triggerPayload',
+                config: {},
+                concurrency: 1,
+              },
+            ],
+            edges: [],
+          },
+        ],
+        dependencies: [],
+        middleware: [],
+        triggers: [
+          {
+            id: 'every-minute',
+            kind: 'cron',
+            enabled: true,
+            cron: '* * * * *',
+            timezone: 'UTC',
+            catchUp: 'one',
+            executionType: 'workflow',
+          },
+        ],
+        onOverlap: 'parallel',
+        origin: 'authored',
+      });
+      const lags: [string, number][] = [];
+      const coordinator = new CronCoordinator({
+        workflows: stores.workflows,
+        schedules: stores.schedules,
+        scheduler: {
+          async enqueue(_workflow, invocation) {
+            const scheduledAt = String(
+              (invocation.payload as { scheduledAt: string }).scheduledAt,
+            );
+            lags.push([scheduledAt, Date.now() - new Date(scheduledAt).getTime()]);
+          },
+        },
+      });
+
+      await coordinator.recover();
+      coordinator.start();
+      await vi.advanceTimersByTimeAsync(3 * 60_000);
+      coordinator.stop();
+
+      expect(lags.map(([scheduledAt]) => scheduledAt)).toEqual([
+        '2026-07-14T10:05:00.000Z',
+        '2026-07-14T10:06:00.000Z',
+        '2026-07-14T10:07:00.000Z',
+      ]);
+      for (const [, lag] of lags) {
+        expect(lag).toBeGreaterThanOrEqual(0);
+        expect(lag).toBeLessThan(1_000);
+      }
+      stores.close();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

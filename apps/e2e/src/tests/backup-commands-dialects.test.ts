@@ -19,6 +19,8 @@
  * unit tests and by hand; this suite holds only what the SQL runner can run.
  */
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import { buildBackupCommands, type BackupCommands } from '@foxschema/features';
 import { getSourceConfig, hasConfig } from '../helpers/db-config.js';
@@ -35,12 +37,21 @@ const NOT_ABOUT_THE_BACKUP = [
 ];
 const environmental = (message: string) => isEnvironmentFailure(message) || NOT_ABOUT_THE_BACKUP.some((re) => re.test(message));
 
+/**
+ * DuckDB may only write inside the API's backups folder (FOX_DUCKDB_BACKUP_DIR,
+ * default ./backups under the server's working directory, which is apps/web
+ * for `npm run dev`). Point E2E_DUCKDB_BACKUP_DIR at it for any other setup.
+ */
+const DUCKDB_BACKUPS =
+  process.env.E2E_DUCKDB_BACKUP_DIR ??
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../web/backups');
+
 /** A folder each dev container already has. */
 const FOLDER: Record<string, string> = {
   sqlserver: '/var/opt/mssql/data',
   cockroachdb: 'nodelocal://1/fox-e2e-backups',
   clickhouse: 'backups',
-  duckdb: '/tmp',
+  duckdb: DUCKDB_BACKUPS,
 };
 
 const NOW = new Date();
@@ -119,6 +130,7 @@ describe.skipIf(!hasConfig('duckdb'))('DuckDB backup', () => {
   it('exports the database to a folder', async () => {
     const c = commandsFor('duckdb');
     // DuckDB runs inside the API server, on this machine in a local run.
+    fs.mkdirSync(DUCKDB_BACKUPS, { recursive: true });
     cleanups.push(async () => fs.rmSync(c.location, { recursive: true, force: true }));
     const backup = await run('duckdb', statementsOf(c.backup));
     expect(backup.rejected).toBeUndefined();

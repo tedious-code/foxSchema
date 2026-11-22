@@ -231,7 +231,8 @@ them on save and re-reads them every **30 seconds**.
   and `.app_encryption_key` — including `file:` URIs, `-wal`/`-shm`/`-journal`
   companions, symlinks, and hard links — while DuckDB sessions lock
   `enable_external_access = false` with `lock_configuration = true` (blocking
-  `read_text`, `read_csv`, `ATTACH`, and `COPY ... TO/FROM`) and SQLite sessions
+  `read_text`, `read_csv`, `ATTACH`, and `COPY ... TO/FROM` everywhere except the
+  backups folder, `FOX_DUCKDB_BACKUP_DIR`, which the Backup panel exports to) and SQLite sessions
   refuse `ATTACH`, `DETACH`, `VACUUM INTO`, `load_extension()`, and schema-safety
   `PRAGMA` overrides. Plugins require a `@sha256:` digest pin, and an
   unexpected sandbox crash triggers automatic respawn with backoff without taking

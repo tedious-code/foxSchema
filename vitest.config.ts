@@ -45,6 +45,7 @@ export default defineConfig({
             'scripts/security/**/*.test.mjs',
             'scripts/feature/**/*.test.mjs',
             'scripts/verify/**/*.test.mjs',
+            'scripts/ui-release/**/*.test.mjs',
           ],
           // `exclude` REPLACES vitest's defaults, it does not add to them — so
           // listing the TUI here silently dropped `**/node_modules/**` too.

@@ -24,3 +24,4 @@ export * from './migration-status';
 export * from './data-migrate';
 export * from './workflow-types';
 export * from './workflow-constants';
+export * from './ui-bundle';

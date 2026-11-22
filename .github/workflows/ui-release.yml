@@ -1,0 +1,204 @@
+name: UI Release
+
+# Publishes the frontend as a signed UI bundle to Cloudflare R2. Each user's
+# backend downloads it, verifies the signature and serves it from its own
+# origin; no browser ever loads anything from the bucket.
+# Plan: docs/plans/2026-11-22-signed-ui-bundles.md. Setup: docs/guides/publish.md.
+#
+#   push tag ui-v<version>     build, sign and publish UI <version>
+#   Run workflow, version      the same, without a tag
+#   Run workflow, rollback_to  publish an earlier release again, under a new sequence
+#   schedule (weekly)          re-sign the channel so it does not expire
+#
+# Every run that signs waits for approval in the `ui-release` environment,
+# which holds the signing key and the R2 credentials:
+#   UI_SIGNING_KEY        Ed25519 private key, PEM. Its public key must be in
+#                         UI_BUNDLE_PUBLIC_KEYS (packages/shared/src/ui-bundle.ts)
+#   R2_ACCOUNT_ID         Cloudflare account ID
+#   R2_ACCESS_KEY_ID      R2 API token, Object Read & Write on the bucket only
+#   R2_SECRET_ACCESS_KEY
+# Repository variable R2_BUCKET names the bucket (default fox-ui).
+
+on:
+  push:
+    tags:
+      - 'ui-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'UI version to publish (e.g. 0.3.26 or 0.3.25.1)'
+        required: false
+      rollback_to:
+        description: 'Or: an already published version to publish again'
+        required: false
+  schedule:
+    # Mondays. The channel is valid for 45 days, so a missed approval or two
+    # costs nothing; after 45 days backends keep their current UI and report
+    # the feed as stale.
+    - cron: '23 4 * * 1'
+
+permissions:
+  contents: read
+
+# One writer at a time: each run reads the channel's sequence and writes the
+# next one, so two runs at once would publish the same sequence twice.
+concurrency:
+  group: ui-release
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.mode.outputs.mode }}
+      version: ${{ steps.mode.outputs.version }}
+    steps:
+      - id: mode
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_ROLLBACK: ${{ inputs.rollback_to }}
+        run: |
+          if [ "$EVENT_NAME" = "schedule" ]; then
+            mode=resign; version=""
+          elif [ -n "$INPUT_ROLLBACK" ]; then
+            mode=rollback; version="$INPUT_ROLLBACK"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            mode=release; version="${REF_NAME#ui-v}"
+          elif [ -n "$INPUT_VERSION" ]; then
+            mode=release; version="$INPUT_VERSION"
+          else
+            echo "Give a version or rollback_to." >&2; exit 1
+          fi
+          if [ "$mode" != "resign" ] && ! [[ "$version" =~ ^[0-9A-Za-z][0-9A-Za-z.-]{0,63}$ ]]; then
+            echo "Invalid version: $version" >&2; exit 1
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "UI release: $mode $version"
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.mode == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts
+      # The same typecheck and unit tests a pull request must pass. The tag
+      # may point at a commit that never went through one.
+      - run: npm run verify -- --only=typecheck,unit
+      # Writes the .br and .gz copies beside each file (apps/web/src/build/precompress.ts).
+      - run: npm run build -w @foxschema/web
+      - run: node scripts/bundle/first-load.mjs apps/web/dist --budget-gzip-kb=170
+      - uses: actions/upload-artifact@v5
+        with:
+          name: ui-dist
+          path: apps/web/dist
+          retention-days: 7
+          if-no-files-found: error
+
+  publish:
+    needs: [plan, build]
+    # build is skipped for rollback and resign; it must not have failed.
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.build.result != 'failure' }}
+    runs-on: ubuntu-latest
+    environment: ui-release
+    env:
+      MODE: ${{ needs.plan.outputs.mode }}
+      VERSION: ${{ needs.plan.outputs.version }}
+      R2_BUCKET: ${{ vars.R2_BUCKET || 'fox-ui' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_ENDPOINT_URL: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      AWS_DEFAULT_REGION: auto
+    steps:
+      # Only node built-ins and one import-free file from packages/shared are
+      # needed here: no install, so no dependency code runs next to the key.
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - if: env.MODE == 'release'
+        uses: actions/download-artifact@v5
+        with:
+          name: ui-dist
+          path: dist
+
+      - name: Fetch the published channel
+        run: |
+          mkdir -p published
+          if aws s3api head-object --bucket "$R2_BUCKET" --key channels/stable.json > /dev/null 2> head.err; then
+            aws s3 cp "s3://$R2_BUCKET/channels/stable.json" published/stable.json
+            aws s3 cp "s3://$R2_BUCKET/channels/stable.json.sig" published/stable.json.sig
+          elif grep -q -E '404|Not Found' head.err; then
+            echo "No channel in the bucket yet: this is the first release."
+          else
+            cat head.err >&2; exit 1
+          fi
+
+      - name: Refuse a version that is already in the bucket
+        if: env.MODE == 'release'
+        run: |
+          if aws s3api head-object --bucket "$R2_BUCKET" --key "releases/$VERSION/manifest.json" > /dev/null 2>&1; then
+            echo "releases/$VERSION is already published. Pick a new version, or use rollback_to." >&2; exit 1
+          fi
+
+      - name: Fetch the release to roll back to
+        if: env.MODE == 'rollback'
+        run: |
+          mkdir -p target
+          aws s3 cp "s3://$R2_BUCKET/releases/$VERSION/manifest.json" target/manifest.json
+          aws s3 cp "s3://$R2_BUCKET/releases/$VERSION/manifest.json.sig" target/manifest.json.sig
+
+      - name: Stage and sign
+        env:
+          UI_SIGNING_KEY: ${{ secrets.UI_SIGNING_KEY }}
+        run: |
+          case "$MODE" in
+            release)  node scripts/ui-release/ui-release.mjs stage --dist dist --version "$VERSION" --published published --out out ;;
+            rollback) node scripts/ui-release/ui-release.mjs rollback --target target --published published --out out ;;
+            resign)   node scripts/ui-release/ui-release.mjs resign --published published --out out ;;
+          esac
+
+      # Order matters: files, then the release manifest, then the channel. A
+      # backend that reads the channel mid-upload either sees the old one or
+      # finds everything the new one names already there.
+      - name: Upload files
+        if: hashFiles('out/files/**') != ''
+        run: |
+          aws s3 sync out/files "s3://$R2_BUCKET/files" --size-only \
+            --content-type application/octet-stream \
+            --cache-control "public, max-age=31536000, immutable"
+
+      - name: Upload the release manifest
+        if: hashFiles('out/releases/**') != ''
+        run: |
+          aws s3 cp out/releases "s3://$R2_BUCKET/releases" --recursive \
+            --content-type application/json \
+            --cache-control "public, max-age=31536000, immutable"
+
+      # The signature goes up first. A backend that reads the pair between the
+      # two uploads sees a mismatch, refuses it, keeps its UI and tries later.
+      - name: Upload the channel
+        run: |
+          for name in stable.json.sig stable.json; do
+            aws s3 cp "out/channels/$name" "s3://$R2_BUCKET/channels/$name" \
+              --content-type application/json \
+              --cache-control "public, max-age=60"
+          done
+
+      - name: Summary
+        run: |
+          {
+            echo "### UI $MODE ${VERSION}"
+            echo '```json'
+            cat out/channels/stable.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -27,7 +27,7 @@ import {
   sign,
   verify,
 } from "node:crypto";
-import { lstatSync, readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 export const MANIFEST_SCHEMA = 1;

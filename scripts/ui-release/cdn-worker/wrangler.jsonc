@@ -1,7 +1,7 @@
 // The read-only Worker in front of the UI release bucket. Deploy from the
 // repository root (needs Wrangler 4.69 or later for the cache block):
 //   npx wrangler@4 deploy --config scripts/ui-release/cdn-worker/wrangler.jsonc
-// It is then served at https://fox-ui.<your-account-subdomain>.workers.dev.
+// It is then served at https://fox-ui.foxschema.workers.dev (deployed 2026-11-22).
 {
   "name": "fox-ui",
   "main": "worker.mjs",

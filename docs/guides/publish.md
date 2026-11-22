@@ -250,8 +250,9 @@ nothing for users today.
    npx wrangler@4 deploy --config scripts/ui-release/cdn-worker/wrangler.jsonc
    ```
 
-   It prints the address, `https://fox-ui.<account-subdomain>.workers.dev`
-   (Cloudflare asks you to pick the account subdomain the first time). It
+   It is live at **`https://fox-ui.foxschema.workers.dev`** (deployed
+   2026-11-22; `foxschema` is the account's workers.dev subdomain). Redeploy
+   only when `cdn-worker/` changes. It
    serves only `channels/stable.json`, `releases/<version>/manifest.json` and
    `packs/<sha256>`, and refuses writes. Keep the bucket's own `r2.dev` URL
    turned off.

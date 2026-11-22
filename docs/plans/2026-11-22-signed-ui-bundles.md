@@ -62,7 +62,7 @@ of the sizes before it), so there is nothing to unpack and no path or symlink
 handling inside a parser.
 
 ```
-https://fox-ui.<account-subdomain>.workers.dev/
+https://fox-ui.foxschema.workers.dev/
   packs/<sha256>                      immutable: every file of one release, end to end
   releases/<version>/manifest.json    immutable, signed: each file's path, hash, size
   channels/stable.json                signed: the newest release per contract, 60 s cache
@@ -171,7 +171,7 @@ bundles; delete older ones.
 | Variable | Default | Meaning |
 |---|---|---|
 | `FOX_UI_UPDATES` | `notify` | `auto` downloads and activates on the next restart, `notify` downloads and waits for an admin to apply it, `off` never contacts the feed (air-gapped installs). |
-| `FOX_UI_FEED_URL` | `https://fox-ui.<account-subdomain>.workers.dev` | Where bundles come from. A mirror for companies that block the internet. |
+| `FOX_UI_FEED_URL` | `https://fox-ui.foxschema.workers.dev` | Where bundles come from. A mirror for companies that block the internet. |
 
 **Moving the feed later.** The default address is built into every backend, and
 old installs keep using it. To move (say, to a custom domain), the channel

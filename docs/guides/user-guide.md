@@ -876,6 +876,12 @@ Developer / ops runbook: [workflow.md](workflow.md). Env vars:
    already used a foreign connection cannot be cancelled or answered from this
    workspace either. **Variables** and **Credentials** are per-engine; linked
    Fox Schema connections show up as `foxschema-…` credentials.
+7. **Troubleshoot a run** in **Runs**: filter by **Workflow** and **Status**
+   (pick *failed*); the **Error** column shows why each run failed. Click a run
+   for its failure summary, timeline (the failing pipe in red) and event log.
+   Tick **Errors and warnings only** to see just the failure trail, expand a
+   row (▸) for its data or row sample, and **Download** the log as `.log` text
+   or `.json` to keep or send.
 
 Permissions (multi-user): **Open Workflow** to see the pane; **Design** to edit;
 **Run** to start, cancel, and answer a paused job; **Workflow admin** for the

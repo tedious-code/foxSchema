@@ -13,7 +13,9 @@ import type {
   NewRunEvent,
   PipeDef,
   PipelineDef,
+  PipeRunRecord,
   RunEvent,
+  RunStore,
 } from '../common/index.js';
 import {
   PipeRegistry,
@@ -898,6 +900,116 @@ describe('PipelineExecutor', () => {
     expect(emailWrites.flatMap((item) => item.records)).toEqual([
       { id: 1, tenantId: 'acme', amount: 150 },
     ]);
+  });
+});
+
+describe('pipe run records', () => {
+  it('keeps a failed pipe failed when another of its batches finishes afterwards', async () => {
+    // Two sources feed one sink (a Merge does the same). The sink fails on the
+    // first batch while the second is still writing; that write then succeeds.
+    // The record used to take the last update, so the pipe that failed the
+    // run was stored as success with its error gone.
+    const pipeRecords = new Map<string, PipeRunRecord>();
+    const runs = {
+      putPipe: async (record: PipeRunRecord) => void pipeRecords.set(record.pipeId, record),
+      listPipes: async () => [...pipeRecords.values()],
+    } as unknown as RunStore;
+    const fast: SourcePipe = {
+      type: 'test.fast',
+      role: 'source',
+      async *read() {
+        yield batch('fast', 1);
+      },
+    };
+    const slow: SourcePipe = {
+      type: 'test.slow',
+      role: 'source',
+      async *read() {
+        yield batch('slow', 2);
+      },
+    };
+    let slowWrite: Promise<void> | undefined;
+    const sink: SinkPipe = {
+      type: 'test.sink',
+      role: 'sink',
+      async write(input) {
+        if (input.id === 'fast') {
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          throw new Error('cannot start a transaction within a transaction');
+        }
+        slowWrite = new Promise((resolve) => setTimeout(resolve, 30));
+        await slowWrite;
+      },
+    };
+    const executor = new PipelineExecutor({ registry: new PipeRegistry([fast, slow, sink]), runs });
+
+    await expect(
+      executor.execute(
+        pipeline(
+          [
+            { id: 'a', role: 'source', type: 'test.fast', config: {}, concurrency: 1 },
+            { id: 'b', role: 'source', type: 'test.slow', config: {}, concurrency: 1 },
+            { id: 'stage', role: 'sink', type: 'test.sink', config: {}, concurrency: 2 },
+          ],
+          [
+            { from: 'a', to: 'stage' },
+            { from: 'b', to: 'stage' },
+          ],
+        ),
+        { workflowRunId: 'run-sticky' },
+      ),
+    ).rejects.toThrow('cannot start a transaction within a transaction');
+    // Let the slow write land and its record update drain.
+    await slowWrite;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const stage = pipeRecords.get('stage');
+    expect(stage?.status).toBe('failed');
+    expect(stage?.error).toBe('cannot start a transaction within a transaction');
+  });
+
+  it('lets a resumed run succeed a pipe the interrupted run left cancelled', async () => {
+    const pipeRecords = new Map<string, PipeRunRecord>([
+      [
+        'sink',
+        {
+          id: 'run-resume:pipeline:sink',
+          workflowRunId: 'run-resume',
+          pipelineId: 'pipeline',
+          pipeId: 'sink',
+          status: 'cancelled',
+          attempt: 1,
+          processedBatches: 0,
+          processedRecords: 0,
+          startedAt: '2026-11-22T00:00:00.000Z',
+          finishedAt: '2026-11-22T00:00:01.000Z',
+          error: 'interrupted',
+        },
+      ],
+    ]);
+    const runs = {
+      putPipe: async (record: PipeRunRecord) => void pipeRecords.set(record.pipeId, record),
+      listPipes: async () => [...pipeRecords.values()],
+    } as unknown as RunStore;
+    const source: SourcePipe = {
+      type: 'test.source',
+      role: 'source',
+      async *read() {
+        yield batch('a', 1);
+      },
+    };
+    const sink: SinkPipe = { type: 'test.sink', role: 'sink', async write() {} };
+    const executor = new PipelineExecutor({ registry: new PipeRegistry([source, sink]), runs });
+
+    await executor.execute(
+      pipeline(
+        [sourcePipe, { id: 'sink', role: 'sink', type: 'test.sink', config: {}, concurrency: 1 }],
+        [{ from: 'source', to: 'sink' }],
+      ),
+      { workflowRunId: 'run-resume' },
+    );
+
+    expect(pipeRecords.get('sink')).toMatchObject({ status: 'success', error: undefined, processedBatches: 1 });
   });
 });
 

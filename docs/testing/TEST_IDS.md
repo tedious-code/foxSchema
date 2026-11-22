@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1100** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1101** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -2021,7 +2021,14 @@ Every control has a test ID: **1100** buttons, text boxes, selects and textareas
   - `workflow-run-answer-{key}` · input
   - `workflow-run-cancel` · Button
   - `workflow-run-resume` · Button
+  - `workflow-runs-detail` · aside · Run
+  - `workflow-runs-download-json` · Button
+  - `workflow-runs-download-log` · Button
+  - `workflow-runs-event-log` · div
+  - `workflow-runs-filter-status` · Select
+  - `workflow-runs-filter-workflow` · Select
   - `workflow-runs-live` · input
+  - `workflow-runs-problems-only` · input
 - **SqlPipeEditor** · `features/workflow/components/SqlPipeEditor.tsx`
   - `sql-pipe-connection-backdrop` · div in FilterPicker · Filter by name, dialect, host…
   - `sql-pipe-connection-clear` · button in FilterPicker · Filter by name, dialect, host…

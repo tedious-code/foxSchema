@@ -707,7 +707,30 @@
   max-height: calc(100vh - 140px);
   overflow: auto;
   box-shadow: var(--shadow);
+  /* Stays in view while the run list scrolls; it used to sit at the top of a
+     long list, so picking a run further down showed nothing. */
+  position: sticky;
+  top: 0;
 }
+.fox-workflow .runs-table-wrap { min-width: 0; overflow-x: auto; border-radius: 12px; }
+.fox-workflow .runs-filter { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.fox-workflow .runs-filter select { min-width: 140px; }
+.fox-workflow .runs-count { font-size: 12px; color: var(--muted); }
+.fox-workflow .run-error-cell {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  color: var(--danger);
+}
+.fox-workflow .run-meta { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
+.fox-workflow .run-timeline li.timeline-failed { color: var(--danger); }
+.fox-workflow .run-timeline li.timeline-cancelled,
+.fox-workflow .run-timeline li.timeline-skipped { color: var(--muted); }
+.fox-workflow .run-events-header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 8px; }
+.fox-workflow .run-events-header h4 { margin: 0 auto 0 0; }
 .fox-workflow .run-detail-header {
   display: flex;
   align-items: center;
@@ -729,15 +752,47 @@
   border-radius: 8px;
   padding: 6px 8px;
 }
+.fox-workflow .event-log { max-height: 420px; }
 .fox-workflow .event-row {
-  line-height: 24px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 22px;
+  /* Messages wrap: an error cut off with an ellipsis is the one line a
+     reader needs whole. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.fox-workflow .event-row > summary { cursor: pointer; list-style: none; }
+.fox-workflow .event-row > summary::-webkit-details-marker { display: none; }
+.fox-workflow .event-row > summary::before { content: '▸ '; color: var(--muted); }
+.fox-workflow .event-row[open] > summary::before { content: '▾ '; }
+.fox-workflow .event-row.error { color: var(--danger); }
+.fox-workflow .event-row.warn { color: var(--warn, #d97706); }
+.fox-workflow .event-row > span,
+.fox-workflow .event-row > summary > span { margin-right: 8px; }
+.fox-workflow .event-seq, .fox-workflow .event-time { color: var(--muted); }
+.fox-workflow .event-level {
+  display: inline-block;
+  min-width: 42px;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.fox-workflow .event-scope { color: var(--text); }
+.fox-workflow .event-row.error .event-scope, .fox-workflow .event-row.error .event-summary { color: var(--danger); }
+.fox-workflow .event-data {
+  margin: 4px 0 6px 18px;
+  padding: 6px 8px;
+  max-height: 240px;
+  overflow: auto;
+  background: var(--panel-2);
+  border-radius: 6px;
+  white-space: pre;
+  color: var(--text);
 }
 
 @media (max-width: 960px) {
   .fox-workflow .runs-layout { grid-template-columns: 1fr; }
+  /* Stacked under the list, the detail scrolls with the page. */
+  .fox-workflow .run-detail { position: static; max-height: none; }
 }
 
 /* Delimited source editor (CSV/Text): config, schema, preview table. */

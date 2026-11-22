@@ -4,7 +4,8 @@
 `useCompareWindow` / `COMPARE_WINDOW_ROWS`) and **migrate up to 2,000 ops**
 (#560, one shared `DATA_MIGRATE_MAX_OPS`). Part 3 is built: Redis keys as
 tables (`packages/db/src/providers/redis/redis.keyspace.ts`). **Part 2 (SQL
-Tracer) is not built.** Living usage is in [user-guide.md](../guides/user-guide.md);
+Tracer) is built too** (Utils → SQL Tracer, `packages/server/src/features/sql-trace/`,
+FEATURE_MAP `utilities.trace`; noted 2026-11-21). Living usage is in [user-guide.md](../guides/user-guide.md);
 this page is the design record. Remaining test-and-fix passes are tracked in
 [the feature and dialect test plan](../testing/test-plans/2026-10-25-feature-and-dialect-test-plan.md).
 

@@ -22,7 +22,7 @@ foxschema doctor
 
 # Development (starts both the Fastify API + Vite frontend)
 npm run dev                          # sign-in required; first open runs setup
-npm run dev:auth                     # multi-user auth mode
+npm run dev:auth                     # shared-server mode (LOCAL_SINGLE_USER=false)
 # The workflow engine starts in the API process (FOXFLOW_ENCRYPTION_KEY on dev:api)
 
 # The gate: what CI runs on a pull request, run here. Passing here means passing there.
@@ -46,7 +46,7 @@ cd apps/cli && npm run foxschema -- doctor
 cd apps/cli && npm run foxschema -- compare --source ... --target ...
 ```
 
-Backend changes (`packages/server`, `packages/sql`, `packages/db`) hot-reload via `tsx watch`.
+Backend changes (`packages/server`, `packages/sql`, `packages/features`, `packages/db`) hot-reload via `tsx watch`.
 
 ## E2E tests (apps/e2e)
 
@@ -69,25 +69,35 @@ cd apps/e2e && node scripts/run-all.mjs
 npm workspaces — not pnpm or Turborepo.
 
 ```
-packages/sql/           @foxschema/sql — dialect knowledge (pure, browser-safe)
+packages/sql/           @foxschema/sql — dialect knowledge (pure, browser-safe;
+                        git submodule, tedious-code/foxschema-sql)
   src/interfaces/       TableSchema, TableDiff, ColumnDiff, MigrationStep, etc.
   src/modules/          One folder per domain: dialect, sql-text, schema-diff,
-                        migrations, lokee-weave, sql-editor, access, utilities
+                        migrations, query-subset
   src/providers/        14 SQL dialects, each with settings + sql-dialect
-                        (+ optional *.user-sql.ts for account DDL,
-                        *.backup.ts for backup/restore commands)
-                        (MongoDB and Redis carry settings only; they still
-                        have backup command builders)
+                        (MongoDB and Redis carry settings only)
   src/cores/            Connection strings, catalog rows → TableSchema,
                         connection auth (password / Windows NTLM / Db2 LDAP)
 
-packages/ui-shared/     @foxschema/ui-shared — the part of @foxschema/sql the
-                        web app may use: a named, by-reference re-export. The
-                        frontend imports this, never @foxschema/sql directly
+packages/features/      @foxschema/features — product features on sql (pure;
+                        an ordinary folder in this repo)
+  src/modules/          access, utilities, lokee-weave, sql-editor,
+                        command-mode, capabilities
+  src/providers/        Feature SQL per dialect: *.user-sql.ts (account DDL),
+                        *.access-sql.ts, *.backup.ts, *.column-change.ts, …
+
+packages/ui-shared/     @foxschema/ui-shared — the part of @foxschema/sql and
+                        @foxschema/features the web app may use: a named,
+                        by-reference re-export. The frontend imports this,
+                        never those packages directly
 
 packages/db/            @foxschema/db — Node runtime: drivers, pooling, execution
-  src/providers/        One adapter and provider per dialect
+                        (git submodule, tedious-code/foxschema-db)
+  src/providers/        One adapter and provider per dialect (Db2 excepted)
   src/cores/            ConnectionFactory, pooling, circuit breaker
+packages/db-db2/        @foxschema/db-db2 — IBM Db2 add-on to db: the ibm_db
+                        adapter and provider (git submodule,
+                        tedious-code/foxschema-db-db2)
 
 packages/shared/        Contracts the frontend, server and CLI agree on:
                         permission names, error codes, wire message shapes
@@ -242,7 +252,10 @@ target disable the button.
 ## Dialect system
 
 Each SQL dialect has three layers, split across `packages/sql/src/providers/`
-(dialect + settings) and `packages/db/src/providers/` (adapter + provider).
+(dialect + settings) and `packages/db/src/providers/` (adapter + provider; Db2's
+are in `packages/db-db2/src/`). Feature SQL for each dialect lives in
+`packages/features/src/providers/`; its registries (account DDL, GRANT, column
+change, Drop Type, backup) are under `packages/features/src/modules/`.
 Wire-compatible relatives share a family (`dialectFamily()` in
 `packages/sql/src/providers/provider-settings.ts`): MariaDB / TiDB → `mysql`;
 CockroachDB / YugabyteDB / Redshift → `postgres`; Azure SQL → `sqlserver`. Use
@@ -265,8 +278,8 @@ TiDB→MySQL); Redshift has its own module (GROUP, not ROLE). Db2 has no CREATE 
 (`canCreateUser: false`); `buildDb2OsUserInstructions` emits copy-paste docker +
 GRANT CONNECT steps for the `foxschema-db2` container instead. GRANT/REVOKE is the
 same pattern: `<d>.access-sql.ts` / `modules/access/access-sql.registry.ts`
-(Redshift reuses Postgres GRANT; account DDL stays separate). Both stay in
-`@foxschema/sql` so the browser Access Assistant can generate SQL (through
+(Redshift reuses Postgres GRANT; account DDL stays separate). Both live in
+`@foxschema/features` so the browser Access Assistant can generate SQL (through
 `@foxschema/ui-shared`) — do not put these emitters in `@foxschema/db` (Node
 drivers only).
 

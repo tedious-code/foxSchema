@@ -1,5 +1,9 @@
 # E2E test plan and migration-ordering bug investigation — 2026-07-01
 
+> Dated record. The `packages/core/src/modules/…` links below predate the package
+> split: `sql-generator.module.ts` is now `packages/sql/src/modules/migrations/`, and
+> migration execution is in `packages/db`. Line numbers are as of 2026-07-01.
+
 ## Test plan
 
 1. `docker compose up -d` — start all 6 dialect containers (Postgres, MySQL,

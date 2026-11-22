@@ -24,7 +24,7 @@ Command **wiring and observable behavior**, not the database layer:
 - that `--scope` is parsed to `DbObjectType[]` and forwarded to `loadScopedTables`.
 
 The actual providers, `MigrationModule.execute`, and the encrypted store are **mocked** —
-real-database behavior belongs in the engine unit tests (`packages/core`) and the
+real-database behavior belongs in the engine unit tests (`packages/sql`, `packages/db`) and the
 Playwright E2E suite (`apps/e2e`).
 
 ## Mocking patterns

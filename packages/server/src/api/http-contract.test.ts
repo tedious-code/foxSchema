@@ -372,7 +372,15 @@ describe('HTTP contract', () => {
         headers: { cookie: sessionCookie, 'x-fox-workspace': '00000000-0000-4000-8000-000000000000' },
       });
       expect(res.status).toBe(404);
+      // Marked, so the browser can tell "the workspace you remember is gone"
+      // from any other not-found and re-open the default one.
+      expect(res.headers.get('x-fox-workspace-unavailable')).toBe('1');
       expect(isApiErrorBody(await res.json())).toBe(true);
+      // Never on a request that named no workspace.
+      const plain = await fetch(`http://127.0.0.1:${port}/api/connections/00000000-0000-4000-8000-000000000000`, {
+        headers: { cookie: sessionCookie },
+      });
+      expect(plain.headers.get('x-fox-workspace-unavailable')).toBeNull();
     });
 
     it('says which workspace the session acts in, with the permissions it has there', async () => {

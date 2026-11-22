@@ -64,6 +64,28 @@ describe('workspaces', () => {
     expect(await driver.locator(byTestId('workspace-menu-select')).inputValue()).toBe(personalId);
   });
 
+  it('a remembered workspace the account cannot open falls back to its own', async () => {
+    // Left the workspace, it was archived, or another Fox install on this
+    // origin stored its id: every scoped request used to 404 until the
+    // browser's storage was cleared by hand.
+    const KEY = 'foxschema-active-workspace';
+    await driver.goto(BASE_URL);
+    await driver.evaluate((key) => localStorage.setItem(key, '00000000-0000-4000-8000-000000000000'), KEY);
+    await driver.goto(BASE_URL);
+    await driver.waitForFunction(([key, id]) => localStorage.getItem(key!) === id, [KEY, personalId] as const, {
+      timeout: 15_000,
+    });
+    await waitFor(driver, byTestId('workspace-rail-btn'), 15_000);
+    const status = await driver.evaluate(async (key) => {
+      const res = await fetch('/api/connections', {
+        credentials: 'include',
+        headers: { 'X-Fox-Workspace': localStorage.getItem(key) ?? '' },
+      });
+      return res.status;
+    }, KEY);
+    expect(status).toBe(200);
+  });
+
   it('an admin creates a workspace from the menu and lands in it', async () => {
     await openMenu();
     await clickWhen(driver, byTestId('workspace-menu-create'));

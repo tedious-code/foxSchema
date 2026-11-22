@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   SQL_EDITOR_PERSIST_KEY,
   activeEditorWorkspaceId,
@@ -71,6 +71,16 @@ describe('following the workspace the server opened', () => {
     // ws-a keeps its scripts; nothing was copied across.
     expect(localStorage.getItem(`${SQL_EDITOR_PERSIST_KEY}:ws-a`)).toBe(snapshot('a secret query'));
     expect(localStorage.getItem(`${SQL_EDITOR_PERSIST_KEY}:ws-b`)).toBeNull();
+  });
+
+  it('does not ask for a reload when the new pointer cannot be saved', () => {
+    // Otherwise a browser that refuses the write reloads forever.
+    claimEditorWorkspace('ws-a');
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
+    expect(followServerWorkspace('ws-b')).toBe('same');
+    setItem.mockRestore();
   });
 
   it('ignores an empty id rather than unscoping the editor', () => {

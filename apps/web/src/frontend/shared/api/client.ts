@@ -24,7 +24,7 @@
  * For responses that are not JSON — a streamed NDJSON migration, a file
  * download — use `api.raw`, which returns the `Response` untouched.
  */
-import type { ErrorCode } from '@foxschema/shared';
+import { WORKSPACE_UNAVAILABLE_HEADER, type ErrorCode } from '@foxschema/shared';
 import { getApiBase, parseJsonBody } from './apiBase';
 import { activeEditorWorkspaceId } from '../lib/editorWorkspaceStorage';
 
@@ -81,6 +81,27 @@ function withQuery(path: string, query?: Record<string, QueryValue>): string {
   return `${path}${path.includes('?') ? '&' : '?'}${qs}`;
 }
 
+type WorkspaceUnavailableListener = (workspaceId: string) => void;
+const workspaceUnavailableListeners = new Set<WorkspaceUnavailableListener>();
+
+/**
+ * Hear when the server will not open the workspace this browser remembers.
+ *
+ * The request that found out still fails: it was meant for that workspace, and
+ * running it in another one could save into the wrong place. The listener
+ * (the auth store) re-opens the workspace the server falls back to. Returns
+ * the unsubscribe.
+ */
+export function onWorkspaceUnavailable(listener: WorkspaceUnavailableListener): () => void {
+  workspaceUnavailableListeners.add(listener);
+  return () => workspaceUnavailableListeners.delete(listener);
+}
+
+/** Tell the listeners; exported for the code that reads responses itself. */
+export function notifyWorkspaceUnavailable(workspaceId: string): void {
+  for (const listener of workspaceUnavailableListeners) listener(workspaceId);
+}
+
 /**
  * Send a request and return the raw `Response`.
  *
@@ -96,7 +117,7 @@ export async function raw(
 ): Promise<Response> {
   const hasBody = body !== undefined;
   const workspaceId = activeEditorWorkspaceId();
-  return fetch(`${getApiBase()}${withQuery(path, options.query)}`, {
+  const res = await fetch(`${getApiBase()}${withQuery(path, options.query)}`, {
     method,
     // Every API route is same-origin and session-cookie authenticated.
     credentials: 'include',
@@ -109,6 +130,11 @@ export async function raw(
     },
     ...(hasBody ? { body: JSON.stringify(body) } : {}),
   });
+  // Only the guard's own 404 carries the header, and only for an id we sent.
+  if (workspaceId && res.status === 404 && res.headers?.get(WORKSPACE_UNAVAILABLE_HEADER) === '1') {
+    notifyWorkspaceUnavailable(workspaceId);
+  }
+  return res;
 }
 
 /** Send a request, parse the JSON response, and throw `ApiError` on failure. */

@@ -240,10 +240,26 @@ nothing for users today.
    - **Deployment branches and tags:** `main` and tags `ui-v*` only.
    - **Secrets:** `UI_SIGNING_KEY` (the whole `.pem`), `R2_ACCOUNT_ID`,
      `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`.
-5. **Public address.** Connect a custom domain to the bucket (R2 → bucket →
-   Settings → Custom Domains), for example `ui.foxschema.com`. This needs the
-   domain's DNS on Cloudflare; it is at Hostinger today. Do not use the
-   `r2.dev` address in production: it is rate-limited and not cached.
+5. **Public address: the Worker.** Backends read the bucket through a small
+   read-only Worker on `workers.dev`, so no domain is needed (a custom domain
+   on R2 would need foxschema.com's DNS moved to Cloudflare). From the
+   repository root:
+
+   ```bash
+   npx wrangler@4 login
+   npx wrangler@4 deploy --config scripts/ui-release/cdn-worker/wrangler.jsonc
+   ```
+
+   It prints the address, `https://fox-ui.<account-subdomain>.workers.dev`
+   (Cloudflare asks you to pick the account subdomain the first time). It
+   serves only `channels/stable.json`, `releases/<version>/manifest.json` and
+   `packs/<sha256>`, and refuses writes. Keep the bucket's own `r2.dev` URL
+   turned off.
+
+   **Free-plan budget:** 100,000 Worker requests a day, cache hits included.
+   A backend's channel check is one request and a UI update is two (manifest
+   and pack), so this covers roughly 20,000 installs checking four times a
+   day. Past that, Workers Paid is $5 a month for 10 million requests.
 
 ### Releasing
 
@@ -255,7 +271,10 @@ Or **Actions → UI Release → Run workflow** with a `version`. The run type-ch
 runs the unit tests, builds `apps/web`, then waits for approval before signing
 and uploading. Each version can be published once.
 
-- **Roll back:** Run workflow with `rollback_to: <version>`. The old files are
+- **What goes up:** one pack per release (every file end to end), the
+  release's manifest, and the channel. The signature is inside each manifest
+  and channel file, so each is one download.
+- **Roll back:** Run workflow with `rollback_to: <version>`. The old pack is
   published again under a new sequence (backends refuse a lower one, by
   design), as `<version>-r<sequence>`.
 - **Weekly re-sign:** a Monday schedule re-signs the channel so it does not

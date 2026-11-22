@@ -2,7 +2,9 @@ name: UI Release
 
 # Publishes the frontend as a signed UI bundle to Cloudflare R2. Each user's
 # backend downloads it, verifies the signature and serves it from its own
-# origin; no browser ever loads anything from the bucket.
+# origin; no browser ever loads anything from the bucket. Backends read the
+# bucket through the read-only Worker in scripts/ui-release/cdn-worker/, on
+# workers.dev, so no domain is needed.
 # Plan: docs/plans/2026-11-22-signed-ui-bundles.md. Setup: docs/guides/publish.md.
 #
 #   push tag ui-v<version>     build, sign and publish UI <version>
@@ -136,7 +138,6 @@ jobs:
           mkdir -p published
           if aws s3api head-object --bucket "$R2_BUCKET" --key channels/stable.json > /dev/null 2> head.err; then
             aws s3 cp "s3://$R2_BUCKET/channels/stable.json" published/stable.json
-            aws s3 cp "s3://$R2_BUCKET/channels/stable.json.sig" published/stable.json.sig
           elif grep -q -E '404|Not Found' head.err; then
             echo "No channel in the bucket yet: this is the first release."
           else
@@ -155,25 +156,25 @@ jobs:
         run: |
           mkdir -p target
           aws s3 cp "s3://$R2_BUCKET/releases/$VERSION/manifest.json" target/manifest.json
-          aws s3 cp "s3://$R2_BUCKET/releases/$VERSION/manifest.json.sig" target/manifest.json.sig
 
       - name: Stage and sign
         env:
           UI_SIGNING_KEY: ${{ secrets.UI_SIGNING_KEY }}
         run: |
           case "$MODE" in
-            release)  node scripts/ui-release/ui-release.mjs stage --dist dist --version "$VERSION" --published published --out out ;;
-            rollback) node scripts/ui-release/ui-release.mjs rollback --target target --published published --out out ;;
-            resign)   node scripts/ui-release/ui-release.mjs resign --published published --out out ;;
+            release)  node scripts/ui-release/ui-release.mjs stage --dist dist --version "$VERSION" --published published/stable.json --out out ;;
+            rollback) node scripts/ui-release/ui-release.mjs rollback --target target/manifest.json --published published/stable.json --out out ;;
+            resign)   node scripts/ui-release/ui-release.mjs resign --published published/stable.json --out out ;;
           esac
 
-      # Order matters: files, then the release manifest, then the channel. A
-      # backend that reads the channel mid-upload either sees the old one or
-      # finds everything the new one names already there.
-      - name: Upload files
-        if: hashFiles('out/files/**') != ''
+      # Order matters: the pack, then the release manifest, then the channel.
+      # A backend that reads the channel mid-upload either sees the old one or
+      # finds everything the new one names already there. Each signature is
+      # inside the file it signs, so no upload can leave a mismatched pair.
+      - name: Upload the pack
+        if: hashFiles('out/packs/**') != ''
         run: |
-          aws s3 sync out/files "s3://$R2_BUCKET/files" --size-only \
+          aws s3 cp out/packs "s3://$R2_BUCKET/packs" --recursive \
             --content-type application/octet-stream \
             --cache-control "public, max-age=31536000, immutable"
 
@@ -184,21 +185,18 @@ jobs:
             --content-type application/json \
             --cache-control "public, max-age=31536000, immutable"
 
-      # The signature goes up first. A backend that reads the pair between the
-      # two uploads sees a mismatch, refuses it, keeps its UI and tries later.
       - name: Upload the channel
         run: |
-          for name in stable.json.sig stable.json; do
-            aws s3 cp "out/channels/$name" "s3://$R2_BUCKET/channels/$name" \
-              --content-type application/json \
-              --cache-control "public, max-age=60"
-          done
+          aws s3 cp out/channels/stable.json "s3://$R2_BUCKET/channels/stable.json" \
+            --content-type application/json \
+            --cache-control "public, max-age=60"
 
       - name: Summary
         run: |
           {
             echo "### UI $MODE ${VERSION}"
             echo '```json'
-            cat out/channels/stable.json
+            # The signed payload, not the envelope around it.
+            node -e "process.stdout.write(Buffer.from(JSON.parse(require('fs').readFileSync('out/channels/stable.json', 'utf8')).payload, 'base64'))"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

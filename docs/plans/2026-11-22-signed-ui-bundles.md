@@ -2,7 +2,8 @@
 
 > **Status (2026-11-22): publishing side written, backend side not started.**
 > Done: `API_CONTRACT` and the pinned-key list (`packages/shared/src/ui-bundle.ts`),
-> the staging and signing script (`scripts/ui-release/`), and
+> the staging and signing script (`scripts/ui-release/`), the read-only Worker
+> that serves the bucket on workers.dev (`scripts/ui-release/cdn-worker/`), and
 > `.github/workflows/ui-release.yml` (setup in `docs/guides/publish.md`). Not
 > done: the rest of build-order step 1 (`/api/health`, route-table snapshot),
 > the compatibility run in step 3, `ship-release.yml` publishing packaged UIs,
@@ -55,38 +56,47 @@ A changed field inside a route still depends on review: the PR template gets a
 
 ## Release format (what CI publishes)
 
-Content-addressed files plus one signed manifest. No tar archive: nothing to
-unpack, so no path-traversal or symlink handling inside an archive parser.
+One pack per release and two signed files. No archive format: a pack is every
+file's bytes end to end, and the manifest says where each one starts (the sum
+of the sizes before it), so there is nothing to unpack and no path or symlink
+handling inside a parser.
 
 ```
-https://ui.foxschema.com/
-  files/<sha256>                      immutable, every file of every release
-  releases/<version>/manifest.json    signed manifest for one release
-  releases/<version>/manifest.json.sig
-  channels/stable.json                signed pointer: newest release per contract
-  channels/stable.json.sig
+https://fox-ui.<account-subdomain>.workers.dev/
+  packs/<sha256>                      immutable: every file of one release, end to end
+  releases/<version>/manifest.json    immutable, signed: each file's path, hash, size
+  channels/stable.json                signed: the newest release per contract, 60 s cache
 ```
 
-`manifest.json`:
+Why one pack and the signature inside each file: the bucket is served by a
+Worker on the free plan, which allows 100,000 requests a day with cache hits
+counted. A channel check is one request and an update is two; one object per
+file would make an update about 300.
+
+A signed file is an envelope: `{ schema, alg: "Ed25519", keyId, signature,
+payload }`, where `payload` is the base64 of the exact bytes signed. A backend
+verifies the signature over those bytes, then parses only what it verified.
+
+The manifest's payload:
 
 ```json
 {
   "schema": 1,
-  "version": "0.3.26+ui.1",
+  "version": "0.3.26",
   "sequence": 412,
   "apiContract": 7,
   "publishedAt": "2026-11-30T10:00:00Z",
+  "pack": { "sha256": "…", "size": 15801755 },
   "files": [
-    { "path": "index.html", "sha256": "…", "size": 1874 },
     { "path": "assets/index-3f2a1c.js", "sha256": "…", "size": 201733 },
-    { "path": "assets/index-3f2a1c.js.br", "sha256": "…", "size": 58120 }
+    { "path": "index.html", "sha256": "…", "size": 1874 }
   ]
 }
 ```
 
-`channels/stable.json` has `sequence`, `expiresAt` (about 30 days out, re-signed
-on a schedule) and, per contract number, the newest version and its manifest's
-sha256.
+The channel's payload has `sequence`, `expiresAt` (45 days out, re-signed
+weekly) and, per contract number, the newest version, its manifest's key and
+the sha256 of the manifest's payload.
 
 **Ordering is by `sequence`, never by version string.** `isNewer` in
 `updates.service.ts` splits on dots and `parseInt`s each part, so a string like
@@ -99,11 +109,11 @@ packaged UI wins over an older download automatically.
 
 **Rolling back a bad release** cannot mean pointing the channel at the old
 manifest: backends refuse a lower sequence, by design. A rollback re-publishes
-the old release's file list as a new manifest with the next sequence (files are
-content-addressed, so nothing is re-uploaded). `ui-release.yml` takes a
+the old release's manifest under the next sequence (the pack is addressed by
+hash and never deleted, so nothing is re-uploaded). `ui-release.yml` takes a
 `rollback_to: <version>` input that does exactly this.
 
-- **Signature:** Ed25519, detached, over the exact bytes. Node's `crypto.verify`
+- **Signature:** Ed25519 over the exact payload bytes. Node's `crypto.verify`
   handles it; `platform/identity/sso-broker.ts` already verifies Ed25519.
 - **Public keys are pinned in the backend source**, never fetched from the CDN.
   Ship two (current and next) so a key can be rotated by one backend release.
@@ -118,8 +128,8 @@ pure parts (manifest parsing, signature and path checks) in
 
 **Check** (on startup and every 6 h, and from an admin button):
 
-1. Fetch `channels/stable.json` + `.sig` from `FOX_UI_FEED_URL`. Verify the
-   signature against the pinned keys. Corporate networks reach the internet
+1. Fetch `channels/stable.json` from `FOX_UI_FEED_URL`, with `If-None-Match`
+   so an unchanged channel is a 304. Verify the envelope against the pinned keys. Corporate networks reach the internet
    through a proxy, and Node's `fetch` ignores `HTTPS_PROXY` unless
    `NODE_USE_ENV_PROXY=1`: set that in the Docker image and the CLI launcher, and
    document it.
@@ -131,14 +141,14 @@ pure parts (manifest parsing, signature and path checks) in
 
 **Download:**
 
-4. Fetch the manifest. Check its sha256 against the channel entry, then its own
-   signature.
+4. Fetch the manifest. Verify its envelope, then check its payload's sha256
+   against the channel entry.
 5. Validate every `path`: relative, `[A-Za-z0-9._/-]` only, no `..` segment, no
-   leading `/`, under 2,000 files and 50 MB in total.
-6. Download each file from `files/<sha256>` into
-   `<store>/staging-<version>/`, verifying size and hash as it streams. Files
-   already in an earlier bundle are copied locally (most hashed assets do not
-   change between releases).
+   leading `/`, under 2,000 files and 50 MB in total, sizes adding up to the
+   pack's size (`parseManifest` in `scripts/ui-release/bundle.mjs` already does
+   all of this; move it to `packages/shared` so both sides use one copy).
+6. Download `packs/<sha256>`, checking its size and hash, then cut each file out
+   by offset into `<store>/staging-<version>/`, checking each file's hash.
 7. Rename the staging folder to `<store>/<version>/` (atomic on one filesystem)
    and record it as the pending bundle.
 
@@ -161,7 +171,12 @@ bundles; delete older ones.
 | Variable | Default | Meaning |
 |---|---|---|
 | `FOX_UI_UPDATES` | `notify` | `auto` downloads and activates on the next restart, `notify` downloads and waits for an admin to apply it, `off` never contacts the feed (air-gapped installs). |
-| `FOX_UI_FEED_URL` | `https://ui.foxschema.com` | Where bundles come from. A mirror for companies that block the internet. |
+| `FOX_UI_FEED_URL` | `https://fox-ui.<account-subdomain>.workers.dev` | Where bundles come from. A mirror for companies that block the internet. |
+
+**Moving the feed later.** The default address is built into every backend, and
+old installs keep using it. To move (say, to a custom domain), the channel
+payload gets an optional signed `feedUrl`: a backend that verifies it switches
+to the new address and stores it. Until then, keep the old address serving.
 
 ## Escape hatches
 
@@ -185,27 +200,28 @@ bundles; delete older ones.
 
 ## CI: `ui-release.yml`
 
-Triggered by a `ui-v*` tag or manually:
+Triggered by a `ui-v*` tag, a manual run (`version` or `rollback_to`) or the
+weekly re-sign schedule:
 
-1. `npm ci`, `npm run verify` (the same gate as a PR).
-2. `npm run build -w @foxschema/web`. It already writes the `.br` and `.gz` copies.
-3. `scripts/ui-release/manifest.mjs`: walk `apps/web/dist`, hash every file,
-   write the manifest with `apiContract` from `@foxschema/shared`.
-4. Sign the manifest (protected environment or KMS).
-5. Upload `files/*` first, then the release manifest, then the re-signed channel
-   pointer **last**, so no backend ever sees a pointer to files that are not
-   there yet.
-6. A scheduled job re-signs `channels/stable.json` weekly to move `expiresAt`.
+1. `npm ci`, then typecheck and unit tests through `npm run verify`.
+2. `npm run build -w @foxschema/web` (it writes the `.br` and `.gz` copies)
+   and the first-load budget.
+3. After approval in the `ui-release` environment, with no `npm ci` beside the
+   key: `scripts/ui-release/ui-release.mjs stage` builds the pack and manifest,
+   with `apiContract` from `packages/shared/src/ui-bundle.ts`, and signs both.
+4. Upload the pack, then the manifest, then the channel **last**, so no backend
+   ever sees a channel naming something not there yet.
 
-Hosting: any static bucket behind a CDN works. Files are immutable, so cache
-everything for a year except the two `channels/*` files (60 s).
-
-- Cloudflare R2 has no egress fees, but a custom domain on R2 needs the domain's
-  DNS on Cloudflare. If foxschema.com's DNS stays at Hostinger, either move that
-  one zone or use another CDN (Bunny, S3 + CloudFront). R2's `r2.dev` address is
-  rate-limited and not meant for production.
-- Do not use the WordPress host for this: LiteSpeed caching there would serve a
-  stale `channels/stable.json`.
+Hosting (decided 2026-11-22, cheapest option): the R2 bucket `fox-ui`, read
+through the Worker in `scripts/ui-release/cdn-worker/` on `workers.dev`.
+foxschema.com's DNS stays at Hostinger; an R2 custom domain would need it on
+Cloudflare. The Worker serves only the three key shapes above and refuses
+writes; Workers Caching answers repeats from cache using each object's upload
+Cache-Control (a year for packs and manifests, 60 s for the channel). Free
+plan: 100,000 requests a day, about 20,000 installs checking four times a day;
+Workers Paid is $5 a month past that. Do not serve the bucket from `r2.dev`
+(rate-limited, no cache) or from the WordPress host (LiteSpeed would cache the
+channel).
 
 ## Build order
 

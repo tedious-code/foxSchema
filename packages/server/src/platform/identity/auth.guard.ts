@@ -10,7 +10,7 @@
 import { setCookie } from '../http/reply';
 import type { FastifyReply } from 'fastify';
 import type { AppRequest, AuthedRequest, NextFunction } from '../http/types';
-import type { Permission, WorkspaceRole } from '@foxschema/shared';
+import { WORKSPACE_UNAVAILABLE_HEADER, type Permission, type WorkspaceRole } from '@foxschema/shared';
 import { type AuthModule, SESSION_COOKIE, SESSION_MAX_AGE_MS, type AuthUser } from './auth.service';
 import { sendError } from '../http/respond';
 import { ServiceError } from '../contracts/actor';
@@ -98,10 +98,14 @@ export function authGuard(auth: AuthModule) {
         return;
       }
       let inWorkspace: Awaited<ReturnType<AuthModule['inWorkspace']>>;
+      const requested = requestedWorkspace(req);
       try {
-        inWorkspace = await auth.inWorkspace(session.user, requestedWorkspace(req));
+        inWorkspace = await auth.inWorkspace(session.user, requested);
       } catch (err) {
         if (err instanceof ServiceError) {
+          // Still a 404, never a fallback: the request meant that workspace. The
+          // header says it was the one remembered, so the app can re-open the default.
+          if (err.code === 'not_found' && requested) res.header(WORKSPACE_UNAVAILABLE_HEADER, '1');
           sendError(res, err.code, err.message);
           return;
         }

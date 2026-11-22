@@ -112,7 +112,8 @@ export function followServerWorkspace(workspaceId: string): 'same' | 'claimed' |
   // they were typed in.
   flushDeferredStorage();
   write(ACTIVE_WORKSPACE_KEY, id);
-  return 'moved';
+  // A pointer that will not save would reload the page forever.
+  return activeEditorWorkspaceId() === id ? 'moved' : 'same';
 }
 
 /**

@@ -74,25 +74,30 @@ export interface RegistrationDue {
  * The signed-in session. `launch` is the owner of a personal install who came
  * in through `foxschema open` before creating an account; `registration` says
  * when they must. `emailVerification` is set for an account asked to verify
- * its address.
+ * its address. `workspaceId` is the workspace the server opened: the one the
+ * browser asked for, or the default one when that is gone.
  */
 export interface SessionInfo {
   user: AuthUser;
   launch: boolean;
   registration: RegistrationDue | null;
   emailVerification: { verified: boolean } | null;
+  workspaceId?: string;
 }
 
 /** Current session, or null if not signed in. */
 export async function apiSession(): Promise<SessionInfo | null> {
   try {
-    const body = await api.get<Partial<SessionInfo> & { user: AuthUser | null }>('/auth/me', EMPTY_OK);
+    const body = await api.get<
+      Partial<Omit<SessionInfo, 'workspaceId'>> & { user: AuthUser | null; workspace?: { id?: string } }
+    >('/auth/me', EMPTY_OK);
     if (!body?.user) return null;
     return {
       user: body.user,
       launch: body.launch === true,
       registration: body.registration ?? null,
       emailVerification: body.emailVerification ?? null,
+      ...(body.workspace?.id ? { workspaceId: body.workspace.id } : {}),
     };
   } catch {
     return null;

@@ -22,6 +22,9 @@ import {
   type SetupState,
   type UserPreferences,
 } from '@/shared/api/authApi';
+import { onWorkspaceUnavailable } from '@/shared/api/client';
+import { followServerWorkspace } from '@/shared/lib/editorWorkspaceStorage';
+import { reloadPage } from '@/shared/lib/reloadPage';
 import type { Permission } from '@/shared/lib/permissions';
 import { userCan } from '@/shared/lib/permissions';
 
@@ -103,6 +106,36 @@ function startState(setupState: SetupState, session: SessionInfo | null): Partia
   return { ...signedIn, user: session?.user ?? null, status: statusFor(session?.user ?? null) };
 }
 
+/**
+ * Point this browser at the workspace the server opened.
+ *
+ * `/auth/me` falls back to the default workspace when the remembered one is
+ * gone (left, archived, deleted, or an id another install on this origin
+ * stored), but every other route answers 404 for it. So the stored id follows
+ * the server, and the page reloads once, before anything else is asked: the
+ * editor hydrated from the old id and must not save into the new one.
+ * Returns true when it is reloading.
+ */
+function followSessionWorkspace(session: SessionInfo | null): boolean {
+  if (!session?.workspaceId) return false;
+  if (followServerWorkspace(session.workspaceId) !== 'moved') return false;
+  reloadPage();
+  return true;
+}
+
+// A request mid-session found the workspace gone (removed from it, archived):
+// ask the server which one it opens instead, and go there.
+let recovering = false;
+onWorkspaceUnavailable(() => {
+  if (recovering) return;
+  recovering = true;
+  void apiSession()
+    .then((session) => followSessionWorkspace(session))
+    .finally(() => {
+      recovering = false;
+    });
+});
+
 const SIGNED_OUT = { launch: false, registration: null, emailVerification: null } as const;
 
 /** The startup read in flight, so a second `init()` joins it instead of asking again. */
@@ -135,6 +168,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // A dead link (used, expired, another machine) just means the usual page.
       if (launchToken) await apiLaunch(launchToken).catch(() => undefined);
       const [setupState, session] = await Promise.all([apiSetupState(), apiSession()]);
+      if (followSessionWorkspace(session)) return;
       set({ ...startState(setupState, session), demo: setupState.demo ?? null });
     })().finally(() => {
       initRun = null;
@@ -157,7 +191,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user = await apiLogin(email, password);
       set({ user, status: statusFor(user), busy: false, ...SIGNED_OUT });
       // Whether this account still has its email to verify.
-      void apiSession().then((session) => session && set({ emailVerification: session.emailVerification }));
+      // And which workspace it opened: the one this browser remembers may
+      // belong to another account or install.
+      void apiSession().then((session) => {
+        if (!session || followSessionWorkspace(session)) return;
+        set({ emailVerification: session.emailVerification });
+      });
     } catch (e: unknown) {
       set({
         error: e instanceof Error ? e.message : 'Login failed',

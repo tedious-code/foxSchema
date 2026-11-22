@@ -64,6 +64,15 @@ export type ErrorCode =
   /** Anything genuinely unexpected. The only code that means "our fault". */
   | 'failed';
 
+/**
+ * Response header the session guard sets, with value `1`, when the workspace a
+ * request named in `X-Fox-Workspace` does not exist for the caller (left,
+ * archived, deleted, or an id from another install on the same origin). The
+ * 404 itself stays as it is; this only lets the browser tell it from a
+ * not-found for something the request named, and re-open the default workspace.
+ */
+export const WORKSPACE_UNAVAILABLE_HEADER = 'x-fox-workspace-unavailable';
+
 /** HTTP status per code — the REST transport's whole translation table. */
 export const ERROR_STATUS: Record<ErrorCode, number> = {
   unauthenticated: 401,

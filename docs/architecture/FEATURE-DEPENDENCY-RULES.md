@@ -8,9 +8,8 @@ registration are in [FEATURE-MODULE-GUIDE.md](FEATURE-MODULE-GUIDE.md).
 ```text
 sql  ←  db         ←  server  ←  web (serving entry only), cli
 sql  ←  ui-shared  ←  web (frontend)
-sql  ←  shared     ←  server, web, cli
-workflow-contract  ←  server, web, workflow-engine
-sql, db  ←  workflow-engine  ←  server
+sql  ←  shared     ←  server, web, cli, workflow-engine
+sql, shared, db  ←  workflow-engine  ←  server
 ```
 
 Enforced by `packages/sql/src/purity.test.ts`, `packages/shared/src/purity.test.ts`,

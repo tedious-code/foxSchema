@@ -74,11 +74,6 @@ export default defineConfig({
       // Shared is browser-safe by contract (packages/shared/src/purity.test.ts),
       // so unlike @foxschema/db it belongs in the frontend bundle.
       { find: '@foxschema/shared', replacement: pkg('../../packages/shared/src/index.ts') },
-      // The workflow wire contract: types and constants, free of Node by its own rule.
-      {
-        find: '@foxschema/workflow-contract',
-        replacement: pkg('../../packages/workflow-contract/src/index.ts'),
-      },
       // Only the engine's browser-safe entry (guarded by definitions-purity.test.ts).
       // The package root needs Node, so it is deliberately not aliased here.
       {

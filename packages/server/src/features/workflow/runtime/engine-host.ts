@@ -7,7 +7,7 @@
  * a Node `--permission` child process over a private OS IPC channel, with an
  * explicit `FOXFLOW_SANDBOX_MODE=in-process` fallback for debugging/tests.
  */
-import type { EngineRuntimeConfig, WorkflowEngineConfig } from '@foxschema/workflow-contract';
+import type { EngineRuntimeConfig, WorkflowEngineConfig } from '@foxschema/shared';
 import { AppSettingsStore } from '../../../platform/settings/app-settings.service';
 import { WorkflowConnectionGrants } from '../workflow-connection-grants.service';
 import { WorkflowSettingsService } from '../workflow-settings.service';

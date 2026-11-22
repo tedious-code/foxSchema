@@ -8,7 +8,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from '../zod-provider.js';
 import { z } from 'zod';
-import { RUN_STREAM_END_EVENT } from '@foxschema/workflow-contract';
+import { RUN_STREAM_END_EVENT } from '@foxschema/shared';
 import { applyPredicate, isTerminalRunStatus, redactAnswer, type HumanInputField } from '@foxschema/workflow-engine';
 import { assertNoWorkflowCycles } from '@foxschema/workflow-engine';
 import type { AppContext } from '../context.js';

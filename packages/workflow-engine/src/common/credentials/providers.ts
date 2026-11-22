@@ -5,7 +5,7 @@
  *
  * Workflow engine — moved from FoxAgent (packages/common/src/credentials/providers.ts).
  */
-import { FORBIDDEN_WORKFLOW_ENV_VARS } from '@foxschema/workflow-contract';
+import { FORBIDDEN_WORKFLOW_ENV_VARS } from '@foxschema/shared';
 import { z } from 'zod';
 import {
   mintGcpAccessToken,

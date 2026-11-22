@@ -27,7 +27,7 @@ Browser  ── /api/workflow/* (session + RBAC) ──►  FoxSchema API  (:321
 | `packages/server/src/features/workflow` | Settings, connection grants, `ENGINE_ROUTES` RBAC & workspace-connection proxy |
 | `packages/server/src/features/workflow/runtime` | Sandbox supervisor (`sandbox-client.ts`, `sandbox-policy.ts`, `sandbox.worker.ts`), route plugins, SQL probe |
 | `packages/workflow-engine` | Definitions, compiler, runtime, SQLite stores, built-in pipes |
-| `packages/workflow-contract` | Browser-safe types |
+| `packages/shared` (`workflow-types.ts`, `workflow-constants.ts`) | Browser-safe workflow types and constants |
 
 The designer talks to `/api/workflow/engine/*` with a FoxSchema session, which
 FoxSchema authorizes and forwards over private IPC to the sandbox child.

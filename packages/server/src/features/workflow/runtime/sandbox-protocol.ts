@@ -16,7 +16,7 @@ import {
   type SandboxOptions,
   type WorkflowDef,
 } from '@foxschema/workflow-engine';
-import type { EngineRuntimeConfig } from '@foxschema/workflow-contract';
+import type { EngineRuntimeConfig } from '@foxschema/shared';
 
 export interface SerializedError {
   message: string;

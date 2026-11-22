@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CatalogEntry } from '../lib/catalog';
 import { Inspector } from './Inspector';
 import type { PipeData } from './PipeNode';
-import { PIPE_NAME_MAX_LENGTH } from '@foxschema/workflow-contract';
+import { PIPE_NAME_MAX_LENGTH } from '@foxschema/shared';
 
 vi.mock('@monaco-editor/react', () => ({
   default: ({ value, onChange }: { value: string; onChange: (value: string) => void }) => (

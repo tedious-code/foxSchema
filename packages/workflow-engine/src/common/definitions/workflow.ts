@@ -5,7 +5,7 @@
  *
  * Workflow engine — moved from FoxAgent (packages/common/src/definitions/workflow.ts).
  */
-import { TRIGGER_KINDS, type TriggerKind } from '@foxschema/workflow-contract';
+import { TRIGGER_KINDS, type TriggerKind } from '@foxschema/shared';
 import { CronExpressionParser } from 'cron-parser';
 import { conditionsSchema } from './conditions.js';
 import { isValidJsonSchema } from './io-schema.js';

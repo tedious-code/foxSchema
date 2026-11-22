@@ -12,7 +12,7 @@
  * disabled engine or lift its limit.
  */
 import { dirname, join } from 'node:path';
-import { ENGINE_STATES, type EngineRuntimeConfig } from '@foxschema/workflow-contract';
+import { ENGINE_STATES, type EngineRuntimeConfig } from '@foxschema/shared';
 import { resolveDatabasePath, type LocalRunScheduler, type RunEvent } from '@foxschema/workflow-engine';
 import { RunEventSinks } from './run-event-sinks.js';
 

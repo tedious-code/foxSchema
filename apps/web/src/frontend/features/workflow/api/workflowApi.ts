@@ -11,7 +11,7 @@ import type {
   WorkflowConnectionSummary,
   WorkflowEngineConfig,
   WorkflowHealth,
-} from '@foxschema/workflow-contract';
+} from '@foxschema/shared';
 import { api } from '@/shared/api/client';
 
 export async function fetchWorkflowSettings(): Promise<WorkflowEngineConfig> {

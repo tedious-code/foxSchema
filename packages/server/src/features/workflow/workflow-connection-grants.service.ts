@@ -13,7 +13,7 @@
 import type {
   ResolvedWorkflowConnection,
   WorkflowConnectionSummary,
-} from '@foxschema/workflow-contract';
+} from '@foxschema/shared';
 import { getStore } from '../../database/store';
 import { ConnectionStore } from '../../platform/connections/connection-store.service';
 import type { WorkspaceScope } from '../../platform/http/scope';

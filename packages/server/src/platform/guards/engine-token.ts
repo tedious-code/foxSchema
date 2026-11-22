@@ -11,7 +11,7 @@
  */
 import { timingSafeEqual } from 'node:crypto';
 import type { FastifyReply } from 'fastify';
-import { WORKFLOW_ENGINE_TOKEN_ENV } from '@foxschema/workflow-contract';
+import { WORKFLOW_ENGINE_TOKEN_ENV } from '@foxschema/shared';
 import { sendError } from '../http/respond';
 import type { AppRequest, NextFunction } from '../http/types';
 

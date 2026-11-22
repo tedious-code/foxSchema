@@ -9,7 +9,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Permission } from '@foxschema/shared';
-import type { WorkflowConnectionSummary, WorkflowEngineConfig } from '@foxschema/workflow-contract';
+import type { WorkflowConnectionSummary, WorkflowEngineConfig } from '@foxschema/shared';
 import type { CredentialStore } from '@foxschema/workflow-engine';
 import { bindRoutes } from '../../platform/http/fastify-bind';
 import { Router } from '../../platform/http/router';

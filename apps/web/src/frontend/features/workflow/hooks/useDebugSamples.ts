@@ -6,7 +6,7 @@
  * Workflow designer — ported from FoxAgent (hooks/useDebugSamples.ts).
  */
 import { useEffect, useState } from 'react';
-import { isTerminalRunStatus, RUN_STREAM_END_EVENT } from '@foxschema/workflow-contract';
+import { isTerminalRunStatus, RUN_STREAM_END_EVENT } from '@foxschema/shared';
 import { api, type RunEvent } from '../api/engineClient';
 import { pipeKey } from '../lib/ports';
 

@@ -6,7 +6,7 @@
  * Workflow engine — moved from FoxAgent (packages/common/src/types.ts).
  */
 import type { TriggerDef } from './definitions/workflow.js';
-import { isTerminalRunStatus, TERMINAL_RUN_STATUSES } from '@foxschema/workflow-contract';
+import { isTerminalRunStatus, TERMINAL_RUN_STATUSES } from '@foxschema/shared';
 
 // Run lifecycle for a workflow run — the top-level record a trigger creates.
 // `interrupted` is the crash/lease-expiry state that a resume treats exactly

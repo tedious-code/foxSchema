@@ -42,18 +42,17 @@ packages/shared             Contracts the frontend, server and CLI must agree on
                             GET `/api/system/drivers` (`driver-inventory.ts`),
                             and the connection-name rule (`connection-name.ts`:
                             120 characters, no control characters).
-                            Browser-safe.
-
-packages/workflow-contract  Browser-safe control-plane types for the workflow engine
-                            (config, health, sinks, overlap policy), the service
-                            token and internal route names, connection-grant types
-                            and COMMUNITY_WORKSPACE_ID.
+                            The workflow engine's control-plane contract lives here
+                            too (`workflow-types.ts`, `workflow-constants.ts`):
+                            config, health, sinks, overlap policy, the service
+                            token and internal route names, connection grants and
+                            COMMUNITY_WORKSPACE_ID. Browser-safe.
 
 packages/workflow-engine    The workflow engine: definitions, compiler, runtime,
                             SQLite stores, credentials and the built-in pipes
                             (`src/pipes/*`: SQL on every FoxSchema dialect, files,
                             HTTP, email/SMS, control flow). Node only. Depends on
-                            sql, workflow-contract and db — db loaded on first use.
+                            sql, shared and db — db loaded on first use.
                             `src/definitions.ts` is the browser-safe subset.
 
 packages/server             The backend: HTTP layer, feature modules, metadata store.
@@ -73,9 +72,8 @@ sql  ←  features
 sql  ←  db  ←  db-db2
 sql, features, db, db-db2  ←  server  ←  web (serving entry only), cli
 sql, features  ←  ui-shared  ←  web (frontend)
-sql, features  ←  shared     ←  server, web, cli
-workflow-contract  ←  server, web, workflow-engine
-sql, db  ←  workflow-engine  ←  server
+sql, features  ←  shared     ←  server, web, cli, workflow-engine
+sql, shared, db  ←  workflow-engine  ←  server
 ```
 
 `packages/sql/src/purity.test.ts`, `packages/features/src/purity.test.ts`,

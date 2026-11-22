@@ -8,7 +8,7 @@
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { WorkflowConnectionSummary } from '@foxschema/workflow-contract';
+import type { WorkflowConnectionSummary } from '@foxschema/shared';
 import { loadSchema } from '@/shared/api/schemaApi';
 import { workflowConnections } from '../api/workflowApi';
 import { SqlPipeEditor } from './SqlPipeEditor';

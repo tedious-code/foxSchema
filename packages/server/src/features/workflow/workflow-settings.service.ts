@@ -10,7 +10,7 @@ import {
   type AdminConfigPut,
   type WorkflowEngineConfig,
   type WorkflowHealth,
-} from '@foxschema/workflow-contract';
+} from '@foxschema/shared';
 import { AppSettingsStore } from '../../platform/settings/app-settings.service';
 import { isWorkflowEngineReady } from './runtime/engine-ready';
 

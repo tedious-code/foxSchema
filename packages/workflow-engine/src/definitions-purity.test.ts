@@ -16,7 +16,7 @@ const SRC = dirname(fileURLToPath(import.meta.url));
 const ENTRY = join(SRC, 'definitions.ts');
 
 /**
- * Runtime dependencies a browser bundle can carry. `@foxschema/workflow-contract`
+ * Runtime dependencies a browser bundle can carry. `@foxschema/shared`
  * is browser-safe by its own rule: the web app already imports it.
  */
 const ALLOWED_PACKAGES = new Set([
@@ -24,7 +24,7 @@ const ALLOWED_PACKAGES = new Set([
   'zod/v4/core',
   'ajv',
   'cron-parser',
-  '@foxschema/workflow-contract',
+  '@foxschema/shared',
 ]);
 
 /** Specifiers an import or re-export pulls in at runtime; `import type` / `export type` are erased. */

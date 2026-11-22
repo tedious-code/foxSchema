@@ -6,7 +6,7 @@
  * Workflow engine — moved from FoxAgent (packages/common/src/definitions/pipe.ts).
  */
 import { z } from 'zod';
-import { PIPE_NAME_MAX_LENGTH } from '@foxschema/workflow-contract';
+import { PIPE_NAME_MAX_LENGTH } from '@foxschema/shared';
 import { contractSchema } from './contract.js';
 
 // Retry policy applied per pipe, wrapping the batch executor. `attempts`

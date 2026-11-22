@@ -7,7 +7,7 @@
  */
 // From the contract, not the engine's definitions: those build zod and ajv
 // validators as they load, 300 kB the designer does not otherwise need.
-import { TRIGGER_KINDS, type TriggerKind } from '@foxschema/workflow-contract';
+import { TRIGGER_KINDS, type TriggerKind } from '@foxschema/shared';
 import type { CredentialMeta } from '../api/engineClient';
 import type { HttpRequestValue } from '../components/HttpRequestEditor';
 

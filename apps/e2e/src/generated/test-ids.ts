@@ -3829,8 +3829,6 @@ export const TestIds = {
       workflowRunsDownloadJson: 'workflow-runs-download-json',
       /** Button */
       workflowRunsDownloadLog: 'workflow-runs-download-log',
-      /** div */
-      workflowRunsEventLog: 'workflow-runs-event-log',
       /** Select */
       workflowRunsFilterStatus: 'workflow-runs-filter-status',
       /** Select */
@@ -3976,6 +3974,30 @@ export const TestIds = {
       /** Button */
       workflowDesignerTriggers: 'workflow-designer-triggers',
     },
+    WorkflowLogPanel: {
+      /** div · Log · */
+      workflowLogs: 'workflow-logs',
+      /** input */
+      workflowLogsAllEvents: (id: string | number) => `workflow-logs-all-events-${id}`,
+      /** Button */
+      workflowLogsBack: 'workflow-logs-back',
+      /** Button */
+      workflowLogsDownload: (id: string | number) => `workflow-logs-download-${id}`,
+      /** div */
+      workflowLogsEvents: (id: string | number) => `workflow-logs-events-${id}`,
+      /** button */
+      workflowLogsFilter: (id: string | number) => `workflow-logs-filter-${id}`,
+      /** div */
+      workflowLogsHints: (id: string | number) => `workflow-logs-hints-${id}`,
+      /** Button */
+      workflowLogsOpenInDesigner: 'workflow-logs-open-in-designer',
+      /** Button */
+      workflowLogsRefresh: 'workflow-logs-refresh',
+      /** summary */
+      workflowLogsRun: (id: string | number) => `workflow-logs-run-${id}`,
+      /** div */
+      workflowLogsStats: 'workflow-logs-stats',
+    },
     WorkflowsPanel: {
       /** Button */
       workflowAddSample: 'workflow-add-sample',
@@ -3983,6 +4005,10 @@ export const TestIds = {
       workflowEmptyAddSamples: 'workflow-empty-add-samples',
       /** input */
       workflowListFile: 'workflow-list-file',
+      /** button · Open this workflow's log */
+      workflowListLastRun: (id: string | number) => `workflow-list-last-run-${id}`,
+      /** Button · Log: runs, failures and what to check */
+      workflowListLogs: (id: string | number) => `workflow-list-logs-${id}`,
       /** button · Open in designer */
       workflowListOpenInDesigner: (id: string | number) => `workflow-list-open-in-designer-${id}`,
     },
@@ -5844,7 +5870,20 @@ export type TestId =
   | 'workflow-inspector-trigger'
   | 'workflow-inspector-type'
   | 'workflow-list-file'
+  | `workflow-list-last-run-${string}`
+  | `workflow-list-logs-${string}`
   | `workflow-list-open-in-designer-${string}`
+  | 'workflow-logs'
+  | `workflow-logs-all-events-${string}`
+  | 'workflow-logs-back'
+  | `workflow-logs-download-${string}`
+  | `workflow-logs-events-${string}`
+  | `workflow-logs-filter-${string}`
+  | `workflow-logs-hints-${string}`
+  | 'workflow-logs-open-in-designer'
+  | 'workflow-logs-refresh'
+  | `workflow-logs-run-${string}`
+  | 'workflow-logs-stats'
   | 'workflow-menu'
   | 'workflow-multi-http-add-endpoint'
   | 'workflow-multi-http-batch-size'
@@ -5877,7 +5916,6 @@ export type TestId =
   | 'workflow-runs-detail'
   | 'workflow-runs-download-json'
   | 'workflow-runs-download-log'
-  | 'workflow-runs-event-log'
   | 'workflow-runs-filter-status'
   | 'workflow-runs-filter-workflow'
   | 'workflow-runs-live'

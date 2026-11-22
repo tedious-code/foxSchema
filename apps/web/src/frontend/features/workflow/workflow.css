@@ -1995,6 +1995,80 @@
 .fox-workflow .run-status small { color: var(--muted); font-size: 8px; text-transform: none; }
 .fox-workflow .run-status.succeeded { color: var(--ok); }
 .fox-workflow .run-status.failed { color: var(--danger, var(--danger)); }
+/* Last run opens the workflow's log. */
+button.run-status {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.fox-workflow button.run-status:hover { text-decoration: underline; }
+
+/* ---------- a workflow's log ---------- */
+.fox-workflow .log-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.fox-workflow .log-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.fox-workflow .log-stats strong { font-size: 15px; color: var(--text); }
+.fox-workflow .log-stats span { font-size: 11px; color: var(--muted); }
+.fox-workflow .log-stats .bad strong { color: var(--danger); }
+.fox-workflow .log-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.fox-workflow .log-filters button {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.fox-workflow .log-filters button.active { color: var(--text); border-color: var(--source); }
+.fox-workflow .log-filters button span { opacity: 0.7; margin-left: 4px; }
+.fox-workflow .log-runs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.fox-workflow .log-run {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: 10px;
+}
+.fox-workflow .log-run.failed { border-left-color: var(--danger); }
+.fox-workflow .log-run.succeeded { border-left-color: var(--ok); }
+.fox-workflow .log-run > details > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.fox-workflow .log-run-time { font-family: var(--mono); font-size: 12px; }
+.fox-workflow .log-run-meta { color: var(--muted); font-size: 12px; }
+.fox-workflow .log-run-error { color: var(--danger); font-size: 12px; flex-basis: 100%; overflow-wrap: anywhere; }
+.fox-workflow .log-run-body { padding: 0 12px 12px; }
+.fox-workflow .log-diagnosis p { margin: 0 0 8px; font-size: 13px; }
+.fox-workflow .log-hints { display: flex; flex-direction: column; gap: 8px; margin: 0 0 12px; }
+.fox-workflow .log-hint {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-soft);
+  font-size: 13px;
+}
+.fox-workflow .log-hint ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); }
 .fox-workflow .workflow-row-actions { display: flex; gap: 3px; justify-content: flex-end; }
 .fox-workflow .breadcrumb-link {
   border: 0;

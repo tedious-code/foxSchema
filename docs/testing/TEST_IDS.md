@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1101** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1104** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1927,6 +1927,8 @@ Every control has a test ID: **1101** buttons, text boxes, selects and textareas
   - `workflow-engine-save` · button
   - `workflow-engine-target-{kind}` · input · target
   - `workflow-sink-{kind}` · input
+- **EventLog** · `features/workflow/components/EventLog.tsx`
+  - `{testId}` · div · passed in by the parent
 - **HttpRequestEditor** · `features/workflow/components/HttpRequestEditor.tsx`
   - `workflow-http-auth-credential` · select · Select…
   - `workflow-http-auth-key` · input
@@ -2024,7 +2026,6 @@ Every control has a test ID: **1101** buttons, text boxes, selects and textareas
   - `workflow-runs-detail` · aside · Run
   - `workflow-runs-download-json` · Button
   - `workflow-runs-download-log` · Button
-  - `workflow-runs-event-log` · div
   - `workflow-runs-filter-status` · Select
   - `workflow-runs-filter-workflow` · Select
   - `workflow-runs-live` · input
@@ -2097,10 +2098,24 @@ Every control has a test ID: **1101** buttons, text boxes, selects and textareas
   - `workflow-designer-stage-overview-{id}` · button · pipes
   - `workflow-designer-stage-select` · Select · Stage
   - `workflow-designer-triggers` · Button
+- **WorkflowLogPanel** · `features/workflow/components/WorkflowLogPanel.tsx`
+  - `workflow-logs` · div · Log ·
+  - `workflow-logs-all-events-{id}` · input
+  - `workflow-logs-back` · Button
+  - `workflow-logs-download-{id}` · Button
+  - `workflow-logs-events-{id}` · div in EventLog
+  - `workflow-logs-filter-{id}` · button
+  - `workflow-logs-hints-{id}` · div
+  - `workflow-logs-open-in-designer` · Button
+  - `workflow-logs-refresh` · Button
+  - `workflow-logs-run-{id}` · summary
+  - `workflow-logs-stats` · div
 - **WorkflowsPanel** · `features/workflow/components/WorkflowsPanel.tsx`
   - `workflow-add-sample` · Button
   - `workflow-empty-add-samples` · Button
   - `workflow-list-file` · input
+  - `workflow-list-last-run-{id}` · button · Open this workflow's log
+  - `workflow-list-logs-{id}` · Button · Log: runs, failures and what to check
   - `workflow-list-open-in-designer-{id}` · button · Open in designer
 - **WorkflowView** · `features/workflow/components/WorkflowView.tsx`
   - `workflow-menu` · nav · Workflow

@@ -882,6 +882,14 @@ Developer / ops runbook: [workflow.md](workflow.md). Env vars:
    Tick **Errors and warnings only** to see just the failure trail, expand a
    row (▸) for its data or row sample, and **Download** the log as `.log` text
    or `.json` to keep or send.
+8. **A workflow's log**: in **Workflows**, click a row's **Log** button (or its
+   *Last run* status). It shows that workflow's runs newest first, with its
+   success rate, median time and last failure. The newest failure opens on its
+   own: **What failed** names the step, **What to check** lists likely causes
+   for that error (unreachable host, refused credentials, missing table or
+   column, duplicate key, timeout, collided writes, API errors, …), and the
+   **Error trail** shows how the failure spread. Tick **All events** for the
+   full log, or download it.
 
 Permissions (multi-user): **Open Workflow** to see the pane; **Design** to edit;
 **Run** to start, cancel, and answer a paused job; **Workflow admin** for the

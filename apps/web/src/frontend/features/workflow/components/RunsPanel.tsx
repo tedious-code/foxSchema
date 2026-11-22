@@ -3,11 +3,12 @@
  * Copyright 2024-2026 Huy Phan <huyplb@gmail.com>
  * SPDX-License-Identifier: Apache-2.0
  *
- * Engine runs: a sortable list, and the selected run's timeline, failure
- * summary and events (optionally followed live).
+ * Engine runs: a sortable, filterable list, and the selected run's timeline,
+ * failure summary and event log (optionally followed live), which a user can
+ * narrow to problems and download.
  */
-import { ArrowDown, ArrowUp, RefreshCw } from 'lucide-react';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { ArrowDown, ArrowUp, Download, RefreshCw } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { RUN_STREAM_END_EVENT } from '@foxschema/shared';
 import { useAuthStore } from '@/platform/authStore';
 import {
@@ -17,7 +18,20 @@ import {
   type RunFailureSummary,
   type RunRecord,
 } from '../api/engineClient';
-import { Button, Input } from './controls';
+import {
+  downloadFile,
+  eventKind,
+  eventLevel,
+  eventScope,
+  eventSummary,
+  eventTime,
+  formatDuration,
+  hasDetail,
+  isProblem,
+  runDuration,
+  runLogText,
+} from '../lib/runLog';
+import { Button, Input, Select } from './controls';
 
 type SortKey = 'workflowId' | 'workflowVersion' | 'status' | 'trigger' | 'startedAt';
 
@@ -32,29 +46,61 @@ const COLUMNS: Array<{ header: string; sortKey?: SortKey; cell: (run: RunRecord)
   },
   { header: 'Trigger', sortKey: 'trigger', cell: (run) => run.trigger },
   { header: 'Started', sortKey: 'startedAt', cell: (run) => new Date(run.startedAt).toLocaleString() },
+  { header: 'Duration', cell: (run) => <span className="mono">{formatDuration(runDuration(run))}</span> },
+  {
+    header: 'Error',
+    cell: (run) =>
+      run.error ? (
+        <span className="run-error-cell" title={run.error}>
+          {run.error}
+        </span>
+      ) : null,
+  },
 ];
+
+/** Matches the stylesheet's breakpoint where the run detail drops under the list. */
+const STACKED_LAYOUT = '(max-width: 960px)';
+
+const STATUS_FILTERS = ['all', 'failed', 'succeeded', 'running', 'queued', 'paused', 'cancelled', 'interrupted'] as const;
 
 /** Newest events are what a reader is after; older ones stay a count. */
 const EVENT_LOG_LIMIT = 1_000;
 
-function EventLog({ events }: { events: RunEvent[] }) {
-  const shown = events.length > EVENT_LOG_LIMIT ? events.slice(-EVENT_LOG_LIMIT) : events;
+function EventLog({ events, problemsOnly }: { events: RunEvent[]; problemsOnly: boolean }) {
+  const relevant = problemsOnly ? events.filter(isProblem) : events;
+  const shown = relevant.length > EVENT_LOG_LIMIT ? relevant.slice(-EVENT_LOG_LIMIT) : relevant;
+  if (shown.length === 0) {
+    return <div className="empty">{problemsOnly ? 'No errors or warnings in this run.' : 'No events yet.'}</div>;
+  }
   return (
-    <div className="event-log">
-      {shown.length < events.length && (
+    <div className="event-log" data-testid="workflow-runs-event-log">
+      {shown.length < relevant.length && (
         <div className="event-row">
-          Showing the last {shown.length} of {events.length} events.
+          Showing the last {shown.length} of {relevant.length} events.
         </div>
       )}
       {shown.map((event) => {
-        const failover =
-          event.type === 'retry.attempt' && (event.data as { kind?: string } | undefined)?.kind === 'ai.failover';
-        return (
-          <div key={event.seq} className="event-row">
-            <span className="mono">#{event.seq}</span> {failover ? 'ai.failover' : event.type}
-            {event.pipelineId ? ` · ${event.pipelineId}` : ''}
-            {event.pipeId ? `/${event.pipeId}` : ''}
-            {event.message ? ` — ${event.message}` : ''}
+        const level = eventLevel(event);
+        const scope = eventScope(event);
+        const summary = eventSummary(event);
+        const line = (
+          <>
+            <span className="event-seq">#{event.seq}</span>
+            <span className="event-time">{eventTime(event.at)}</span>
+            <span className={`event-level ${level}`}>{level}</span>
+            <span className="event-kind">{eventKind(event)}</span>
+            {scope && <span className="event-scope">{scope}</span>}
+            {summary && <span className="event-summary">{summary}</span>}
+          </>
+        );
+        return hasDetail(event) ? (
+          <details key={event.seq} className={`event-row ${level}`}>
+            <summary>{line}</summary>
+            <pre className="event-data">{JSON.stringify(event.data, null, 2)}</pre>
+          </details>
+        ) : (
+          <div key={event.seq} className={`event-row ${level}`}>
+            {line}
           </div>
         );
       })}
@@ -65,7 +111,7 @@ function EventLog({ events }: { events: RunEvent[] }) {
 function FailureSummaryCard({ summary }: { summary: RunFailureSummary }) {
   return (
     <div className="run-failure-summary">
-      <h4>Failure summary</h4>
+      <h4>{summary.status === 'failed' ? 'Failure summary' : 'Summary'}</h4>
       {summary.workflowPurpose && (
         <p>
           Purpose: <strong>{summary.workflowPurpose}</strong>
@@ -125,16 +171,42 @@ export function RunsPanel({ runs, onRefresh }: { runs: RunRecord[]; onRefresh: (
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({ key: 'startedAt', desc: true });
+  const [workflowFilter, setWorkflowFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>('all');
+  const [problemsOnly, setProblemsOnly] = useState(false);
+  const detailRef = useRef<HTMLElement>(null);
+
+  const workflowIds = useMemo(() => [...new Set(runs.map((run) => run.workflowId))].sort(), [runs]);
 
   const sortedRuns = useMemo(() => {
     const direction = sort.desc ? -1 : 1;
-    return [...runs].sort((a, b) => {
+    const filtered = runs.filter(
+      (run) =>
+        (workflowFilter === 'all' || run.workflowId === workflowFilter) &&
+        (statusFilter === 'all' || run.status === statusFilter),
+    );
+    return filtered.sort((a, b) => {
       const left = a[sort.key];
       const right = b[sort.key];
       const order = typeof left === 'number' && typeof right === 'number' ? left - right : String(left).localeCompare(String(right));
       return order * direction;
     });
-  }, [runs, sort]);
+  }, [runs, sort, workflowFilter, statusFilter]);
+
+  // Side by side the detail sticks in view; stacked under the table on a
+  // narrow screen it was below the fold, and picking a run seemed to do nothing.
+  // Only when stacked: side by side, scrolling would push the filters away.
+  useEffect(() => {
+    if (!selectedId || !window.matchMedia?.(STACKED_LAYOUT).matches) return;
+    detailRef.current?.scrollIntoView?.({ block: 'start' });
+  }, [selectedId]);
+
+  const download = (format: 'text' | 'json') => {
+    if (!detail || !selectedId) return;
+    const stem = `${detail.workflowId}-run-${selectedId.slice(0, 8)}`;
+    if (format === 'text') downloadFile(`${stem}.log`, runLogText(detail, events), 'text/plain');
+    else downloadFile(`${stem}.json`, JSON.stringify({ run: detail, failure, events }, null, 2), 'application/json');
+  };
 
   // Clicking the sorted column flips it; another column starts ascending.
   const toggleSort = (key: SortKey) =>
@@ -195,54 +267,88 @@ export function RunsPanel({ runs, onRefresh }: { runs: RunRecord[]; onRefresh: (
 
   return (
     <div className="runs">
-      <div className="mb-3 flex items-center gap-2.5">
+      <div className="mb-3 flex flex-wrap items-center gap-2.5">
         <h3 className="m-0">Runs</h3>
         <Button size="sm" onClick={onRefresh}>
           <RefreshCw />
           Refresh
         </Button>
+        <label className="runs-filter">
+          Workflow
+          <Select
+            data-testid="workflow-runs-filter-workflow"
+            value={workflowFilter}
+            onChange={(ev) => setWorkflowFilter(ev.target.value)}
+          >
+            <option value="all">All workflows</option>
+            {workflowIds.map((id) => (
+              <option key={id} value={id}>
+                {id}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <label className="runs-filter">
+          Status
+          <Select
+            data-testid="workflow-runs-filter-status"
+            value={statusFilter}
+            onChange={(ev) => setStatusFilter(ev.target.value as (typeof STATUS_FILTERS)[number])}
+          >
+            {STATUS_FILTERS.map((status) => (
+              <option key={status} value={status}>
+                {status === 'all' ? 'All statuses' : status}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <span className="runs-count">
+          {sortedRuns.length === runs.length ? `${runs.length} runs` : `${sortedRuns.length} of ${runs.length} runs`}
+        </span>
       </div>
       {runs.length === 0 ? (
         <div className="empty">No runs yet — open a workflow in the designer and press Test run.</div>
       ) : (
         <div className="runs-layout">
-          <table>
-            <thead>
-              <tr>
-                {COLUMNS.map((column) => (
-                  <th
-                    key={column.header}
-                    onClick={column.sortKey ? () => toggleSort(column.sortKey!) : undefined}
-                    className={column.sortKey ? 'cursor-pointer select-none' : ''}
-                    aria-sort={
-                      column.sortKey && sort.key === column.sortKey ? (sort.desc ? 'descending' : 'ascending') : undefined
-                    }
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      {column.header}
-                      {column.sortKey === sort.key && (sort.desc ? <ArrowDown size={12} /> : <ArrowUp size={12} />)}
-                    </span>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sortedRuns.map((run) => (
-                <tr
-                  key={run.id}
-                  className={selectedId === run.id ? 'selected' : undefined}
-                  onClick={() => setSelectedId(run.id)}
-                >
+          <div className="runs-table-wrap">
+            <table>
+              <thead>
+                <tr>
                   {COLUMNS.map((column) => (
-                    <td key={column.header}>{column.cell(run)}</td>
+                    <th
+                      key={column.header}
+                      onClick={column.sortKey ? () => toggleSort(column.sortKey!) : undefined}
+                      className={column.sortKey ? 'cursor-pointer select-none' : ''}
+                      aria-sort={
+                        column.sortKey && sort.key === column.sortKey ? (sort.desc ? 'descending' : 'ascending') : undefined
+                      }
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        {column.header}
+                        {column.sortKey === sort.key && (sort.desc ? <ArrowDown size={12} /> : <ArrowUp size={12} />)}
+                      </span>
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sortedRuns.map((run) => (
+                  <tr
+                    key={run.id}
+                    className={selectedId === run.id ? 'selected' : undefined}
+                    onClick={() => setSelectedId(run.id)}
+                  >
+                    {COLUMNS.map((column) => (
+                      <td key={column.header}>{column.cell(run)}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           {selectedId && (
-            <aside className="run-detail">
+            <aside className="run-detail" ref={detailRef} data-testid="workflow-runs-detail">
               <div className="run-detail-header">
                 <h3>Run {selectedId.slice(0, 8)}</h3>
                 <label className="checkbox-row">
@@ -263,26 +369,51 @@ export function RunsPanel({ runs, onRefresh }: { runs: RunRecord[]; onRefresh: (
                     status={detail.status}
                     onChanged={() => setReloadTick((n) => n + 1)}
                   />
+                  <p className="run-meta">
+                    {detail.workflowId} v{detail.workflowVersion} · {detail.trigger} · started{' '}
+                    {new Date(detail.startedAt).toLocaleString()}
+                    {detail.finishedAt ? ` · took ${formatDuration(runDuration(detail))}` : ''}
+                  </p>
                   <h4>Timeline</h4>
-                  <ul>
+                  <ul className="run-timeline">
                     {detail.pipelines.map((pipeline) => (
-                      <li key={pipeline.id}>
+                      <li key={pipeline.id} className={`timeline-${pipeline.status}`}>
                         pipeline/{pipeline.pipelineId}: {pipeline.status}
                         {pipeline.error ? ` (${pipeline.error})` : ''}
                       </li>
                     ))}
                     {detail.pipes.map((pipe) => (
-                      <li key={pipe.id}>
+                      <li key={pipe.id} className={`timeline-${pipe.status}`}>
                         pipe/{pipe.pipelineId}/{pipe.pipeId}: {pipe.status}
                         {pipe.processedBatches ? ` · ${pipe.processedBatches} batches` : ''}
+                        {pipe.processedRecords ? ` · ${pipe.processedRecords} rows` : ''}
                         {pipe.error ? ` (${pipe.error})` : ''}
                       </li>
                     ))}
                   </ul>
                 </>
               )}
-              <h4>Events</h4>
-              {events.length === 0 ? <div className="empty">No events yet.</div> : <EventLog events={events} />}
+              <div className="run-events-header">
+                <h4>Events</h4>
+                <label className="checkbox-row">
+                  <input
+                    data-testid="workflow-runs-problems-only"
+                    type="checkbox"
+                    checked={problemsOnly}
+                    onChange={(ev) => setProblemsOnly(ev.target.checked)}
+                  />
+                  Errors and warnings only
+                </label>
+                <Button size="sm" data-testid="workflow-runs-download-log" disabled={!detail} onClick={() => download('text')}>
+                  <Download />
+                  .log
+                </Button>
+                <Button size="sm" data-testid="workflow-runs-download-json" disabled={!detail} onClick={() => download('json')}>
+                  <Download />
+                  .json
+                </Button>
+              </div>
+              <EventLog events={events} problemsOnly={problemsOnly} />
             </aside>
           )}
         </div>

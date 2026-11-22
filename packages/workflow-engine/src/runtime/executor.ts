@@ -96,6 +96,13 @@ const DEBUG_SAMPLE_BYTES = 16 * 1024;
 const PIPE_LOG_LIMIT = 200;
 
 /**
+ * How long an ended pipeline execution is remembered, so a batch still writing
+ * when another failed it cannot overwrite that failure. Writes are bounded by
+ * pipe deadlines well inside this.
+ */
+const ENDED_EXECUTION_MEMORY_MS = 10 * 60_000;
+
+/**
  * `store` with each secret revealed once for the life of `cache`. Updating a
  * secret (a refreshed token, a new cookie) drops the cached copy, and a failed
  * reveal is not remembered.
@@ -222,6 +229,14 @@ export class PipelineExecutor {
    */
   private readonly pipeUpdates = new Map<string, Promise<void>>();
   /**
+   * Pipeline executions that have ended, keyed run:pipeline, for a while.
+   * A failure ends the execution while other batches can still be writing;
+   * their updates land after the cache above is gone. Knowing the execution
+   * ended lets those late updates count as progress without overwriting the
+   * failure. A resume starts a new execution and clears the mark.
+   */
+  private readonly endedExecutions = new Map<string, ReturnType<typeof setTimeout>>();
+  /**
    * Which pipe an error was recorded against, so the pipes upstream of it do
    * not record it as their own failure.
    *
@@ -283,6 +298,9 @@ export class PipelineExecutor {
     execution: PipelineExecutionContext,
   ): Promise<void> {
     planExecution(pipeline);
+    const executionKey = `${execution.workflowRunId}\0${pipeline.id}\0`;
+    clearTimeout(this.endedExecutions.get(executionKey));
+    this.endedExecutions.delete(executionKey);
     const pipes = new Map(pipeline.pipes.map((pipe) => [pipe.id, pipe]));
     assertKnownFromPorts(this.options.registry, pipes, pipeline.edges);
     const inbound = new Map(pipeline.pipes.map((pipe) => [pipe.id, 0]));
@@ -438,12 +456,14 @@ export class PipelineExecutor {
     } finally {
       // Evict this execution's cached pipe records — the executor instance is
       // long-lived and must not accumulate per-run state.
-      const prefix = `${execution.workflowRunId}\0${pipeline.id}\0`;
       for (const map of [this.pipeRecords, this.pipeUpdates, this.logCounts, this.secretCaches]) {
         for (const key of map.keys()) {
-          if (key.startsWith(prefix)) map.delete(key);
+          if (key.startsWith(executionKey)) map.delete(key);
         }
       }
+      const forget = setTimeout(() => this.endedExecutions.delete(executionKey), ENDED_EXECUTION_MEMORY_MS);
+      forget.unref?.();
+      this.endedExecutions.set(executionKey, forget);
     }
   }
 
@@ -1001,20 +1021,36 @@ export class PipelineExecutor {
       status === 'running' || status === 'success' ? batch : undefined;
     // First touch per execution reads storage (crash-resume keeps its attempt
     // counter); every later update reuses the cached record.
+    const cached = this.pipeRecords.get(cacheKey);
+    // An update after this pipe's execution ended: a batch that was still in
+    // flight when another failed the pipeline.
+    const late =
+      cached === undefined &&
+      this.endedExecutions.has(`${context.workflowRunId}\0${context.pipelineId}\0`);
     const existing =
-      this.pipeRecords.get(cacheKey) ??
+      cached ??
       (
         await this.options.runs?.listPipes(
           context.workflowRunId,
           context.pipelineId,
         )
       )?.find((record) => record.pipeId === context.pipe.id);
+    // A pipe that failed stays failed. Its other batches can still finish
+    // after the failure (several were in flight, or a Merge fed it), and
+    // taking their 'success' as the pipe's status stored the pipe that failed
+    // the run as a success with its error gone. They still count as progress.
+    // Within one execution the cached record is authoritative; across a
+    // resume, a stored 'cancelled' must not stop the pipe succeeding now.
+    const settled =
+      existing !== undefined &&
+      (cached !== undefined || late) &&
+      outranks(existing.status, status);
     const record: PipeRunRecord = {
       id: existing?.id ?? `${context.workflowRunId}:${context.pipelineId}:${context.pipe.id}`,
       workflowRunId: context.workflowRunId,
       pipelineId: context.pipelineId,
       pipeId: context.pipe.id,
-      status,
+      status: settled ? existing.status : status,
       attempt: existing?.attempt ?? 1,
       processedBatches:
         (existing?.processedBatches ?? 0) + (progressBatch ? 1 : 0),
@@ -1022,10 +1058,15 @@ export class PipelineExecutor {
         (existing?.processedRecords ?? 0) +
         (progressBatch?.records.length ?? 0),
       startedAt: existing?.startedAt ?? this.now(),
-      finishedAt: isTerminalPipeStatus(status) ? this.now() : undefined,
-      error: error ? errorMessage(error) : undefined,
+      finishedAt: settled
+        ? existing.finishedAt
+        : isTerminalPipeStatus(status)
+          ? this.now()
+          : undefined,
+      error: settled ? existing.error : error ? errorMessage(error) : undefined,
     };
-    this.pipeRecords.set(cacheKey, record);
+    // A late update must not re-create the evicted cache entry.
+    if (!late) this.pipeRecords.set(cacheKey, record);
     await this.options.runs?.putPipe(record);
     await this.options.events?.append({
       workflowRunId: context.workflowRunId,
@@ -1081,6 +1122,20 @@ function truncateRecords(
 
 function isTransient(error: unknown): boolean {
   return error instanceof ExecutionError && error.transient;
+}
+
+/**
+ * Whether a pipe already recorded as `current` must keep that status when a
+ * later update says `next`. Failed beats everything; cancelled beats a later
+ * batch's success or progress, but not a real failure.
+ */
+function outranks(
+  current: PipeRunRecord['status'],
+  next: PipeRunRecord['status'],
+): boolean {
+  if (current === 'failed') return next !== 'failed';
+  if (current === 'cancelled') return next !== 'failed' && next !== 'cancelled';
+  return false;
 }
 
 function isTerminalPipeStatus(status: PipeRunRecord['status']): boolean {

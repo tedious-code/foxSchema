@@ -3823,8 +3823,22 @@ export const TestIds = {
       workflowRunCancel: 'workflow-run-cancel',
       /** Button */
       workflowRunResume: 'workflow-run-resume',
+      /** aside · Run */
+      workflowRunsDetail: 'workflow-runs-detail',
+      /** Button */
+      workflowRunsDownloadJson: 'workflow-runs-download-json',
+      /** Button */
+      workflowRunsDownloadLog: 'workflow-runs-download-log',
+      /** div */
+      workflowRunsEventLog: 'workflow-runs-event-log',
+      /** Select */
+      workflowRunsFilterStatus: 'workflow-runs-filter-status',
+      /** Select */
+      workflowRunsFilterWorkflow: 'workflow-runs-filter-workflow',
       /** input */
       workflowRunsLive: 'workflow-runs-live',
+      /** input */
+      workflowRunsProblemsOnly: 'workflow-runs-problems-only',
     },
     SqlPipeEditor: {
       /** div · Filter by name, dialect, host… */
@@ -5860,7 +5874,14 @@ export type TestId =
   | `workflow-run-answer-${string}`
   | 'workflow-run-cancel'
   | 'workflow-run-resume'
+  | 'workflow-runs-detail'
+  | 'workflow-runs-download-json'
+  | 'workflow-runs-download-log'
+  | 'workflow-runs-event-log'
+  | 'workflow-runs-filter-status'
+  | 'workflow-runs-filter-workflow'
   | 'workflow-runs-live'
+  | 'workflow-runs-problems-only'
   | `workflow-sink-${string}`
   | 'workflow-source-add-column'
   | 'workflow-source-add-delimiter'

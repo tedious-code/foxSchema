@@ -60,6 +60,16 @@ describe('WorkflowView pane RBAC', () => {
     expect(screen.getByTestId('workflow-tab-workflows').getAttribute('aria-current')).toBe('page');
   });
 
+  it('keeps a viewer on a workflow log, under the Workflows tab', () => {
+    // Logs is opened from the Workflows list, not the menu. A pane missing
+    // from the menu used to be bounced to the first tab.
+    seedRole('viewer');
+    useWorkflowUiStore.getState().openLogs('nightly-load');
+    render(<WorkflowView />);
+    expect(useWorkflowUiStore.getState().view).toBe('logs');
+    expect(screen.getByTestId('workflow-tab-workflows').getAttribute('aria-current')).toBe('page');
+  });
+
   it('lets an editor design and run, but not open Engine admin', () => {
     seedRole('editor');
     render(<WorkflowView />);

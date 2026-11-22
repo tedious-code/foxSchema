@@ -14,7 +14,7 @@ import type { Permission } from '@foxschema/shared';
 import '@xyflow/react/dist/style.css';
 import '../workflow.css';
 import { useAuthStore } from '@/platform/authStore';
-import { useWorkflowUiStore, type WorkflowPane } from '../store/workflowUiStore';
+import { PANE_PARENT, useWorkflowUiStore, type WorkflowPane } from '../store/workflowUiStore';
 import { WorkflowDesigner } from './WorkflowDesigner';
 
 const PANES: {
@@ -43,7 +43,8 @@ export const WorkflowView: React.FC = () => {
 
   useEffect(() => {
     if (visiblePanes.length === 0) return;
-    if (!visiblePanes.some((p) => p.id === pane)) {
+    const menuPane = PANE_PARENT[pane] ?? pane;
+    if (!visiblePanes.some((p) => p.id === menuPane)) {
       setPane(visiblePanes[0]!.id);
     }
   }, [pane, setPane, visiblePanes]);
@@ -57,7 +58,7 @@ export const WorkflowView: React.FC = () => {
       >
         <span className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Workflow</span>
         {visiblePanes.map((p) => {
-          const active = pane === p.id;
+          const active = (PANE_PARENT[pane] ?? pane) === p.id;
           return (
             <button
               key={p.id}

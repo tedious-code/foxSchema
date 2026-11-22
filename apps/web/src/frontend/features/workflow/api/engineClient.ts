@@ -235,6 +235,11 @@ export const api = {
     return request('/runs?limit=200');
   },
 
+  /** One workflow's newest runs, for its log. */
+  listWorkflowRuns(workflowId: string, limit = 200): Promise<RunRecord[]> {
+    return request(`/runs?workflowId=${encodeURIComponent(workflowId)}&limit=${limit}`);
+  },
+
   getRun(id: string): Promise<RunDetail> {
     return request(`/runs/${encodeURIComponent(id)}`);
   },

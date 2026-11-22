@@ -5,7 +5,7 @@
  *
  * Workflow designer — ported from FoxAgent (components/WorkflowsPanel.tsx).
  */
-import { Copy, Download, FilePlus2, PlayCircle, Search, Sparkles, Trash2, Upload } from 'lucide-react';
+import { Copy, Download, FilePlus2, PlayCircle, ScrollText, Search, Sparkles, Trash2, Upload } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { useAuthStore } from '@/platform/authStore';
 import { toast } from '../lib/notify';
@@ -24,6 +24,8 @@ interface Props {
   currentId: string;
   /** Load a workflow into the designer canvas. */
   onOpen: (id: string) => void;
+  /** Open a workflow's log: its runs, failures and what to check. */
+  onLogs: (id: string) => void;
   /** Start a blank workflow under a new id. */
   onCreate: (id: string) => void;
   /**
@@ -49,6 +51,7 @@ function relativeTime(iso?: string): string {
 export function WorkflowsPanel({
   currentId,
   onOpen,
+  onLogs,
   onCreate,
   onApplySample,
 }: Props) {
@@ -355,10 +358,16 @@ export function WorkflowsPanel({
                 </td>
                 <td>
                   {workflow.lastRun ? (
-                    <span className={`run-status ${workflow.lastRun.status}`}>
+                    <button
+                      type="button"
+                      data-testid={`workflow-list-last-run-${workflow.id}`}
+                      className={`run-status ${workflow.lastRun.status}`}
+                      title="Open this workflow's log"
+                      onClick={() => onLogs(workflow.id)}
+                    >
                       {workflow.lastRun.status}
                       <small>{relativeTime(workflow.lastRun.startedAt)}</small>
-                    </span>
+                    </button>
                   ) : (
                     <small>never</small>
                   )}
@@ -374,6 +383,15 @@ export function WorkflowsPanel({
                     onClick={() => onOpen(workflow.id)}
                   >
                     <PlayCircle />
+                  </Button>
+                  <Button
+                    size="icon"
+                    data-testid={`workflow-list-logs-${workflow.id}`}
+                    aria-label={`Log of ${workflow.id}`}
+                    title="Log: runs, failures and what to check"
+                    onClick={() => onLogs(workflow.id)}
+                  >
+                    <ScrollText />
                   </Button>
                   <Button
                     size="icon"

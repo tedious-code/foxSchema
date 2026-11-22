@@ -63,6 +63,7 @@ import { ExecutionPanel } from './ExecutionPanel';
 import { Inspector } from './Inspector';
 import { Palette } from './Palette';
 import { RunsPanel } from './RunsPanel';
+import { WorkflowLogPanel } from './WorkflowLogPanel';
 import { WorkflowsPanel } from './WorkflowsPanel';
 import { VariablesPanel } from './VariablesPanel';
 import { TriggerConfigurationDialog } from './TriggerConfigurationDialog';
@@ -446,6 +447,8 @@ function Designer() {
 
   const view = useWorkflowUiStore((s) => s.view);
   const setView = useWorkflowUiStore((s) => s.setView);
+  const logsWorkflowId = useWorkflowUiStore((s) => s.logsWorkflowId);
+  const openLogs = useWorkflowUiStore((s) => s.openLogs);
   const busy = useWorkflowUiStore((s) => s.busy);
   const setBusy = useWorkflowUiStore((s) => s.setBusy);
   const workflowId = useWorkflowUiStore((s) => s.workflowId);
@@ -1731,8 +1734,16 @@ function Designer() {
           <WorkflowsPanel
             currentId={workflowId}
             onOpen={openWorkflow}
+            onLogs={openLogs}
             onCreate={createWorkflow}
             onApplySample={applySampleDocument}
+          />
+        )}
+        {view === 'logs' && logsWorkflowId && (
+          <WorkflowLogPanel
+            workflowId={logsWorkflowId}
+            onBack={() => setView('workflows')}
+            onOpenInDesigner={openWorkflow}
           />
         )}
         {view === 'variables' && <VariablesPanel />}

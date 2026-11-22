@@ -18,20 +18,9 @@ import {
   type RunFailureSummary,
   type RunRecord,
 } from '../api/engineClient';
-import {
-  downloadFile,
-  eventKind,
-  eventLevel,
-  eventScope,
-  eventSummary,
-  eventTime,
-  formatDuration,
-  hasDetail,
-  isProblem,
-  runDuration,
-  runLogText,
-} from '../lib/runLog';
+import { downloadFile, formatDuration, runDuration, runLogText } from '../lib/runLog';
 import { Button, Input, Select } from './controls';
+import { EventLog } from './EventLog';
 
 type SortKey = 'workflowId' | 'workflowVersion' | 'status' | 'trigger' | 'startedAt';
 
@@ -62,51 +51,6 @@ const COLUMNS: Array<{ header: string; sortKey?: SortKey; cell: (run: RunRecord)
 const STACKED_LAYOUT = '(max-width: 960px)';
 
 const STATUS_FILTERS = ['all', 'failed', 'succeeded', 'running', 'queued', 'paused', 'cancelled', 'interrupted'] as const;
-
-/** Newest events are what a reader is after; older ones stay a count. */
-const EVENT_LOG_LIMIT = 1_000;
-
-function EventLog({ events, problemsOnly }: { events: RunEvent[]; problemsOnly: boolean }) {
-  const relevant = problemsOnly ? events.filter(isProblem) : events;
-  const shown = relevant.length > EVENT_LOG_LIMIT ? relevant.slice(-EVENT_LOG_LIMIT) : relevant;
-  if (shown.length === 0) {
-    return <div className="empty">{problemsOnly ? 'No errors or warnings in this run.' : 'No events yet.'}</div>;
-  }
-  return (
-    <div className="event-log" data-testid="workflow-runs-event-log">
-      {shown.length < relevant.length && (
-        <div className="event-row">
-          Showing the last {shown.length} of {relevant.length} events.
-        </div>
-      )}
-      {shown.map((event) => {
-        const level = eventLevel(event);
-        const scope = eventScope(event);
-        const summary = eventSummary(event);
-        const line = (
-          <>
-            <span className="event-seq">#{event.seq}</span>
-            <span className="event-time">{eventTime(event.at)}</span>
-            <span className={`event-level ${level}`}>{level}</span>
-            <span className="event-kind">{eventKind(event)}</span>
-            {scope && <span className="event-scope">{scope}</span>}
-            {summary && <span className="event-summary">{summary}</span>}
-          </>
-        );
-        return hasDetail(event) ? (
-          <details key={event.seq} className={`event-row ${level}`}>
-            <summary>{line}</summary>
-            <pre className="event-data">{JSON.stringify(event.data, null, 2)}</pre>
-          </details>
-        ) : (
-          <div key={event.seq} className={`event-row ${level}`}>
-            {line}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 function FailureSummaryCard({ summary }: { summary: RunFailureSummary }) {
   return (

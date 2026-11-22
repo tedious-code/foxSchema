@@ -6,7 +6,7 @@
  * Workflow engine — moved from FoxAgent (packages/runtime/src/scheduler/cron.test.ts).
  */
 import { createHash, randomBytes } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { openSqliteStores } from '../../storage/index.js';
 import type { TriggerInvocation } from '../../common/index.js';
 import { runSqlScript, type SqlRunner } from '../../pipes/db/sql.js';
@@ -219,6 +219,195 @@ describe('CronCoordinator', () => {
       'https://hooks.example.com/tick?source=cron',
     ]);
     stores.close();
+  });
+
+  describe('start() timing', () => {
+    // Booted at an arbitrary phase inside the minute: with a fixed 30 s
+    // interval the ticks would land at :17.3 and :47.3, so each fire would
+    // run ~17 s after its minute.
+    const BOOT = new Date('2026-07-14T10:04:47.300Z');
+
+    beforeEach(() => {
+      vi.useFakeTimers({ now: BOOT });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function everyMinute(id: string) {
+      return {
+        id,
+        name: id,
+        version: 1,
+        pipelines: [
+          {
+            id: 'load',
+            name: 'load',
+            pipes: [
+              {
+                id: 'source',
+                role: 'source' as const,
+                type: 'source.triggerPayload',
+                config: {},
+                concurrency: 1,
+              },
+            ],
+            edges: [],
+          },
+        ],
+        dependencies: [],
+        middleware: [],
+        triggers: [
+          {
+            id: 'tick',
+            kind: 'cron' as const,
+            enabled: true,
+            cron: '* * * * *',
+            timezone: 'UTC',
+            catchUp: 'one' as const,
+            executionType: 'workflow' as const,
+          },
+        ],
+        onOverlap: 'parallel' as const,
+        origin: 'authored' as const,
+      };
+    }
+
+    function coordinatorOn(stores: ReturnType<typeof openSqliteStores>) {
+      const fires: { workflowId: string; scheduledAt: string; firedAt: number }[] = [];
+      const coordinator = new CronCoordinator({
+        workflows: stores.workflows,
+        schedules: stores.schedules,
+        scheduler: {
+          async enqueue(_workflow, invocation) {
+            fires.push({
+              workflowId: invocation.workflowId,
+              scheduledAt: String((invocation.payload as { scheduledAt: string }).scheduledAt),
+              firedAt: Date.now(),
+            });
+          },
+        },
+        // The faked clock, read on every call.
+        now: () => new Date(),
+      });
+      return { coordinator, fires };
+    }
+
+    const lagMs = (fire: { scheduledAt: string; firedAt: number }) =>
+      fire.firedAt - new Date(fire.scheduledAt).getTime();
+
+    it('fires each occurrence within a second of its minute, once', async () => {
+      const stores = openSqliteStores(':memory:', randomBytes(32));
+      await stores.workflows.put(everyMinute('scheduled'));
+      const { coordinator, fires } = coordinatorOn(stores);
+
+      await coordinator.recover();
+      coordinator.start();
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
+      coordinator.stop();
+
+      expect(fires.map((fire) => fire.scheduledAt)).toEqual([
+        '2026-07-14T10:05:00.000Z',
+        '2026-07-14T10:06:00.000Z',
+        '2026-07-14T10:07:00.000Z',
+        '2026-07-14T10:08:00.000Z',
+        '2026-07-14T10:09:00.000Z',
+      ]);
+      for (const fire of fires) {
+        expect(lagMs(fire)).toBeGreaterThanOrEqual(0);
+        expect(lagMs(fire)).toBeLessThan(1_000);
+      }
+      stores.close();
+    });
+
+    it('still polls between fires, so a workflow saved after start is picked up', async () => {
+      const stores = openSqliteStores(':memory:', randomBytes(32));
+      // An hourly schedule alone must not stretch the wait to an hour.
+      await stores.workflows.put({
+        ...everyMinute('hourly'),
+        triggers: [{ ...everyMinute('hourly').triggers[0]!, cron: '0 * * * *' }],
+      });
+      const { coordinator, fires } = coordinatorOn(stores);
+
+      await coordinator.recover();
+      coordinator.start();
+      await vi.advanceTimersByTimeAsync(5_000);
+      await stores.workflows.put(everyMinute('late'));
+      await vi.advanceTimersByTimeAsync(2 * 60_000);
+      coordinator.stop();
+
+      // Seen at the next poll (≤ 30 s), seeded to 10:06, fired on time after.
+      expect(fires.map((fire) => [fire.workflowId, fire.scheduledAt])).toEqual([
+        ['late', '2026-07-14T10:06:00.000Z'],
+      ]);
+      expect(lagMs(fires[0]!)).toBeLessThan(1_000);
+      stores.close();
+    });
+
+    it('stop() during an in-flight tick leaves no timer behind', async () => {
+      const stores = openSqliteStores(':memory:', randomBytes(32));
+      await stores.workflows.put(everyMinute('scheduled'));
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const realList = stores.workflows.list.bind(stores.workflows);
+      let gated = false;
+      const workflows = Object.create(stores.workflows) as typeof stores.workflows;
+      workflows.list = async () => {
+        if (gated) await gate;
+        return realList();
+      };
+      const fires: unknown[] = [];
+      const coordinator = new CronCoordinator({
+        workflows,
+        schedules: stores.schedules,
+        scheduler: { enqueue: async (_workflow, invocation) => void fires.push(invocation) },
+        now: () => new Date(),
+      });
+
+      await coordinator.recover();
+      gated = true;
+      coordinator.start();
+      // The first tick starts at once and blocks on the gate.
+      await vi.advanceTimersByTimeAsync(0);
+      expect(vi.getTimerCount()).toBe(0);
+      coordinator.stop();
+      release();
+      await vi.advanceTimersByTimeAsync(5 * 60_000);
+
+      // The tick that ended after stop() scheduled nothing.
+      expect(vi.getTimerCount()).toBe(0);
+      expect(fires).toEqual([]);
+      stores.close();
+    });
+
+    it('a failing tick reports and retries at the poll interval', async () => {
+      const stores = openSqliteStores(':memory:', randomBytes(32));
+      const errors: unknown[] = [];
+      let lists = 0;
+      const coordinator = new CronCoordinator({
+        workflows: Object.assign(Object.create(stores.workflows) as typeof stores.workflows, {
+          list: async () => {
+            lists += 1;
+            throw new Error('store down');
+          },
+        }),
+        schedules: stores.schedules,
+        scheduler: { enqueue: async () => undefined },
+        onError: (error) => errors.push(error),
+        now: () => new Date(),
+      });
+
+      coordinator.start();
+      await vi.advanceTimersByTimeAsync(60_000);
+      coordinator.stop();
+
+      // Once at start, then every 30 s: no tight retry loop.
+      expect(lists).toBe(3);
+      expect(errors).toHaveLength(3);
+      stores.close();
+    });
   });
 
   describe('executionType sql', () => {

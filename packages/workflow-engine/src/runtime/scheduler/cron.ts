@@ -52,8 +52,15 @@ export type CronSqlRunner = (
   options: Required<Pick<RunSqlScriptOptions, 'transaction' | 'connect' | 'beforeCommit'>>,
 ) => Promise<unknown>;
 
+/** Most a timeout may lag behind `nextFireAt` on purpose; see `delayUntil`. */
+const FIRE_SLACK_MS = 25;
+/** Wait before re-ticking when a schedule is still due after a tick. */
+const MIN_RETICK_MS = 1_000;
+
 export class CronCoordinator {
-  private timer?: ReturnType<typeof setInterval>;
+  private timer?: ReturnType<typeof setTimeout>;
+  /** True between start() and stop(); a tick that ends after stop() schedules nothing. */
+  private running = false;
   /** SQL schedules whose previous fire is still running, by workflow and trigger. */
   private readonly sqlInFlight = new Set<string>();
   private readonly now: () => Date;
@@ -79,22 +86,65 @@ export class CronCoordinator {
     await this.process(false);
   }
 
+  /**
+   * Ticks on a chain of timeouts rather than a fixed interval. Each one waits
+   * until the earliest `nextFireAt` across schedules, so a fire lands at its
+   * minute instead of up to `pollIntervalMs` later at whatever phase the
+   * process booted. The wait is capped at `pollIntervalMs` so a workflow
+   * saved meanwhile is still picked up. Ticks never overlap: the next is
+   * scheduled only once the previous one has finished. The first tick runs
+   * at once to learn the earliest `nextFireAt`; after `recover()` it finds
+   * nothing due.
+   */
   start(): void {
-    if (this.timer) return;
-    this.timer = setInterval(() => {
-      void this.tick().catch((error) => this.onError(error));
-    }, this.pollIntervalMs);
-    this.timer.unref?.();
+    if (this.running) return;
+    this.running = true;
+    this.schedule(0);
   }
 
   stop(): void {
-    if (!this.timer) return;
-    clearInterval(this.timer);
+    this.running = false;
+    if (this.timer) clearTimeout(this.timer);
     this.timer = undefined;
   }
 
-  private async process(recovering: boolean): Promise<void> {
+  private schedule(delayMs: number): void {
+    if (!this.running) return;
+    this.timer = setTimeout(() => {
+      this.timer = undefined;
+      void this.process(false)
+        .then(
+          (earliest) => this.delayUntil(earliest),
+          (error) => {
+            this.onError(error);
+            return this.pollIntervalMs;
+          },
+        )
+        .then((delay) => this.schedule(delay));
+    }, delayMs);
+    this.timer.unref?.();
+  }
+
+  /** How long to wait for the next tick, given the earliest `nextFireAt`. */
+  private delayUntil(earliestMs: number | undefined): number {
+    if (earliestMs === undefined) return this.pollIntervalMs;
+    const wait = earliestMs - this.now().getTime();
+    // A schedule still due after a tick (one that could not be advanced)
+    // waits a second rather than spinning on it.
+    if (wait <= 0) return Math.min(MIN_RETICK_MS, this.pollIntervalMs);
+    // The slack keeps a timer that wakes a hair early from ticking just
+    // before the minute and finding nothing due.
+    return Math.min(wait + FIRE_SLACK_MS, this.pollIntervalMs);
+  }
+
+  /** Runs one pass; resolves to the earliest `nextFireAt` (epoch ms) it left behind. */
+  private async process(recovering: boolean): Promise<number | undefined> {
     const now = this.now();
+    let earliest: number | undefined;
+    const note = (nextFireAt: string): void => {
+      const at = new Date(nextFireAt).getTime();
+      if (earliest === undefined || at < earliest) earliest = at;
+    };
     // One read of each per tick. Reading a schedule per trigger made a tick
     // cost a query for every cron trigger in the installation.
     const [workflows, states] = await Promise.all([
@@ -114,15 +164,20 @@ export class CronCoordinator {
         active.add(key);
         const state = stateByKey.get(key);
         if (!state || state.scheduleFingerprint !== fingerprint) {
+          const nextFireAt = nextOccurrence(trigger, now);
           await this.options.schedules.put({
             workflowId: workflow.id,
             triggerId: trigger.id,
-            nextFireAt: nextOccurrence(trigger, now),
+            nextFireAt,
             scheduleFingerprint: fingerprint,
           });
+          note(nextFireAt);
           continue;
         }
-        if (new Date(state.nextFireAt).getTime() > now.getTime()) continue;
+        if (new Date(state.nextFireAt).getTime() > now.getTime()) {
+          note(state.nextFireAt);
+          continue;
+        }
 
         const due = dueOccurrences(trigger, state.nextFireAt, now);
         const accepted = acceptedOccurrences(trigger, due, recovering);
@@ -151,6 +206,7 @@ export class CronCoordinator {
           lastAcceptedAt: accepted.at(-1) ?? state.lastAcceptedAt,
           scheduleFingerprint: fingerprint,
         });
+        note(nextFireAt);
       }
     }
 
@@ -174,6 +230,7 @@ export class CronCoordinator {
         await this.options.schedules.remove(state.workflowId, state.triggerId);
       }
     }
+    return earliest;
   }
 
   private async fire(

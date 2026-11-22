@@ -52,6 +52,34 @@ export function splitTemplate(template: string): { strings: string[]; paths: str
 }
 
 /**
+ * Template paths in a structure that would resolve to nothing, in order and
+ * without repeats. `interpolate` turns them into empty strings, which is the
+ * contract (an optional `{{trigger.page}}` may be absent); this lets a caller
+ * say so, because a misspelled `{{vars.userId}}` sends `userId=` and looks
+ * like a request that simply found nothing.
+ */
+export function missingTemplatePaths(value: unknown, variables: Record<string, unknown>): string[] {
+  const missing = new Set<string>();
+  const walk = (node: unknown): void => {
+    if (typeof node === 'string') {
+      for (const match of node.matchAll(TOKEN)) {
+        const resolved = getPath(variables, match[1]!);
+        if (resolved === undefined || resolved === null) missing.add(match[1]!);
+      }
+    } else if (Array.isArray(node)) {
+      node.forEach(walk);
+    } else if (node && typeof node === 'object') {
+      for (const [key, entry] of Object.entries(node)) {
+        walk(key);
+        walk(entry);
+      }
+    }
+  };
+  walk(value);
+  return [...missing];
+}
+
+/**
  * Interpolate every string in a structure. A string that is *only* a token
  * (`"{{records}}"`) is replaced by the resolved value itself, so an array or
  * object substitutes structurally instead of being flattened to a JSON

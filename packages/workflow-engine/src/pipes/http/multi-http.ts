@@ -231,7 +231,7 @@ type FetchOptions = {
 /**
  * Runs `work` for every endpoint, `linear` one at a time or `parallel` up to
  * `concurrency`, and returns the results in endpoint order. A failed endpoint
- * fails the pipe, or with `onError: skip` becomes `onSkip(error)`.
+ * fails the pipe, or with `onError: skip` becomes `onSkip(error, endpoint)`.
  *
  * On a fail-fast error the shared signal is aborted, so requests already in
  * flight are cancelled too — not only the ones still queued. With the default
@@ -242,7 +242,7 @@ async function forEachEndpoint<T>(
   config: MultiConfig,
   parentSignal: AbortSignal | undefined,
   work: (endpoint: EndpointConfig, signal: AbortSignal) => Promise<T>,
-  onSkip: (error: unknown) => T,
+  onSkip: (error: unknown, endpoint: EndpointConfig) => T,
 ): Promise<T[]> {
   const limit =
     config.executionMode === 'linear'
@@ -275,7 +275,7 @@ async function forEachEndpoint<T>(
             }
             throw error;
           }
-          results[index] = onSkip(error);
+          results[index] = onSkip(error, config.endpoints[index]!);
         }
       }
     },
@@ -297,12 +297,29 @@ async function fetchAllEndpoints(
     config,
     options.context.signal,
     async (endpoint, signal) =>
-      normalizeRecords(await fetchOneEndpoint(endpoint, options, signal), endpoint.id).map(
+      normalizeRecords(await fetchOneEndpoint(endpoint, options, signal), endpoint).map(
         (record) => ({ ...record, [config.tagField]: endpoint.id }),
       ),
-    () => [],
+    (error, endpoint) => {
+      // Records mode has nowhere to put the failure, so the run's timeline
+      // gets it; without this a skipped endpoint vanished and the run
+      // reported a clean success.
+      logSkip(options.context, endpoint, error);
+      return [];
+    },
   );
   return rows.flat();
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function logSkip(context: PipeContext, endpoint: EndpointConfig, error: unknown): void {
+  const message = errorText(error);
+  // Every failure here already names the endpoint; say it once.
+  const named = message.includes(`"${endpoint.id}"`) ? message : `HTTP multi endpoint "${endpoint.id}": ${message}`;
+  context.infrastructure?.logger.warn(`${named} (skipped, onError: skip)`, { endpoint: endpoint.id });
 }
 
 /**
@@ -320,20 +337,15 @@ async function fetchAllEndpointsMerged(
     async (endpoint, signal) => {
       const selected = await fetchOneEndpoint(endpoint, options, signal);
       if (selected === undefined) {
-        // JSON would drop the key without a word; a typo in recordsPath must
-        // fail (or, with onError: skip, say so) like it does in records mode.
-        throw new Error(
-          endpoint.recordsPath
-            ? `HTTP multi endpoint "${endpoint.id}" recordsPath "${endpoint.recordsPath}" matched nothing in the response`
-            : `HTTP multi endpoint "${endpoint.id}" response is empty`,
-        );
+        // JSON would drop the key without a word.
+        throw new Error(`HTTP multi endpoint "${endpoint.id}" response is empty`);
       }
       return selected;
     },
-    (error) => ({
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    }),
+    (error, endpoint) => {
+      logSkip(options.context, endpoint, error);
+      return { ok: false, error: errorText(error) };
+    },
   );
   return Object.fromEntries(
     config.endpoints.map((endpoint, index) => [endpoint.id, bodies[index]]),
@@ -349,35 +361,59 @@ async function fetchOneEndpoint(
   const authCredentialId = requestCredentialId(endpoint.auth, context);
   const secret = await revealPipeSecret(context, authCredentialId);
 
-  const result = await executeHttpRequest({
-    request: endpoint,
-    secret,
-    credentialId: authCredentialId,
-    credentials: context.credentials,
-    variables: { ...context.variables, ...endpoint.variables },
-    trigger: {
-      id: context.invocation?.triggerId,
-      kind: context.invocation?.kind,
-      ...triggerPayload,
-    },
-    fetch: fetchImpl,
-    signal,
-  });
+  let result: Awaited<ReturnType<typeof executeHttpRequest>>;
+  try {
+    result = await executeHttpRequest({
+      request: endpoint,
+      secret,
+      credentialId: authCredentialId,
+      credentials: context.credentials,
+      variables: { ...context.variables, ...endpoint.variables },
+      trigger: {
+        id: context.invocation?.triggerId,
+        kind: context.invocation?.kind,
+        ...triggerPayload,
+      },
+      fetch: fetchImpl,
+      signal,
+      onMissingTemplate: (paths) =>
+        context.infrastructure?.logger.warn(
+          `HTTP multi endpoint "${endpoint.id}": ${paths.map((p) => `{{${p}}}`).join(', ')} has no value, so it was sent empty`,
+          { endpoint: endpoint.id, templates: paths },
+        ),
+    });
+  } catch (error) {
+    // Cancelled because a sibling failed (onError: fail) or the run stopped:
+    // the real cause is reported elsewhere.
+    if (signal.aborted) throw error;
+    // No response at all (DNS, refused, TLS, a blocked address). Without the
+    // id, "getaddrinfo ENOTFOUND …" does not say which of 64 endpoints it was.
+    const cause = (error as { cause?: unknown } | null)?.cause;
+    const detail = cause instanceof Error ? `${errorText(error)} (${cause.message})` : errorText(error);
+    throw new Error(`HTTP multi endpoint "${endpoint.id}" request failed: ${detail}`, { cause: error });
+  }
   if (!result.ok) {
     throw new Error(
       `HTTP multi endpoint "${endpoint.id}" ${describeHttpFailure(result)}`,
     );
   }
 
-  return endpoint.recordsPath
-    ? getPath(result.body, endpoint.recordsPath)
-    : result.body;
+  if (!endpoint.recordsPath) return result.body;
+  const selected = getPath(result.body, endpoint.recordsPath);
+  if (selected === undefined) {
+    // A typo in recordsPath, in either output mode.
+    throw new Error(
+      `HTTP multi endpoint "${endpoint.id}" recordsPath "${endpoint.recordsPath}" matched nothing in the response`,
+    );
+  }
+  return selected;
 }
 
 function normalizeRecords(
   selected: unknown,
-  endpointId: string,
+  endpoint: EndpointConfig,
 ): Record<string, unknown>[] {
+  const endpointId = endpoint.id;
   if (selected == null) {
     throw new Error(`HTTP multi endpoint "${endpointId}" response is empty`);
   }
@@ -393,6 +429,12 @@ function normalizeRecords(
   }
   if (typeof selected === 'object') {
     return [selected as Record<string, unknown>];
+  }
+  if (!endpoint.recordsPath && typeof selected === 'string') {
+    // The body was not JSON (an HTML page, plain text): there is no recordsPath to blame.
+    throw new Error(
+      `HTTP multi endpoint "${endpointId}" returned text, not JSON; records mode needs a JSON object or array (merge mode keeps text as-is)`,
+    );
   }
   throw new Error(
     `HTTP multi endpoint "${endpointId}" recordsPath must resolve to an object or array`,

@@ -160,7 +160,8 @@ export function HttpRequestEditor({
   };
 
   /** URL → Params table (auto map). */
-  const setUrl = (url: string) => {
+  const setUrl = (typed: string) => {
+    const url = collapseDoubledScheme(typed);
     onChange({
       ...value,
       url,
@@ -560,7 +561,7 @@ function AuthEditor({
             type="text"
             value={refresh.url}
             onChange={(event) =>
-              onTokenRefreshChange({ ...refresh, url: event.target.value })
+              onTokenRefreshChange({ ...refresh, url: collapseDoubledScheme(event.target.value) })
             }
           />
           <label>Access token path</label>
@@ -1409,6 +1410,26 @@ function decodeQueryPart(value: string): string {
   } catch {
     return value;
   }
+}
+
+/**
+ * `https://https://host` → `https://host`. A new request's URL starts as
+ * `https://`, so a full address typed or pasted after it doubled the scheme,
+ * which saved fine and failed only at run time ("ENOTFOUND https"). The last
+ * scheme is the one the author meant. Only a doubled scheme at the very start
+ * is touched; a URL in the query string is left alone.
+ */
+export function collapseDoubledScheme(url: string): string {
+  const scheme = /^https?:\/\//i;
+  let rest = url;
+  let last = '';
+  let count = 0;
+  for (let match = scheme.exec(rest); match; match = scheme.exec(rest)) {
+    last = match[0];
+    rest = rest.slice(last.length);
+    count++;
+  }
+  return count > 1 ? last.toLowerCase() + rest : url;
 }
 
 /** Write enabled query rows into the URL (Params → URL). */

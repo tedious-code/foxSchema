@@ -8,7 +8,7 @@
  * behind a FoxSchema session.
  */
 import type { Permission } from '@foxschema/shared';
-import { linkedConnectionId } from '@foxschema/workflow-contract';
+import { linkedConnectionId } from '@foxschema/shared';
 
 export interface EngineRoute {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';

@@ -8,7 +8,7 @@
  */
 import { ArrowDown, ArrowUp, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { RUN_STREAM_END_EVENT } from '@foxschema/workflow-contract';
+import { RUN_STREAM_END_EVENT } from '@foxschema/shared';
 import { useAuthStore } from '@/platform/authStore';
 import {
   api,

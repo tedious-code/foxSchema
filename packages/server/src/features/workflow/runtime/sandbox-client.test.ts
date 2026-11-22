@@ -18,7 +18,7 @@ import { DatabaseSync } from 'node:sqlite';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Permission } from '@foxschema/shared';
-import type { WorkflowEngineConfig } from '@foxschema/workflow-contract';
+import type { WorkflowEngineConfig } from '@foxschema/shared';
 import { pluginDigest } from '@foxschema/workflow-engine';
 import { createFeatureContext } from '../../../app/feature-registry';
 import type { AuthedRequest } from '../../../platform/http/types';

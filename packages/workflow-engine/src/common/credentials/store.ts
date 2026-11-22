@@ -6,7 +6,7 @@
  * Workflow engine — moved from FoxAgent (packages/common/src/credentials/store.ts).
  */
 import { z } from 'zod';
-import { LINKED_CONNECTION_PREFIX, connectionCredentialId } from '@foxschema/workflow-contract';
+import { LINKED_CONNECTION_PREFIX, connectionCredentialId } from '@foxschema/shared';
 import { decrypt, encrypt } from './crypto.js';
 import {
   buildStoredSecret,

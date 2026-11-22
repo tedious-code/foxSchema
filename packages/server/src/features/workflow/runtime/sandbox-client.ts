@@ -9,7 +9,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { assertSafeSqliteSql } from '@foxschema/sql';
-import type { EngineRuntimeConfig } from '@foxschema/workflow-contract';
+import type { EngineRuntimeConfig } from '@foxschema/shared';
 import {
   NATIVE_ADDON_SQL_DIALECTS,
   decodeKey,

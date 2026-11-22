@@ -93,7 +93,6 @@ packages/shared/        Contracts the frontend, server and CLI agree on:
                         permission names, error codes, wire message shapes
 packages/server/        The backend: Fastify HTTP layer, feature modules,
                         metadata store
-packages/workflow-contract  Browser-safe engine types and token/route names
 packages/workflow-engine    Runtime, SQLite stores, built-in pipes (Node)
 
 apps/web/src/frontend/
@@ -200,7 +199,7 @@ and `domain`) inside `encrypted_config`. Methods:
 never the secret. Windows integrated SSO (no password) is not implemented.
 
 The frontend imports **browser-safe** workspace packages through Vite aliases
-(`@foxschema/ui-shared`, `@foxschema/shared`, `@foxschema/workflow-contract`,
+(`@foxschema/ui-shared`, `@foxschema/shared` (including the workflow contract),
 `@foxschema/workflow-engine/definitions`). Facades live in
 `apps/web/src/frontend/shared/lib/`. `@foxschema/db` and `@foxschema/server`
 are not aliased — a UI import of either fails the build.

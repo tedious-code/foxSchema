@@ -8,7 +8,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Settings2 } from 'lucide-react';
-import type { EngineState, OverlapPolicy, WorkflowEngineConfig } from '@foxschema/workflow-contract';
+import type { EngineState, OverlapPolicy, WorkflowEngineConfig } from '@foxschema/shared';
 import { useAuthStore } from '@/platform/authStore';
 import { sectionLabelCls } from '@/shared/components/surfaces';
 import {

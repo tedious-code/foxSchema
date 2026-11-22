@@ -14,7 +14,7 @@
  */
 import { createWriteStream, mkdirSync, type WriteStream } from 'node:fs';
 import { join } from 'node:path';
-import type { WorkflowLogSink } from '@foxschema/workflow-contract';
+import type { WorkflowLogSink } from '@foxschema/shared';
 import type { RunEvent } from '@foxschema/workflow-engine';
 
 const FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;

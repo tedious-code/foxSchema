@@ -16,7 +16,7 @@ import {
   linkedConnectionId,
   type ColumnMappingItem,
   type WorkflowConnectionSummary,
-} from '@foxschema/workflow-contract';
+} from '@foxschema/shared';
 import { useAuthStore } from '@/platform/authStore';
 import { monacoLanguage } from '@/features/sql-editor/monaco';
 import { loadSchema } from '@/shared/api/schemaApi';

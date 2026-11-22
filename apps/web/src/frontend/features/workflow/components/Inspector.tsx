@@ -36,7 +36,7 @@ import { JSON_EDITOR_OPTIONS, useJsonEditorTheme } from '../lib/jsonEditorOption
 import { portLabel } from '../lib/ports';
 import type { WorkflowTrigger } from '../lib/triggers';
 import { Button, Input, Select } from './controls';
-import { PIPE_NAME_MAX_LENGTH } from '@foxschema/workflow-contract';
+import { PIPE_NAME_MAX_LENGTH } from '@foxschema/shared';
 
 /**
  * Config keys the HTTP request editor owns for `source.api.http`, kept out of

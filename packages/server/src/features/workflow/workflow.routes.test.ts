@@ -9,7 +9,7 @@ import { randomBytes } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Permission } from '@foxschema/shared';
-import type { AdminConfigPut, WorkflowEngineConfig } from '@foxschema/workflow-contract';
+import type { AdminConfigPut, WorkflowEngineConfig } from '@foxschema/shared';
 import { bindRoutes } from '../../platform/http/fastify-bind';
 import { Router } from '../../platform/http/router';
 import type { AuthedRequest } from '../../platform/http/types';

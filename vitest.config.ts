@@ -15,10 +15,6 @@ const aliases = [
   { find: '@foxschema/ui-shared', replacement: pkg('./packages/ui-shared/src/index.ts') },
   { find: '@foxschema/server', replacement: pkg('./packages/server/src/index.ts') },
   {
-    find: '@foxschema/workflow-contract',
-    replacement: pkg('./packages/workflow-contract/src/index.ts'),
-  },
-  {
     find: '@foxschema/workflow-engine/definitions',
     replacement: pkg('./packages/workflow-engine/src/definitions.ts'),
   },

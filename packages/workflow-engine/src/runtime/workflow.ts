@@ -10,7 +10,7 @@ import type {
   DependencyDef,
   WorkflowDef,
 } from '../common/index.js';
-import type { EngineState } from '@foxschema/workflow-contract';
+import type { EngineState } from '@foxschema/shared';
 import {
   ACTIVE_RUN_STATUSES,
   isHumanInputRequired,

@@ -9,7 +9,7 @@
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { WorkflowConnectionSummary } from '@foxschema/workflow-contract';
+import type { WorkflowConnectionSummary } from '@foxschema/shared';
 import { workflowConnections } from '../api/workflowApi';
 import { createCronSql, createTrigger, type WorkflowTrigger } from '../lib/triggers';
 import { CronSqlEditor } from './CronSqlEditor';

@@ -14,7 +14,7 @@
 import { randomUUID } from 'node:crypto';
 import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyInstance } from 'fastify';
-import type { EngineRuntimeConfig } from '@foxschema/workflow-contract';
+import type { EngineRuntimeConfig } from '@foxschema/shared';
 import {
   decodeKey,
   setScriptSandboxDelegate,

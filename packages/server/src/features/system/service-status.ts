@@ -6,7 +6,7 @@
  * The state of the services the app runs, for the Services card on Home.
  */
 import type { ServiceStatusReport, EngineServiceStatus } from '@foxschema/shared';
-import type { WorkflowHealth } from '@foxschema/workflow-contract';
+import type { WorkflowHealth } from '@foxschema/shared';
 
 /** What the in-process engine needs in this server's environment. */
 export const ENGINE_REQUIRED_ENV = ['FOXFLOW_ENCRYPTION_KEY'] as const;

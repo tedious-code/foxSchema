@@ -10,7 +10,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { EngineRuntimeConfig } from '@foxschema/workflow-contract';
+import type { EngineRuntimeConfig } from '@foxschema/shared';
 import type { RunEvent } from '@foxschema/workflow-engine';
 import { EngineConfigSync } from './engine-settings.js';
 import { RunEventSinks, formatTextLine } from './run-event-sinks.js';

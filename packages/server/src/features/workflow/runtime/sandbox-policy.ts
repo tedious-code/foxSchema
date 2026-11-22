@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { FORBIDDEN_WORKFLOW_ENV_VARS } from '@foxschema/workflow-contract';
+import { FORBIDDEN_WORKFLOW_ENV_VARS } from '@foxschema/shared';
 import { resolveDatabasePath } from '@foxschema/workflow-engine';
 
 const ROOT_PACKAGE_NAME = 'foxschema';

@@ -19,8 +19,8 @@
   },
   "dependencies": {
     "@foxschema/db": "*",
+    "@foxschema/shared": "*",
     "@foxschema/sql": "*",
-    "@foxschema/workflow-contract": "*",
     "ajv": "8.20.0",
     "cron-parser": "5.10.4",
     "mysql2": "3.24.6",

@@ -7,7 +7,7 @@
  */
 import { secretEquals } from '@foxschema/workflow-engine';
 import rateLimit from '@fastify/rate-limit';
-import { WORKFLOW_ENGINE_TOKEN_ENV } from '@foxschema/workflow-contract';
+import { WORKFLOW_ENGINE_TOKEN_ENV } from '@foxschema/shared';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import {
   serializerCompiler,

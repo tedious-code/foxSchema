@@ -15,7 +15,7 @@ import {
   type AdminConfigPut,
   type LogSinkKind,
   type OverlapPolicy,
-} from '@foxschema/workflow-contract';
+} from '@foxschema/shared';
 import type { CredentialStore } from '@foxschema/workflow-engine';
 import { requirePermissions } from '../../platform/authorization/rbac.guard';
 import { sendError } from '../../platform/http/respond';

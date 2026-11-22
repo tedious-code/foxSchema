@@ -838,7 +838,7 @@ const FEATURES = [
   { id: 'workflow.engine', area: 'workflow', name: 'Engine control plane',
     subs: ['Settings and health', 'Saved-connection grants', 'Internal resolve and engine-config routes (token-guarded)'],
     ui: 'Workflow → Engine', api: '/api/workflow (5), /api/workflow-internal (2)',
-    code: 'server workflow · apps/workflow-server · workflow-contract', perms: 'workflow.admin',
+    code: 'server workflow · apps/workflow-server · shared (workflow types)', perms: 'workflow.admin',
     tables: 'workflow_settings, workflow_connection_grants', tests: 'server 6 · workflow-server 19 · e2e workflow-smoke' },
 
   { id: 'cli', area: 'tools', name: 'foxschema CLI & TUI',
@@ -875,7 +875,7 @@ const ROUTES = [
 const TESTS = [
   ['apps/web', 189], ['packages/server', 111], ['packages/workflow-engine', 87], ['packages/sql', 89],
   ['apps/cli', 25], ['packages/db', 28], ['apps/workflow-server', 19], ['packages/shared', 14],
-  ['packages/workflow-contract', 1], ['packages/ui-shared', 1],
+  ['packages/ui-shared', 1],
 ];
 
 const E2E_GROUPS = ['PostgreSQL', 'MySQL', 'MariaDB', 'SQL Server', 'Oracle', 'DB2', 'SQLite', 'Azure SQL', 'ClickHouse', 'Redshift', 'CockroachDB', 'YugabyteDB', 'TiDB', 'DuckDB', 'Smoke', 'Sign-in', 'One admin or several', 'Workspaces', 'Demo role', 'SQL Editor (19 specs)', 'Send feedback', 'Browse', 'History', 'Revert', 'Revert edges', 'Force-migrate', 'Access SQLite', 'Workflow', 'Utilities', 'DB Access', 'Access all', 'Migrations in Git', 'Execute gate', 'Backup & Restore', 'Backup commands'];

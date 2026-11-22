@@ -1,0 +1,17 @@
+// The read-only Worker in front of the UI release bucket. Deploy from the
+// repository root (needs Wrangler 4.69 or later for the cache block):
+//   npx wrangler@4 deploy --config scripts/ui-release/cdn-worker/wrangler.jsonc
+// It is then served at https://fox-ui.foxschema.workers.dev (deployed 2026-11-22).
+{
+  "name": "fox-ui",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": true,
+  // Per-version preview URLs would be a second public address for the bucket.
+  "preview_urls": false,
+  // Repeat requests are answered from Cloudflare's cache, honouring the
+  // Cache-Control each object was uploaded with. Cache hits still count as
+  // Worker requests on the free plan (100,000 a day), but cost no CPU or R2 reads.
+  "cache": { "enabled": true },
+  "r2_buckets": [{ "binding": "BUCKET", "bucket_name": "fox-ui" }]
+}

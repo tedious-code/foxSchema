@@ -206,3 +206,84 @@ npm run smoke:packed
 
 Publish in dependency order — `sql`, then `db`, then `db-db2` (and `features`) —
 because each staged manifest pins the one before it.
+
+## UI bundles (Cloudflare R2)
+
+`.github/workflows/ui-release.yml` publishes the frontend on its own, as a
+signed bundle in a Cloudflare R2 bucket. Backends that download and serve
+these bundles are **not built yet**
+([plan](../plans/2026-11-22-signed-ui-bundles.md)), so a UI release changes
+nothing for users today.
+
+### One-time setup
+
+1. **Bucket.** Cloudflare dashboard → R2 → Create bucket, named `fox-ui` (or
+   set the repository variable `R2_BUCKET` to your name).
+2. **R2 API token.** R2 → Manage API tokens → Create, permission **Object Read
+   & Write**, applied to that bucket only. Note the Access Key ID, the Secret
+   Access Key and the account ID.
+3. **Signing key.** On your own machine, never in CI:
+
+   ```bash
+   openssl genpkey -algorithm ed25519 -out fox-ui-signing.pem
+   node scripts/ui-release/ui-release.mjs pubkey --key fox-ui-signing.pem
+   ```
+
+   The second command prints a line to add to `UI_BUNDLE_PUBLIC_KEYS` in
+   `packages/shared/src/ui-bundle.ts`. Merge that to `main`: the workflow
+   refuses to sign with a key that is not pinned there. Keep the `.pem` offline
+   (a password manager); losing it means pinning a new key and shipping a
+   backend release before UI releases can resume.
+4. **GitHub environment.** Settings → Environments → New environment
+   `ui-release`:
+   - **Required reviewers:** yourself. Every signing run waits for your click.
+   - **Deployment branches and tags:** `main` and tags `ui-v*` only.
+   - **Secrets:** `UI_SIGNING_KEY` (the whole `.pem`), `R2_ACCOUNT_ID`,
+     `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`.
+5. **Public address: the Worker.** Backends read the bucket through a small
+   read-only Worker on `workers.dev`, so no domain is needed (a custom domain
+   on R2 would need foxschema.com's DNS moved to Cloudflare). From the
+   repository root:
+
+   ```bash
+   npx wrangler@4 login
+   npx wrangler@4 deploy --config scripts/ui-release/cdn-worker/wrangler.jsonc
+   ```
+
+   It is live at **`https://fox-ui.foxschema.workers.dev`** (deployed
+   2026-11-22; `foxschema` is the account's workers.dev subdomain). Redeploy
+   only when `cdn-worker/` changes. It
+   serves only `channels/stable.json`, `releases/<version>/manifest.json` and
+   `packs/<sha256>`, and refuses writes. Keep the bucket's own `r2.dev` URL
+   turned off.
+
+   **Free-plan budget:** 100,000 Worker requests a day, cache hits included.
+   A backend's channel check is one request and a UI update is two (manifest
+   and pack), so this covers roughly 20,000 installs checking four times a
+   day. Past that, Workers Paid is $5 a month for 10 million requests.
+
+### Releasing
+
+```bash
+git tag ui-v0.3.25.1 && git push origin ui-v0.3.25.1
+```
+
+Or **Actions → UI Release → Run workflow** with a `version`. The run type-checks,
+runs the unit tests, builds `apps/web`, then waits for approval before signing
+and uploading. Each version can be published once.
+
+- **What goes up:** one pack per release (every file end to end), the
+  release's manifest, and the channel. The signature is inside each manifest
+  and channel file, so each is one download.
+- **Roll back:** Run workflow with `rollback_to: <version>`. The old pack is
+  published again under a new sequence (backends refuse a lower one, by
+  design), as `<version>-r<sequence>`.
+- **Weekly re-sign:** a Monday schedule re-signs the channel so it does not
+  expire (45 days). It needs the same approval; skipping a few weeks is fine.
+
+To try the staging step locally without uploading anything:
+
+```bash
+npm run build -w @foxschema/web
+UI_SIGNING_KEY="$(cat fox-ui-signing.pem)" node scripts/ui-release/ui-release.mjs stage --dist apps/web/dist --version 0.0.0-local --out /tmp/fox-ui
+```

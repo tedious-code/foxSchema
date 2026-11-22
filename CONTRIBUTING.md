@@ -103,7 +103,7 @@ through a `WorkspaceScope`; see **Workspaces** there. Route unit tests use
 ```bash
 # Web (Fastify API + Vite UI)
 npm run dev
-npm run dev:auth                  # multi-user + auth enabled
+npm run dev:auth                  # shared-server mode (LOCAL_SINGLE_USER=false)
 
 # CLI / TUI (opens local UI like the published package)
 cd apps/cli && npx tsx src/index.ts

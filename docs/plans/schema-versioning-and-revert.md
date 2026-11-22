@@ -1,6 +1,12 @@
 # Schema versioning, revert, and history graph
 
-Status: proposal. Nothing implemented yet.
+> **Built** as Lokee Weave (#225 onward): content-addressed versions, the
+> history graph, version compare and revert, in
+> `packages/features/src/modules/lokee-weave/` and the **Snapshots** screen.
+> Living docs: [user-guide.md](../guides/user-guide.md#snapshots-schema-history),
+> [FEATURE_MAP.md](../architecture/FEATURE_MAP.md) (`schema.snapshots`). Moved
+> from `specs/` on 2026-11-21; the proposal below is the design record, and its
+> paths (`apps/web/src/backend/…`) predate the backend move.
 
 This merges two drafts: `foxschema-database-versioning-implementation.md`
 (the versioning core) and an earlier draft focused on revert. Where they

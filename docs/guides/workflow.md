@@ -31,7 +31,7 @@ Browser  ── /api/workflow/* (session + RBAC) ──►  FoxSchema API  (:321
 
 The designer talks to `/api/workflow/engine/*` with a FoxSchema session, which
 FoxSchema authorizes and forwards over private IPC to the sandbox child.
-Webhook and API-endpoint ingress (`/api/hooks/*`, `/api/triggers/:workflowId/:triggerId`)
+Webhook ingress (`/api/hooks/*` by path, `/api/triggers/:workflowId/:triggerId` by id)
 is also proxied through FoxSchema with exact raw request bytes preserved for HMAC
 verification (`runtime/routes/triggers.ts`), so the engine child never opens a
 listening network socket of its own.

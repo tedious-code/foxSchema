@@ -45,7 +45,7 @@ foxschema                         # http://localhost:3210
 foxschema shortcut                # optional Fox icon on your Desktop
 ```
 
-Full install matrix (npm, Homebrew, Winget, Docker, curl/wget): [install.md](install.md).
+Full install matrix (npm, Homebrew, Windows, Docker): [install.md](install.md).
 
 **Option B — Docker (shared/team server):**
 
@@ -841,7 +841,8 @@ saved credential at the top, then a tool:
 
 Optional workspace for scheduled and triggered jobs (SQL, HTTP, files, email/SMS)
 beside Compare and the SQL Editor. The designer lives in the Fox Schema UI;
-a **separate engine process** runs the jobs.
+the engine is started by the Fox Schema server and runs the jobs in a sandboxed
+child process.
 
 Open **Workflow** from the activity rail or the command palette. Home →
 **Services** still reports the engine. Accounts without `workflow.access` are

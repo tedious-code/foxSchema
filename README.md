@@ -172,9 +172,15 @@ CommonJS at runtime. Requires **Node ≥ 22.5**.
 | `packages/db-db2` | IBM Db2 as an add-on to `packages/db`, so other installs skip the ~59 MB driver |
 | `packages/server` | Fastify HTTP API, feature modules, metadata store |
 | `packages/workflow-engine` | Workflow runtime, stores, built-in pipes |
+| `packages/shared` | Contracts the frontend, server and CLI agree on: permissions, error codes, workflow types |
+| `packages/ui-shared` | The part of `sql` and `features` the web app may import |
 | `apps/web` | React UI + the entry point that serves it (CLI launcher + Docker) |
 | `apps/cli` | `foxschema` CLI, desktop shortcut, TUI |
 | `apps/e2e` | Playwright tests against dockerized databases |
+
+`packages/sql`, `packages/db` and `packages/db-db2` are git submodules (public repos
+`tedious-code/foxschema-{sql,db,db-db2}`); clone with `--recurse-submodules`. See
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 Maintainers: [docs/guides/publish.md](docs/guides/publish.md) · [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md).
 

@@ -1,6 +1,14 @@
 # Restructure plan — splitting the app as it grows
 
-Status: steps 1 and 2 in progress — see Sequencing. Corrections from implementation are
+> **Superseded (2026-11-21).** `packages/core` is gone: it became `@foxschema/sql` +
+> `@foxschema/db`, then #626 split product features into `@foxschema/features` and Db2
+> into `@foxschema/db-db2`, and #627/#628 made sql, db and db-db2 git submodules. The
+> GraphQL transport (step 3) was never built. The "Overlap with FoxFlow" section is
+> history too: FoxAgent/FoxFlow is archived and its engine now runs inside
+> `packages/server` (see [workflow.md](../guides/workflow.md)). Current map:
+> [CODE_MAP.md](../architecture/CODE_MAP.md).
+
+Original status: steps 1 and 2 in progress — see Sequencing. Corrections from implementation are
 marked inline and dated.
 
 ## What the numbers say

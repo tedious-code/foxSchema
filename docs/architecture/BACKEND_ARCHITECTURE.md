@@ -4,8 +4,8 @@ Written for whoever picks this up next, human or agent. It records what the
 backend *is*, why it is that way, and which of the plan's ideas were tried and
 rejected — so the same ground is not re-covered.
 
-Companion to `IMPLEMENTATION_STATE.md` (feature-level handoff) and
-`docs/architecture/ARCHITECTURE.md` (repo layout, dialect system).
+Companion to `docs/architecture/ARCHITECTURE.md` (repo layout, dialect system) and
+`docs/architecture/CODE_MAP.md` (where code lives).
 
 ---
 
@@ -17,14 +17,16 @@ has an equivalent split under different names, enforced by
 
 | Plan | This repo | Contains |
 |---|---|---|
-| `@foxschema/core` | `@foxschema/sql` | Dialect knowledge, compare, SQL generation, access model. **Zero deps, no Node built-ins.** |
-| `@foxschema/database` | `@foxschema/db` | Drivers, pools, connection factory, circuit breaker. Depends on `sql`. |
-| `@foxschema/api` | `packages/server` | HTTP, auth, routes. |
-| `@foxschema/shared` | — | Not separate; shared types live in `sql`. |
+| `core` | `@foxschema/sql` | Dialect knowledge, compare, SQL generation. **Zero deps, no Node built-ins.** |
+| `core` (product features) | `@foxschema/features` | Access model, DBA utilities, backup commands, Lokee Weave, SQL editor helpers. Pure; depends only on `sql`. |
+| `database` | `@foxschema/db` (+ `@foxschema/db-db2` for IBM Db2) | Drivers, pools, connection factory, circuit breaker. Depends on `sql`. |
+| `api` | `packages/server` | HTTP, auth, routes. |
+| `shared` | `@foxschema/shared` | Wire contracts the frontend, server and CLI agree on: permissions, error codes, workflow types. |
 
-**The dependency rule is one-way and tested**: `sql` never imports `db`; the
-frontend imports `sql` only, and importing `db` from the frontend fails the Vite
-build deliberately. Neither package imports Fastify or Express.
+**The dependency rule is one-way and tested**: `sql` never imports `db` or
+`features`; the frontend reaches `sql` and `features` only through
+`@foxschema/ui-shared`, and importing `db` from the frontend fails the Vite
+build deliberately. None of these packages imports Fastify.
 
 Do not "fix" this by renaming packages to match the plan. The names differ; the
 architecture does not.
@@ -120,7 +122,7 @@ Pino, configured in `packages/server/src/platform/logger/logger.ts`.
   banner poll it constantly.
 - Destinations: pretty in dev, JSON stdout in production, JSON file when
   `FOX_LOG_FILE` is set. The file option exists because Fox Schema also ships as
-  a desktop app and a CLI where there is no platform collector. **In containers
+  a CLI, where there is no platform collector. **In containers
   prefer stdout.**
 - Redaction covers `password`, `option.password`, `connectionString`, `token`,
   `secret`, `apiKey`, and auth/cookie headers. Verified by test.

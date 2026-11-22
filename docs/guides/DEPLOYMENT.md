@@ -16,8 +16,8 @@ Maintainers: **[publish.md](publish.md)**.
 
 ### Sign-in + RBAC
 
-Every install requires sign-in with an email and password — Docker, `fox open`
-and the desktop app alike. Roles are `admin` / `editor` / `owner` / `viewer`.
+Every install requires sign-in with an email and password — Docker and the CLI
+(`foxschema` / `fox open`) alike. Roles are `admin` / `editor` / `owner` / `viewer`.
 
 - **First run** shows a setup screen that creates the administrator account. On
   an install that was used before sign-in was required, setup *claims* the
@@ -155,8 +155,8 @@ docker compose -f docker-compose.app.yml up -d
 ### Workflow engine
 
 The workflow engine runs **in the FoxSchema API process**. The browser talks to
-`/api/workflow/engine/*` with a session; public webhook and API-endpoint
-ingress is `/api/hooks/*` and `/api/triggers/*`. Set `FOXFLOW_ENCRYPTION_KEY`
+`/api/workflow/engine/*` with a session; public webhook
+ingress is `/api/hooks/*` (by path) and `/api/triggers/*` (by workflow and trigger id). Set `FOXFLOW_ENCRYPTION_KEY`
 (32 bytes, hex or base64) on the same process — it is **required** and is not
 `APP_ENCRYPTION_KEY`.
 

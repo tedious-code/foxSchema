@@ -120,5 +120,4 @@ packages/db/src/providers/sqlLite/sqlLite.provider.ts
 apps/web/src/frontend/shared/lib/cloud-provider-settings.ts
 apps/web/src/frontend/shared/lib/sql-variables.ts
 apps/web/src/frontend/features/access/lib/password-suggest.ts
-apps/web/src/frontend/features/access/lib/access-draft.ts
 ```

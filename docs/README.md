@@ -2,7 +2,9 @@
 
 One file per topic, in one folder per kind of document. If two pages used to say the same thing, this list names the one to read.
 
-Living documents (guides, architecture, conventions, testing, security) describe the tree as it is. Specs, plans and release notes are history: they record what was proposed and why, and their paths can be stale.
+Living documents (guides, architecture, conventions, testing, security) describe the tree as it is. Specs, plans and release notes are history: they record what was proposed and why, and their paths can be stale. A plan whose design was later replaced says so in a banner at its top.
+
+Not supported, and not documented on purpose: a desktop app (Tauri), Winget, and the separate FoxAgent/FoxFlow engine (archived; its engine runs inside `packages/server`, see [workflow.md](guides/workflow.md)).
 
 ## Where a new document goes
 
@@ -13,7 +15,7 @@ Living documents (guides, architecture, conventions, testing, security) describe
 | [`conventions/`](conventions/) | Rules for writing code here: naming, dependencies, file headers. |
 | [`specs/`](specs/) | Proposals not built yet: what a feature should do and why. A spec moves to `plans/` once work starts. |
 | [`plans/`](plans/) | Implementation plans and schedules, dated `YYYY-MM-DD-topic.md`, with a status line at the top. |
-| [`testing/`](testing/) | How to write and run tests; test plans and their results in `testing/test-plans/`. |
+| [`testing/`](testing/) | How to write and run tests; test plans and their results in `testing/test-plans/`, dated manual test scripts in `testing/manual/`. |
 | [`security/`](security/) | The CI security process and the checklist for every change. |
 | [`releases/`](releases/) | One file per shipped version, plus the summary. Not edited after the version ships. |
 
@@ -57,6 +59,9 @@ Homebrew install steps live only in [install.md](guides/install.md#homebrew-maco
 | Feature folders and how to add one | [FEATURE-MODULE-GUIDE.md](architecture/FEATURE-MODULE-GUIDE.md) |
 | Which feature may import which | [FEATURE-DEPENDENCY-RULES.md](architecture/FEATURE-DEPENDENCY-RULES.md) |
 | Dialect hooks | [packages/sql/src/providers/DIALECTS.md](../packages/sql/src/providers/DIALECTS.md) |
+| What `@foxschema/features` holds | [packages/features/README.md](../packages/features/README.md) |
+| CLI commands and flags | [apps/cli/README.md](../apps/cli/README.md) |
+| How the CLI command, TUI and web component tests are set up | [apps/cli/src/commands/\_\_tests\_\_/README.md](../apps/cli/src/commands/__tests__/README.md), [apps/cli/src/tui/\_\_tests\_\_/README.md](../apps/cli/src/tui/__tests__/README.md), [apps/web/src/frontend/test/README.md](../apps/web/src/frontend/test/README.md) |
 
 `architecture/feature-map.html` is generated: edit `architecture/feature-map/` or `FEATURE_MAP.md`, then run `npm run docs:feature-map`.
 
@@ -73,8 +78,6 @@ Homebrew install steps live only in [install.md](guides/install.md#homebrew-maco
 | Topic | Document |
 | --- | --- |
 | Excel and Google Sheets import | [excel-and-sheets-import.md](specs/excel-and-sheets-import.md) |
-| Schema versioning, revert and history graph | [schema-versioning-and-revert.md](specs/schema-versioning-and-revert.md) |
-| Server Beam: move data between databases with JS + SQL | [server-beam.md](specs/server-beam.md) |
 
 ## Plans and schedules (history)
 
@@ -83,7 +86,8 @@ Finished or in-progress implementation plans. Each starts with its status. Do no
 | Topic | Document |
 | --- | --- |
 | Feature-module schedule | [2026-10-10-feature-architecture.md](plans/2026-10-10-feature-architecture.md) |
-| Package split (the old core package → `@foxschema/sql` + `@foxschema/db`) | [package-split.md](plans/package-split.md) |
+| Package split (the old core package → `@foxschema/sql` + `@foxschema/db`; superseded) | [package-split.md](plans/package-split.md) |
+| Splitting `@foxschema/sql` into sql + features + the Db2 add-on, and the submodules (#626–#628) | [2026-11-21-sql-package-split-review.md](plans/2026-11-21-sql-package-split-review.md) |
 | Backend moved out of the web app; Express removed | [backend-extraction.md](plans/backend-extraction.md) |
 | API layout and the decisions still open | [api-restructure.md](plans/api-restructure.md) |
 | Frontend moved to `app/` + `features/` + `shared/` | [frontend-refactor.md](plans/frontend-refactor.md) |
@@ -95,6 +99,8 @@ Finished or in-progress implementation plans. Each starts with its status. Do no
 | Diff colors and safety gates | [2026-06-30-diff-colors-and-safety-gates.md](plans/2026-06-30-diff-colors-and-safety-gates.md) |
 | Service status on Home (status shipped; start/stop later) | [2026-11-01-service-status.md](plans/2026-11-01-service-status.md) |
 | Safe column change: planner, Utils screen, in-place default, all 14 SQL engines | [2026-11-01-safe-column-change.md](plans/2026-11-01-safe-column-change.md) |
+| Schema versioning, revert and history graph (built as Lokee Weave / Snapshots) | [schema-versioning-and-revert.md](plans/schema-versioning-and-revert.md) |
+| Server Beam: move data between databases with JS + SQL (built, v1) | [server-beam.md](plans/server-beam.md) |
 
 ## Testing
 
@@ -111,6 +117,7 @@ Finished or in-progress implementation plans. Each starts with its status. Do no
 | Feature and dialect test plan, and its first results | [2026-10-25-feature-and-dialect-test-plan.md](testing/test-plans/2026-10-25-feature-and-dialect-test-plan.md), [2026-10-26-feature-and-dialect-test-results.md](testing/test-plans/2026-10-26-feature-and-dialect-test-results.md) |
 | Review features across every engine | [2026-10-06-review-features-test-plan.md](testing/test-plans/2026-10-06-review-features-test-plan.md) |
 | Seed test matrix, and the migration-ordering bugs it found | [2026-07-01-seed-test-matrix.md](testing/test-plans/2026-07-01-seed-test-matrix.md), [2026-07-01-migration-ordering-bugs.md](testing/test-plans/2026-07-01-migration-ordering-bugs.md) |
+| Manual test: Google Cloud secrets and Drop Type | [2026-11-12-manual-test-gcp-and-drop-type.md](testing/manual/2026-11-12-manual-test-gcp-and-drop-type.md) |
 
 ## Security
 

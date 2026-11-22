@@ -1,5 +1,12 @@
 # Server Beam — cross-database data move via JS + SQL
 
+> **Built (v1).** `sql.on('source' / 'target')` in Node code cells, capped at two
+> servers and ten calls (`packages/shared/src/server-beam.ts`), with the Server
+> Beam samples under Bookmarks → Add samples. Living docs:
+> [FEATURE_MAP.md](../architecture/FEATURE_MAP.md) (`editor.code`),
+> [user-guide.md](../guides/user-guide.md#sql-editor). Moved from `specs/` on
+> 2026-11-21; the text below is the design record.
+
 ## Goal
 
 **Server Beam** lets an editor script move data between databases using mixed

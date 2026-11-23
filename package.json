@@ -81,6 +81,7 @@
     "publish:db-db2": "turbo build --filter=@foxschema/db-db2 && node packages/db-db2/scripts/prepare-publish.mjs",
     "publish:features": "turbo build --filter=@foxschema/features && node packages/features/scripts/prepare-publish.mjs",
     "smoke:packed": "node scripts/publish/smoke-packed.mjs",
+    "smoke:cli": "node scripts/publish/smoke-cli.mjs",
     "lint:cached": "turbo lint"
   },
   "engines": {

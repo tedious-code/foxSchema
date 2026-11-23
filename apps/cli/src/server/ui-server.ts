@@ -3,7 +3,13 @@
  * Detached UI server process entry for `foxschema open`.
  * Env (API_PORT, STATIC_DIR, APP_ENCRYPTION_KEY, APP_DB_*) is set by the parent.
  */
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { startUiServer } from '@foxschema/server';
+import { usePackagedSandboxWorker } from '../runtime/sandboxWorker';
+
+// Before the server starts: the workflow engine reads this when it boots.
+usePackagedSandboxWorker(dirname(fileURLToPath(import.meta.url)));
 
 // So Activity Monitor / `ps` / Task Manager “window title” can identify us
 // (Image Name on Windows is still node.exe — see docs).

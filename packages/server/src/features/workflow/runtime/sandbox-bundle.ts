@@ -17,7 +17,6 @@ import { existsSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { threadId } from 'node:worker_threads';
-import { build as esbuildBuild } from 'esbuild';
 import { findRepoRoot } from './sandbox-policy.js';
 
 export const PREBUILT_SANDBOX_BUNDLE_REL = join(
@@ -56,6 +55,11 @@ export async function buildSandboxWorkerBundle(outfile: string): Promise<string>
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- creating parent directory for the workflow sandbox worker bundle
   mkdirSync(dirname(target), { recursive: true });
 
+  // Loaded only when a bundle has to be built. A packaged install (the npm
+  // CLI, the Docker image) ships the worker pre-built, so it never gets here;
+  // the CLI leaves esbuild out of its bundles, where its `__filename` lookup
+  // throws under ESM (that stopped the engine starting in 0.3.34).
+  const { build: esbuildBuild } = await import('esbuild');
   await esbuildBuild({
     entryPoints: [workerEntrySource()],
     bundle: true,

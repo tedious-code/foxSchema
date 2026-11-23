@@ -237,7 +237,10 @@ them on save and re-reads them every **30 seconds**.
   `PRAGMA` overrides. Plugins require a `@sha256:` digest pin, and an
   unexpected sandbox crash triggers automatic respawn with backoff without taking
   down FoxSchema. Production Docker images pre-build `packages/server/dist/workflow-sandbox.worker.mjs`
-  so `node_modules` can stay read-only. Optional operator knobs:
+  so `node_modules` can stay read-only. The npm CLI ships its own pre-built
+  `dist/workflow-sandbox.worker.mjs` beside `ui-server.js` and points
+  `FOXFLOW_SANDBOX_WORKER_BUNDLE` at it unless that is already set; the package
+  carries no esbuild, so it could not build one at startup. Optional operator knobs:
   `FOXFLOW_SANDBOX_MEMORY_MB`, `FOXFLOW_SANDBOX_ENV_ALLOWLIST`,
   `FOXFLOW_SANDBOX_EXTRA_READ_DIRS`, `FOXFLOW_SANDBOX_EXTRA_WRITE_DIRS`,
   `FOXFLOW_SANDBOX_ALLOW_ADDONS=true`, `FOXFLOW_SANDBOX_WORKER_BUNDLE`, and

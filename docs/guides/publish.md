@@ -179,7 +179,16 @@ npm run build -w @foxschema/web
 npm run build -w @foxschema/cli
 node apps/cli/scripts/prepare-publish.mjs
 # inspect apps/cli/npm-pack/ — do not npm publish unless intentional
+npm run smoke:cli
 ```
+
+`npm run smoke:cli` installs the packed CLI into a temp folder the way a user
+does (`npm install -g`), starts it with `foxschema open` in a throwaway HOME,
+and test-runs a workflow. Both release workflows run it before `npm publish`.
+It catches what running from source cannot: in the repo, esbuild and every
+dependency are present, so the server can quietly rebuild whatever the package
+lacks. 0.3.34 shipped with a workflow engine that never started while every
+test passed. It takes about 3 minutes, needs the network, and publishes nothing.
 
 ---
 

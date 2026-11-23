@@ -69,6 +69,13 @@ jobs:
       - name: Prepare npm pack folder
         run: node apps/cli/scripts/prepare-publish.mjs
 
+      # Install the packed CLI as a user would, start it and run a workflow,
+      # before anything is published. Running from source cannot catch a
+      # broken package: 0.3.34 shipped with a workflow engine that never
+      # started while every test passed. See scripts/publish/smoke-cli.mjs.
+      - name: Smoke-test the packed CLI
+        run: npm run smoke:cli
+
       # npm picks up the OIDC credential on its own; there is no env to set.
       # Needs npm >= 11.5.1, which the npm@11 install above satisfies.
       - name: Publish to npm

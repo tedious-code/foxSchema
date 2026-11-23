@@ -21,6 +21,12 @@ const DRIVER_EXTERNAL = [
   '@napi-rs/keyring',
 ];
 
+// Never bundled, and not a dependency of the published package. Bundled into
+// ESM, esbuild's JS API throws `__filename is not defined` the moment it is
+// used; the server only loads it to build the workflow sandbox worker, which
+// this build ships pre-built instead (below).
+const NOT_SHIPPED = ['esbuild'];
+
 // Bundle the CLI to a single ESM file. @foxschema/* TS sources are inlined;
 // native drivers stay external (resolved from node_modules at runtime). The
 // banner shims `require` for any bundled CJS deps.
@@ -49,7 +55,7 @@ await build({
   banner: {
     js: ['import { createRequire as ___cr } from "node:module";', 'const require = ___cr(import.meta.url);'].join('\n'),
   },
-  external: DRIVER_EXTERNAL,
+  external: [...DRIVER_EXTERNAL, ...NOT_SHIPPED],
   define: { __CLI_VERSION__: JSON.stringify(pkg.version) },
   logLevel: 'info',
 });
@@ -68,11 +74,31 @@ await build({
   banner: {
     js: ['import { createRequire as ___cr } from "node:module";', 'const require = ___cr(import.meta.url);'].join('\n'),
   },
-  external: DRIVER_EXTERNAL,
+  external: [...DRIVER_EXTERNAL, ...NOT_SHIPPED],
   logLevel: 'info',
 });
 chmodSync('dist/ui-server.js', 0o755);
 console.log('✔ built dist/ui-server.js');
+
+// The workflow engine's sandbox worker, pre-built so the packaged server never
+// has to build it at startup (src/runtime/sandboxWorker.ts points the server
+// here). Self-contained apart from Node built-ins and the native drivers: the
+// published package installs only its own short dependency list, and the
+// sandbox may read nothing outside the package folder.
+await build({
+  entryPoints: ['../../packages/server/src/features/workflow/runtime/sandbox.worker.ts'],
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  target: 'node22',
+  outfile: 'dist/workflow-sandbox.worker.mjs',
+  banner: {
+    js: ['import { createRequire as ___cr } from "node:module";', 'const require = ___cr(import.meta.url);'].join('\n'),
+  },
+  external: [...DRIVER_EXTERNAL, ...NOT_SHIPPED],
+  logLevel: 'info',
+});
+console.log('✔ built dist/workflow-sandbox.worker.mjs');
 
 // The tui/ sub-bundle — same source, separate output, ESM (tolerates
 // yoga-layout's top-level await), Ink/React resolved from node_modules at
@@ -90,6 +116,7 @@ await build({
   // runtime/ layer.
   external: [
     ...DRIVER_EXTERNAL,
+    ...NOT_SHIPPED,
     'ink',
     'ink-select-input',
     'ink-text-input',

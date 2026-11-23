@@ -62,6 +62,20 @@ export function accountMailServiceUrl(): string | null {
   return raw || DEFAULT_ACCOUNT_MAIL_URL;
 }
 
+/**
+ * Headers for a call to the mail service. A self-hosted relay that defines
+ * `FOXSCHEMA_MAIL_SECRET` refuses requests without the same value in
+ * `X-Foxschema-Mail-Secret`, so `FOX_MAIL_SECRET` sends it. The public
+ * foxschema.com relay takes no secret: every install talks to it.
+ */
+export function mailServiceHeaders(): Record<string, string> {
+  const secret = (process.env.FOX_MAIL_SECRET ?? '').trim();
+  return {
+    'Content-Type': 'application/json',
+    ...(secret ? { 'X-Foxschema-Mail-Secret': secret } : {}),
+  };
+}
+
 /** A link that opens the right page with the code filled in, or '' without a public URL. */
 export function codeLink(publicUrl: string, purpose: PasswordCodePurpose, code: string): string {
   if (!publicUrl) return '';
@@ -191,7 +205,7 @@ export class AuthMailer {
   private async sendThroughService(url: string, purpose: PasswordCodePurpose, issued: IssuedCode, link: string) {
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: mailServiceHeaders(),
       body: JSON.stringify({
         purpose,
         email: issued.email,
@@ -223,7 +237,7 @@ export class AuthMailer {
     }
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: mailServiceHeaders(),
       body: JSON.stringify({ email: issued.email, code: issued.code, expiresAt: issued.expiresAt }),
       signal: AbortSignal.timeout(VERIFY_SERVICE_TIMEOUT_MS),
     });

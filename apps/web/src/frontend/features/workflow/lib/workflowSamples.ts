@@ -9,12 +9,17 @@
  * Test run works once the engine is Enabled. What each sample needs:
  *
  * - Hello records, Orders branch, Regions join: nothing.
- * - SQL CRUD: nothing (SQLite in memory).
- * - The others: internet access (Open-Meteo APIs) and PostgreSQL. Their SQL
- *   steps carry no credential, so they use the POSTGRES_* variables, or in
+ * - Samples whose SQL steps are all SQLite: nothing. A SQLite step with no
+ *   credential uses an in-memory database the whole run shares, so a table one
+ *   step or pipeline writes is there for the next.
+ * - The others: internet access (Open-Meteo APIs), PostgreSQL, or both. Their
+ *   SQL steps carry no credential, so they use the POSTGRES_* variables, or in
  *   development the `docker compose` database (see `connectionFor` in
  *   packages/workflow-engine/src/pipes/db/sql.ts). In production, add a
  *   credential to those steps or set POSTGRES_HOST/USER/PASSWORD.
+ *
+ * packages/workflow-engine/src/workflow-samples.test.ts runs every sample;
+ * the ones that need the internet or PostgreSQL only with FOXFLOW_IT_SAMPLES=1.
  *
  * Re-running a sample updates its rows rather than adding more: every row
  * written carries a stable `id`, and each insert step sets `upsertKey: 'id'`.
@@ -3098,8 +3103,8 @@ return out;`,
             intent: 'Verify line items have positive quantity and amount',
             config: {
               rules: [
-                { field: 'quantity', op: 'greater_than', value: 0 },
-                { field: 'total_amount', op: 'greater_than', value: 0 },
+                { field: 'quantity', op: 'gt', value: 0 },
+                { field: 'total_amount', op: 'gt', value: 0 },
               ],
               onFail: 'drop',
             },
@@ -3113,6 +3118,18 @@ return out;`,
               dialect: 'sqlite',
               mode: 'insert',
               table: 'wf_webhook_sales_lines',
+              // Named, so the verification verdict the step before adds is not written.
+              columns: [
+                'item_id',
+                'order_id',
+                'region',
+                'sku',
+                'category',
+                'quantity',
+                'unit_price',
+                'total_amount',
+                'ingested_at',
+              ],
               upsertKey: 'item_id',
               createTableIfMissing: true,
             },

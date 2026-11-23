@@ -47,6 +47,11 @@ export interface SqlConnection {
   dialect: string;
   schema?: string;
   option: Record<string, unknown>;
+  /**
+   * The workflow run the session is for. An in-memory SQLite database is
+   * shared by the run's steps; without a run, each session gets its own.
+   */
+  runId?: string;
 }
 
 /** One open database session. */
@@ -152,7 +157,14 @@ const BLOCKED_AUTHORIZER_PRAGMAS = new Set([
   'data_store_directory',
 ]);
 
-async function openMemorySqliteSession(): Promise<SqlSession> {
+type MemoryDatabase = import('node:sqlite').DatabaseSync;
+
+/**
+ * An in-memory SQLite database a workflow SQL step may use: defensive mode,
+ * untrusted schema off, and an authorizer that refuses ATTACH/DETACH,
+ * `load_extension` and the pragmas that reach the filesystem or the schema.
+ */
+async function openHardenedMemoryDatabase(): Promise<MemoryDatabase> {
   const sqliteMod = await import('node:sqlite');
   const db = new sqliteMod.DatabaseSync(':memory:', { defensive: true });
   db.exec('PRAGMA trusted_schema = OFF');
@@ -178,45 +190,108 @@ async function openMemorySqliteSession(): Promise<SqlSession> {
       return SQLITE_OK;
     });
   }
+  return db;
+}
+
+/**
+ * The in-memory database of each workflow run that is using one. Every
+ * credential-less SQLite step of a run — across its pipelines — sees the same
+ * database, so a table one step creates is there for the next, the way a
+ * file-backed database would be. Opened on first use, closed by
+ * {@link releaseRunMemoryDatabase} once the run is over.
+ */
+const runMemoryDatabases = new Map<string, Promise<MemoryDatabase>>();
+
+function runMemoryDatabase(runId: string): Promise<MemoryDatabase> {
+  let db = runMemoryDatabases.get(runId);
+  if (!db) {
+    db = openHardenedMemoryDatabase();
+    runMemoryDatabases.set(runId, db);
+    // A failed open is not cached: the next step tries again.
+    const opening = db;
+    opening.catch(() => {
+      if (runMemoryDatabases.get(runId) === opening) runMemoryDatabases.delete(runId);
+    });
+  }
+  return db;
+}
+
+/** Close the in-memory database `runId` used, if it used one. */
+export async function releaseRunMemoryDatabase(runId: string): Promise<void> {
+  const db = runMemoryDatabases.get(runId);
+  if (!db) return;
+  runMemoryDatabases.delete(runId);
+  (await db.catch(() => undefined))?.close();
+}
+
+/** How many runs hold an in-memory database right now (for tests). */
+export function openRunMemoryDatabases(): number {
+  return runMemoryDatabases.size;
+}
+
+/**
+ * A session on an in-memory database. Sessions of one run share the database,
+ * so they go through its gate like sessions on a shared driver handle: a
+ * transaction keeps the run's other steps out until it ends.
+ */
+function memorySqliteSession(db: MemoryDatabase, closeDatabase: boolean): SqlSession {
+  const gate = gateForHandle(db);
+  const session: GateSession = Symbol('sqlite-memory-session');
+  const rollback = () => {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      // Nothing open to roll back.
+    }
+  };
   return {
-    async query(sql, params) {
-      assertSafeSqliteSql(sql);
-      const stmt = db.prepare(sql);
-      const args = params as never[];
-      if (stmt.columns().length > 0) {
-        return stmt.all(...args) as Record<string, unknown>[];
-      }
-      stmt.run(...args);
-      return [];
-    },
+    query: (sql, params) =>
+      gate.run(session, async () => {
+        assertSafeSqliteSql(sql);
+        const stmt = db.prepare(sql);
+        const args = params as never[];
+        if (stmt.columns().length > 0) {
+          return stmt.all(...args) as Record<string, unknown>[];
+        }
+        stmt.run(...args);
+        return [];
+      }),
     async transaction(work) {
-      db.exec('BEGIN');
+      await gate.begin(session, async () => void db.exec('BEGIN'));
       try {
         const result = await work();
         db.exec('COMMIT');
         return result;
       } catch (error) {
-        try {
-          db.exec('ROLLBACK');
-        } catch {
-          // ignore
-        }
+        rollback();
         throw error;
+      } finally {
+        gate.release(session);
       }
     },
     async close() {
-      db.close();
+      if (gate.holds(session)) {
+        rollback();
+        gate.release(session);
+      }
+      if (closeDatabase) db.close();
     },
   };
 }
 
-const foxSchemaDrivers: SqlRunner = async ({ dialect, schema, option }, { dedicated }) => {
+async function openMemorySqliteSession(runId: string | undefined): Promise<SqlSession> {
+  if (runId) return memorySqliteSession(await runMemoryDatabase(runId), false);
+  // Outside a run (a SQL schedule's probe) the database lives as long as the session.
+  return memorySqliteSession(await openHardenedMemoryDatabase(), true);
+}
+
+const foxSchemaDrivers: SqlRunner = async ({ dialect, schema, option, runId }, { dedicated }) => {
   const normalizedDialect = dialect.trim().toLowerCase();
   if (normalizedDialect === 'sqlite' || normalizedDialect === 'duckdb') {
     const target = sqliteTargetFromOption(option);
     assertSafeSqliteTarget(target);
     if (normalizedDialect === 'sqlite' && target === ':memory:') {
-      return openMemorySqliteSession();
+      return openMemorySqliteSession(runId);
     }
   }
   if (sqlRunnerDelegate && NATIVE_ADDON_SQL_DIALECTS.has(normalizedDialect)) {
@@ -317,11 +392,13 @@ async function connectionFor(
   context: PipeContext,
   config: { dialect?: string; schema?: string },
 ): Promise<SqlConnection> {
+  const runId = context.workflowRunId;
   if (!context.pipe.credentialId && config.dialect === 'sqlite') {
     return {
       dialect: 'sqlite',
       ...(config.schema ? { schema: config.schema } : {}),
       option: { database: ':memory:' },
+      runId,
     };
   }
   if (!context.pipe.credentialId && config.dialect === 'postgres') {
@@ -329,10 +406,11 @@ async function connectionFor(
       dialect: 'postgres',
       ...(config.schema ? { schema: config.schema } : {}),
       option: credentiallessPostgresOption(process.env),
+      runId,
     };
   }
   const secret = await requirePipeSecret(context, 'a database credential');
-  return connectionFromSecret(secret, context.pipe.credentialId ?? '', config);
+  return { ...connectionFromSecret(secret, context.pipe.credentialId ?? '', config), runId };
 }
 
 /**
@@ -475,6 +553,11 @@ export class SqlSourcePipe implements SourcePipe {
 
   validateConfig(config: Record<string, unknown>): void {
     sourceConfigSchema.parse(config);
+  }
+
+  /** The run is over: close the in-memory database its SQLite steps shared. */
+  finishRun(workflowRunId: string): Promise<void> {
+    return releaseRunMemoryDatabase(workflowRunId);
   }
 
   async *read(context: PipeContext): AsyncIterable<RecordBatch> {
@@ -1060,6 +1143,11 @@ export class SqlSinkPipe implements SinkPipe {
 
   validateConfig(config: Record<string, unknown>): void {
     sinkConfigSchema.parse(config);
+  }
+
+  /** The run is over: close the in-memory database its SQLite steps shared. */
+  finishRun(workflowRunId: string): Promise<void> {
+    return releaseRunMemoryDatabase(workflowRunId);
   }
 
   async write(batch: RecordBatch, context: PipeContext): Promise<RecordBatch | void> {

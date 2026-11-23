@@ -12,6 +12,8 @@ import type { PipeContext, RecordBatch } from '../../registry/index.js';
 import {
   MappedDbSinkPipe,
   credentiallessPostgresOption,
+  openRunMemoryDatabases,
+  releaseRunMemoryDatabase,
   SqlSinkPipe,
   SqlSourcePipe,
   applyColumnMapping,
@@ -171,7 +173,11 @@ describe('source.db.sql', () => {
       context('source.db.sql', 'source', { sql: 'SELECT 1', dialect: 'mysql' }, { host: 'db', password: 'pw' }),
     );
 
-    expect(opened[0]!.connection).toEqual({ dialect: 'mysql', option: { host: 'db', password: 'pw' } });
+    expect(opened[0]!.connection).toEqual({
+      dialect: 'mysql',
+      option: { host: 'db', password: 'pw' },
+      runId: 'run',
+    });
   });
 
   it('refuses a credential that does not say which database it is for', async () => {
@@ -761,5 +767,85 @@ describe('SQLite sandbox safety in SQL pipes', () => {
         ),
       ).rejects.toThrow(/disabled for security|not authorized/i);
     }
+  });
+});
+
+describe('SQLite steps without a credential', () => {
+  /** A step of `runId` on the in-memory database a credential-less SQLite step uses. */
+  function memoryStep(
+    type: 'source.db.sql' | 'sink.db.sql',
+    config: Record<string, unknown>,
+    runId: string,
+    pipelineId = 'pipeline',
+  ): PipeContext {
+    return {
+      workflowRunId: runId,
+      pipelineId,
+      pipe: {
+        id: type === 'sink.db.sql' ? 'write' : 'read',
+        type,
+        role: type === 'sink.db.sql' ? 'sink' : 'source',
+        config: { dialect: 'sqlite', ...config },
+        concurrency: 1,
+      },
+    };
+  }
+  const read = (sql: string, runId: string, pipelineId?: string) =>
+    collect(new SqlSourcePipe(), memoryStep('source.db.sql', { sql }, runId, pipelineId));
+  const rowsOf = (batches: RecordBatch[]) => batches.flatMap((batch) => batch.records);
+
+  it('share one database across the steps and pipelines of a run', async () => {
+    const sink = new SqlSinkPipe();
+    await sink.write(
+      batchOf([{ id: 1, item: 'kayak' }, { id: 2, item: 'paddle' }]),
+      memoryStep('sink.db.sql', { mode: 'insert', table: 'orders' }, 'run-shared', 'load'),
+    );
+    await read("UPDATE orders SET item = 'canoe' WHERE id = 1", 'run-shared', 'load');
+
+    expect(rowsOf(await read('SELECT id, item FROM orders ORDER BY id', 'run-shared', 'report'))).toEqual([
+      { id: 1, item: 'canoe' },
+      { id: 2, item: 'paddle' },
+    ]);
+    await releaseRunMemoryDatabase('run-shared');
+  });
+
+  it('give each run its own database, closed when the run is over', async () => {
+    const before = openRunMemoryDatabases();
+    await read('CREATE TABLE notes (body TEXT)', 'run-a');
+    await expect(read('SELECT body FROM notes', 'run-b')).rejects.toThrow(/no such table: notes/);
+    expect(openRunMemoryDatabases()).toBe(before + 2);
+
+    await new SqlSourcePipe().finishRun('run-a');
+    await new SqlSinkPipe().finishRun('run-b');
+    expect(openRunMemoryDatabases()).toBe(before);
+    // A run id that comes back starts from nothing.
+    await expect(read('SELECT body FROM notes', 'run-a')).rejects.toThrow(/no such table: notes/);
+    await releaseRunMemoryDatabase('run-a');
+  });
+
+  it('keep concurrent transactions of one run out of each other', async () => {
+    const sink = new SqlSinkPipe();
+    const write = (id: number) =>
+      sink.write(
+        batchOf([{ id, item: `item-${id}` }]),
+        memoryStep('sink.db.sql', { mode: 'insert', table: 'lines', transaction: true }, 'run-concurrent'),
+      );
+    await write(0);
+    await Promise.all([1, 2, 3, 4].map(write));
+
+    expect(rowsOf(await read('SELECT COUNT(*) AS n FROM lines', 'run-concurrent'))).toEqual([{ n: 5 }]);
+    await releaseRunMemoryDatabase('run-concurrent');
+  });
+
+  it('keep the sandbox protections on the shared database', async () => {
+    for (const sql of [
+      "ATTACH DATABASE '/data/foxschema.db' AS meta",
+      "VACUUM INTO '/tmp/escape.sqlite'",
+      "SELECT load_extension('/tmp/evil.so')",
+      'PRAGMA writable_schema = ON',
+    ]) {
+      await expect(read(sql, 'run-hardened')).rejects.toThrow(/disabled for security|not authorized/i);
+    }
+    await releaseRunMemoryDatabase('run-hardened');
   });
 });

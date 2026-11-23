@@ -196,6 +196,32 @@ describe('stageRollback', () => {
     expect(parseManifest(opened(rollback.outputs.get(manifestKey('0.3.26-r3')))).sequence).toBe(3);
   });
 
+  it('keeps rollback versions bounded on repeated rollbacks and long versions', () => {
+    const longVersion = `0.3.26-${'a'.repeat(57)}`; // 64 chars total
+    const first = release(longVersion);
+    const second = release('0.3.27', { distDir: dist({ ...FILES, 'index.html': 'v2' }), published: first.outputs.get(CHANNEL_KEY) });
+    const rb1 = stageRollback({
+      published: second.outputs.get(CHANNEL_KEY),
+      target: first.outputs.get(manifestKey(longVersion)),
+      pinnedKeys: pinned,
+      privateKeyPem: key.pem,
+      now: NOW,
+    });
+    expect(rb1.manifest.version.length).toBeLessThanOrEqual(64);
+    expect(rb1.manifest.version.endsWith('-r3')).toBe(true);
+    expect(parseManifest(opened(rb1.outputs.get(manifestKey(rb1.manifest.version)))).sequence).toBe(3);
+
+    const rb2 = stageRollback({
+      published: rb1.outputs.get(CHANNEL_KEY),
+      target: rb1.outputs.get(manifestKey(rb1.manifest.version)),
+      pinnedKeys: pinned,
+      privateKeyPem: key.pem,
+      now: NOW,
+    });
+    expect(rb2.manifest.version).not.toContain('-r3-r4');
+    expect(rb2.manifest.version.endsWith('-r4')).toBe(true);
+  });
+
   it('refuses a target that is not signed', () => {
     const first = release('0.3.26');
     const target = Buffer.from(JSON.stringify({ payload: 'e30=' }));

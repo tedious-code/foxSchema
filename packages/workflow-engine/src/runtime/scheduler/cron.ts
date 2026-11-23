@@ -61,6 +61,8 @@ export class CronCoordinator {
   private timer?: ReturnType<typeof setTimeout>;
   /** True between start() and stop(); a tick that ends after stop() schedules nothing. */
   private running = false;
+  /** Bumped on start()/stop() so an in-flight tick from an earlier start() cannot re-arm a second chain. */
+  private generation = 0;
   /** SQL schedules whose previous fire is still running, by workflow and trigger. */
   private readonly sqlInFlight = new Set<string>();
   private readonly now: () => Date;
@@ -99,17 +101,19 @@ export class CronCoordinator {
   start(): void {
     if (this.running) return;
     this.running = true;
-    this.schedule(0);
+    const gen = ++this.generation;
+    this.schedule(0, gen);
   }
 
   stop(): void {
     this.running = false;
+    this.generation += 1;
     if (this.timer) clearTimeout(this.timer);
     this.timer = undefined;
   }
 
-  private schedule(delayMs: number): void {
-    if (!this.running) return;
+  private schedule(delayMs: number, gen: number): void {
+    if (!this.running || gen !== this.generation) return;
     this.timer = setTimeout(() => {
       this.timer = undefined;
       void this.process(false)
@@ -120,7 +124,7 @@ export class CronCoordinator {
             return this.pollIntervalMs;
           },
         )
-        .then((delay) => this.schedule(delay));
+        .then((delay) => this.schedule(delay, gen));
     }, delayMs);
     this.timer.unref?.();
   }

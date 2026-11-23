@@ -58,6 +58,32 @@ describe('SharedHandleGate', () => {
     await expect(gate.run(Symbol('b'), async () => 'ran')).resolves.toBe('ran');
   });
 
+  it('waits for an in-flight async query before another session calls BEGIN', async () => {
+    const gate = new SharedHandleGate();
+    const a = Symbol('a');
+    const b = Symbol('b');
+    const order: string[] = [];
+    let finishQuery!: () => void;
+    const running = new Promise<void>((resolve) => {
+      finishQuery = resolve;
+    });
+
+    const aQuery = gate.run(a, async () => {
+      order.push('a:start');
+      await running;
+      order.push('a:end');
+    });
+    await tick();
+    const bBegin = gate.begin(b, async () => void order.push('b:begin'));
+    await tick();
+    expect(order).toEqual(['a:start']);
+
+    finishQuery();
+    await Promise.all([aQuery, bBegin]);
+    expect(order).toEqual(['a:start', 'a:end', 'b:begin']);
+    expect(gate.holds(b)).toBe(true);
+  });
+
   it('shares one gate per handle object, and none for a primitive', () => {
     const handle = {};
     expect(gateForHandle(handle)).toBe(gateForHandle(handle));

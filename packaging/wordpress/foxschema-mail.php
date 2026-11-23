@@ -26,7 +26,11 @@
  *   define('FOXSCHEMA_SMTP_PASSWORD', '…');
  * (optional: FOXSCHEMA_SMTP_HOST, FOXSCHEMA_SMTP_PORT, FOXSCHEMA_SMTP_USER).
  * An optional define('FOXSCHEMA_SIGNUP_SECRET', '…') makes /signup require
- * the X-Foxschema-Signup-Secret header.
+ * the X-Foxschema-Signup-Secret header; an optional
+ * define('FOXSCHEMA_MAIL_SECRET', '…') does the same for /verify-email and
+ * /account-email via X-Foxschema-Mail-Secret; and an optional
+ * define('FOXSCHEMA_ALLOWED_LINK_HOSTS', 'fox.example.com,staging.example.com')
+ * restricts reset/invite email links to those hostnames.
  */
 
 if (!defined('ABSPATH')) {
@@ -38,6 +42,7 @@ if (!defined('FOXSCHEMA_MAIL_FROM')) {
 }
 
 define('FOXSCHEMA_MAIL_PER_ADDRESS_HOUR', 5);
+define('FOXSCHEMA_MAIL_PER_ADDRESS_DAY', 15);
 define('FOXSCHEMA_MAIL_PER_IP_HOUR', 30);
 define('FOXSCHEMA_CODE_RE', '/^[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}$/');
 
@@ -95,19 +100,23 @@ function foxschema_archive(string $email, string $kind, string $source = ''): vo
     if ($source !== '') update_post_meta($id, 'fox_source', sanitize_key($source));
 }
 
-/** Whether another send is allowed: per address and per client IP, per hour. */
+/** Whether another send is allowed: fixed UTC hour/day buckets per address and IP. */
 function foxschema_rate_ok(string $email): bool
 {
     $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+    $hour = gmdate('YmdH');
+    $day = gmdate('Ymd');
+    $addrHash = md5(strtolower($email));
     $checks = [
-        ['fxm_e_' . md5(strtolower($email)), FOXSCHEMA_MAIL_PER_ADDRESS_HOUR],
-        ['fxm_i_' . md5($ip), FOXSCHEMA_MAIL_PER_IP_HOUR],
+        ['fxm_eh_' . $hour . '_' . $addrHash, FOXSCHEMA_MAIL_PER_ADDRESS_HOUR, HOUR_IN_SECONDS],
+        ['fxm_ed_' . $day . '_' . $addrHash, FOXSCHEMA_MAIL_PER_ADDRESS_DAY, DAY_IN_SECONDS],
+        ['fxm_ih_' . $hour . '_' . md5($ip), FOXSCHEMA_MAIL_PER_IP_HOUR, HOUR_IN_SECONDS],
     ];
     foreach ($checks as [$key, $max]) {
         if ((int) get_transient($key) >= $max) return false;
     }
-    foreach ($checks as [$key]) {
-        set_transient($key, (int) get_transient($key) + 1, HOUR_IN_SECONDS);
+    foreach ($checks as [$key, $_max, $ttl]) {
+        set_transient($key, (int) get_transient($key) + 1, $ttl);
     }
     return true;
 }
@@ -143,6 +152,10 @@ function foxschema_checked_link($link, string $purpose, string $code): ?array
     $local = in_array($host, ['localhost', '127.0.0.1'], true);
     if (($p['scheme'] ?? '') !== 'https' && !($local && ($p['scheme'] ?? '') === 'http')) return null;
     if (!$local && (filter_var($host, FILTER_VALIDATE_IP) || strpos($host, '.') === false)) return null;
+    if (defined('FOXSCHEMA_ALLOWED_LINK_HOSTS') && FOXSCHEMA_ALLOWED_LINK_HOSTS !== '') {
+        $allowed = array_filter(array_map('trim', explode(',', strtolower(FOXSCHEMA_ALLOWED_LINK_HOSTS))));
+        if (!in_array($host, $allowed, true)) return null;
+    }
     if (($p['fragment'] ?? '') !== $purpose . '=' . $code) return null;
     return ['url' => $link, 'host' => $host . (isset($p['port']) ? ':' . (int) $p['port'] : '')];
 }
@@ -233,6 +246,11 @@ add_action('phpmailer_init', function ($mailer) {
 /** Shared checks for the code routes; a WP_Error or the clean fields. */
 function foxschema_code_request(WP_REST_Request $req, string $purpose)
 {
+    if (defined('FOXSCHEMA_MAIL_SECRET') && FOXSCHEMA_MAIL_SECRET !== '') {
+        if (!hash_equals(FOXSCHEMA_MAIL_SECRET, (string) $req->get_header('x-foxschema-mail-secret'))) {
+            return new WP_Error('forbidden', 'Forbidden.', ['status' => 403]);
+        }
+    }
     $email = trim((string) $req->get_param('email'));
     $code = strtoupper(trim((string) $req->get_param('code')));
     if (!is_email($email) || strlen($email) > 254) return new WP_Error('invalid_email', 'Not an email address.', ['status' => 400]);

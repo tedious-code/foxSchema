@@ -23,8 +23,16 @@ describe('troubleshoot', () => {
     ['Unexpected token < in JSON at position 0', 'bad-response'],
     ['The operation was aborted due to timeout', 'timeout'],
     ["TypeError: Cannot read properties of undefined (reading 'email')", 'script'],
+    ['record failed verification: score failed gte', 'verify'],
+    ['file path /etc/passwd is outside the workflow files directory', 'sandbox'],
+    ['HTTP request refused: file: is not allowed', 'sandbox'],
   ])('matches %s', (error, id) => {
     expect(ids(error)).toContain(id);
+  });
+
+  it('does not misclassify unrelated "must be" or sandbox lifecycle errors', () => {
+    expect(ids('records[0] must be a JSON object')).toEqual(['generic']);
+    expect(ids('Workflow sandbox exited before responding')).toEqual(['generic']);
   });
 
   it('sends a pipe that was only stopped to the pipe that failed', () => {

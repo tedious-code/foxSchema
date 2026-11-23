@@ -26,6 +26,7 @@ export type GateSession = symbol;
 
 export class SharedHandleGate {
   private owner: GateSession | undefined;
+  private activeRuns = 0;
   private waiters: Array<() => void> = [];
 
   private taken(session: GateSession): boolean {
@@ -36,6 +37,11 @@ export class SharedHandleGate {
     return new Promise<void>((resolve) => this.waiters.push(resolve));
   }
 
+  private wakeAll(): void {
+    const waiting = this.waiters.splice(0);
+    for (const wake of waiting) wake();
+  }
+
   // The wait loops are inlined on purpose. Waiting in a separate async helper
   // adds a microtask between "the handle is free" and acting on it, and every
   // waiter woken by one release would see it free in that gap.
@@ -43,15 +49,26 @@ export class SharedHandleGate {
   /** Runs one statement, outside any other session's transaction. */
   async run<T>(session: GateSession, work: () => Promise<T>): Promise<T> {
     while (this.taken(session)) await this.wait();
-    return work();
+    if (this.owner === session) return work();
+    this.activeRuns += 1;
+    try {
+      return await work();
+    } finally {
+      this.activeRuns -= 1;
+      if (this.activeRuns === 0 && this.owner === undefined) {
+        this.wakeAll();
+      }
+    }
   }
 
   /**
    * Takes the handle for `session` and starts its transaction with `begin`.
-   * The handle stays taken until {@link release}; a failed `begin` releases it.
+   * Waits for any in-flight non-transactional statement so an async query
+   * cannot end up inside the new transaction. The handle stays taken until
+   * {@link release}; a failed `begin` releases it.
    */
   async begin(session: GateSession, begin: () => Promise<void>): Promise<void> {
-    while (this.taken(session)) await this.wait();
+    while (this.taken(session) || this.activeRuns > 0) await this.wait();
     // Taken in the same tick the loop saw the handle free.
     this.owner = session;
     try {
@@ -66,8 +83,7 @@ export class SharedHandleGate {
   release(session: GateSession): void {
     if (this.owner !== session) return;
     this.owner = undefined;
-    const waiting = this.waiters.splice(0);
-    for (const wake of waiting) wake();
+    this.wakeAll();
   }
 
   /** Whether `session` holds the handle's transaction right now. */

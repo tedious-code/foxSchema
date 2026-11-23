@@ -287,7 +287,12 @@ export function stageRollback({ published, target, pinnedKeys, privateKeyPem, no
   if (!payload) throw new Error('The release to roll back to is not signed by a pinned key');
   const old = parseManifest(payload);
   const sequence = previous.sequence + 1;
-  const manifest = { ...old, version: `${old.version}-r${sequence}`, sequence, publishedAt: now.toISOString() };
+  const suffix = `-r${sequence}`;
+  // Strip any prior rollback suffix and cap length so repeated rollbacks stay within VERSION's 64-char limit.
+  const base = old.version.replace(/-r\d+$/, '').slice(0, Math.max(1, 64 - suffix.length));
+  const version = `${base}${suffix}`;
+  if (!isValidVersion(version)) throw new Error(`Rollback version "${version}" is invalid`);
+  const manifest = { ...old, version, sequence, publishedAt: now.toISOString() };
   const { channel, outputs } = releaseOutputs({ manifest, previous, now, privateKey, keyId });
   return { manifest, channel, outputs, rolledBackFrom: old.version };
 }

@@ -18,6 +18,23 @@ import type {
  * (Agentic OS Phase E).
  */
 
+export interface FailedPipelineSummary {
+  id: string;
+  pipelineId: string;
+  task?: string;
+  error?: string;
+}
+
+export interface FailedPipeSummary {
+  id: string;
+  pipelineId: string;
+  pipeId: string;
+  name?: string;
+  intent?: string;
+  type?: string;
+  error?: string;
+}
+
 export interface RunFailureSummary {
   runId: string;
   workflowId: string;
@@ -26,21 +43,10 @@ export interface RunFailureSummary {
   workflowPurpose?: string;
   workflowExpectedResult?: string;
   error?: string;
-  failedPipeline?: {
-    id: string;
-    pipelineId: string;
-    task?: string;
-    error?: string;
-  };
-  failedPipe?: {
-    id: string;
-    pipelineId: string;
-    pipeId: string;
-    name?: string;
-    intent?: string;
-    type?: string;
-    error?: string;
-  };
+  failedPipeline?: FailedPipelineSummary;
+  failedPipelines?: FailedPipelineSummary[];
+  failedPipe?: FailedPipeSummary;
+  failedPipes?: FailedPipeSummary[];
   gateSkipped: Array<{
     pipelineId: string;
     error?: string;
@@ -67,8 +73,35 @@ export function buildRunFailureSummary(input: {
 }): RunFailureSummary {
   const { run, workflow, pipelines, pipes, events } = input;
 
-  const failedPipeline = pipelines.find((p) => p.status === 'failed');
-  const failedPipe = pipes.find((p) => p.status === 'failed');
+  const failedPipelines: FailedPipelineSummary[] = pipelines
+    .filter((p) => p.status === 'failed')
+    .map((p) => {
+      const def = workflow?.pipelines.find((cand) => cand.id === p.pipelineId);
+      return {
+        id: p.id,
+        pipelineId: p.pipelineId,
+        ...(def?.task ? { task: def.task } : {}),
+        ...(p.error ? { error: p.error } : {}),
+      };
+    });
+  const failedPipeline = failedPipelines[0];
+
+  const failedPipes: FailedPipeSummary[] = pipes
+    .filter((p) => p.status === 'failed')
+    .map((p) => {
+      const pipelineDef = workflow?.pipelines.find((cand) => cand.id === p.pipelineId);
+      const pipeDef = pipelineDef?.pipes.find((cand) => cand.id === p.pipeId);
+      return {
+        id: p.id,
+        pipelineId: p.pipelineId,
+        pipeId: p.pipeId,
+        ...(pipeDef?.name ? { name: pipeDef.name } : {}),
+        ...(pipeDef?.intent ? { intent: pipeDef.intent } : {}),
+        ...(pipeDef?.type ? { type: pipeDef.type } : {}),
+        ...(p.error ? { error: p.error } : {}),
+      };
+    });
+  const failedPipe = failedPipes[0];
   const gateSkipped = pipelines
     .filter((p) => p.status === 'skipped')
     .map((p) => ({
@@ -106,17 +139,6 @@ export function buildRunFailureSummary(input: {
     if (typeof bag.outputTokens === 'number') outputTokens += bag.outputTokens;
   }
 
-  const pipelineDef = failedPipeline
-    ? workflow?.pipelines.find((p) => p.id === failedPipeline.pipelineId)
-    : undefined;
-  const failedPipePipeline = failedPipe
-    ? workflow?.pipelines.find((p) => p.id === failedPipe.pipelineId)
-    : undefined;
-  const pipeDef =
-    failedPipe && failedPipePipeline
-      ? failedPipePipeline.pipes.find((p) => p.id === failedPipe.pipeId)
-      : undefined;
-
   return {
     runId: run.id,
     workflowId: run.workflowId,
@@ -127,29 +149,10 @@ export function buildRunFailureSummary(input: {
       ? { workflowExpectedResult: workflow.expectedResult }
       : {}),
     ...(run.error ? { error: run.error } : {}),
-    ...(failedPipeline
-      ? {
-          failedPipeline: {
-            id: failedPipeline.id,
-            pipelineId: failedPipeline.pipelineId,
-            ...(pipelineDef?.task ? { task: pipelineDef.task } : {}),
-            ...(failedPipeline.error ? { error: failedPipeline.error } : {}),
-          },
-        }
-      : {}),
-    ...(failedPipe
-      ? {
-          failedPipe: {
-            id: failedPipe.id,
-            pipelineId: failedPipe.pipelineId,
-            pipeId: failedPipe.pipeId,
-            ...(pipeDef?.name ? { name: pipeDef.name } : {}),
-            ...(pipeDef?.intent ? { intent: pipeDef.intent } : {}),
-            ...(pipeDef?.type ? { type: pipeDef.type } : {}),
-            ...(failedPipe.error ? { error: failedPipe.error } : {}),
-          },
-        }
-      : {}),
+    ...(failedPipeline ? { failedPipeline } : {}),
+    ...(failedPipelines.length > 1 ? { failedPipelines } : {}),
+    ...(failedPipe ? { failedPipe } : {}),
+    ...(failedPipes.length > 1 ? { failedPipes } : {}),
     gateSkipped,
     aiFailovers,
     ...(inputTokens > 0 || outputTokens > 0

@@ -1730,7 +1730,7 @@ function Designer() {
         )}
         {view === 'credentials' && <CredentialsPanel credentials={credentials} onChange={refreshCredentials} />}
         {view === 'runs' && <RunsPanel runs={runs} onRefresh={refreshRuns} />}
-        {view === 'workflows' && (
+        {(view === 'workflows' || (view === 'logs' && !logsWorkflowId)) && (
           <WorkflowsPanel
             currentId={workflowId}
             onOpen={openWorkflow}

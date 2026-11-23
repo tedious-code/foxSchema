@@ -382,6 +382,41 @@ describe('CronCoordinator', () => {
       stores.close();
     });
 
+    it('stop() followed by start() during an in-flight tick does not create duplicate chains', async () => {
+      const stores = openSqliteStores(':memory:', randomBytes(32));
+      let releaseFirst!: () => void;
+      const firstGate = new Promise<void>((resolve) => {
+        releaseFirst = resolve;
+      });
+      let calls = 0;
+      const workflows = Object.create(stores.workflows) as typeof stores.workflows;
+      workflows.list = async () => {
+        calls += 1;
+        if (calls === 1) await firstGate;
+        return [];
+      };
+      const coordinator = new CronCoordinator({
+        workflows,
+        schedules: stores.schedules,
+        scheduler: { enqueue: async () => undefined },
+        now: () => new Date(),
+      });
+
+      coordinator.start();
+      await vi.advanceTimersByTimeAsync(0);
+      coordinator.stop();
+      coordinator.start();
+      await vi.advanceTimersByTimeAsync(0);
+      releaseFirst();
+      await vi.advanceTimersByTimeAsync(0);
+
+      // Only the second generation's single timer should be active.
+      expect(vi.getTimerCount()).toBe(1);
+      coordinator.stop();
+      expect(vi.getTimerCount()).toBe(0);
+      stores.close();
+    });
+
     it('a failing tick reports and retries at the poll interval', async () => {
       const stores = openSqliteStores(':memory:', randomBytes(32));
       const errors: unknown[] = [];

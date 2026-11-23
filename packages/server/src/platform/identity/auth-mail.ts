@@ -75,7 +75,7 @@ function message(purpose: PasswordCodePurpose, issued: IssuedCode, link: string,
   const open = link
     ? `Open this link to ${purpose === 'reset' ? 'choose a new password' : 'choose your password'}:\n\n  ${link}\n\nOr `
     : '';
-  const step = purpose === 'reset' ? '"Forgot password?" → "I have a code"' : '"I have an invite code"';
+  const step = purpose === 'reset' ? '"Forgot password?" → "I have a code"' : '"Have an invite or reset code?"';
   const subject = purpose === 'reset' ? 'Reset your Fox password' : "You're invited to Fox";
   const intro =
     purpose === 'reset'

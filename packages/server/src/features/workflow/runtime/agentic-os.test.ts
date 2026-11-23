@@ -221,4 +221,33 @@ describe('buildRunFailureSummary', () => {
     });
     expect(summary.aiUsage).toEqual({ inputTokens: 10, outputTokens: 0 });
   });
+
+  it('lists all failed pipes and pipelines when parallel branches fail', () => {
+    const workflow = sampleWorkflow();
+    const summary = buildRunFailureSummary({
+      run: {
+        id: 'run-2',
+        workflowId: workflow.id,
+        workflowVersion: 2,
+        status: 'failed',
+        trigger: 'manual',
+        startedAt: '2026-01-01T00:00:00.000Z',
+        error: 'branch 1 failed',
+        instanceId: 'local',
+      },
+      workflow,
+      pipelines: [
+        { id: 'pr1', workflowRunId: 'run-2', pipelineId: 'enrich', status: 'failed', error: 'err 1' },
+        { id: 'pr2', workflowRunId: 'run-2', pipelineId: 'notify', status: 'failed', error: 'err 2' },
+      ],
+      pipes: [
+        { id: 'pp1', workflowRunId: 'run-2', pipelineId: 'enrich', pipeId: 'ai', status: 'failed', attempt: 1, processedBatches: 0, processedRecords: 0, error: 'err 1' },
+        { id: 'pp2', workflowRunId: 'run-2', pipelineId: 'notify', pipeId: 'send', status: 'failed', attempt: 1, processedBatches: 0, processedRecords: 0, error: 'err 2' },
+      ],
+      events: [],
+    });
+
+    expect(summary.failedPipelines?.map((p) => p.pipelineId)).toEqual(['enrich', 'notify']);
+    expect(summary.failedPipes?.map((p) => p.pipeId)).toEqual(['ai', 'send']);
+  });
 });

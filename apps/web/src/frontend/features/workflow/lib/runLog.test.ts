@@ -38,6 +38,7 @@ describe('run log', () => {
   it('formats durations for a reader', () => {
     expect(formatDuration(248)).toBe('248 ms');
     expect(formatDuration(2_400)).toBe('2.4 s');
+    expect(formatDuration(119_600)).toBe('2 m 00 s');
     expect(formatDuration(185_000)).toBe('3 m 05 s');
     expect(formatDuration(undefined)).toBe('');
   });

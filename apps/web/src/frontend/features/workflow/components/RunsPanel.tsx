@@ -53,6 +53,8 @@ const STACKED_LAYOUT = '(max-width: 960px)';
 const STATUS_FILTERS = ['all', 'failed', 'succeeded', 'running', 'queued', 'paused', 'cancelled', 'interrupted'] as const;
 
 function FailureSummaryCard({ summary }: { summary: RunFailureSummary }) {
+  const failedPipelines = summary.failedPipelines ?? (summary.failedPipeline ? [summary.failedPipeline] : []);
+  const failedPipes = summary.failedPipes ?? (summary.failedPipe ? [summary.failedPipe] : []);
   return (
     <div className="run-failure-summary">
       <h4>{summary.status === 'failed' ? 'Failure summary' : 'Summary'}</h4>
@@ -62,21 +64,21 @@ function FailureSummaryCard({ summary }: { summary: RunFailureSummary }) {
         </p>
       )}
       {summary.error && <p className="field-error">{summary.error}</p>}
-      {summary.failedPipeline && (
-        <p>
-          Pipeline <code>{summary.failedPipeline.pipelineId}</code>
-          {summary.failedPipeline.task ? ` (${summary.failedPipeline.task})` : ''}
-          {summary.failedPipeline.error ? ` — ${summary.failedPipeline.error}` : ''}
+      {failedPipelines.map((fp) => (
+        <p key={fp.id}>
+          Pipeline <code>{fp.pipelineId}</code>
+          {fp.task ? ` (${fp.task})` : ''}
+          {fp.error ? ` — ${fp.error}` : ''}
         </p>
-      )}
-      {summary.failedPipe && (
-        <p>
-          Pipe <code>{summary.failedPipe.name || summary.failedPipe.pipeId}</code>
-          {summary.failedPipe.intent ? ` — ${summary.failedPipe.intent}` : ''}
-          {summary.failedPipe.type ? ` [${summary.failedPipe.type}]` : ''}
-          {summary.failedPipe.error ? `: ${summary.failedPipe.error}` : ''}
+      ))}
+      {failedPipes.map((fp) => (
+        <p key={fp.id}>
+          Pipe <code>{fp.name || fp.pipeId}</code>
+          {fp.intent ? ` — ${fp.intent}` : ''}
+          {fp.type ? ` [${fp.type}]` : ''}
+          {fp.error ? `: ${fp.error}` : ''}
         </p>
-      )}
+      ))}
       {summary.gateSkipped.length > 0 && (
         <p>
           Gate skipped:{' '}
@@ -200,12 +202,16 @@ export function RunsPanel({ runs, onRefresh }: { runs: RunRecord[]; onRefresh: (
       setEvents((current) => (event.seq > (current.at(-1)?.seq ?? 0) ? [...current, event] : current));
       if (event.type === 'run.status') {
         void api.getRun(selectedId).then(setDetail).catch(() => undefined);
+        void api.getRunFailure(selectedId).then(setFailure).catch(() => undefined);
       }
     };
     source.onerror = () => setLive(false);
     // The engine sends `end` once the run has finished and every event is out.
     // Left open, an EventSource would reconnect and replay the run from seq 0.
-    source.addEventListener(RUN_STREAM_END_EVENT, () => source.close());
+    source.addEventListener(RUN_STREAM_END_EVENT, () => {
+      source.close();
+      setLive(false);
+    });
     return () => source.close();
   }, [selectedId, live, loadedFor, streamAfter]);
 
@@ -213,7 +219,13 @@ export function RunsPanel({ runs, onRefresh }: { runs: RunRecord[]; onRefresh: (
     <div className="runs">
       <div className="mb-3 flex flex-wrap items-center gap-2.5">
         <h3 className="m-0">Runs</h3>
-        <Button size="sm" onClick={onRefresh}>
+        <Button
+          size="sm"
+          onClick={() => {
+            onRefresh();
+            if (selectedId) setReloadTick((n) => n + 1);
+          }}
+        >
           <RefreshCw />
           Refresh
         </Button>

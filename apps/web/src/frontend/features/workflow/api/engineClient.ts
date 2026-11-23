@@ -96,6 +96,23 @@ export interface RunDetail extends RunRecord {
   }>;
 }
 
+export interface FailedPipelineSummary {
+  id: string;
+  pipelineId: string;
+  task?: string;
+  error?: string;
+}
+
+export interface FailedPipeSummary {
+  id: string;
+  pipelineId: string;
+  pipeId: string;
+  name?: string;
+  intent?: string;
+  type?: string;
+  error?: string;
+}
+
 export interface RunFailureSummary {
   runId: string;
   workflowId: string;
@@ -104,21 +121,10 @@ export interface RunFailureSummary {
   workflowPurpose?: string;
   workflowExpectedResult?: string;
   error?: string;
-  failedPipeline?: {
-    id: string;
-    pipelineId: string;
-    task?: string;
-    error?: string;
-  };
-  failedPipe?: {
-    id: string;
-    pipelineId: string;
-    pipeId: string;
-    name?: string;
-    intent?: string;
-    type?: string;
-    error?: string;
-  };
+  failedPipeline?: FailedPipelineSummary;
+  failedPipelines?: FailedPipelineSummary[];
+  failedPipe?: FailedPipeSummary;
+  failedPipes?: FailedPipeSummary[];
   gateSkipped: Array<{ pipelineId: string; error?: string }>;
   aiFailovers: Array<{
     at: string;

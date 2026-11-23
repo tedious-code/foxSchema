@@ -1076,12 +1076,12 @@ export class PipelineExecutor {
       type: progressBatch ? 'batch.progress' : 'pipe.status',
       data: progressBatch
         ? {
-            status,
+            status: record.status,
             batchId: progressBatch.id,
             records: progressBatch.records.length,
           }
-        : { status },
-      message: error ? errorMessage(error) : undefined,
+        : { status: record.status },
+      message: settled ? undefined : error ? errorMessage(error) : undefined,
     });
   }
 }

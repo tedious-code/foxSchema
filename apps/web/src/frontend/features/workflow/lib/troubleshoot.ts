@@ -127,7 +127,7 @@ const RULES: Rule[] = [
   },
   {
     id: 'verify',
-    match: /verif(y|ication) failed|rule failed|must be|failed \d+ of \d+ rules?/i,
+    match: /verif(y|ication) failed|failed verification|rule failed|failed \d+ of \d+ rules?/i,
     title: 'A Verify step stopped the run',
     steps: [
       'The Verify step is set to fail the run on a bad row. Its message says which rule failed.',
@@ -145,7 +145,7 @@ const RULES: Rule[] = [
   },
   {
     id: 'sandbox',
-    match: /disabled for security|Refusing to open|not allowed in workflows|sandbox/i,
+    match: /disabled for security|Refusing to open|not allowed in workflows|outside the workflow files|is not allowed|not authorized/i,
     title: 'Fox blocked an unsafe operation',
     steps: [
       'The step tried something workflows may not do (an internal database, ATTACH, a file outside the workflow files folder).',

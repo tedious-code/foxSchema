@@ -914,6 +914,7 @@ describe('pipe run records', () => {
       putPipe: async (record: PipeRunRecord) => void pipeRecords.set(record.pipeId, record),
       listPipes: async () => [...pipeRecords.values()],
     } as unknown as RunStore;
+    const events = new MemoryEvents();
     const fast: SourcePipe = {
       type: 'test.fast',
       role: 'source',
@@ -941,7 +942,7 @@ describe('pipe run records', () => {
         await slowWrite;
       },
     };
-    const executor = new PipelineExecutor({ registry: new PipeRegistry([fast, slow, sink]), runs });
+    const executor = new PipelineExecutor({ registry: new PipeRegistry([fast, slow, sink]), runs, events });
 
     await expect(
       executor.execute(
@@ -966,6 +967,8 @@ describe('pipe run records', () => {
     const stage = pipeRecords.get('stage');
     expect(stage?.status).toBe('failed');
     expect(stage?.error).toBe('cannot start a transaction within a transaction');
+    const stageEvents = events.events.filter((e) => e.pipeId === 'stage');
+    expect(stageEvents.some((e) => e.data?.status === 'success')).toBe(false);
   });
 
   it('lets a resumed run succeed a pipe the interrupted run left cancelled', async () => {

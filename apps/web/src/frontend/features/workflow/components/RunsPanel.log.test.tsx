@@ -6,7 +6,7 @@
  * Finding a failed run and reading why: the list filters, the Error column,
  * and the event log narrowed to errors and warnings.
  */
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAuthStore } from '@/platform/authStore';
 
@@ -30,10 +30,14 @@ const okRun = {
   finishedAt: '2026-11-22T05:25:19.471Z',
 };
 
+const getRunMock = vi.hoisted(() => vi.fn());
+const getRunFailureMock = vi.hoisted(() => vi.fn());
+const streamRunEventsMock = vi.hoisted(() => vi.fn());
+
 vi.mock('../api/engineClient', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/engineClient')>()),
   api: {
-    getRun: vi.fn(async () => ({ ...failedRun, pipes: [], pipelines: [] })),
+    getRun: getRunMock,
     listRunEvents: vi.fn(async () => ({
       events: [
         { seq: 1, workflowRunId: failedRun.id, at: failedRun.startedAt, type: 'run.status', data: { status: 'running' } },
@@ -49,8 +53,8 @@ vi.mock('../api/engineClient', async (importOriginal) => ({
         },
       ],
     })),
-    getRunFailure: vi.fn(async () => ({ runId: failedRun.id, status: 'failed', gateSkipped: [], aiFailovers: [] })),
-    streamRunEvents: vi.fn(),
+    getRunFailure: getRunFailureMock,
+    streamRunEvents: streamRunEventsMock,
     getRunInputs: vi.fn(),
   },
 }));
@@ -59,6 +63,9 @@ import { RunsPanel } from './RunsPanel';
 
 describe('Runs panel log', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    getRunMock.mockImplementation(async () => ({ ...failedRun, pipes: [], pipelines: [] }));
+    getRunFailureMock.mockImplementation(async () => ({ runId: failedRun.id, status: 'failed', gateSkipped: [], aiFailovers: [] }));
     useAuthStore.setState({
       user: { id: 'u1', email: 'u1@x.test', role: 'admin', permissions: ['workflow.access', 'workflow.run'] } as never,
     });
@@ -93,5 +100,39 @@ describe('Runs panel log', () => {
     const narrowed = screen.getByTestId('workflow-runs-event-log');
     expect(narrowed.querySelectorAll('.event-row')).toHaveLength(1);
     expect(narrowed.textContent).toContain('cannot start a transaction within a transaction');
+  });
+
+  it('reloads selected run details on Refresh and updates failure summary on live run.status', async () => {
+    const fakeSource = {
+      onmessage: null as ((msg: { data: string }) => void) | null,
+      onerror: null as (() => void) | null,
+      addEventListener: vi.fn(),
+      close: vi.fn(),
+    };
+    streamRunEventsMock.mockReturnValue(fakeSource);
+    const onRefresh = vi.fn();
+    const { container } = render(<RunsPanel runs={[failedRun]} onRefresh={onRefresh} />);
+
+    fireEvent.click(container.querySelector('tbody tr')!);
+    await screen.findByTestId('workflow-runs-event-log');
+    expect(getRunFailureMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: /Refresh/i }));
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(getRunFailureMock).toHaveBeenCalledTimes(2));
+
+    fireEvent.click(screen.getByTestId('workflow-runs-live'));
+    expect(streamRunEventsMock).toHaveBeenCalledTimes(1);
+    fakeSource.onmessage?.({
+      data: JSON.stringify({
+        seq: 21,
+        workflowRunId: failedRun.id,
+        at: failedRun.finishedAt,
+        type: 'run.status',
+        data: { status: 'failed' },
+      }),
+    });
+    await waitFor(() => expect(getRunFailureMock).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(getRunMock).toHaveBeenCalledTimes(3));
   });
 });

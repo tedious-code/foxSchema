@@ -8,13 +8,15 @@
  * Opened from the Workflows list.
  */
 import { ArrowLeft, Download, PlayCircle, RefreshCw } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, type RunEvent, type RunFailureSummary, type RunRecord } from '../api/engineClient';
 import { useWorkflows } from '../api/engineQueries';
 import { downloadFile, formatDuration, runDuration, runLogText } from '../lib/runLog';
 import { troubleshoot } from '../lib/troubleshoot';
 import { Button } from './controls';
 import { EventLog } from './EventLog';
+
+const RUNS_LIMIT = 200;
 
 const FILTERS = [
   { id: 'all', label: 'All' },
@@ -33,7 +35,8 @@ function matches(filter: Filter, run: RunRecord): boolean {
 function median(values: number[]): number | undefined {
   if (values.length === 0) return undefined;
   const sorted = [...values].sort((a, b) => a - b);
-  return sorted[Math.floor(sorted.length / 2)];
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1]! + sorted[mid]!) / 2;
 }
 
 export function WorkflowLogPanel({
@@ -121,7 +124,7 @@ export function WorkflowLogPanel({
           <div className="log-stats" data-testid="workflow-logs-stats">
             <div>
               <strong>{stats.total}</strong>
-              <span>{stats.total === 1 ? 'run' : 'runs'}</span>
+              <span>{stats.total >= RUNS_LIMIT ? `runs (latest ${RUNS_LIMIT})` : stats.total === 1 ? 'run' : 'runs'}</span>
             </div>
             <div className={stats.failed > 0 ? 'bad' : undefined}>
               <strong>{stats.failed}</strong>
@@ -171,7 +174,7 @@ export function WorkflowLogPanel({
           ) : (
             <ol className="log-runs">
               {shown.map((run) => (
-                <RunLogEntry key={run.id} run={run} defaultOpen={run.id === openFirst} />
+                <RunLogEntry key={run.id} run={run} defaultOpen={run.id === openFirst} reloadTick={reloadTick} />
               ))}
             </ol>
           )}
@@ -182,19 +185,24 @@ export function WorkflowLogPanel({
 }
 
 /** One run in the log; loads its failure and events when opened. */
-function RunLogEntry({ run, defaultOpen }: { run: RunRecord; defaultOpen: boolean }) {
-  const [open, setOpen] = useState(defaultOpen);
+function RunLogEntry({ run, defaultOpen, reloadTick }: { run: RunRecord; defaultOpen: boolean; reloadTick: number }) {
+  const [manualOpen, setManualOpen] = useState<boolean | null>(null);
+  const open = manualOpen ?? defaultOpen;
+  const loadedTickRef = useRef<number | null>(null);
   const [failure, setFailure] = useState<RunFailureSummary | null>(null);
   const [events, setEvents] = useState<RunEvent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [allEvents, setAllEvents] = useState(run.status !== 'failed');
 
   useEffect(() => {
-    if (!open || events !== null) return;
+    if (!open) return;
+    if (events !== null && loadedTickRef.current === reloadTick) return;
     let cancelled = false;
     Promise.all([api.getRunFailure(run.id), api.listRunEvents(run.id)])
       .then(([summary, page]) => {
         if (cancelled) return;
+        loadedTickRef.current = reloadTick;
+        setError(null);
         setFailure(summary);
         setEvents(page.events);
       })
@@ -204,16 +212,23 @@ function RunLogEntry({ run, defaultOpen }: { run: RunRecord; defaultOpen: boolea
     return () => {
       cancelled = true;
     };
-  }, [open, events, run.id]);
+  }, [open, events, reloadTick, run.id]);
 
   // The step's own error says the most; the run's error is the fallback.
   const cause = failure?.failedPipe?.error ?? failure?.failedPipeline?.error ?? run.error;
   const hints = run.status === 'failed' ? troubleshoot(cause) : [];
   const failedStep = failure?.failedPipe;
+  const extraFailedSteps = (failure?.failedPipes ?? []).slice(1);
 
   return (
     <li className={`log-run ${run.status}`}>
-      <details open={open} onToggle={(ev) => setOpen((ev.currentTarget as HTMLDetailsElement).open)}>
+      <details
+        open={open}
+        onToggle={(ev) => {
+          const next = (ev.currentTarget as HTMLDetailsElement).open;
+          if (next !== open) setManualOpen(next);
+        }}
+      >
         <summary data-testid={`workflow-logs-run-${run.id}`}>
           <span className={`status-pill ${run.status}`}>{run.status}</span>
           <span className="log-run-time">{new Date(run.startedAt).toLocaleString()}</span>
@@ -246,6 +261,11 @@ function RunLogEntry({ run, defaultOpen }: { run: RunRecord; defaultOpen: boolea
                 )}
                 {cause ? <span className="field-error"> — {cause}</span> : null}
               </p>
+              {extraFailedSteps.length > 0 && (
+                <p className="hint">
+                  Also failed: {extraFailedSteps.map((step) => `${step.name || step.pipeId}${step.error ? ` (${step.error})` : ''}`).join('; ')}
+                </p>
+              )}
               {failure && failure.gateSkipped.length > 0 && (
                 <p className="hint">
                   Not run because of it: {failure.gateSkipped.map((item) => item.pipelineId).join(', ')}

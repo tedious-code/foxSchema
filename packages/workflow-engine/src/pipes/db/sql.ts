@@ -254,7 +254,10 @@ const foxSchemaDrivers: SqlRunner = async ({ dialect, schema, option }, { dedica
       }
     },
     close: async () => {
-      gate.release(session);
+      if (gate.holds(session)) {
+        await adapter.rollbackTransaction(handle).catch(() => undefined);
+        gate.release(session);
+      }
       await db.ConnectionFactory.close(dialect, handle);
     },
   };

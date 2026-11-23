@@ -115,6 +115,14 @@ interface PipeBase {
    * (executor maps to pipe `skipped` when supported).
    */
   onError?(error: Error, context: PipeContext): ErrorAction | Promise<ErrorAction>;
+  /**
+   * The run is over: release anything kept for it. A pipe instance serves
+   * every run, so state keyed by run (a file's header already written, a
+   * run's in-memory database) would otherwise grow for as long as the engine
+   * runs. Called once the run is terminal — not when it pauses, since a
+   * resumed run carries on.
+   */
+  finishRun?(workflowRunId: string): void | Promise<void>;
 }
 
 export interface SourcePipe extends PipeBase {
@@ -137,13 +145,6 @@ export interface TransformPipe extends PipeBase {
 export interface SinkPipe extends PipeBase {
   role: 'sink';
   write(batch: RecordBatch, context: PipeContext): Promise<RecordBatch | void>;
-  /**
-   * The run is over: release anything kept for it. A sink instance serves
-   * every run, so state keyed by run (a file's header already written) would
-   * otherwise grow for as long as the engine runs. Called once the run is
-   * terminal — not when it pauses, since a resumed run writes on.
-   */
-  finishRun?(workflowRunId: string): void | Promise<void>;
 }
 
 export type AnyPipe = SourcePipe | TransformPipe | SinkPipe;

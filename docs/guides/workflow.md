@@ -234,7 +234,10 @@ them on save and re-reads them every **30 seconds**.
   `read_text`, `read_csv`, `ATTACH`, and `COPY ... TO/FROM` everywhere except the
   backups folder, `FOX_DUCKDB_BACKUP_DIR`, which the Backup panel exports to) and SQLite sessions
   refuse `ATTACH`, `DETACH`, `VACUUM INTO`, `load_extension()`, and schema-safety
-  `PRAGMA` overrides. Plugins require a `@sha256:` digest pin, and an
+  `PRAGMA` overrides. A SQLite step with no credential (or a `:memory:` one) runs
+  on built-in `node:sqlite` inside the sandbox, on one in-memory database per
+  workflow run: every step and pipeline of the run sees the same tables, and the
+  database is closed when the run ends. Plugins require a `@sha256:` digest pin, and an
   unexpected sandbox crash triggers automatic respawn with backoff without taking
   down FoxSchema. Production Docker images pre-build `packages/server/dist/workflow-sandbox.worker.mjs`
   so `node_modules` can stay read-only. The npm CLI ships its own pre-built

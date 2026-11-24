@@ -145,7 +145,11 @@ const RULES: Rule[] = [
   },
   {
     id: 'sandbox',
-    match: /disabled for security|Refusing to open|not allowed in workflows|outside the workflow files|is not allowed|not authorized/i,
+    // Only the engine's own refusals. A bare "not authorized" is SQLite's
+    // authorizer denying ATTACH, load_extension or a pragma: the whole message,
+    // or the end of a "…: not authorized" one, never "user not authorized".
+    match:
+      /disabled for security|Refusing to open|not allowed in workflows|outside the workflow files|HTTP request refused|(?:^|:\s)not authorized\.?$/im,
     title: 'Fox blocked an unsafe operation',
     steps: [
       'The step tried something workflows may not do (an internal database, ATTACH, a file outside the workflow files folder).',

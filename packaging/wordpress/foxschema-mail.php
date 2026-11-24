@@ -28,7 +28,9 @@
  * An optional define('FOXSCHEMA_SIGNUP_SECRET', '…') makes /signup require
  * the X-Foxschema-Signup-Secret header; an optional
  * define('FOXSCHEMA_MAIL_SECRET', '…') does the same for /verify-email and
- * /account-email via X-Foxschema-Mail-Secret; and an optional
+ * /account-email via X-Foxschema-Mail-Secret, which Fox sends from its
+ * FOX_MAIL_SECRET env var (only for a self-hosted relay: every public
+ * install calls foxschema.com without one); and an optional
  * define('FOXSCHEMA_ALLOWED_LINK_HOSTS', 'fox.example.com,staging.example.com')
  * restricts reset/invite email links to those hostnames.
  */

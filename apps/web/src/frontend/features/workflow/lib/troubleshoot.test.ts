@@ -26,6 +26,10 @@ describe('troubleshoot', () => {
     ['record failed verification: score failed gte', 'verify'],
     ['file path /etc/passwd is outside the workflow files directory', 'sandbox'],
     ['HTTP request refused: file: is not allowed', 'sandbox'],
+    ['HTTP request refused: 127.0.0.1 is not a public address (loopback, link-local, and cloud metadata are blocked)', 'sandbox'],
+    ['not authorized', 'sandbox'],
+    ['Pipe sql failed: not authorized', 'sandbox'],
+    ['SQLite ATTACH and DETACH statements are disabled for security.', 'sandbox'],
   ])('matches %s', (error, id) => {
     expect(ids(error)).toContain(id);
   });
@@ -33,6 +37,16 @@ describe('troubleshoot', () => {
   it('does not misclassify unrelated "must be" or sandbox lifecycle errors', () => {
     expect(ids('records[0] must be a JSON object')).toEqual(['generic']);
     expect(ids('Workflow sandbox exited before responding')).toEqual(['generic']);
+  });
+
+  it.each([
+    'Method is not allowed',
+    'Request failed with status 405: Method Not Allowed',
+    'ERROR: user "fox" is not authorized to access database "sales"',
+    'User not authorized to perform: dynamodb:Scan',
+    'This origin is not allowed to call the Fox Schema API.',
+  ])('does not blame the workflow sandbox for an ordinary error: %s', (error) => {
+    expect(ids(error)).not.toContain('sandbox');
   });
 
   it('sends a pipe that was only stopped to the pipe that failed', () => {

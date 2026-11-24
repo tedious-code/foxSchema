@@ -121,6 +121,7 @@ docker compose -f docker-compose.app.yml up -d
 | `LOCAL_SINGLE_USER` | `true` | Whether this is a personal install (`true`) or a shared server (`false`). Sign-in is required either way; this only decides machine-level actions (installing drivers, self-update, changing the metadata DB, host cloud credentials), which a shared server refuses. |
 | `SIGNUP_WEBHOOK_URL` | `https://foxschema.com/wp-json/foxschema/v1/signup` | Where opt-ins go: the first-open subscriber wizard, and a new account whose owner ticks **Email me Fox news** at sign-up or when accepting an invite (unticked by default; never on a password reset). The default is the Fox sign-up archive on foxschema.com. `off` keeps them on this install. A failure never blocks sign-up. |
 | `SIGNUP_WEBHOOK_SECRET` | — | Optional shared secret sent as `X-Foxschema-Signup-Secret`. |
+| `FOX_MAIL_SECRET` | — | Optional shared secret sent as `X-Foxschema-Mail-Secret` to the mail service (`FOX_VERIFY_MAIL_URL`, `FOX_ACCOUNT_MAIL_URL`). Set it only when you run your own relay with `FOXSCHEMA_MAIL_SECRET` defined; the public foxschema.com relay takes none. See [Fox mail service](#fox-mail-service). |
 | `UPDATE_FEED_URL` | npm `foxschema/latest` | Version check for in-app update toasts. Default is the npm registry. The “What’s new” link opens the matching GitHub Release page. Set `off` to disable. |
 | `APP_VERSION` | from `package.json` | Running version compared against the feed. The CLI sets this from the installed npm package. |
 | `FOXSCHEMA_SELF_UPDATE` | `true` via CLI open | When `true`, UI can run `npm install -g foxschema@latest`. Off in Docker / set `false` to require a manual terminal upgrade. |
@@ -414,6 +415,14 @@ What the endpoint must do, since anyone can call it:
 The address is sent to foxschema.com for delivery and recorded in its sign-up
 list; set `FOX_VERIFY_MAIL_URL=off` (or configure SMTP) for an install that
 must not do that.
+
+A relay you host yourself (point `FOX_VERIFY_MAIL_URL` and
+`FOX_ACCOUNT_MAIL_URL` at it) can refuse callers other than your installs:
+define `FOXSCHEMA_MAIL_SECRET` in its `wp-config.php` and set the same value
+as `FOX_MAIL_SECRET` on each install, which then sends it as
+`X-Foxschema-Mail-Secret`. Defining it on one side only makes every
+verification, reset and invite email fail with `403`. The foxschema.com relay
+cannot use a secret, since every public install calls it.
 
 ### Email for invites and resets
 

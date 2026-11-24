@@ -18,3 +18,8 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # Pinned in one place, IBM_DB_VERSION in the @foxschema/sql submodule, and
+      # in packages/db-db2's manifest (ibm-db-pin.test.ts keeps them equal). A
+      # bump of apps/web alone always fails that test, so bump it by hand there.
+      - dependency-name: ibm_db

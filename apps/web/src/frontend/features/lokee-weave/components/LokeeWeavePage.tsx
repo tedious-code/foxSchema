@@ -854,6 +854,11 @@ export const LokeeWeavePage: React.FC<LokeeWeavePageProps> = ({
                 minZoom={0.35}
                 maxZoom={1.75}
                 defaultViewport={{ x: 24, y: 24, zoom: 1 }}
+                // React Flow 12 drew this canvas light unless told otherwise and
+                // left selected edges under the nodes; 13 changed both defaults.
+                // Keep it as it was.
+                forceColorMode="light"
+                elevateEdgesOnSelect={false}
                 style={{ width: '100%', height: '100%' }}
                 /**
                  * React Flow is plain MIT (see node_modules/@xyflow/react/LICENSE).

@@ -20,11 +20,16 @@ function mailer(publicUrl = '') {
   return new AuthMailer(settings);
 }
 
-const saved = { verify: process.env.FOX_VERIFY_MAIL_URL, account: process.env.FOX_ACCOUNT_MAIL_URL };
+const saved = {
+  verify: process.env.FOX_VERIFY_MAIL_URL,
+  account: process.env.FOX_ACCOUNT_MAIL_URL,
+  secret: process.env.FOX_MAIL_SECRET,
+};
 
 beforeEach(() => {
   delete process.env.FOX_VERIFY_MAIL_URL;
   delete process.env.FOX_ACCOUNT_MAIL_URL;
+  delete process.env.FOX_MAIL_SECRET;
 });
 
 afterEach(() => {
@@ -32,6 +37,7 @@ afterEach(() => {
   for (const [key, value] of [
     ['FOX_VERIFY_MAIL_URL', saved.verify],
     ['FOX_ACCOUNT_MAIL_URL', saved.account],
+    ['FOX_MAIL_SECRET', saved.secret],
   ] as const) {
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
@@ -85,5 +91,30 @@ describe('the Fox mail service for reset and invite codes', () => {
     expect(await m.delivery()).toBe('log');
     expect(await m.send('reset', issued)).toBe('log');
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('the mail service secret', () => {
+  it('sends X-Foxschema-Mail-Secret on verification, reset and invite emails when FOX_MAIL_SECRET is set', async () => {
+    process.env.FOX_MAIL_SECRET = 's3cret';
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    vi.stubGlobal('fetch', fetchSpy);
+    expect(await mailer().sendVerification(issued)).toBe('service');
+    await mailer().send('invite', issued);
+    await mailer().send('reset', issued);
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    for (const [, init] of fetchSpy.mock.calls) {
+      expect(init.headers).toEqual({ 'Content-Type': 'application/json', 'X-Foxschema-Mail-Secret': 's3cret' });
+    }
+  });
+
+  it('sends no secret header by default, which the public relay expects', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    vi.stubGlobal('fetch', fetchSpy);
+    await mailer().sendVerification(issued);
+    await mailer().send('reset', issued);
+    for (const [, init] of fetchSpy.mock.calls) {
+      expect(init.headers).not.toHaveProperty('X-Foxschema-Mail-Secret');
+    }
   });
 });

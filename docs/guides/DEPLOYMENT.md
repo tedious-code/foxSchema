@@ -125,6 +125,7 @@ docker compose -f docker-compose.app.yml up -d
 | `FOX_UI_FEED_URL` | `https://fox-ui.foxschema.workers.dev` | Cloudflare Workers CDN base URL serving `channels/stable.json`, release manifests, and UI packs (`?ui=packaged` falls back to packaged assets). |
 | `FOX_UI_DIR` | beside metadata DB (`ui-bundles`), else `~/.foxschema/ui-bundles` | Cache directory for verified Cloudflare CDN UI bundles. |
 | `FOX_UI_PUBLIC_KEYS` | — | Optional extra pinned Ed25519 signing keys (`id:x,...` or JSON `[{id,x}]`) extending `UI_BUNDLE_PUBLIC_KEYS`. |
+| `FOX_MAIL_SECRET` | — | Optional shared secret sent as `X-Foxschema-Mail-Secret` to the mail service (`FOX_VERIFY_MAIL_URL`, `FOX_ACCOUNT_MAIL_URL`). Set it only when you run your own relay with `FOXSCHEMA_MAIL_SECRET` defined; the public foxschema.com relay takes none. See [Fox mail service](#fox-mail-service). |
 | `UPDATE_FEED_URL` | npm `foxschema/latest` | Version check for in-app update toasts. Default is the npm registry. The “What’s new” link opens the matching GitHub Release page. Set `off` to disable. |
 | `APP_VERSION` | from `package.json` | Running version compared against the feed. The CLI sets this from the installed npm package. |
 | `FOXSCHEMA_SELF_UPDATE` | `true` via CLI open | When `true`, UI can run `npm install -g foxschema@latest`. Off in Docker / set `false` to require a manual terminal upgrade. |
@@ -420,6 +421,14 @@ What the endpoint must do, since anyone can call it:
 The address is sent to foxschema.com for delivery and recorded in its sign-up
 list; set `FOX_VERIFY_MAIL_URL=off` (or configure SMTP) for an install that
 must not do that.
+
+A relay you host yourself (point `FOX_VERIFY_MAIL_URL` and
+`FOX_ACCOUNT_MAIL_URL` at it) can refuse callers other than your installs:
+define `FOXSCHEMA_MAIL_SECRET` in its `wp-config.php` and set the same value
+as `FOX_MAIL_SECRET` on each install, which then sends it as
+`X-Foxschema-Mail-Secret`. Defining it on one side only makes every
+verification, reset and invite email fail with `403`. The foxschema.com relay
+cannot use a secret, since every public install calls it.
 
 ### Email for invites and resets
 

@@ -92,8 +92,23 @@ export const ServiceStatusCard: React.FC = () => {
           label={report ? `Running · ${report.api.version}` : error ? 'No answer' : 'Checking…'}
           tone={report ? 'running' : error ? 'warn' : 'off'}
         />
-        {/* This page loaded, so the Web UI that served it runs. */}
-        <Row id="web" name="Web UI" label="Running" tone="running" />
+        <Row
+          id="web"
+          name="Web UI"
+          label={
+            report?.ui
+              ? `Running · ${report.ui.version} · ${report.ui.source === 'cdn' ? 'Cloudflare CDN' : 'Packaged'}`
+              : 'Running'
+          }
+          tone="running"
+          detail={
+            report?.ui?.pendingVersion
+              ? `Update ${report.ui.pendingVersion} staged — restart to switch.`
+              : report?.ui?.lastError
+                ? `UI update check failed: ${report.ui.lastError}`
+                : undefined
+          }
+        />
         <Row
           id="engine"
           name="Workflow engine"

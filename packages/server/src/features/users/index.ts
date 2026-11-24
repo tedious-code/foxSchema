@@ -9,7 +9,13 @@ import { createSignupRoutes } from './signup-wizard.routes';
 import { createUserRoutes } from './user.routes';
 import { UserModule } from './user.service';
 
-export { SignupModule } from './signup-wizard.service';
+export {
+  DEFAULT_CLOUDFLARE_SIGNUP_URL,
+  DEFAULT_SIGNUP_WEBHOOK_URL,
+  SignupModule,
+  type SignupRecord,
+  type SignupRemoteStatus,
+} from './signup-wizard.service';
 
 export const usersFeature: ServerFeatureModule = {
   id: 'users',

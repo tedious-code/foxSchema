@@ -4,7 +4,13 @@ process.env.APP_DB_PATH = ':memory:';
 process.env.APP_ENCRYPTION_KEY = '0'.repeat(64);
 
 import { AppSettingsStore } from '../../platform/settings/app-settings.service';
-import { DEFAULT_SIGNUP_WEBHOOK_URL, SignupModule } from './signup-wizard.service';
+import { getStore } from '../../database/store';
+import {
+  DEFAULT_CLOUDFLARE_SIGNUP_URL,
+  DEFAULT_SIGNUP_WEBHOOK_URL,
+  SignupModule,
+  signupWebhookUrl,
+} from './signup-wizard.service';
 
 const appSettings = new AppSettingsStore();
 const signup = new SignupModule(appSettings);
@@ -14,9 +20,11 @@ describe('SignupModule', () => {
     vi.unstubAllGlobals();
     process.env.SIGNUP_WEBHOOK_URL = 'off';
     delete process.env.SIGNUP_WEBHOOK_SECRET;
+    delete process.env.FOX_UI_FEED_URL;
     // Each test's assertions assume a fresh "not yet resolved" wizard — reset
     // the shared in-memory app_settings row rather than isolating per-test DBs.
     await appSettings.set('signup.wizard_shown', 'false');
+    await (await getStore()).run('DELETE FROM email_signups');
   });
 
   it('starts unshown', async () => {
@@ -121,5 +129,43 @@ describe('SignupModule', () => {
 
     const opts = fetchSpy.mock.calls[0][1];
     expect(opts.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('persists sign-ups in email_signups locally even when the webhook is off', async () => {
+    const result = await signup.submit('  Local.Only@Example.com ', 'cli');
+    expect(result).toEqual({ ok: true });
+    const rows = await signup.listSignups();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      email: 'local.only@example.com',
+      kind: 'news',
+      source: 'cli',
+      remoteStatus: 'local',
+      submissionCount: 1,
+    });
+  });
+
+  it('resolves SIGNUP_WEBHOOK_URL=cloudflare to the Cloudflare Worker signup endpoint', async () => {
+    process.env.SIGNUP_WEBHOOK_URL = 'cloudflare';
+    expect(signupWebhookUrl()).toBe(DEFAULT_CLOUDFLARE_SIGNUP_URL);
+    process.env.FOX_UI_FEED_URL = 'https://cdn.example.workers.dev/';
+    expect(signupWebhookUrl()).toBe('https://cdn.example.workers.dev/signup');
+  });
+
+  it('keeps failed remote sign-ups in email_signups as pending and retries them cleanly', async () => {
+    process.env.SIGNUP_WEBHOOK_URL = 'https://example.com/hook';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({ ok: false, status: 503 }));
+
+    const failed = await signup.submit('Queued@Example.com', 'web');
+    expect(failed.ok).toBe(false);
+    let rows = await signup.listSignups();
+    expect(rows[0]).toMatchObject({ email: 'queued@example.com', remoteStatus: 'pending' });
+    expect(rows[0]?.remoteError).toMatch(/503/);
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce({ ok: true, status: 200 }));
+    expect(await signup.retryPendingSignups()).toEqual({ synced: 1, failed: 0 });
+    rows = await signup.listSignups();
+    expect(rows[0]?.remoteStatus).toBe('synced');
+    expect(rows[0]?.remoteError).toBeNull();
   });
 });

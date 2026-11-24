@@ -49,6 +49,8 @@
  * loop; anyone re-measuring should keep the load generator in its own process.
  */
 
+import { existsSync, statSync } from 'node:fs';
+import { join, posix, resolve } from 'node:path';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { ConnectionFactory } from '@foxschema/db';
 import { asAppLogger, getLogger } from '../platform/logger/logger';
@@ -82,6 +84,11 @@ export interface FastifyServerOptions {
    * Omitted by the API-only server and by tests, which want a 404 to be a 404.
    */
   staticDir?: string;
+  /**
+   * Packaged UI directory used as a `?ui=packaged` fallback when `staticDir`
+   * points to a newer Cloudflare CDN UI bundle.
+   */
+  packagedStaticDir?: string;
 }
 
 /**
@@ -238,6 +245,47 @@ export async function createFastifyApp(
   // --- The built frontend, when this server also serves it -----------------
   if (options.staticDir) {
     await app.register(fastifyStatic, staticOptions(options.staticDir));
+  }
+
+  // Emergency kill-switch (?ui=packaged): lets an operator bypass a bad CDN
+  // bundle without restarting by pinning a short cookie to the packaged UI.
+  if (options.packagedStaticDir && resolve(options.packagedStaticDir) !== resolve(options.staticDir ?? '')) {
+    const packagedRoot = resolve(options.packagedStaticDir);
+    app.addHook('onRequest', async (req: FastifyRequest, reply: FastifyReply) => {
+      if ((req.method !== 'GET' && req.method !== 'HEAD') || req.url.startsWith('/api')) return;
+      const parsed = new URL(req.url, 'http://localhost');
+      const uiParam = parsed.searchParams.get('ui');
+      if (uiParam === 'cdn' || uiParam === 'auto') {
+        reply.header('Set-Cookie', 'fox_ui=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax');
+        return;
+      }
+      const cookieHeader = req.headers.cookie ?? '';
+      const hasPackagedCookie = /(?:^|;\s*)fox_ui=packaged(?:;|$)/.test(cookieHeader);
+      if (uiParam !== 'packaged' && !hasPackagedCookie) return;
+
+      if (uiParam === 'packaged') {
+        reply.header('Set-Cookie', 'fox_ui=packaged; Path=/; HttpOnly; SameSite=Lax');
+      }
+      let rel = 'index.html';
+      try {
+        const clean = posix.normalize(decodeURIComponent(parsed.pathname).replace(/^\/+/, ''));
+        if (clean && clean !== '.' && !clean.startsWith('..')) rel = clean;
+      } catch {
+        return reply.code(404).send({ ok: false, error: 'Not found', code: 'not_found' });
+      }
+      const candidate = resolve(join(packagedRoot, rel));
+      if (!candidate.startsWith(`${packagedRoot}/`) && candidate !== packagedRoot) {
+        return reply.code(404).send({ ok: false, error: 'Not found', code: 'not_found' });
+      }
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- candidate verified inside packagedRoot
+      if (existsSync(candidate) && statSync(candidate).isFile()) {
+        return reply.sendFile(rel, packagedRoot);
+      }
+      if (isAssetPath(parsed.pathname)) {
+        return reply.code(404).send({ ok: false, error: 'Not found', code: 'not_found' });
+      }
+      return reply.sendFile('index.html', packagedRoot);
+    });
   }
 
   // --- The API ------------------------------------------------------------

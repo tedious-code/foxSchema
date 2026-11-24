@@ -30,7 +30,19 @@ export interface EngineServiceStatus {
   acceptsRuns?: boolean;
 }
 
+export interface UiServiceStatus {
+  source: 'cdn' | 'packaged';
+  version: string;
+  apiContract: number;
+  updatesEnabled: boolean;
+  feedUrl: string | null;
+  lastCheckedAt?: string | null;
+  pendingVersion?: string | null;
+  lastError?: string | null;
+}
+
 export interface ServiceStatusReport {
   api: ApiServiceStatus;
   engine: EngineServiceStatus;
+  ui?: UiServiceStatus;
 }

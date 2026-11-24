@@ -1,7 +1,14 @@
-// The read-only Worker in front of the UI release bucket. Deploy from the
-// repository root (needs Wrangler 4.69 or later for the cache block):
+// The Worker in front of the UI release bucket (and optional user signup archive).
+// Deploy from the repository root (needs Wrangler 4.69 or later for the cache block):
 //   npx wrangler@4 deploy --config scripts/ui-release/cdn-worker/wrangler.jsonc
 // It is then served at https://fox-ui.foxschema.workers.dev (deployed 2026-11-22).
+//
+// Optional Cloudflare secrets / bindings for POST /signup & GET /api/signups:
+//   SIGNUP_WEBHOOK_SECRET  Shared secret checked against X-Foxschema-Signup-Secret
+//   SIGNUP_ADMIN_TOKEN     Bearer / X-Foxschema-Admin-Token required for GET /api/signups
+//   SIGNUP_BUCKET / BUCKET R2 bucket storing private signups/by-email/<sha256>.json records
+//   SIGNUPS_KV             Optional KV namespace binding (`signup:<email>`)
+//   SIGNUP_DB              Optional D1 database binding (`email_signups` table)
 {
   "name": "fox-ui",
   "main": "worker.mjs",

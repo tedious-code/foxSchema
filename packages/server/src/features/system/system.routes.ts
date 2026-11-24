@@ -8,6 +8,7 @@
  * these, so they live here rather than in the HTTP bootstrap.
  */
 import type { FastifyReply } from 'fastify';
+import { API_CONTRACT } from '@foxschema/shared';
 import type { AppRequest } from '../../platform/http/types';
 import { Router } from '../../platform/http/router';
 import { AppSettingsStore } from '../../platform/settings/app-settings.service';
@@ -18,6 +19,7 @@ import { redactCredentials } from '../../platform/http/redact';
 import { requirePermissions } from '../../platform/authorization/rbac.guard';
 import { WorkflowSettingsService } from '../workflow';
 import { readServiceStatus, type ServiceStatusDeps } from './service-status';
+import { readUiServiceStatus } from '../../platform/ui-bundle';
 import {
   installDriverPackage,
   knownDriverPackage,
@@ -45,7 +47,7 @@ export function createSystemPublicRoutes(): Router {
   // Public liveness check. Includes the version so `foxschema open` can detect
   // a stale pre-upgrade process on this port.
   root.get('/health', (_req: AppRequest, res: FastifyReply) => {
-    res.send({ ok: true, version: resolveAppVersion() });
+    res.send({ ok: true, version: resolveAppVersion(), apiContract: API_CONTRACT });
   });
 
   // Kept for clients built before sign-in became mandatory: every install now
@@ -234,5 +236,10 @@ function defaultServiceStatusDeps(): ServiceStatusDeps {
     probeEngine: () => settings.probeEngineHealth(),
     version: resolveAppVersion,
     uptimeSec: () => process.uptime(),
+    ui: () =>
+      readUiServiceStatus({
+        packagedVersion: resolveAppVersion(),
+        packagedDir: process.env.FOX_PACKAGED_STATIC_DIR || process.env.STATIC_DIR,
+      }),
   };
 }

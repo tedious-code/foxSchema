@@ -74,7 +74,7 @@ describe('single-origin server', () => {
   it('boots and serves the API', async () => {
     const res = await get('/api/health');
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ok: true });
+    expect(await res.json()).toMatchObject({ ok: true, apiContract: 1 });
   });
 
   it('serves the frontend at the root', async () => {

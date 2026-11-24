@@ -20,6 +20,52 @@
  */
 export const API_CONTRACT = 1;
 
+/** Default Cloudflare Workers CDN feed serving signed UI bundles. */
+export const DEFAULT_FOX_UI_FEED_URL = 'https://fox-ui.foxschema.workers.dev';
+
+/** Limits enforced on both the bundler and the backend installer. */
+export const UI_BUNDLE_MAX_FILES = 2000;
+export const UI_BUNDLE_MAX_TOTAL_BYTES = 50 * 1024 * 1024;
+
+export interface UiBundleEnvelope {
+  schema: number;
+  alg: 'Ed25519';
+  keyId: string;
+  signature: string;
+  payload: string;
+}
+
+export interface UiBundleChannelEntry {
+  version: string;
+  sequence: number;
+  manifest: string;
+  sha256: string;
+}
+
+export interface UiBundleChannel {
+  schema: number;
+  sequence: number;
+  issuedAt: string;
+  expiresAt: string;
+  releases: Record<string, UiBundleChannelEntry>;
+}
+
+export interface UiBundleManifestFile {
+  path: string;
+  sha256: string;
+  size: number;
+}
+
+export interface UiBundleManifest {
+  schema: number;
+  version: string;
+  sequence: number;
+  apiContract: number;
+  publishedAt: string;
+  pack: { sha256: string; size: number };
+  files: UiBundleManifestFile[];
+}
+
 /** One key UI bundles may be signed with. */
 export interface UiBundlePublicKey {
   /** Short stable name, written into every signature made with this key. */

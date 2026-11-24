@@ -34,6 +34,23 @@ function bucket(objects) {
       const match = options?.onlyIf?.get?.('if-none-match');
       return objectFor(key, !(match && match === `"${key.length}"`));
     },
+    async put(key, value, options) {
+      seen.push(['put', key]);
+      objects[key] = {
+        body: value,
+        contentType: options?.httpMetadata?.contentType,
+        cacheControl: options?.httpMetadata?.cacheControl,
+      };
+    },
+    async list(options) {
+      const prefix = options?.prefix ?? '';
+      return {
+        objects: Object.keys(objects)
+          .filter((k) => k.startsWith(prefix))
+          .map((key) => ({ key })),
+        truncated: false,
+      };
+    },
   };
 }
 
@@ -105,5 +122,59 @@ describe('cdn worker', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toContain('immutable');
     expect(e.BUCKET.seen).toEqual([['head', PACK]]);
+  });
+
+  it('saves user sign-ups privately in Cloudflare R2 and tracks counts', async () => {
+    const objects = {};
+    const e = env(objects);
+    const first = await call(
+      'signup',
+      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: ' User@Example.com ', source: 'cli' }) },
+      e
+    );
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual({ ok: true, stored: true });
+
+    const second = await call(
+      'api/signup',
+      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'user@example.com', source: 'web' }) },
+      e
+    );
+    expect(second.status).toBe(200);
+
+    const savedKey = Object.keys(objects).find((k) => k.startsWith('signups/by-email/'));
+    expect(savedKey).toBeTruthy();
+    const saved = JSON.parse(objects[savedKey].body);
+    expect(saved).toMatchObject({ email: 'user@example.com', source: 'web', count: 2 });
+
+    // Private sign-up objects are never exposed through the public CDN GET path.
+    expect((await call(savedKey, undefined, e)).status).toBe(404);
+  });
+
+  it('enforces optional SIGNUP_WEBHOOK_SECRET and SIGNUP_ADMIN_TOKEN on signup routes', async () => {
+    const objects = {};
+    const e = { ...env(objects), SIGNUP_WEBHOOK_SECRET: 'hook-secret', SIGNUP_ADMIN_TOKEN: 'admin-token' };
+
+    const denied = await call('signup', { method: 'POST', body: JSON.stringify({ email: 'a@b.co' }) }, e);
+    expect(denied.status).toBe(403);
+
+    const ok = await call(
+      'signup',
+      {
+        method: 'POST',
+        headers: { 'x-foxschema-signup-secret': 'hook-secret' },
+        body: JSON.stringify({ email: 'a@b.co', source: 'web' }),
+      },
+      e
+    );
+    expect(ok.status).toBe(200);
+
+    expect((await call('api/signups', undefined, e)).status).toBe(403);
+    const exported = await call('api/signups', { headers: { authorization: 'Bearer admin-token' } }, e);
+    expect(exported.status).toBe(200);
+    expect((await exported.json()).signups).toHaveLength(1);
+
+    // Without SIGNUP_ADMIN_TOKEN, admin export does not exist at all.
+    expect((await call('api/signups', undefined, env(objects))).status).toBe(404);
   });
 });

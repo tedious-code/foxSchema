@@ -44,6 +44,17 @@ export { AppSettingsStore } from './platform/settings/app-settings.service';
 /** Logging, so a host process writes into the same stream as the server. */
 export { getLogger } from './platform/logger/logger';
 
+/** Signed Cloudflare CDN UI bundle lifecycle (used by CLI `foxschema ui`). */
+export {
+  checkAndUpdateUiBundle,
+  isUiUpdatesEnabled,
+  readUiServiceStatus,
+  resetUiBundles,
+  resolveUiBundlesDir,
+  resolveUiFeedUrl,
+  resolveUiPublicKeys,
+} from './platform/ui-bundle';
+
 /** The error contract, re-exported so consumers need one import. */
 export { ServiceError, toApiError, toHttpError } from './platform/contracts/actor';
 export type { ActorContext } from './platform/contracts/actor';

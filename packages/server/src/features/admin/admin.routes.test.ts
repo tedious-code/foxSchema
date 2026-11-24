@@ -60,10 +60,15 @@ function admin(users: User[] = [user('admin-1', 'admin')]) {
     send: vi.fn(async (): Promise<'email' | 'log'> => 'email'),
     link: vi.fn(async (purpose: string, code: string) => `https://fox.example.test/${purpose}?code=${code}`),
   };
+  const signup = {
+    listSignups: vi.fn(async () => [{ id: 's-1', email: 'u@example.com', kind: 'news', source: 'web', remoteStatus: 'synced', remoteError: null, syncedAt: null, submissionCount: 1, createdAt: '2026-11-24T00:00:00Z', updatedAt: '2026-11-24T00:00:00Z' }]),
+    retryPendingSignups: vi.fn(async () => ({ synced: 1, failed: 0 })),
+  };
   const router = createAdminRoutes(
     rbac as unknown as RbacModule,
     auth as unknown as AuthModule,
-    mailer as unknown as AuthMailer
+    mailer as unknown as AuthMailer,
+    signup as unknown as import('../users').SignupModule
   );
   /** Run one route's handler as `caller` (by default the signed-in admin). */
   const call = async (
@@ -76,7 +81,7 @@ function admin(users: User[] = [user('admin-1', 'admin')]) {
     await routeHandler(router, method, path)({ ...caller, params: {}, ...req } as unknown as AuthedRequest, reply);
     return sent;
   };
-  return { rbac, auth, mailer, router, call };
+  return { rbac, auth, mailer, signup, router, call };
 }
 
 /** What a route's guards answer `caller`, or 'passed' when they let it through. */
@@ -330,5 +335,15 @@ describe('/policy', () => {
     expect((await call('PUT', '/policy', { body: { adminPolicy: 'many' } })).status).toBe(400);
     expect((await call('PUT', '/policy', { body: { membersCanCreateWorkspaces: 'on' } })).status).toBe(400);
     expect((await call('PUT', '/policy', { body: { ownersCanInviteNew: 1 } })).status).toBe(400);
+  });
+
+  it('lists saved email signups and retries pending remote syncs', async () => {
+    const { call, signup } = admin();
+    const list = await call('GET', '/signups');
+    expect(list.body.signups).toHaveLength(1);
+    const retry = await call('POST', '/signups/retry');
+    expect(retry.body).toEqual({ synced: 1, failed: 0 });
+    expect(signup.listSignups).toHaveBeenCalledOnce();
+    expect(signup.retryPendingSignups).toHaveBeenCalledOnce();
   });
 });

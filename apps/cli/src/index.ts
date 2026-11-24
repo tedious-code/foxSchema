@@ -14,6 +14,7 @@ import { listHistory, showHistory } from './commands/history';
 import { runOpen, runStop } from './commands/open';
 import { runDrivers } from './commands/drivers';
 import { runShortcut } from './commands/shortcut';
+import { runUiCommand } from './commands/ui';
 import { VERSION } from './version';
 import { registerDb2 } from '@foxschema/db-db2';
 
@@ -174,6 +175,12 @@ program
 const history = program.command('history').description('Migration run history');
 history.command('list').description('List recent migration runs').action(() => listHistory());
 history.command('show <id>').description('Show a migration run in detail').action((id) => showHistory(id));
+
+const ui = program.command('ui').description('Inspect or manage Cloudflare CDN Web UI bundles');
+ui.command('status').description('Show active Web UI bundle version and feed status').option('--json', 'output as JSON').action((opts) => runUiCommand('status', opts));
+ui.command('check').description('Check Cloudflare CDN for a signed Web UI update').action(() => runUiCommand('check'));
+ui.command('apply').description('Download, verify, and stage the latest Web UI update').action(() => runUiCommand('apply'));
+ui.command('reset').description('Remove cached CDN Web UI bundles and use the packaged UI').action(() => runUiCommand('reset'));
 
 // A *computed* import target, not a string literal — this is deliberate, not
 // stylistic. esbuild can only inline a dynamic import() whose specifier is a

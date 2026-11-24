@@ -27,11 +27,14 @@ import {
   writeAdminPolicy,
 } from '../../platform/authorization/admin-policy.service';
 import { MEMBERS_CREATE_KEY, membersCanCreate, OWNERS_INVITE_NEW_KEY, ownersCanInviteNew } from '../workspaces';
+import { SignupModule } from '../users';
+import { AppSettingsStore } from '../../platform/settings/app-settings.service';
 
 export function createAdminRoutes(
   rbac = new RbacModule(),
   auth = new AuthModule(),
-  mailer = new AuthMailer()
+  mailer = new AuthMailer(),
+  signup = new SignupModule(new AppSettingsStore())
 ): Router {
   const router = Router();
 
@@ -352,6 +355,22 @@ export function createAdminRoutes(
       } catch (error: unknown) {
         sendError(res, 'invalid_input', error instanceof Error ? error.message : 'Update failed');
       }
+    }
+  );
+
+  router.get(
+    '/signups',
+    requirePermissions('admin.users'),
+    async (_req: AuthedRequest, res: FastifyReply) => {
+      res.send({ signups: await signup.listSignups() });
+    }
+  );
+
+  router.post(
+    '/signups/retry',
+    requirePermissions('admin.users'),
+    async (_req: AuthedRequest, res: FastifyReply) => {
+      res.send(await signup.retryPendingSignups());
     }
   );
 

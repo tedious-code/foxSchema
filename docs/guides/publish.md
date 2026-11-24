@@ -219,10 +219,12 @@ because each staged manifest pins the one before it.
 ## UI bundles (Cloudflare R2)
 
 `.github/workflows/ui-release.yml` publishes the frontend on its own, as a
-signed bundle in a Cloudflare R2 bucket. Backends that download and serve
-these bundles are **not built yet**
-([plan](../plans/2026-11-22-signed-ui-bundles.md)), so a UI release changes
-nothing for users today.
+signed bundle in a Cloudflare R2 bucket. Backends verify Ed25519 signatures and
+SHA-256 pack hashes via `@foxschema/server` (`FOX_UI_UPDATES`, `FOX_UI_FEED_URL`,
+`FOX_UI_PUBLIC_KEYS`), serve verified bundles from `startUiServer`, report the
+active Web UI source on Home → Services, support `?ui=packaged`, and expose
+`foxschema ui status|check|apply|reset` once at least one public signing key is
+pinned in `UI_BUNDLE_PUBLIC_KEYS` (or `FOX_UI_PUBLIC_KEYS`).
 
 ### One-time setup
 
@@ -263,8 +265,11 @@ nothing for users today.
    2026-11-22; `foxschema` is the account's workers.dev subdomain). Redeploy
    only when `cdn-worker/` changes. It
    serves only `channels/stable.json`, `releases/<version>/manifest.json` and
-   `packs/<sha256>`, and refuses writes. Keep the bucket's own `r2.dev` URL
-   turned off.
+   `packs/<sha256>`, and accepts `POST /signup` (or `/api/signup`) to store
+   user sign-ups privately under `signups/by-email/` in R2 (and optional KV/D1)
+   while refusing public `GET` reads on `signups/*` (optional admin export via
+   `GET /api/signups` requires `SIGNUP_ADMIN_TOKEN`). Keep the bucket's own
+   `r2.dev` URL turned off.
 
    **Free-plan budget:** 100,000 Worker requests a day, cache hits included.
    A backend's channel check is one request and a UI update is two (manifest

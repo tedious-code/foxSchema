@@ -52,4 +52,18 @@ describe('readServiceStatus', () => {
     );
     expect(engine).toEqual({ state: 'unreachable', detail: 'Engine not ready: Invalid URL' });
   });
+
+  it('includes Web UI status when provided', async () => {
+    const { ui } = await readServiceStatus({
+      ...deps(async () => ({ ok: true, acceptsRuns: true })),
+      ui: () => ({
+        source: 'cdn',
+        version: '0.3.40',
+        apiContract: 1,
+        updatesEnabled: true,
+        feedUrl: 'https://fox-ui.foxschema.workers.dev',
+      }),
+    });
+    expect(ui).toMatchObject({ source: 'cdn', version: '0.3.40', apiContract: 1 });
+  });
 });

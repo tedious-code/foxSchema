@@ -119,8 +119,12 @@ docker compose -f docker-compose.app.yml up -d
 | `APP_DB_URL` | — | Connection URL for the metadata store when engine is `postgres`/`mysql`. |
 | `APP_KEY_SCHEME` | `v1` | `v1` = key used directly. `v2` = key bound to `APP_USER_EMAIL` (anti-copy); leave `v1` for stateless servers. |
 | `LOCAL_SINGLE_USER` | `true` | Whether this is a personal install (`true`) or a shared server (`false`). Sign-in is required either way; this only decides machine-level actions (installing drivers, self-update, changing the metadata DB, host cloud credentials), which a shared server refuses. |
-| `SIGNUP_WEBHOOK_URL` | `https://foxschema.com/wp-json/foxschema/v1/signup` | Where opt-ins go: the first-open subscriber wizard, and a new account whose owner ticks **Email me Fox news** at sign-up or when accepting an invite (unticked by default; never on a password reset). The default is the Fox sign-up archive on foxschema.com. `off` keeps them on this install. A failure never blocks sign-up. |
+| `SIGNUP_WEBHOOK_URL` | `https://foxschema.com/wp-json/foxschema/v1/signup` | Where opt-ins go: the first-open subscriber wizard, and a new account whose owner ticks **Email me Fox news** at sign-up or when accepting an invite (unticked by default; never on a password reset). Every sign-up is also archived locally in Fox's `email_signups` table (inspectable via `GET /api/admin/signups`). Set to `cloudflare` (or `https://fox-ui.foxschema.workers.dev/signup`) to store opt-ins on the Cloudflare Worker (R2/KV/D1), or `off` to keep them strictly local on this install. A failure never blocks sign-up. |
 | `SIGNUP_WEBHOOK_SECRET` | — | Optional shared secret sent as `X-Foxschema-Signup-Secret`. |
+| `FOX_UI_UPDATES` | on | Set `off` to disable signed Cloudflare CDN UI bundle checks and always serve the packaged frontend. |
+| `FOX_UI_FEED_URL` | `https://fox-ui.foxschema.workers.dev` | Cloudflare Workers CDN base URL serving `channels/stable.json`, release manifests, and UI packs (`?ui=packaged` falls back to packaged assets). |
+| `FOX_UI_DIR` | beside metadata DB (`ui-bundles`), else `~/.foxschema/ui-bundles` | Cache directory for verified Cloudflare CDN UI bundles. |
+| `FOX_UI_PUBLIC_KEYS` | — | Optional extra pinned Ed25519 signing keys (`id:x,...` or JSON `[{id,x}]`) extending `UI_BUNDLE_PUBLIC_KEYS`. |
 | `FOX_MAIL_SECRET` | — | Optional shared secret sent as `X-Foxschema-Mail-Secret` to the mail service (`FOX_VERIFY_MAIL_URL`, `FOX_ACCOUNT_MAIL_URL`). Set it only when you run your own relay with `FOXSCHEMA_MAIL_SECRET` defined; the public foxschema.com relay takes none. See [Fox mail service](#fox-mail-service). |
 | `UPDATE_FEED_URL` | npm `foxschema/latest` | Version check for in-app update toasts. Default is the npm registry. The “What’s new” link opens the matching GitHub Release page. Set `off` to disable. |
 | `APP_VERSION` | from `package.json` | Running version compared against the feed. The CLI sets this from the installed npm package. |
@@ -180,10 +184,12 @@ started; it does not start it. The Workflow rail item is on (`NAV_FLAGS.workflow
 
 On **first UI boot of a brand-new install** (before login), Fox can show a skippable
 welcome form that collects an email for product updates. Routes are public:
-`GET /api/signup/state`, `POST /api/signup`, `POST /api/signup/skip`.
-Submissions go to the Fox sign-up archive on foxschema.com unless
-`SIGNUP_WEBHOOK_URL` names another endpoint (+ optional secret) or is `off`,
-in which case subscribe only dismisses the wizard locally.
+`GET /api/signup/state`, `POST /api/signup`, `POST /api/signup/skip` (admins can
+view locally archived sign-ups via `GET /api/admin/signups` and retry pending remote
+syncs via `POST /api/admin/signups/retry`). Every submission is saved locally in
+`email_signups` and also forwarded to the configured archive (`SIGNUP_WEBHOOK_URL`:
+foxschema.com, `cloudflare` for the Cloudflare Worker R2/KV/D1 endpoint, or `off` to
+stay local only).
 
 **Existing installs:** upgrading keeps your `/data` (or `APP_DB_*`) metadata DB.
 The upgrade migration marks the wizard as already shown, so people who already

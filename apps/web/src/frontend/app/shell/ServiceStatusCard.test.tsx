@@ -71,4 +71,22 @@ describe('ServiceStatusCard', () => {
     await waitFor(() => expect(text('home-services-error')).toBe('Failed to fetch'));
     expect(text('home-service-api-state')).toBe('No answer');
   });
+
+  it('shows Web UI source, version, and staged CDN update when reported', async () => {
+    answer({
+      api: { state: 'running', version: '0.3.37', uptimeSec: 5 },
+      engine: { state: 'running', acceptsRuns: true },
+      ui: {
+        source: 'cdn',
+        version: '0.3.40',
+        apiContract: 1,
+        updatesEnabled: true,
+        feedUrl: 'https://fox-ui.foxschema.workers.dev',
+        pendingVersion: '0.3.41',
+      },
+    });
+    render(<ServiceStatusCard />);
+    await waitFor(() => expect(text('home-service-web-state')).toBe('Running · 0.3.40 · Cloudflare CDN'));
+    expect(text('home-service-web-detail')).toBe('Update 0.3.41 staged — restart to switch.');
+  });
 });

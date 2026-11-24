@@ -5,7 +5,7 @@
  *
  * The state of the services the app runs, for the Services card on Home.
  */
-import type { ServiceStatusReport, EngineServiceStatus } from '@foxschema/shared';
+import type { ServiceStatusReport, EngineServiceStatus, UiServiceStatus } from '@foxschema/shared';
 import type { WorkflowHealth } from '@foxschema/shared';
 
 /** What the in-process engine needs in this server's environment. */
@@ -15,6 +15,7 @@ export interface ServiceStatusDeps {
   probeEngine: () => Promise<WorkflowHealth & { error?: string }>;
   version: () => string;
   uptimeSec: () => number;
+  ui?: () => UiServiceStatus;
   env?: Readonly<Record<string, string | undefined>>;
 }
 
@@ -22,6 +23,7 @@ export async function readServiceStatus(deps: ServiceStatusDeps): Promise<Servic
   return {
     api: { state: 'running', version: deps.version(), uptimeSec: Math.floor(deps.uptimeSec()) },
     engine: await engineStatus(deps),
+    ...(deps.ui ? { ui: deps.ui() } : {}),
   };
 }
 

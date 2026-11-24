@@ -732,6 +732,32 @@ const MIGRATIONS: Migration[] = [
       ];
     },
   },
+  {
+    id: 32,
+    name: 'email_signups',
+    statements: (d) => {
+      const t = types(d);
+      return [
+        // Local durable archive of user email sign-ups (first-open wizard and
+        // "Email me Fox news" opt-ins), so no sign-up is ever lost when
+        // SIGNUP_WEBHOOK_URL=off or when the remote Cloudflare/webhook endpoint
+        // is temporarily unreachable.
+        `CREATE TABLE IF NOT EXISTS email_signups (
+           id ${t.id} PRIMARY KEY,
+           email ${t.str} UNIQUE NOT NULL,
+           kind ${t.str} NOT NULL,
+           source ${t.str} NOT NULL,
+           remote_status ${t.str} NOT NULL,
+           remote_error ${t.big},
+           synced_at ${t.ts},
+           submission_count ${t.int} NOT NULL DEFAULT 1,
+           created_at ${t.ts} NOT NULL,
+           updated_at ${t.ts} NOT NULL
+         )`,
+        `CREATE INDEX idx_email_signups_status ON email_signups(remote_status, updated_at)`,
+      ];
+    },
+  },
 ];
 
 const SIGNUP_WIZARD_SHOWN_KEY = 'signup.wizard_shown';

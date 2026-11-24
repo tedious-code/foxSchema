@@ -62,7 +62,7 @@ export function resolveUiServerEntry(): { command: string; args: string[] } {
   // Fallback: web serve.ts via tsx (monorepo)
   try {
     const webPkg = dirname(require.resolve('@foxschema/web/package.json'));
-    const serveTs = join(webPkg, 'src', 'backend', 'serve.ts');
+    const serveTs = join(webPkg, 'src', 'serve.ts');
     if (existsSync(serveTs)) {
       const tsx = resolve(dirname(require.resolve('tsx/package.json')), 'dist', 'cli.mjs');
       if (existsSync(tsx)) return { command: process.execPath, args: [tsx, serveTs] };

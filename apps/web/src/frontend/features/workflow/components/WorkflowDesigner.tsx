@@ -752,12 +752,16 @@ function Designer() {
     [],
   );
 
-  /** Pan and zoom to one pipe, once its stage is on the canvas and measured. */
+  /**
+   * Pan and zoom to one pipe, once its stage is on the canvas and measured.
+   * React Flow 13 reads a bare padding number as pixels, so the paddings here
+   * are percentages (22% and 6.5% are the old 0.8 and 0.15 ratios).
+   */
   const focusNode = useCallback(
     (id: string) => {
       requestAnimationFrame(() =>
         requestAnimationFrame(() => {
-          void fitView({ nodes: [{ id }], duration: 300, maxZoom: 1.25, padding: 0.8 });
+          void fitView({ nodes: [{ id }], duration: 300, maxZoom: 1.25, padding: '22%' });
         }),
       );
     },
@@ -818,7 +822,7 @@ function Designer() {
         });
       });
       if (options.fit) {
-        requestAnimationFrame(() => void fitView({ duration: 250, padding: 0.15 }));
+        requestAnimationFrame(() => void fitView({ duration: 250, padding: '6.5%' }));
       }
     },
     [edges, fitView, setNodes],
@@ -1671,7 +1675,9 @@ function Designer() {
                     onSelectionChange={onSelectionChange}
                     nodeTypes={nodeTypes}
                     edgeTypes={edgeTypes}
-                    colorMode={colorMode}
+                    forceColorMode={colorMode}
+                    // React Flow 13 raises selected edges above the pipes by default.
+                    elevateEdgesOnSelect={false}
                     fitView
                     connectionLineType={ConnectionLineType.SmoothStep}
                     defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}

@@ -2181,8 +2181,8 @@ button.run-status {
 
 }
 /*
- * React Flow sets its theme variables in unlayered CSS (.react-flow.dark), which
- * would beat anything in the layer above, so these overrides sit outside it.
+ * React Flow sets its theme variables in its own layer (@layer xyflow), declared
+ * after the one above and so beating it; these overrides sit outside both.
  */
 .fox-workflow .react-flow,
 .fox-workflow .react-flow.dark {

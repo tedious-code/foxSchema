@@ -194,6 +194,22 @@ export function pipeSummary(
     const preview = mappings.slice(0, 3).join(', ');
     return `map: ${preview}${mappings.length > 3 ? ` (+${mappings.length - 3})` : ''}`;
   }
+  if (type === 'transform.dedupe') {
+    const keys = Array.isArray(cfg.keys) ? cfg.keys.map(String).filter(Boolean) : [];
+    const keep = cfg.keep === 'first' ? 'first' : 'last';
+    return keys.length > 0 ? `dedupe: ${keys.join(', ')} (${keep})` : null;
+  }
+  if (type === 'transform.aggregate') {
+    const groupBy = Array.isArray(cfg.groupBy) ? cfg.groupBy.map(String).filter(Boolean) : [];
+    const metrics = Array.isArray(cfg.metrics) ? cfg.metrics.length : 0;
+    const groupText = groupBy.length > 0 ? groupBy.join(', ') : 'all';
+    return `group: ${groupText} · ${metrics} metric${metrics === 1 ? '' : 's'}`;
+  }
+  if (type === 'transform.redact') {
+    const fields = Array.isArray(cfg.fields) ? cfg.fields.map(String).filter(Boolean) : [];
+    const strategy = typeof cfg.strategy === 'string' ? cfg.strategy : 'mask';
+    return fields.length > 0 ? `${strategy}: ${fields.join(', ')}` : null;
+  }
   if (type === 'transform.condition') {
     const field = typeof cfg.field === 'string' ? cfg.field : '';
     const op =

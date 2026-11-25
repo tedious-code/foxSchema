@@ -128,6 +128,18 @@ describe('pipeSummary', () => {
       pipeSummary('transform.map', JSON.stringify({ mappings: { a: 'x', b: 'y', c: 'z', d: 'w' } })),
     ).toBe('map: a, b, c (+1)');
     expect(
+      pipeSummary('transform.dedupe', JSON.stringify({ keys: ['tenant_id', 'user_id'], keep: 'first' })),
+    ).toBe('dedupe: tenant_id, user_id (first)');
+    expect(
+      pipeSummary(
+        'transform.aggregate',
+        JSON.stringify({ groupBy: ['region'], metrics: [{ fn: 'count', as: 'n' }, { fn: 'sum', field: 'amount', as: 'total' }] }),
+      ),
+    ).toBe('group: region · 2 metrics');
+    expect(
+      pipeSummary('transform.redact', JSON.stringify({ fields: ['email', 'ssn'], strategy: 'mask' })),
+    ).toBe('mask: email, ssn');
+    expect(
       pipeSummary('transform.split', JSON.stringify({ field: '_endpoint' })),
     ).toBe('split by: _endpoint');
     expect(

@@ -3733,6 +3733,22 @@ export const TestIds = {
       pipeCredentialOption: (id: string | number) => `pipe-credential-option-${id}`,
       /** button · Filter by name, kind, id… */
       pipeCredentialTrigger: 'pipe-credential-trigger',
+      /** Button */
+      workflowAggregateAddMetric: 'workflow-aggregate-add-metric',
+      /** Input · Output field */
+      workflowAggregateAs: (idx: string | number) => `workflow-aggregate-as-${idx}`,
+      /** Input */
+      workflowAggregateField: (idx: string | number) => `workflow-aggregate-field-${idx}`,
+      /** Select */
+      workflowAggregateFn: (idx: string | number) => `workflow-aggregate-fn-${idx}`,
+      /** Input · Aggregate group by fields */
+      workflowAggregateGroupBy: 'workflow-aggregate-group-by',
+      /** Button */
+      workflowAggregateRemove: (idx: string | number) => `workflow-aggregate-remove-${idx}`,
+      /** Select · Dedupe keep occurrence */
+      workflowDedupeKeep: 'workflow-dedupe-keep',
+      /** Input · Dedupe key fields */
+      workflowDedupeKeys: 'workflow-dedupe-keys',
       /** input */
       workflowInspectorConcurrency: 'workflow-inspector-concurrency',
       /** select */
@@ -3769,6 +3785,10 @@ export const TestIds = {
       workflowInspectorTrigger: 'workflow-inspector-trigger',
       /** select */
       workflowInspectorType: 'workflow-inspector-type',
+      /** Input · Redact fields */
+      workflowRedactFields: 'workflow-redact-fields',
+      /** Select · Redact strategy */
+      workflowRedactStrategy: 'workflow-redact-strategy',
       /** button */
       workflowScriptExpand: 'workflow-script-expand',
       /** Button */
@@ -5819,6 +5839,12 @@ export type TestId =
   | 'view-workflow-btn'
   | 'warning-banner'
   | 'workflow-add-sample'
+  | 'workflow-aggregate-add-metric'
+  | `workflow-aggregate-as-${string}`
+  | `workflow-aggregate-field-${string}`
+  | `workflow-aggregate-fn-${string}`
+  | 'workflow-aggregate-group-by'
+  | `workflow-aggregate-remove-${string}`
   | 'workflow-cron-sql'
   | 'workflow-cron-sql-connection-backdrop'
   | 'workflow-cron-sql-connection-clear'
@@ -5830,6 +5856,8 @@ export type TestId =
   | 'workflow-cron-sql-only-when-rows'
   | 'workflow-cron-sql-script'
   | 'workflow-cron-sql-transaction'
+  | 'workflow-dedupe-keep'
+  | 'workflow-dedupe-keys'
   | 'workflow-designer-add-sample'
   | 'workflow-designer-auto-layout'
   | 'workflow-designer-breadcrumb-workflows'
@@ -5954,6 +5982,8 @@ export type TestId =
   | 'workflow-palette-search-pipes'
   | 'workflow-palette-show-advanced'
   | `workflow-pipe-node-${string}`
+  | 'workflow-redact-fields'
+  | 'workflow-redact-strategy'
   | 'workflow-run-answer'
   | `workflow-run-answer-${string}`
   | 'workflow-run-cancel'

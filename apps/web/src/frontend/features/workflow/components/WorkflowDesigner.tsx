@@ -177,6 +177,18 @@ const DEFAULT_PIPE_CONFIGS: Record<string, Record<string, unknown>> = {
     mappings: { id: 'id' },
     includeOriginal: true,
   },
+  'transform.dedupe': {
+    keys: ['id'],
+    keep: 'last',
+  },
+  'transform.aggregate': {
+    groupBy: ['status'],
+    metrics: [{ fn: 'count', as: 'total_rows' }],
+  },
+  'transform.redact': {
+    fields: ['email'],
+    strategy: 'mask',
+  },
   'transform.condition': {
     field: 'status',
     operator: 'equals',

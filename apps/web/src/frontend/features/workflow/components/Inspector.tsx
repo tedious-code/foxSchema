@@ -533,6 +533,9 @@ export function Inspector({
   const isScriptPipe = data?.type === 'transform.script';
   const isConditionPipe = data?.type === 'transform.condition';
   const isMapPipe = data?.type === 'transform.map';
+  const isDedupePipe = data?.type === 'transform.dedupe';
+  const isAggregatePipe = data?.type === 'transform.aggregate';
+  const isRedactPipe = data?.type === 'transform.redact';
   const isVerifyPipe = data?.type === 'transform.verify';
   const isFileSink = data?.type === 'sink.file.delimited';
   const needsEngineCredential =
@@ -562,6 +565,9 @@ export function Inspector({
       !isMultiHttpSource &&
       !isConditionPipe &&
       !isMapPipe &&
+      !isDedupePipe &&
+      !isAggregatePipe &&
+      !isRedactPipe &&
       !isVerifyPipe &&
       !isFileSink &&
       !(isSqlPipe && SQL_OWNED_KEYS.has(key)) &&
@@ -1009,6 +1015,201 @@ export function Inspector({
           </label>
         </>
       )}
+
+      {isDedupePipe && (() => {
+        const keysText = Array.isArray(config.keys) ? config.keys.map(String).join(', ') : '';
+        const keepValue = config.keep === 'first' ? 'first' : 'last';
+        return (
+          <>
+            <h4 className="inspector-section">Deduplicate rows</h4>
+            <label>Key fields (comma-separated)</label>
+            <Input
+              aria-label="Dedupe key fields"
+              data-testid="workflow-dedupe-keys"
+              placeholder="id, or tenant_id, user_id"
+              value={keysText}
+              onChange={(ev) => {
+                const keys = ev.target.value
+                  .split(',')
+                  .map((k) => k.trim())
+                  .filter(Boolean);
+                patchConfig('keys', keys);
+              }}
+            />
+            <label>Keep occurrence</label>
+            <Select
+              aria-label="Dedupe keep occurrence"
+              data-testid="workflow-dedupe-keep"
+              value={keepValue}
+              onChange={(ev) => patchConfig('keep', ev.target.value)}
+            >
+              <option value="last">Keep last occurrence (latest wins)</option>
+              <option value="first">Keep first occurrence (earliest wins)</option>
+            </Select>
+            <div className="hint">
+              Unique records exit on <strong>out</strong>; duplicate records exit on <strong>rejects</strong>.
+            </div>
+          </>
+        );
+      })()}
+
+      {isAggregatePipe && (() => {
+        type MetricItem = { fn: string; field?: string; as: string };
+        const groupByText = Array.isArray(config.groupBy)
+          ? config.groupBy.map(String).join(', ')
+          : '';
+        const metrics: MetricItem[] = Array.isArray(config.metrics)
+          ? (config.metrics as MetricItem[])
+          : [];
+        const updateMetrics = (next: MetricItem[]) => {
+          patchConfig('metrics', next);
+          setConfigError(null);
+        };
+        return (
+          <>
+            <h4 className="inspector-section">Aggregate &amp; Group By</h4>
+            <label>Group by fields (comma-separated, leave blank for total)</label>
+            <Input
+              aria-label="Aggregate group by fields"
+              data-testid="workflow-aggregate-group-by"
+              placeholder="e.g. region, status"
+              value={groupByText}
+              onChange={(ev) => {
+                const cols = ev.target.value
+                  .split(',')
+                  .map((c) => c.trim())
+                  .filter(Boolean);
+                patchConfig('groupBy', cols);
+              }}
+            />
+            <label>Metrics</label>
+            {metrics.map((m, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr 1fr auto',
+                  gap: '4px',
+                  marginBottom: '6px',
+                }}
+              >
+                <Select
+                  aria-label={`Aggregate metric ${idx + 1} function`}
+                  data-testid={`workflow-aggregate-fn-${idx}`}
+                  value={m.fn || 'count'}
+                  onChange={(ev) =>
+                    updateMetrics(
+                      metrics.map((item, i) =>
+                        i === idx ? { ...item, fn: ev.target.value } : item,
+                      ),
+                    )
+                  }
+                >
+                  <option value="count">COUNT</option>
+                  <option value="sum">SUM</option>
+                  <option value="avg">AVG</option>
+                  <option value="min">MIN</option>
+                  <option value="max">MAX</option>
+                </Select>
+                <Input
+                  aria-label={`Aggregate metric ${idx + 1} source field`}
+                  data-testid={`workflow-aggregate-field-${idx}`}
+                  placeholder={m.fn === 'count' ? '* (all rows)' : 'amount'}
+                  value={m.field ?? ''}
+                  onChange={(ev) =>
+                    updateMetrics(
+                      metrics.map((item, i) => {
+                        if (i !== idx) return item;
+                        const field = ev.target.value.trim();
+                        if (!field) {
+                          const { field: _drop, ...rest } = item;
+                          return rest;
+                        }
+                        return { ...item, field };
+                      }),
+                    )
+                  }
+                />
+                <Input
+                  aria-label={`Aggregate metric ${idx + 1} output alias`}
+                  data-testid={`workflow-aggregate-as-${idx}`}
+                  placeholder="Output field"
+                  value={m.as ?? ''}
+                  onChange={(ev) =>
+                    updateMetrics(
+                      metrics.map((item, i) =>
+                        i === idx ? { ...item, as: ev.target.value } : item,
+                      ),
+                    )
+                  }
+                />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  data-testid={`workflow-aggregate-remove-${idx}`}
+                  onClick={() => updateMetrics(metrics.filter((_, i) => i !== idx))}
+                >
+                  ×
+                </Button>
+              </div>
+            ))}
+            <Button
+              size="sm"
+              data-testid="workflow-aggregate-add-metric"
+              onClick={() =>
+                updateMetrics([
+                  ...metrics,
+                  { fn: 'count', as: `metric_${metrics.length + 1}` },
+                ])
+              }
+            >
+              + Add metric
+            </Button>
+          </>
+        );
+      })()}
+
+      {isRedactPipe && (() => {
+        const fieldsText = Array.isArray(config.fields)
+          ? config.fields.map(String).join(', ')
+          : '';
+        const strategy =
+          typeof config.strategy === 'string' ? config.strategy : 'mask';
+        return (
+          <>
+            <h4 className="inspector-section">PII Redaction</h4>
+            <label>Fields to redact (comma-separated)</label>
+            <Input
+              aria-label="Redact fields"
+              data-testid="workflow-redact-fields"
+              placeholder="email, phone, ssn, tax_id"
+              value={fieldsText}
+              onChange={(ev) => {
+                const fields = ev.target.value
+                  .split(',')
+                  .map((f) => f.trim())
+                  .filter(Boolean);
+                patchConfig('fields', fields);
+              }}
+            />
+            <label>Redaction strategy</label>
+            <Select
+              aria-label="Redact strategy"
+              data-testid="workflow-redact-strategy"
+              value={strategy}
+              onChange={(ev) => patchConfig('strategy', ev.target.value)}
+            >
+              <option value="mask">Mask characters (a***@domain.com / ***1234)</option>
+              <option value="hash">Deterministic SHA-256 prefix (preserves join keys)</option>
+              <option value="null">Replace value with NULL</option>
+              <option value="drop">Remove field from record</option>
+            </Select>
+            <div className="hint">
+              Sanitizes sensitive columns before exporting files or copying production data into staging databases.
+            </div>
+          </>
+        );
+      })()}
 
       {isVerifyPipe && (() => {
         type VerifyRuleItem = { field: string; op: string; value?: unknown; message?: string };

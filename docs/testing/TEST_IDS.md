@@ -1978,6 +1978,14 @@ Every control has a test ID: **1114** buttons, text boxes, selects and textareas
   - `pipe-credential-group-{group}` · div in FilterPicker · Filter by name, kind, id…
   - `pipe-credential-option-{id}` · data
   - `pipe-credential-trigger` · button in FilterPicker · Filter by name, kind, id…
+  - `workflow-aggregate-add-metric` · Button
+  - `workflow-aggregate-as-{idx}` · Input · Output field
+  - `workflow-aggregate-field-{idx}` · Input
+  - `workflow-aggregate-fn-{idx}` · Select
+  - `workflow-aggregate-group-by` · Input · Aggregate group by fields
+  - `workflow-aggregate-remove-{idx}` · Button
+  - `workflow-dedupe-keep` · Select · Dedupe keep occurrence
+  - `workflow-dedupe-keys` · Input · Dedupe key fields
   - `workflow-inspector-concurrency` · input
   - `workflow-inspector-field-{name}` · select
   - `workflow-inspector-format-raw` · button · Format JSON
@@ -1996,6 +2004,8 @@ Every control has a test ID: **1114** buttons, text boxes, selects and textareas
   - `workflow-inspector-tab-{id}` · button
   - `workflow-inspector-trigger` · select
   - `workflow-inspector-type` · select
+  - `workflow-redact-fields` · Input · Redact fields
+  - `workflow-redact-strategy` · Select · Redact strategy
   - `workflow-script-expand` · button
   - `workflow-script-snippet-{id}` · Button
 - **MultiHttpEditor** · `features/workflow/components/MultiHttpEditor.tsx`

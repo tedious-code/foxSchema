@@ -253,4 +253,99 @@ describe('Inspector pipe editors', () => {
     fireEvent.click(screen.getByTestId('workflow-inspector-format-raw'));
     expect(onChange).toHaveBeenCalledTimes(2);
   });
+
+  it('renders visual editors for transform.dedupe, transform.aggregate, and transform.redact pipes', () => {
+    const newCatalog: CatalogEntry[] = [
+      ...CATALOG,
+      {
+        type: 'transform.dedupe',
+        role: 'transform',
+        label: 'Deduplicate',
+        category: 'Transform',
+        version: '0.1.0',
+        configSchema: { type: 'object', properties: { keys: { type: 'array' }, keep: { type: 'string' } } },
+        inputs: [{ name: 'in', type: 'records' }],
+        outputs: [{ name: 'out', type: 'records' }, { name: 'rejects', type: 'records' }],
+      },
+      {
+        type: 'transform.aggregate',
+        role: 'transform',
+        label: 'Aggregate',
+        category: 'Transform',
+        version: '0.1.0',
+        configSchema: { type: 'object', properties: { groupBy: { type: 'array' }, metrics: { type: 'array' } } },
+        inputs: [{ name: 'in', type: 'records' }],
+        outputs: [{ name: 'out', type: 'records' }],
+      },
+      {
+        type: 'transform.redact',
+        role: 'transform',
+        label: 'Redact PII',
+        category: 'Transform',
+        version: '0.1.0',
+        configSchema: { type: 'object', properties: { fields: { type: 'array' }, strategy: { type: 'string' } } },
+        inputs: [{ name: 'in', type: 'records' }],
+        outputs: [{ name: 'out', type: 'records' }],
+      },
+    ];
+
+    const onDedupeChange = vi.fn();
+    const { unmount: u1 } = render(
+      <Inspector
+        pipeId="d1"
+        data={makeData('transform.dedupe', { keys: ['id'], keep: 'last' })}
+        credentials={[]}
+        categories={[]}
+        catalog={newCatalog}
+        triggers={[]}
+        workflowId="wf-1"
+        workflows={[]}
+        onChange={onDedupeChange}
+        onTriggersChange={vi.fn()}
+        onEditTrigger={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByTestId('workflow-dedupe-keys'), { target: { value: 'tenant_id, user_id' } });
+    expect(JSON.parse(onDedupeChange.mock.calls[0]![1].config).keys).toEqual(['tenant_id', 'user_id']);
+    u1();
+
+    const onAggChange = vi.fn();
+    const { unmount: u2 } = render(
+      <Inspector
+        pipeId="a1"
+        data={makeData('transform.aggregate', { groupBy: ['region'], metrics: [{ fn: 'count', as: 'rows' }] })}
+        credentials={[]}
+        categories={[]}
+        catalog={newCatalog}
+        triggers={[]}
+        workflowId="wf-1"
+        workflows={[]}
+        onChange={onAggChange}
+        onTriggersChange={vi.fn()}
+        onEditTrigger={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('workflow-aggregate-add-metric'));
+    expect(JSON.parse(onAggChange.mock.calls[0]![1].config).metrics).toHaveLength(2);
+    u2();
+
+    const onRedactChange = vi.fn();
+    render(
+      <Inspector
+        pipeId="r1"
+        data={makeData('transform.redact', { fields: ['email'], strategy: 'mask' })}
+        credentials={[]}
+        categories={[]}
+        catalog={newCatalog}
+        triggers={[]}
+        workflowId="wf-1"
+        workflows={[]}
+        onChange={onRedactChange}
+        onTriggersChange={vi.fn()}
+        onEditTrigger={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByTestId('workflow-redact-strategy'), { target: { value: 'hash' } });
+    expect(JSON.parse(onRedactChange.mock.calls[0]![1].config).strategy).toBe('hash');
+  });
 });

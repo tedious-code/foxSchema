@@ -10,6 +10,11 @@ import { describe, expect, it } from 'vitest';
 import type { CredentialStore } from '../../common/index.js';
 import type { PipeContext, RecordBatch } from '../../registry/index.js';
 import {
+  AggregatePipe,
+  DedupePipe,
+  RedactPipe,
+} from '../utility/transforms.js';
+import {
   MappedDbSinkPipe,
   credentiallessPostgresOption,
   openRunMemoryDatabases,
@@ -848,4 +853,144 @@ describe('SQLite steps without a credential', () => {
     }
     await releaseRunMemoryDatabase('run-hardened');
   });
+});
+
+describe('all-dialects SQL pipes and DBA transform pipeline', () => {
+  const ALL_SQL_DIALECTS: ReadonlyArray<{
+    dialect: string;
+    expectedFirstParam: string;
+    expectedQuotedTable: string;
+  }> = [
+    { dialect: 'postgres', expectedFirstParam: '$1', expectedQuotedTable: '"app"."audit_log"' },
+    { dialect: 'cockroachdb', expectedFirstParam: '$1', expectedQuotedTable: '"app"."audit_log"' },
+    { dialect: 'yugabytedb', expectedFirstParam: '$1', expectedQuotedTable: '"app"."audit_log"' },
+    { dialect: 'redshift', expectedFirstParam: '$1', expectedQuotedTable: '"app"."audit_log"' },
+    { dialect: 'mysql', expectedFirstParam: '?', expectedQuotedTable: '`app`.`audit_log`' },
+    { dialect: 'mariadb', expectedFirstParam: '?', expectedQuotedTable: '`app`.`audit_log`' },
+    { dialect: 'tidb', expectedFirstParam: '?', expectedQuotedTable: '`app`.`audit_log`' },
+    { dialect: 'sqlite', expectedFirstParam: '?', expectedQuotedTable: '"app"."audit_log"' },
+    { dialect: 'duckdb', expectedFirstParam: '?', expectedQuotedTable: '"app"."audit_log"' },
+    { dialect: 'db2', expectedFirstParam: '?', expectedQuotedTable: '"app"."audit_log"' },
+    { dialect: 'clickhouse', expectedFirstParam: '$1', expectedQuotedTable: '`app`.`audit_log`' },
+    { dialect: 'sqlserver', expectedFirstParam: '@p0', expectedQuotedTable: '[app].[audit_log]' },
+    { dialect: 'azuresql', expectedFirstParam: '@p0', expectedQuotedTable: '[app].[audit_log]' },
+    { dialect: 'oracle', expectedFirstParam: ':1', expectedQuotedTable: '"app"."audit_log"' },
+  ];
+
+  it.each(ALL_SQL_DIALECTS)(
+    'executes source.db.sql -> transform.dedupe -> transform.redact -> transform.aggregate -> sink.db.sql on $dialect',
+    async ({ dialect, expectedFirstParam, expectedQuotedTable }) => {
+      const rawRows = [
+        { customer_id: 'C1', region: 'US', email: 'alice@acme.example', tax_id: 'SSN-999-1234', amount: 100 },
+        { customer_id: 'C2', region: 'EU', email: 'bob@eu.example', tax_id: 'VAT-888-5678', amount: 50 },
+        { customer_id: 'C1', region: 'US', email: 'alice@acme.example', tax_id: 'SSN-999-1234', amount: 140 },
+        { customer_id: 'C3', region: 'US', email: 'carol@us.example', tax_id: 'SSN-777-4321', amount: 60 },
+      ];
+      const sourceSession = new RecordingSession(() => rawRows);
+      const { open: openSource } = runner(sourceSession);
+
+      // 1. Read from dialect with bound variable
+      const sourceBatches = await collect(
+        new SqlSourcePipe(openSource),
+        context(
+          'source.db.sql',
+          'source',
+          { sql: 'SELECT * FROM raw_events WHERE tenant = {{vars.tenant}}' },
+          saved(dialect),
+          { variables: { tenant: 'acme' } },
+        ),
+      );
+      expect(sourceSession.queries[0]!.sql).toContain(`WHERE tenant = ${expectedFirstParam}`);
+      expect(sourceSession.queries[0]!.params).toEqual(['acme']);
+      expect(sourceBatches).toHaveLength(1);
+
+      // 2. Deduplicate by customer_id (keep last)
+      const dedupePipe = new DedupePipe();
+      const dedupedPorts = await dedupePipe.transform(sourceBatches[0]!, {
+        workflowRunId: 'run',
+        pipelineId: 'main',
+        pipe: {
+          id: 'dedupe',
+          type: 'transform.dedupe',
+          role: 'transform',
+          config: { keys: ['customer_id'], keep: 'last' },
+          concurrency: 1,
+        },
+      });
+      const uniqueBatch = dedupedPorts.get('out')!;
+      const dupBatch = dedupedPorts.get('rejects')!;
+      expect(uniqueBatch.records).toHaveLength(3);
+      expect(dupBatch.records).toHaveLength(1);
+      expect(dupBatch.records[0]!.amount).toBe(100);
+
+      // 3. Redact PII (mask email & hash tax_id)
+      const redactMask = new RedactPipe();
+      const maskedBatch = await redactMask.transform(uniqueBatch, {
+        workflowRunId: 'run',
+        pipelineId: 'main',
+        pipe: {
+          id: 'redact_mask',
+          type: 'transform.redact',
+          role: 'transform',
+          config: { fields: ['email'], strategy: 'mask' },
+          concurrency: 1,
+        },
+      });
+      expect(maskedBatch.records[0]!.email).toBe('b***@eu.example');
+
+      const redactHash = new RedactPipe();
+      const sanitizedBatch = await redactHash.transform(maskedBatch, {
+        workflowRunId: 'run',
+        pipelineId: 'main',
+        pipe: {
+          id: 'redact_hash',
+          type: 'transform.redact',
+          role: 'transform',
+          config: { fields: ['tax_id'], strategy: 'hash' },
+          concurrency: 1,
+        },
+      });
+      expect(String(sanitizedBatch.records[0]!.tax_id)).toMatch(/^sha256:[0-9a-f]{16}$/);
+
+      // 4. Aggregate by region
+      const aggPipe = new AggregatePipe();
+      const aggBatch = await aggPipe.transform(sanitizedBatch, {
+        workflowRunId: 'run',
+        pipelineId: 'main',
+        pipe: {
+          id: 'agg',
+          type: 'transform.aggregate',
+          role: 'transform',
+          config: {
+            groupBy: ['region'],
+            metrics: [
+              { fn: 'count', as: 'customers' },
+              { fn: 'sum', field: 'amount', as: 'total_amount' },
+              { fn: 'max', field: 'amount', as: 'max_amount' },
+            ],
+          },
+          concurrency: 1,
+        },
+      });
+      expect(aggBatch.records).toEqual([
+        { region: 'EU', customers: 1, total_amount: 50, max_amount: 50 },
+        { region: 'US', customers: 2, total_amount: 200, max_amount: 140 },
+      ]);
+
+      // 5. Write aggregated metrics into dialect sink
+      const sinkSession = new RecordingSession();
+      const { open: openSink } = runner(sinkSession);
+      await new SqlSinkPipe(openSink).write(
+        aggBatch,
+        context(
+          'sink.db.sql',
+          'sink',
+          { mode: 'insert', table: 'app.audit_log', columns: ['region', 'customers', 'total_amount'] },
+          saved(dialect),
+        ),
+      );
+      expect(sinkSession.queries[0]!.sql).toContain(`INSERT INTO ${expectedQuotedTable}`);
+      expect(sinkSession.queries[0]!.sql).toContain(expectedFirstParam);
+    },
+  );
 });

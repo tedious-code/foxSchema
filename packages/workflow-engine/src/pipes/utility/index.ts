@@ -61,7 +61,14 @@ export {
   type HeaderMode,
   type InvalidRecord,
 } from './delimited.js';
-export { MapPipe, ConditionPipe } from './transforms.js';
+export {
+  MapPipe,
+  ConditionPipe,
+  DedupePipe,
+  AggregatePipe,
+  RedactPipe,
+  type AggregateMetric,
+} from './transforms.js';
 export { ScriptTransformPipe } from './script.js';
 
 import { PipeRegistry } from '../../registry/index.js';
@@ -70,7 +77,13 @@ import { VerifyPipe } from './verify.js';
 import { FileSinkPipe } from './file-sink.js';
 import { TextSourcePipe } from './text.js';
 import { JsonSourcePipe } from './json.js';
-import { MapPipe, ConditionPipe } from './transforms.js';
+import {
+  MapPipe,
+  ConditionPipe,
+  DedupePipe,
+  AggregatePipe,
+  RedactPipe,
+} from './transforms.js';
 import { ScriptTransformPipe } from './script.js';
 import {
   HttpResponsePipe,
@@ -124,6 +137,9 @@ export function createDefaultPipeRegistry(): PipeRegistry {
     new ParentTriggerSourcePipe(),
     new MapPipe(),
     new ConditionPipe(),
+    new DedupePipe(),
+    new AggregatePipe(),
+    new RedactPipe(),
     new ScriptTransformPipe(),
     new MergePipe(),
     new SplitPipe(),

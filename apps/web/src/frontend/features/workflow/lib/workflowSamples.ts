@@ -62,6 +62,7 @@ export const SAMPLE_MAPPED_DB_COMPOSITE_UPSERT_WORKFLOW_ID = 'sample-mapped-db-c
 export const SAMPLE_DBA_SCHEMA_HEALTH_AUDIT_WORKFLOW_ID = 'sample-dba-schema-health-audit';
 export const SAMPLE_DBA_RETENTION_MAINTENANCE_WORKFLOW_ID = 'sample-dba-table-retention-maintenance';
 export const SAMPLE_DBA_QUARANTINE_RECONCILE_WORKFLOW_ID = 'sample-dba-ledger-verify-quarantine';
+export const SAMPLE_DBA_PII_REDACT_DEDUPE_AGGREGATE_WORKFLOW_ID = 'sample-dba-pii-redact-dedupe-aggregate';
 
 /** Demo nested tenant & user records for side-by-side ETL column mapping. */
 export const SAMPLE_TENANT_USERS_ETL = [
@@ -3764,6 +3765,140 @@ ORDER BY currency;`,
   },
 };
 
+const DBA_PII_REDACT_DEDUPE_AGGREGATE: SampleWorkflow = {
+  id: SAMPLE_DBA_PII_REDACT_DEDUPE_AGGREGATE_WORKFLOW_ID,
+  name: '★ Sample · DBA · PII Redaction, Deduplication & Aggregate Rollup',
+  document: {
+    id: SAMPLE_DBA_PII_REDACT_DEDUPE_AGGREGATE_WORKFLOW_ID,
+    name: '★ Sample · DBA · PII Redaction, Deduplication & Aggregate Rollup',
+    description:
+      'Zero-code DBA data-sanitization and rollup pipeline using the built-in Deduplicate (transform.dedupe), Redact PII (transform.redact), and Aggregate (transform.aggregate) pipes: deduplicates customer payment events, masks PII emails/cards for safe staging copy, and computes regional revenue totals.',
+    purpose:
+      'Sanitize production PII for staging databases while deduplicating replay events and computing regional rollups without custom JS scripts.',
+    tags: ['sample', 'dba', 'sql', 'pii', 'redact', 'dedupe', 'aggregate', 'sqlite'],
+    expectedResult:
+      'Deduplicates 5 raw rows into 4 unique rows (1 duplicate routed to rejects), masks email/card_last4 into dba_staging_customers, and aggregates regional totals into dba_region_metrics.',
+    origin: 'authored',
+    triggers: [{ id: 'manual', kind: 'manual', enabled: true }],
+    pipelines: [
+      {
+        id: 'main',
+        name: 'Dedupe, Redact PII & Aggregate',
+        task: 'Deduplicate customer events, mask PII for staging, and aggregate regional metrics',
+        pipes: [
+          {
+            id: 'read_raw_customer_events',
+            role: 'source',
+            type: 'source.db.sql',
+            intent: 'Load raw customer payment rows including a duplicate event and PII columns',
+            config: {
+              dialect: 'sqlite',
+              sql: `CREATE TABLE IF NOT EXISTS dba_raw_customer_events (
+  seq INTEGER PRIMARY KEY,
+  customer_id TEXT NOT NULL,
+  region TEXT NOT NULL,
+  email TEXT NOT NULL,
+  tax_id TEXT NOT NULL,
+  amount_usd REAL NOT NULL
+);
+INSERT OR REPLACE INTO dba_raw_customer_events (seq, customer_id, region, email, tax_id, amount_usd) VALUES
+  (1, 'CUST-10', 'US', 'alice@acme.example', 'SSN-990-1122', 120.0),
+  (2, 'CUST-20', 'EU', 'bob@europa.example', 'VAT-445-8899', 80.0),
+  (3, 'CUST-10', 'US', 'alice@acme.example', 'SSN-990-1122', 150.0),
+  (4, 'CUST-30', 'US', 'carol@west.example', 'SSN-771-3344', 200.0),
+  (5, 'CUST-40', 'EU', 'dan@nordic.example', 'VAT-118-2200', 110.0);
+SELECT customer_id, region, email, tax_id, amount_usd
+FROM dba_raw_customer_events
+ORDER BY seq;`,
+            },
+          },
+          {
+            id: 'dedupe_customers',
+            role: 'transform',
+            type: 'transform.dedupe',
+            intent: 'Keep latest row per customer_id and route superseded duplicates to rejects',
+            config: {
+              keys: ['customer_id'],
+              keep: 'last',
+            },
+          },
+          {
+            id: 'redact_pii_columns',
+            role: 'transform',
+            type: 'transform.redact',
+            intent: 'Mask customer email and tax_id before writing to staging table',
+            config: {
+              fields: ['email', 'tax_id'],
+              strategy: 'mask',
+            },
+          },
+          {
+            id: 'write_sanitized_staging',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Upsert PII-masked customer rows into dba_staging_customers',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'dba_staging_customers',
+              upsertKey: 'customer_id',
+              createTableIfMissing: true,
+            },
+          },
+          {
+            id: 'aggregate_by_region',
+            role: 'transform',
+            type: 'transform.aggregate',
+            intent: 'Group deduplicated customers by region and compute customer_count, total_usd, and avg_usd',
+            config: {
+              groupBy: ['region'],
+              metrics: [
+                { fn: 'count', as: 'customer_count' },
+                { fn: 'sum', field: 'amount_usd', as: 'total_usd' },
+                { fn: 'avg', field: 'amount_usd', as: 'avg_usd' },
+              ],
+            },
+          },
+          {
+            id: 'write_region_metrics',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Upsert regional rollup metrics into dba_region_metrics',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'dba_region_metrics',
+              upsertKey: 'region',
+              createTableIfMissing: true,
+            },
+          },
+          {
+            id: 'export_duplicate_audit_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Export superseded duplicate customer events to CSV',
+            config: {
+              path: 'dba_superseded_duplicates.csv',
+              columns: ['customer_id', 'region', 'amount_usd'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+        ],
+        edges: [
+          { from: 'read_raw_customer_events', to: 'dedupe_customers', fromPort: 'out' },
+          { from: 'dedupe_customers', to: 'redact_pii_columns', fromPort: 'out' },
+          { from: 'redact_pii_columns', to: 'write_sanitized_staging', fromPort: 'out' },
+          { from: 'dedupe_customers', to: 'aggregate_by_region', fromPort: 'out' },
+          { from: 'aggregate_by_region', to: 'write_region_metrics', fromPort: 'out' },
+          { from: 'dedupe_customers', to: 'export_duplicate_audit_csv', fromPort: 'rejects' },
+        ],
+      },
+    ],
+  },
+};
+
 export const WORKFLOW_SAMPLES: SampleWorkflow[] = [
   HELLO,
   ORDERS,
@@ -3786,6 +3921,7 @@ export const WORKFLOW_SAMPLES: SampleWorkflow[] = [
   DBA_SCHEMA_HEALTH_AUDIT,
   DBA_RETENTION_MAINTENANCE,
   DBA_QUARANTINE_RECONCILE,
+  DBA_PII_REDACT_DEDUPE_AGGREGATE,
 ];
 
 export function sampleWorkflowIds(): string[] {

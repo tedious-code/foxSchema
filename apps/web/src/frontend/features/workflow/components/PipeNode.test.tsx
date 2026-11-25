@@ -86,6 +86,22 @@ describe('pipeSummary', () => {
     ).toBe('postgres · INSERT → wf_cities');
     expect(
       pipeSummary(
+        'sink.db.mapped-insert',
+        JSON.stringify({
+          dialect: 'sqlite',
+          table: 'wf_tenant_users',
+          columnMapping: [{ targetColumn: 'tenant_id' }, { targetColumn: 'user_id' }],
+        }),
+      ),
+    ).toBe('sqlite · MAPPED → wf_tenant_users (2 cols)');
+    expect(
+      pipeSummary('workflow.sub', JSON.stringify({ workflowId: 'child-sync', workflowVersion: 3 })),
+    ).toBe('call: child-sync (v3)');
+    expect(
+      pipeSummary('human.gate', JSON.stringify({ prompt: 'Approve production purge?' })),
+    ).toBe('ask: Approve production purge?');
+    expect(
+      pipeSummary(
         'sink.file.delimited',
         JSON.stringify({ path: 'cities.csv', columns: ['city'], mode: 'overwrite' }),
       ),

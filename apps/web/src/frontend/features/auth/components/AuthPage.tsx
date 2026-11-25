@@ -202,7 +202,7 @@ const SignInForm: React.FC<{
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          {...caps}
+          {...caps.inputProps}
           placeholder="••••••••"
           autoComplete="current-password"
           className={`w-full ${authInputCls}`}

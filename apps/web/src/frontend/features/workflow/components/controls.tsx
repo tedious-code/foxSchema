@@ -52,17 +52,20 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 );
 Button.displayName = 'Button';
 
-const FIELD =
-  'w-full rounded-md border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-[13px] text-slate-100 placeholder:text-slate-500 outline-none accent-focus';
+const FIELD_BASE =
+  'rounded-md border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-[13px] text-slate-100 placeholder:text-slate-500 outline-none accent-focus';
+
+const fieldClass = (className?: string, extra?: string): string =>
+  cx(className && /(?:^|\s)w-\S+/.test(className) ? '' : 'w-full', FIELD_BASE, extra, className);
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
-  ({ className, ...props }, ref) => <input ref={ref} className={cx(FIELD, className)} {...props} />,
+  ({ className, ...props }, ref) => <input ref={ref} className={fieldClass(className)} {...props} />,
 );
 Input.displayName = 'Input';
 
 export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(
   ({ className, ...props }, ref) => (
-    <select ref={ref} className={cx(FIELD, 'cursor-pointer', className)} {...props} />
+    <select ref={ref} className={fieldClass(className, 'cursor-pointer')} {...props} />
   ),
 );
 Select.displayName = 'Select';
@@ -71,7 +74,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
   ({ className, ...props }, ref) => (
     <textarea
       ref={ref}
-      className={cx(FIELD, 'min-h-[90px] resize-y font-mono text-xs', className)}
+      className={fieldClass(className, 'min-h-[90px] resize-y font-mono text-xs')}
       {...props}
     />
   ),

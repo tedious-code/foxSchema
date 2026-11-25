@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1104** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1114** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -1348,6 +1348,9 @@ Every control has a test ID: **1104** buttons, text boxes, selects and textareas
   - `sql-sidebar-expand` · button · Show sidebar
   - `sql-sidebar-resize` · div · Resize sidebar
   - `sql-sidebar-toggle-{id}` · button
+  - `sql-split-editor-max` · button · Expand SQL editor pane (75%)
+  - `sql-split-equal` · button · Balanced split (48% / 52%)
+  - `sql-split-results-max` · button · Expand results grid pane (78%)
 - **SqlRunsDrawer** · `features/sql-editor/components/SqlRunsDrawer.tsx`
   - `sql-runs-clear` · button · Clear recent
   - `sql-runs-clear-cancel` · button · Cancel
@@ -1977,6 +1980,7 @@ Every control has a test ID: **1104** buttons, text boxes, selects and textareas
   - `pipe-credential-trigger` · button in FilterPicker · Filter by name, kind, id…
   - `workflow-inspector-concurrency` · input
   - `workflow-inspector-field-{name}` · select
+  - `workflow-inspector-format-raw` · button · Format JSON
   - `workflow-inspector-http-retry-attempts` · input
   - `workflow-inspector-intent` · input
   - `workflow-inspector-json-{name}` · textarea
@@ -1992,6 +1996,8 @@ Every control has a test ID: **1104** buttons, text boxes, selects and textareas
   - `workflow-inspector-tab-{id}` · button
   - `workflow-inspector-trigger` · select
   - `workflow-inspector-type` · select
+  - `workflow-script-expand` · button
+  - `workflow-script-snippet-{id}` · Button
 - **MultiHttpEditor** · `features/workflow/components/MultiHttpEditor.tsx`
   - `workflow-multi-http-add-endpoint` · Button
   - `workflow-multi-http-batch-size` · Input
@@ -2022,6 +2028,8 @@ Every control has a test ID: **1104** buttons, text boxes, selects and textareas
   - `workflow-run-answer` · Button
   - `workflow-run-answer-{key}` · input
   - `workflow-run-cancel` · Button
+  - `workflow-run-open-workflow` · Button · Open this workflow in Designer
+  - `workflow-run-rerun` · Button
   - `workflow-run-resume` · Button
   - `workflow-runs-detail` · aside · Run
   - `workflow-runs-download-json` · Button
@@ -2039,8 +2047,13 @@ Every control has a test ID: **1104** buttons, text boxes, selects and textareas
   - `sql-pipe-connection-trigger` · button in FilterPicker · Filter by name, dialect, host…
   - `workflow-sql-add-column-mapping` · Button
   - `workflow-sql-automap` · Button · Populate columns from selected table
+  - `workflow-sql-create-table-if-missing` · input
   - `workflow-sql-default-{index}` · Input · null
+  - `workflow-sql-expand` · button
+  - `workflow-sql-format` · button · Format SQL
+  - `workflow-sql-insert-record-token` · Button · Insert bound record parameter placeholder
   - `workflow-sql-insert-upsert-key` · Input · Upsert key
+  - `workflow-sql-insert-var-token` · Button · Insert bound workflow variable parameter placeholder
   - `workflow-sql-key-col-{index}` · button
   - `workflow-sql-mapping-row-{index}` · tr
   - `workflow-sql-pipe-browse` · button
@@ -2049,6 +2062,9 @@ Every control has a test ID: **1104** buttons, text boxes, selects and textareas
   - `workflow-sql-source-prop-{index}` · Input · e.g. user.id
   - `workflow-sql-table` · Input · Target table
   - `workflow-sql-target-col-{index}` · Input · e.g. user_id
+  - `workflow-sql-template-catalog` · Button · Insert DBA schema catalog inspection query
+  - `workflow-sql-template-counts` · Button · Insert DBA table row-count verification query
+  - `workflow-sql-transaction` · input
   - `workflow-sql-transform-{index}` · Input · value.trim()
   - `workflow-sql-upsert-condition` · Input · Update condition
   - `workflow-sql-upsert-keys` · Input · Combination keys
@@ -2098,6 +2114,7 @@ Every control has a test ID: **1104** buttons, text boxes, selects and textareas
   - `workflow-designer-stage-overview-{id}` · button · pipes
   - `workflow-designer-stage-select` · Select · Stage
   - `workflow-designer-triggers` · Button
+  - `workflow-designer-unsaved-badge` · span · This workflow has unsaved changes
 - **WorkflowLogPanel** · `features/workflow/components/WorkflowLogPanel.tsx`
   - `workflow-logs` · div · Log ·
   - `workflow-logs-all-events-{id}` · input
@@ -2114,9 +2131,11 @@ Every control has a test ID: **1104** buttons, text boxes, selects and textareas
   - `workflow-add-sample` · Button
   - `workflow-empty-add-samples` · Button
   - `workflow-list-file` · input
+  - `workflow-list-filter-{key}` · button
   - `workflow-list-last-run-{id}` · button · Open this workflow's log
   - `workflow-list-logs-{id}` · Button · Log: runs, failures and what to check
   - `workflow-list-open-in-designer-{id}` · button · Open in designer
+  - `workflow-list-run-{id}` · Button
 - **WorkflowView** · `features/workflow/components/WorkflowView.tsx`
   - `workflow-menu` · nav · Workflow
   - `workflow-no-panes` · p

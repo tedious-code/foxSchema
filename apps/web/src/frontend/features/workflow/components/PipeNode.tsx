@@ -158,6 +158,21 @@ export function pipeSummary(
     const table = typeof cfg.table === 'string' && cfg.table ? cfg.table : '…';
     return `${dialect} · INSERT → ${table}`;
   }
+  if (type === 'sink.db.mapped-insert') {
+    const dialect = typeof cfg.dialect === 'string' ? cfg.dialect : 'sql';
+    const table = typeof cfg.table === 'string' && cfg.table ? cfg.table : '…';
+    const cols = Array.isArray(cfg.columnMapping) ? cfg.columnMapping.length : 0;
+    return `${dialect} · MAPPED → ${table}${cols > 0 ? ` (${cols} cols)` : ''}`;
+  }
+  if (type === 'workflow.sub') {
+    const wf = typeof cfg.workflowId === 'string' && cfg.workflowId ? cfg.workflowId : '…';
+    const ver = typeof cfg.workflowVersion === 'number' ? ` (v${cfg.workflowVersion})` : '';
+    return `call: ${wf}${ver}`;
+  }
+  if (type === 'human.gate') {
+    const prompt = typeof cfg.prompt === 'string' && cfg.prompt.trim() ? cfg.prompt.trim() : '';
+    return prompt ? `ask: ${prompt}` : null;
+  }
   if (
     type === 'source.file.csv' ||
     type === 'source.file.json' ||

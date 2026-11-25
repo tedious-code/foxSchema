@@ -43,7 +43,7 @@ export function useCapsLock() {
   const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (typeof e.getModifierState === 'function') setOn(e.getModifierState('CapsLock'));
   };
-  return { capsLock: on, onKeyDown: onKey, onKeyUp: onKey };
+  return { capsLock: on, inputProps: { onKeyDown: onKey, onKeyUp: onKey } };
 }
 
 export const CapsLockHint: React.FC<{ on: boolean }> = ({ on }) =>
@@ -147,7 +147,7 @@ export const NewPasswordFields: React.FC<Props> = ({
             if (generated && e.target.value !== generated) setGenerated(null);
             onPassword(e.target.value);
           }}
-          {...caps}
+          {...caps.inputProps}
           placeholder={`At least ${PASSWORD_MIN_LENGTH} characters`}
           autoComplete="new-password"
           aria-describedby="auth-password-rules"
@@ -197,7 +197,7 @@ export const NewPasswordFields: React.FC<Props> = ({
           required
           value={confirm}
           onChange={(e) => onConfirm(e.target.value)}
-          {...caps}
+          {...caps.inputProps}
           autoComplete="new-password"
           aria-invalid={mismatch || undefined}
           className={`w-full ${authInputCls}`}

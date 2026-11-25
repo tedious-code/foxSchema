@@ -384,6 +384,33 @@ export const SqlEditorView: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey)) return;
+      const target = event.target as HTMLElement | null;
+      const inMonaco = Boolean(target?.closest('.monaco-editor'));
+      const key = event.key.toLowerCase();
+      if (key === 's' && !event.shiftKey) {
+        event.preventDefault();
+        if (!inMonaco && tab.sql.trim()) {
+          saveBookmark();
+        }
+        return;
+      }
+      if (key === 's' && event.shiftKey && !inMonaco) {
+        event.preventDefault();
+        setSafeMode(!safeMode);
+        return;
+      }
+      if (key === 'f' && event.shiftKey && !inMonaco) {
+        event.preventDefault();
+        if (tab.sql.trim()) onFormat();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  });
+
   const sidebarDragProps = useCallback(
     (orderIndex: number) => ({
       draggable: true as const,
@@ -997,6 +1024,42 @@ export const SqlEditorView: React.FC = () => {
                 ? ` · ${liveSelectedIds.length} server${liveSelectedIds.length === 1 ? '' : 's'}`
                 : ''}
             </span>
+            <span className="text-slate-700">|</span>
+            <div className="flex items-center gap-1" role="group" aria-label="Editor and results split ratio">
+              <button
+                type="button"
+                data-testid="sql-split-editor-max"
+                onClick={() => setEditorPct(75)}
+                title="Expand SQL editor pane (75%)"
+                className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition ${
+                  editorPct >= 65 ? 'bg-slate-800 text-cyan-300' : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                Editor 75%
+              </button>
+              <button
+                type="button"
+                data-testid="sql-split-equal"
+                onClick={() => setEditorPct(EDITOR_PCT_DEFAULT)}
+                title="Balanced split (48% / 52%)"
+                className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition ${
+                  editorPct > 30 && editorPct < 65 ? 'bg-slate-800 text-cyan-300' : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                50:50
+              </button>
+              <button
+                type="button"
+                data-testid="sql-split-results-max"
+                onClick={() => setEditorPct(22)}
+                title="Expand results grid pane (78%)"
+                className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition ${
+                  editorPct <= 30 ? 'bg-slate-800 text-cyan-300' : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                Results 78%
+              </button>
+            </div>
             <span className="text-slate-700">|</span>
             <span className="font-mono text-slate-300">
               Ln {cursorPosition.line}, Col {cursorPosition.col}

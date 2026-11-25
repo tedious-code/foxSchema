@@ -152,3 +152,37 @@ export function layoutPipeline(
   });
   return positions;
 }
+
+/**
+ * True when connecting `source` -> `target` would close a cycle within `edges`.
+ */
+export function wouldCreateCycle(
+  edges: ReadonlyArray<Pick<LayoutEdge, 'source' | 'target'>>,
+  source: string,
+  target: string,
+): boolean {
+  if (!source || !target) return false;
+  if (source === target) return true;
+  const nextByNode = new Map<string, string[]>();
+  for (const edge of edges) {
+    let list = nextByNode.get(edge.source);
+    if (!list) {
+      list = [];
+      nextByNode.set(edge.source, list);
+    }
+    list.push(edge.target);
+  }
+  const seen = new Set<string>([target]);
+  const queue = [target];
+  for (let i = 0; i < queue.length; i++) {
+    const current = queue[i]!;
+    for (const next of nextByNode.get(current) ?? []) {
+      if (next === source) return true;
+      if (!seen.has(next)) {
+        seen.add(next);
+        queue.push(next);
+      }
+    }
+  }
+  return false;
+}

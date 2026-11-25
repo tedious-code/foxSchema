@@ -89,7 +89,7 @@ import { Button, Input, Select } from './controls';
 import { useDebugSamples } from '../hooks/useDebugSamples';
 import { usePaneResize } from '../hooks/usePaneResize';
 import { pipeKey } from '../lib/ports';
-import { layoutPipeline } from '../lib/autoLayout';
+import { layoutPipeline, wouldCreateCycle } from '../lib/autoLayout';
 import {
   configProblem,
   failureOrigins,
@@ -488,6 +488,9 @@ function Designer() {
   } | null>(null);
   /** Stages not yet laid out with measured node sizes since the workflow opened. */
   const [layoutPending, setLayoutPending] = useState<ReadonlySet<string>>(() => new Set());
+  /** Serialized workflow snapshot from the last save or load; detects unsaved edits. */
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
+  const pendingBaselineRef = useRef(false);
   /** Problems list keys the user closed; it reopens when the problems change. */
   const [dismissedIssues, setDismissedIssues] = useState('');
 
@@ -716,6 +719,14 @@ function Designer() {
         toast.error('Pipes can only connect within the same pipeline.');
         return;
       }
+      if (connection.source === connection.target) {
+        toast.error('A pipe cannot connect to itself.');
+        return;
+      }
+      if (wouldCreateCycle(edges, connection.source, connection.target)) {
+        toast.error('This connection would create a cycle. Use a loop pipe instead.');
+        return;
+      }
       setEdges((current) =>
         addEdge(
           {
@@ -727,7 +738,7 @@ function Designer() {
         ),
       );
     },
-    [nodes, setEdges],
+    [edges, nodes, setEdges],
   );
 
   const onDrop = useCallback(
@@ -991,6 +1002,7 @@ function Designer() {
       setDebugRunId(null);
       setValidationIssue(null);
       setLayoutPending(new Set(canvases.map((pipeline) => pipeline.id)));
+      pendingBaselineRef.current = true;
       setView('designer');
     },
     [portsByType, setEdges, setNodes, setView, setWorkflowId],
@@ -1014,7 +1026,9 @@ function Designer() {
   const save = useCallback(async () => {
     setBusy(true);
     try {
-      await api.save(workflowId, toDocument());
+      const doc = toDocument();
+      await api.save(workflowId, doc);
+      setSavedSnapshot(JSON.stringify(doc));
       setValidationIssue(null);
       toast.success(`Saved workflow "${workflowId}"`);
       return true;
@@ -1026,6 +1040,35 @@ function Designer() {
       setBusy(false);
     }
   }, [toDocument, workflowId, setBusy, noteValidation]);
+
+  useEffect(() => {
+    if (!pendingBaselineRef.current) return;
+    pendingBaselineRef.current = false;
+    try {
+      setSavedSnapshot(JSON.stringify(toDocument()));
+    } catch {
+      setSavedSnapshot(null);
+    }
+  }, [toDocument]);
+
+  const isDirty = useMemo(() => {
+    if (savedSnapshot === null) return false;
+    try {
+      return JSON.stringify(toDocument()) !== savedSnapshot;
+    } catch {
+      return true;
+    }
+  }, [savedSnapshot, toDocument]);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [isDirty]);
 
   useEffect(() => {
     if (view !== 'designer') return;
@@ -1374,7 +1417,7 @@ function Designer() {
               </button>
               <ChevronRight size={14} />
               <Input
-                className="workflow-name-input"
+                className="w-[220px] workflow-name-input"
                 value={workflowId}
                 data-testid="workflow-designer-id"
                 onChange={(ev) => setWorkflowId(ev.target.value)}
@@ -1402,6 +1445,11 @@ function Designer() {
                   ? 'Refresh samples'
                   : 'Add samples'}
               </Button>
+              {isDirty && (
+                <span className="unsaved-pill" data-testid="workflow-designer-unsaved-badge" title="This workflow has unsaved changes">
+                  Unsaved
+                </span>
+              )}
               <Button
                 data-testid="workflow-designer-save"
                 onClick={() => void save()}
@@ -1439,7 +1487,7 @@ function Designer() {
               <span className="toolbar-separator" />
               <span className="pipeline-context-label">Stage</span>
               <Select
-                className="stage-select"
+                className="w-auto stage-select"
                 data-testid="workflow-designer-stage-select"
                 aria-label="Stage"
                 value={activePipelineId}
@@ -1456,7 +1504,7 @@ function Designer() {
                 })}
               </Select>
               <Select
-                className="pipe-select"
+                className="w-auto pipe-select"
                 data-testid="workflow-designer-pipe-select"
                 aria-label="Pipe"
                 value={selectedId ?? ''}
@@ -1492,7 +1540,7 @@ function Designer() {
                     <Trash2 /> Delete stage
                   </Button>
                   <Input
-                    className="pipeline-task-input"
+                    className="w-[160px] pipeline-task-input"
                     aria-label="Active pipeline task"
                     placeholder="Stage task…"
                     value={pipelines.find((pipeline) => pipeline.id === activePipelineId)?.task ?? ''}
@@ -1528,7 +1576,7 @@ function Designer() {
                 </Button>
               )}
               <Select
-                className="overlap-select"
+                className="w-auto overlap-select"
                 value={overlapPolicy}
                 onChange={(event) => setOverlapPolicy(event.target.value as typeof overlapPolicy)}
                 aria-label="Overlap policy"
@@ -1735,7 +1783,7 @@ function Designer() {
           </div>
         )}
         {view === 'credentials' && <CredentialsPanel credentials={credentials} onChange={refreshCredentials} />}
-        {view === 'runs' && <RunsPanel runs={runs} onRefresh={refreshRuns} />}
+        {view === 'runs' && <RunsPanel runs={runs} onRefresh={refreshRuns} onOpenWorkflow={openWorkflow} />}
         {(view === 'workflows' || (view === 'logs' && !logsWorkflowId)) && (
           <WorkflowsPanel
             currentId={workflowId}

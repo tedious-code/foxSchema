@@ -33,6 +33,7 @@ const okRun = {
 const getRunMock = vi.hoisted(() => vi.fn());
 const getRunFailureMock = vi.hoisted(() => vi.fn());
 const streamRunEventsMock = vi.hoisted(() => vi.fn());
+const runWorkflowMock = vi.hoisted(() => vi.fn());
 
 vi.mock('../api/engineClient', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/engineClient')>()),
@@ -56,6 +57,7 @@ vi.mock('../api/engineClient', async (importOriginal) => ({
     getRunFailure: getRunFailureMock,
     streamRunEvents: streamRunEventsMock,
     getRunInputs: vi.fn(),
+    run: runWorkflowMock,
   },
 }));
 
@@ -134,5 +136,23 @@ describe('Runs panel log', () => {
     });
     await waitFor(() => expect(getRunFailureMock).toHaveBeenCalledTimes(3));
     await waitFor(() => expect(getRunMock).toHaveBeenCalledTimes(3));
+  });
+
+  it('supports opening workflow in designer and re-running a finished run', async () => {
+    runWorkflowMock.mockResolvedValue({ runId: 'rerun-1234', status: 'queued', accepted: true });
+    const onRefresh = vi.fn();
+    const onOpenWorkflow = vi.fn();
+    const { container } = render(
+      <RunsPanel runs={[failedRun]} onRefresh={onRefresh} onOpenWorkflow={onOpenWorkflow} />,
+    );
+
+    fireEvent.click(container.querySelector('tbody tr')!);
+    const openBtn = await screen.findByTestId('workflow-run-open-workflow');
+    fireEvent.click(openBtn);
+    expect(onOpenWorkflow).toHaveBeenCalledWith(failedRun.workflowId);
+
+    fireEvent.click(screen.getByTestId('workflow-run-rerun'));
+    await waitFor(() => expect(runWorkflowMock).toHaveBeenCalledWith(failedRun.workflowId, { debug: true }));
+    expect(onRefresh).toHaveBeenCalled();
   });
 });

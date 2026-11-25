@@ -951,13 +951,19 @@
   border-bottom: 1px solid var(--border-soft);
 }
 .fox-workflow .workflow-header { height: 54px; padding: 0 14px; }
-.fox-workflow .canvas-toolbar { height: 42px; padding: 0 14px; }
+.fox-workflow .canvas-toolbar { min-height: 42px; padding: 6px 14px; flex-wrap: wrap; gap: 6px 12px; }
 .fox-workflow .workflow-breadcrumbs,
-.fox-workflow .workflow-actions,
+.fox-workflow .workflow-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
 .fox-workflow .canvas-tools-left,
 .fox-workflow .canvas-tools-right {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 7px;
   min-width: 0;
 }
@@ -973,7 +979,8 @@
 .fox-workflow .workflow-name-input:focus { border-color: var(--border); background: var(--panel); }
 .fox-workflow .workflow-actions button,
 .fox-workflow .canvas-toolbar button { min-height: 29px; border-radius: 4px; font-size: 11px; }
-.fox-workflow .canvas-toolbar .pipeline-select,
+.fox-workflow .canvas-toolbar .stage-select,
+.fox-workflow .canvas-toolbar .pipe-select,
 .fox-workflow .canvas-toolbar .overlap-select { width: auto; min-width: 110px; padding: 5px 24px 5px 8px; border-radius: 4px; }
 .fox-workflow .pipeline-context-label { color: var(--muted); font-size: 9px; white-space: nowrap; }
 .fox-workflow .pipeline-chips { display: flex; align-items: center; gap: 4px; max-width: 360px; overflow-x: auto; flex: none; }
@@ -1024,6 +1031,45 @@
   background: var(--accent-dim);
   color: var(--accent);
   font-size: 9px;
+}
+.fox-workflow .unsaved-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--warn, #f59e0b);
+  background: color-mix(in srgb, var(--warn, #f59e0b) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn, #f59e0b) 35%, transparent);
+}
+.fox-workflow .run-detail-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.fox-workflow .workflows-filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.fox-workflow .workflows-filter-chip {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.fox-workflow .workflows-filter-chip.active {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .fox-workflow .reference-main { flex: 1; min-height: 0; overflow: hidden; }

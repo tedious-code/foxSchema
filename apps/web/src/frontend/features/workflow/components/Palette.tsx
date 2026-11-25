@@ -96,7 +96,8 @@ export function Palette({
       (entry) =>
         entry.label.toLowerCase().includes(q) ||
         entry.type.toLowerCase().includes(q) ||
-        entry.category.toLowerCase().includes(q),
+        entry.category.toLowerCase().includes(q) ||
+        (entry.tags ?? []).some((tag) => tag.toLowerCase().includes(q)),
     );
   }, [categories, visibleCategories, query]);
 

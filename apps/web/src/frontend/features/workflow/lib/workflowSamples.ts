@@ -59,6 +59,9 @@ export const SAMPLE_EMPTY_BATCH_AND_LOOP_EDGE_WORKFLOW_ID = 'sample-empty-batch-
 export const SAMPLE_CDC_WATERMARK_INCREMENTAL_SYNC_WORKFLOW_ID = 'sample-cdc-watermark-incremental-sync';
 export const SAMPLE_WEBHOOK_INGEST_AGGREGATE_DB_WORKFLOW_ID = 'sample-webhook-ingest-aggregate-db';
 export const SAMPLE_MAPPED_DB_COMPOSITE_UPSERT_WORKFLOW_ID = 'sample-mapped-db-composite-upsert';
+export const SAMPLE_DBA_SCHEMA_HEALTH_AUDIT_WORKFLOW_ID = 'sample-dba-schema-health-audit';
+export const SAMPLE_DBA_RETENTION_MAINTENANCE_WORKFLOW_ID = 'sample-dba-table-retention-maintenance';
+export const SAMPLE_DBA_QUARANTINE_RECONCILE_WORKFLOW_ID = 'sample-dba-ledger-verify-quarantine';
 
 /** Demo nested tenant & user records for side-by-side ETL column mapping. */
 export const SAMPLE_TENANT_USERS_ETL = [
@@ -3296,6 +3299,471 @@ const MAPPED_DB_COMPOSITE_UPSERT: SampleWorkflow = {
   },
 };
 
+const DBA_SCHEMA_HEALTH_AUDIT: SampleWorkflow = {
+  id: SAMPLE_DBA_SCHEMA_HEALTH_AUDIT_WORKFLOW_ID,
+  name: '★ Sample · DBA · Schema Health, Index & PK Audit',
+  document: {
+    id: SAMPLE_DBA_SCHEMA_HEALTH_AUDIT_WORKFLOW_ID,
+    name: '★ Sample · DBA · Schema Health, Index & PK Audit',
+    description:
+      'Practical DBA catalog audit: inspects SQLite sqlite_master tables & indexes, flags tables missing a PRIMARY KEY or secondary index, routes warnings vs healthy objects, stores structured findings in dba_schema_findings, and exports dba_schema_audit_findings.csv.',
+    purpose:
+      'Audit database catalog health automatically to catch unindexed tables and missing primary keys before production growth.',
+    tags: ['sample', 'dba', 'sql', 'audit', 'sqlite'],
+    expectedResult:
+      'Flags dba_audit_queue as missing PK/index (severity=warn), logs dba_accounts and dba_invoices in dba_schema_findings, and exports CSV findings.',
+    origin: 'authored',
+    triggers: [{ id: 'manual', kind: 'manual', enabled: true }],
+    pipelines: [
+      {
+        id: 'audit',
+        name: 'Catalog Audit',
+        task: 'Inspect schema tables and indexes, flag risks, and save DBA audit findings',
+        pipes: [
+          {
+            id: 'inspect_catalog',
+            role: 'source',
+            type: 'source.db.sql',
+            intent: 'Inspect SQLite catalog tables and indexes (pre-seeding demo DBA tables in scratch SQLite)',
+            config: {
+              dialect: 'sqlite',
+              sql: `CREATE TABLE IF NOT EXISTS dba_accounts (
+  account_id INTEGER PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS dba_invoices (
+  invoice_id INTEGER PRIMARY KEY,
+  account_id INTEGER NOT NULL REFERENCES dba_accounts(account_id),
+  total_cents INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_dba_invoices_account ON dba_invoices(account_id);
+CREATE TABLE IF NOT EXISTS dba_audit_queue (
+  event_id TEXT,
+  payload TEXT,
+  created_at TEXT
+);
+SELECT type, name, tbl_name, sql
+FROM sqlite_master
+WHERE type IN ('table', 'index') AND name NOT LIKE 'sqlite_%' AND tbl_name LIKE 'dba_%'
+ORDER BY type, name;`,
+            },
+          },
+          {
+            id: 'evaluate_tables',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Evaluate each table for PRIMARY KEY and index coverage',
+            config: {
+              script: `const tables = records.filter((r) => r.type === 'table');
+const indexesByTable = new Map();
+for (const row of records) {
+  if (row.type !== 'index') continue;
+  indexesByTable.set(row.tbl_name, (indexesByTable.get(row.tbl_name) || 0) + 1);
+}
+return tables.map((t) => {
+  const ddl = String(t.sql || '');
+  const hasPk = /\\bPRIMARY\\s+KEY\\b/i.test(ddl);
+  const indexCount = indexesByTable.get(t.name) || 0;
+  const issues = [];
+  if (!hasPk) issues.push('Missing PRIMARY KEY');
+  if (indexCount === 0 && !hasPk) issues.push('No indexes defined');
+  const severity = issues.length > 0 ? 'warn' : 'ok';
+  return {
+    table_name: String(t.name),
+    has_primary_key: hasPk ? 1 : 0,
+    index_count: indexCount,
+    severity,
+    finding: issues.length > 0 ? issues.join('; ') : 'Healthy: primary key / index present',
+    audited_at: new Date().toISOString(),
+  };
+});`,
+            },
+          },
+          {
+            id: 'route_severity',
+            role: 'transform',
+            type: 'transform.condition',
+            intent: 'Branch warning findings vs healthy tables',
+            config: { field: 'severity', operator: 'equals', value: 'warn' },
+          },
+          {
+            id: 'save_warnings',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Persist schema risk findings into dba_schema_findings',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'dba_schema_findings',
+              upsertKey: 'table_name',
+              createTableIfMissing: true,
+            },
+          },
+          {
+            id: 'save_healthy',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Persist healthy table checks into dba_schema_findings',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'dba_schema_findings',
+              upsertKey: 'table_name',
+              createTableIfMissing: true,
+            },
+          },
+          {
+            id: 'export_warnings_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Export schema audit warnings to CSV for DBA review',
+            config: {
+              path: 'dba_schema_audit_findings.csv',
+              columns: ['table_name', 'has_primary_key', 'index_count', 'severity', 'finding', 'audited_at'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+        ],
+        edges: [
+          { from: 'inspect_catalog', to: 'evaluate_tables', fromPort: 'out' },
+          { from: 'evaluate_tables', to: 'route_severity', fromPort: 'out' },
+          { from: 'route_severity', to: 'save_warnings', fromPort: 'true' },
+          { from: 'save_warnings', to: 'export_warnings_csv', fromPort: 'out' },
+          { from: 'route_severity', to: 'save_healthy', fromPort: 'false' },
+        ],
+      },
+    ],
+  },
+};
+
+const DBA_RETENTION_MAINTENANCE: SampleWorkflow = {
+  id: SAMPLE_DBA_RETENTION_MAINTENANCE_WORKFLOW_ID,
+  name: '★ Sample · DBA · Staged Archive, Retention Purge & ANALYZE',
+  document: {
+    id: SAMPLE_DBA_RETENTION_MAINTENANCE_WORKFLOW_ID,
+    name: '★ Sample · DBA · Staged Archive, Retention Purge & ANALYZE',
+    description:
+      'Two-stage DBA retention job with dependency gating: Stage 1 archives aged rows older than 90 days into dba_session_events_archive and exports a backup CSV. Only after archiving succeeds does Stage 2 delete archived rows, run ANALYZE + PRAGMA optimize, and log post-purge row counts.',
+    purpose:
+      'Run archive-before-purge data retention safely so deletes never execute unless archiving succeeds first.',
+    tags: ['sample', 'dba', 'sql', 'maintenance', 'retention', 'sqlite'],
+    expectedResult:
+      'Archives 2 expired events cleanly, deletes only archived IDs, executes ANALYZE + PRAGMA optimize, and logs active vs archived counts.',
+    origin: 'authored',
+    triggers: [{ id: 'manual', kind: 'manual', enabled: true }],
+    dependencies: [
+      { from: 'archive_before_purge', to: 'purge_and_analyze', on: 'success' },
+    ],
+    pipelines: [
+      {
+        id: 'archive_before_purge',
+        name: '1. Archive Expired Rows',
+        task: 'Identify aged rows, write to archive table, and export CSV backup',
+        pipes: [
+          {
+            id: 'find_expired_events',
+            role: 'source',
+            type: 'source.db.sql',
+            intent: 'Query rows older than 2026-09-01 for cold archive',
+            config: {
+              dialect: 'sqlite',
+              sql: `CREATE TABLE IF NOT EXISTS dba_session_events (
+  id TEXT PRIMARY KEY,
+  actor TEXT NOT NULL,
+  action TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS dba_session_events_archive (
+  id TEXT PRIMARY KEY,
+  actor TEXT NOT NULL,
+  action TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  archived_at TEXT NOT NULL,
+  archive_reason TEXT NOT NULL
+);
+INSERT OR REPLACE INTO dba_session_events (id, actor, action, created_at) VALUES
+  ('evt-001', 'alice', 'login', '2026-06-15T10:00:00Z'),
+  ('evt-002', 'bob', 'schema.diff', '2026-07-01T12:30:00Z'),
+  ('evt-003', 'cara', 'workflow.run', '2026-11-20T09:15:00Z'),
+  ('evt-004', 'dave', 'login', '2026-11-24T18:05:00Z');
+SELECT id, actor, action, created_at
+FROM dba_session_events
+WHERE created_at < '2026-09-01T00:00:00Z'
+ORDER BY id;`,
+            },
+          },
+          {
+            id: 'stamp_archive_metadata',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Add archive timestamp and retention policy reason',
+            config: {
+              script: `const archived_at = new Date().toISOString();
+return records.map((r) => ({
+  ...r,
+  archived_at,
+  archive_reason: 'retention-90d',
+}));`,
+            },
+          },
+          {
+            id: 'write_archive_table',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Upsert expired events into dba_session_events_archive',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'dba_session_events_archive',
+              upsertKey: 'id',
+              columns: ['id', 'actor', 'action', 'created_at', 'archived_at', 'archive_reason'],
+            },
+          },
+          {
+            id: 'export_archive_backup',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Export archived retention rows to backup CSV',
+            config: {
+              path: 'dba_retention_archived.csv',
+              columns: ['id', 'actor', 'action', 'created_at', 'archived_at', 'archive_reason'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+        ],
+        edges: [
+          { from: 'find_expired_events', to: 'stamp_archive_metadata', fromPort: 'out' },
+          { from: 'stamp_archive_metadata', to: 'write_archive_table', fromPort: 'out' },
+          { from: 'write_archive_table', to: 'export_archive_backup', fromPort: 'out' },
+        ],
+      },
+      {
+        id: 'purge_and_analyze',
+        name: '2. Purge & Optimize',
+        task: 'Delete archived rows, refresh planner stats, and log summary',
+        pipes: [
+          {
+            id: 'delete_and_optimize',
+            role: 'source',
+            type: 'source.db.sql',
+            intent: 'Delete archived rows in transaction, run ANALYZE + PRAGMA optimize, and read post-purge counts',
+            config: {
+              dialect: 'sqlite',
+              transaction: true,
+              sql: `DELETE FROM dba_session_events
+WHERE id IN (SELECT id FROM dba_session_events_archive);
+ANALYZE;
+PRAGMA optimize;
+SELECT
+  (SELECT COUNT(*) FROM dba_session_events) AS active_rows,
+  (SELECT COUNT(*) FROM dba_session_events_archive) AS archived_rows;`,
+            },
+          },
+          {
+            id: 'format_maintenance_entry',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Tag maintenance execution timestamp and job key',
+            config: {
+              script: `return records.map((r) => ({
+  run_tag: 'retention-90d-latest',
+  active_rows: Number(r.active_rows || 0),
+  archived_rows: Number(r.archived_rows || 0),
+  completed_at: new Date().toISOString(),
+}));`,
+            },
+          },
+          {
+            id: 'log_maintenance_summary',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Record maintenance telemetry into dba_maintenance_log',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'dba_maintenance_log',
+              upsertKey: 'run_tag',
+              createTableIfMissing: true,
+            },
+          },
+        ],
+        edges: [
+          { from: 'delete_and_optimize', to: 'format_maintenance_entry', fromPort: 'out' },
+          { from: 'format_maintenance_entry', to: 'log_maintenance_summary', fromPort: 'out' },
+        ],
+      },
+    ],
+  },
+};
+
+const DBA_QUARANTINE_RECONCILE: SampleWorkflow = {
+  id: SAMPLE_DBA_QUARANTINE_RECONCILE_WORKFLOW_ID,
+  name: '★ Sample · DBA · Data Quality Verify, Quarantine & Reconciliation',
+  document: {
+    id: SAMPLE_DBA_QUARANTINE_RECONCILE_WORKFLOW_ID,
+    name: '★ Sample · DBA · Data Quality Verify, Quarantine & Reconciliation',
+    description:
+      'Production-safe staging ingestion for DBAs: reads staging rows via SQL, checks integrity constraints with transform.verify (account_code notEmpty, amount_cents >= 0, currency in USD/EUR/GBP), promotes valid rows to dba_clean_ledger + reconciles currency totals, and routes violations to dba_ledger_quarantine + CSV.',
+    purpose:
+      'Separate dirty staging records before promotion to production tables and maintain SQL reconciliation totals.',
+    tags: ['sample', 'dba', 'sql', 'quality', 'verify', 'quarantine', 'sqlite'],
+    expectedResult:
+      'Promotes 3 valid ledger rows, reconciles USD/EUR totals, and quarantines 2 invalid rows with rejection reasons.',
+    origin: 'authored',
+    triggers: [{ id: 'manual', kind: 'manual', enabled: true }],
+    pipelines: [
+      {
+        id: 'main',
+        name: 'Verify, Promote & Reconcile',
+        task: 'Verify staging constraints, promote clean rows, quarantine violations, and reconcile totals',
+        pipes: [
+          {
+            id: 'read_staging_ledger',
+            role: 'source',
+            type: 'source.db.sql',
+            intent: 'Load staged ledger entries for constraint verification',
+            config: {
+              dialect: 'sqlite',
+              sql: `CREATE TABLE IF NOT EXISTS dba_staging_ledger (
+  entry_id TEXT PRIMARY KEY,
+  account_code TEXT,
+  currency TEXT,
+  amount_cents INTEGER NOT NULL
+);
+INSERT OR REPLACE INTO dba_staging_ledger (entry_id, account_code, currency, amount_cents) VALUES
+  ('LDG-101', 'ACC-1000', 'USD', 15000),
+  ('LDG-102', 'ACC-2000', 'EUR', 8500),
+  ('LDG-103', '', 'USD', 4200),
+  ('LDG-104', 'ACC-3000', 'XXX', -500),
+  ('LDG-105', 'ACC-1000', 'USD', 5000);
+SELECT entry_id, account_code, currency, amount_cents
+FROM dba_staging_ledger
+ORDER BY entry_id;`,
+            },
+          },
+          {
+            id: 'verify_ledger_rules',
+            role: 'transform',
+            type: 'transform.verify',
+            intent: 'Enforce non-empty account_code, non-negative amount_cents, and supported currency',
+            config: {
+              onInvalid: 'reject',
+              minScore: 1,
+              outputField: 'verification',
+              rules: [
+                { field: 'account_code', op: 'notEmpty', message: 'account_code is required' },
+                { field: 'amount_cents', op: 'gte', value: 0, message: 'amount_cents must be >= 0' },
+                { field: 'currency', op: 'oneOf', value: ['USD', 'EUR', 'GBP'], message: 'unsupported currency code' },
+              ],
+            },
+          },
+          {
+            id: 'promote_clean_rows',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Upsert verified rows into dba_clean_ledger',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'dba_clean_ledger',
+              upsertKey: 'entry_id',
+              columns: ['entry_id', 'account_code', 'currency', 'amount_cents'],
+              createTableIfMissing: true,
+            },
+          },
+          {
+            id: 'reconcile_by_currency',
+            role: 'source',
+            type: 'source.db.sql',
+            intent: 'Compute per-currency row counts and posted balance sums after promotion',
+            config: {
+              dialect: 'sqlite',
+              sql: `SELECT currency, COUNT(*) AS posted_entries, SUM(amount_cents) AS total_cents
+FROM dba_clean_ledger
+GROUP BY currency
+ORDER BY currency;`,
+            },
+          },
+          {
+            id: 'export_reconcile_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Write currency reconciliation report to CSV',
+            config: {
+              path: 'dba_ledger_reconciliation.csv',
+              columns: ['currency', 'posted_entries', 'total_cents'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+          {
+            id: 'format_quarantine',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Flatten verification failure messages for quarantine logging',
+            config: {
+              script: `return records.map((r) => {
+  const failures = (r.verification && Array.isArray(r.verification.failures))
+    ? r.verification.failures.map((f) => f.message || f.field).join('; ')
+    : 'validation failed';
+  return {
+    entry_id: String(r.entry_id),
+    account_code: String(r.account_code ?? ''),
+    currency: String(r.currency ?? ''),
+    amount_cents: Number(r.amount_cents ?? 0),
+    reason: failures,
+    quarantined_at: new Date().toISOString(),
+  };
+});`,
+            },
+          },
+          {
+            id: 'sink_quarantine_table',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Store rejected rows in dba_ledger_quarantine',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'dba_ledger_quarantine',
+              upsertKey: 'entry_id',
+              createTableIfMissing: true,
+            },
+          },
+          {
+            id: 'export_quarantine_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Export quarantined rows for DBA remediation',
+            config: {
+              path: 'dba_ledger_quarantine.csv',
+              columns: ['entry_id', 'account_code', 'currency', 'amount_cents', 'reason', 'quarantined_at'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+        ],
+        edges: [
+          { from: 'read_staging_ledger', to: 'verify_ledger_rules', fromPort: 'out' },
+          { from: 'verify_ledger_rules', to: 'promote_clean_rows', fromPort: 'out' },
+          { from: 'promote_clean_rows', to: 'reconcile_by_currency', fromPort: 'out' },
+          { from: 'reconcile_by_currency', to: 'export_reconcile_csv', fromPort: 'out' },
+          { from: 'verify_ledger_rules', to: 'format_quarantine', fromPort: 'rejects' },
+          { from: 'format_quarantine', to: 'sink_quarantine_table', fromPort: 'out' },
+          { from: 'sink_quarantine_table', to: 'export_quarantine_csv', fromPort: 'out' },
+        ],
+      },
+    ],
+  },
+};
+
 export const WORKFLOW_SAMPLES: SampleWorkflow[] = [
   HELLO,
   ORDERS,
@@ -3315,6 +3783,9 @@ export const WORKFLOW_SAMPLES: SampleWorkflow[] = [
   CDC_WATERMARK_INCREMENTAL_SYNC,
   WEBHOOK_INGEST_AGGREGATE_DB,
   MAPPED_DB_COMPOSITE_UPSERT,
+  DBA_SCHEMA_HEALTH_AUDIT,
+  DBA_RETENTION_MAINTENANCE,
+  DBA_QUARANTINE_RECONCILE,
 ];
 
 export function sampleWorkflowIds(): string[] {

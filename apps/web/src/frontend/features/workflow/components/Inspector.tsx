@@ -492,8 +492,14 @@ export function Inspector({
 }: Props) {
   const [configError, setConfigError] = useState<string | null>(null);
   const [showRaw, setShowRaw] = useState(false);
+  const [scriptExpanded, setScriptExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<InspectorTab>('settings');
+  const [draftName, setDraftName] = useState(data?.name ?? '');
   const jsonEditorTheme = useJsonEditorTheme();
+
+  useEffect(() => {
+    setDraftName(data?.name ?? '');
+  }, [pipeId, data?.name]);
 
   const entry = useMemo(
     () => catalog.find((item) => item.type === data?.type),
@@ -547,6 +553,8 @@ export function Inspector({
     'upsertKeys',
     'upsertCondition',
     'columnMapping',
+    'createTableIfMissing',
+    'transaction',
   ]);
   const propertyKeys = Object.keys(properties).filter(
     (key) =>
@@ -704,14 +712,19 @@ export function Inspector({
       <input
         id="workflow-inspector-pipe-name"
         data-testid="workflow-inspector-pipe-name"
-        key={`name:${pipeId}`}
-        defaultValue={data.name || ''}
+        value={draftName}
         placeholder={entry?.label ?? data.type}
         maxLength={PIPE_NAME_MAX_LENGTH}
+        onChange={(ev) => {
+          const next = ev.target.value;
+          setDraftName(next);
+          onChange(pipeId, { name: next });
+        }}
         onBlur={(ev) => {
-          const next = ev.target.value.trim();
-          if (next !== (data.name ?? '')) {
-            onChange(pipeId, { name: next });
+          const trimmed = ev.target.value.trim();
+          if (trimmed !== draftName) {
+            setDraftName(trimmed);
+            onChange(pipeId, { name: trimmed });
           }
         }}
         onKeyDown={(ev) => {
@@ -1398,10 +1411,57 @@ export function Inspector({
 
       {isScriptPipe && (
         <>
-          <h4 className="inspector-section">Script</h4>
+          <div className="flex items-center justify-between gap-2 mt-2 mb-1">
+            <h4 className="inspector-section m-0">Script</h4>
+            <button
+              type="button"
+              data-testid="workflow-script-expand"
+              className="linkish"
+              onClick={() => setScriptExpanded((v) => !v)}
+            >
+              {scriptExpanded ? 'Compact editor' : 'Expand editor'}
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+            {(
+              [
+                [
+                  'map',
+                  'Map fields',
+                  `return records.map((r) => ({\n  ...r,\n  processed_at: new Date().toISOString(),\n}));`,
+                ],
+                [
+                  'filter',
+                  'Filter rows',
+                  `return records.filter((r) => r.status === 'active' && Number(r.amount ?? 0) > 0);`,
+                ],
+                [
+                  'dedupe',
+                  'Dedupe by ID',
+                  `const seen = new Set();\nreturn records.filter((r) => {\n  const key = String(r.id ?? '');\n  if (!key || seen.has(key)) return false;\n  seen.add(key);\n  return true;\n});`,
+                ],
+                [
+                  'rollup',
+                  'Group / Rollup',
+                  `const groups = new Map();\nfor (const r of records) {\n  const key = String(r.category ?? 'default');\n  const cur = groups.get(key) ?? { category: key, count: 0, total: 0 };\n  cur.count += 1;\n  cur.total += Number(r.amount ?? 0);\n  groups.set(key, cur);\n}\nreturn [...groups.values()];`,
+                ],
+              ] as const
+            ).map(([id, label, snippet]) => (
+              <Button
+                key={id}
+                size="sm"
+                variant="ghost"
+                data-testid={`workflow-script-snippet-${id}`}
+                onClick={() => patchConfig('script', snippet)}
+                title={`Replace script with ${label} starter template`}
+              >
+                + {label}
+              </Button>
+            ))}
+          </div>
           <div className="monaco-frame">
             <Editor
-              height="220px"
+              height={scriptExpanded ? '400px' : '220px'}
               language="javascript"
               theme={jsonEditorTheme}
               value={typeof config.script === 'string' ? config.script : ''}
@@ -1530,7 +1590,25 @@ export function Inspector({
             </button>
             {showRaw && (
               <>
-                <label>Config (JSON)</label>
+                <div className="flex items-center justify-between gap-2 mt-1">
+                  <label className="m-0">Config (JSON)</label>
+                  <button
+                    type="button"
+                    data-testid="workflow-inspector-format-raw"
+                    className="linkish"
+                    onClick={() => {
+                      try {
+                        const parsed = JSON.parse(data.config || '{}');
+                        onChange(pipeId, { config: JSON.stringify(parsed, null, 2) });
+                        setConfigError(null);
+                      } catch {
+                        setConfigError('Not valid JSON — fix syntax errors before formatting.');
+                      }
+                    }}
+                  >
+                    Format JSON
+                  </button>
+                </div>
                 <div className="monaco-frame">
                   <Editor
                     height="220px"

@@ -16,6 +16,9 @@ import {
   SAMPLE_HELLO_WORKFLOW_ID,
   SAMPLE_LINEAR_API_FAILFAST_DB_WORKFLOW_ID,
   SAMPLE_MAPPED_DB_COMPOSITE_UPSERT_WORKFLOW_ID,
+  SAMPLE_DBA_SCHEMA_HEALTH_AUDIT_WORKFLOW_ID,
+  SAMPLE_DBA_RETENTION_MAINTENANCE_WORKFLOW_ID,
+  SAMPLE_DBA_QUARANTINE_RECONCILE_WORKFLOW_ID,
   SAMPLE_MULTI_API_FANOUT_WORKFLOW_ID,
   SAMPLE_MULTI_API_MERGE_TO_DB_WORKFLOW_ID,
   SAMPLE_MULTI_DB_ETL_CONSOLIDATE_WORKFLOW_ID,
@@ -535,5 +538,25 @@ describe('workflow samples', () => {
     await expect(saveSampleWorkflows(save)).resolves.toEqual(sampleWorkflowIds());
     expect(save).toHaveBeenCalledTimes(WORKFLOW_SAMPLES.length);
     expect(save).toHaveBeenNthCalledWith(1, SAMPLE_HELLO_WORKFLOW_ID, WORKFLOW_SAMPLES[0]!.document);
+  });
+
+  it('DBA samples define valid SQLite audit, retention dependency, and ledger quarantine pipelines', () => {
+    const audit = parseWorkflow(sample(SAMPLE_DBA_SCHEMA_HEALTH_AUDIT_WORKFLOW_ID).document);
+    expect(audit.tags).toContain('dba');
+    expect(audit.pipelines).toHaveLength(1);
+
+    const retention = parseWorkflow(sample(SAMPLE_DBA_RETENTION_MAINTENANCE_WORKFLOW_ID).document);
+    expect(retention.pipelines).toHaveLength(2);
+    expect(retention.dependencies).toEqual([
+      { from: 'archive_before_purge', to: 'purge_and_analyze', on: 'success' },
+    ]);
+
+    const ledger = parseWorkflow(sample(SAMPLE_DBA_QUARANTINE_RECONCILE_WORKFLOW_ID).document);
+    expect(ledger.pipelines[0]!.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ from: 'verify_ledger_rules', to: 'promote_clean_rows', fromPort: 'out' }),
+        expect.objectContaining({ from: 'verify_ledger_rules', to: 'format_quarantine', fromPort: 'rejects' }),
+      ]),
+    );
   });
 });

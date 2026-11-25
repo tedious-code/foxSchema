@@ -5,7 +5,7 @@
  *
  * Workflow designer — ported from FoxAgent (components/WorkflowsPanel.tsx).
  */
-import { Copy, Download, FilePlus2, PlayCircle, ScrollText, Search, Sparkles, Trash2, Upload } from 'lucide-react';
+import { Copy, Download, FilePlus2, Play, PlayCircle, ScrollText, Search, Sparkles, Trash2, Upload } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { useAuthStore } from '@/platform/authStore';
 import { toast } from '../lib/notify';
@@ -47,6 +47,23 @@ function relativeTime(iso?: string): string {
   return `${Math.round(hours / 24)}d ago`;
 }
 
+type WorkflowCategoryFilter = 'all' | 'dba' | 'samples' | 'scheduled';
+
+const DBA_TAGS = new Set(['dba', 'sql', 'cdc', 'postgres', 'sqlite', 'upsert', 'audit', 'maintenance', 'retention', 'quality']);
+
+function matchesWorkflowFilter(workflow: WorkflowSummary, category: WorkflowCategoryFilter): boolean {
+  if (category === 'all') return true;
+  const tags = (workflow.tags ?? []).map((t) => t.toLowerCase());
+  if (category === 'samples') return workflow.id.startsWith('sample-') || tags.includes('sample');
+  if (category === 'scheduled') {
+    return workflow.triggers.some((t) => t.kind === 'cron' || t.kind === 'webhook');
+  }
+  return (
+    tags.some((t) => DBA_TAGS.has(t)) ||
+    /\b(dba|sql|postgres|sqlite)\b/i.test(`${workflow.id} ${workflow.name}`)
+  );
+}
+
 /** Workflow browser: open, duplicate, delete, and create. */
 export function WorkflowsPanel({
   currentId,
@@ -57,22 +74,46 @@ export function WorkflowsPanel({
 }: Props) {
   const { workflows, loading, refresh } = useWorkflows();
   const canDesign = useAuthStore((s) => s.can('workflow.design'));
+  const canRun = useAuthStore((s) => s.can('workflow.run'));
   const [query, setQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<WorkflowCategoryFilter>('all');
+  const [runningId, setRunningId] = useState<string | null>(null);
   const [newId, setNewId] = useState('');
   const importRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    if (!needle) return workflows;
-    return workflows.filter(
-      (workflow) =>
+    return workflows.filter((workflow) => {
+      if (!matchesWorkflowFilter(workflow, categoryFilter)) return false;
+      if (!needle) return true;
+      return (
         workflow.id.toLowerCase().includes(needle) ||
         workflow.name.toLowerCase().includes(needle) ||
         (workflow.description ?? '').toLowerCase().includes(needle) ||
         (workflow.purpose ?? '').toLowerCase().includes(needle) ||
-        (workflow.tags ?? []).some((tag) => tag.toLowerCase().includes(needle)),
-    );
-  }, [workflows, query]);
+        (workflow.tags ?? []).some((tag) => tag.toLowerCase().includes(needle))
+      );
+    });
+  }, [workflows, categoryFilter, query]);
+
+  const runNow = async (workflow: WorkflowSummary) => {
+    setRunningId(workflow.id);
+    try {
+      const res = await api.run(workflow.id, { debug: true });
+      if (res.accepted === false || !res.runId) {
+        toast.error('Run not started', { description: res.detail ?? res.reason ?? 'The engine declined this run.' });
+        return;
+      }
+      refresh();
+      toast.success(`Started "${workflow.name}"`, {
+        description: `Debug run ${res.runId.slice(0, 8)} — open Logs to inspect output.`,
+      });
+    } catch (error) {
+      toast.error('Run failed', { description: (error as Error).message });
+    } finally {
+      setRunningId(null);
+    }
+  };
 
   const create = () => {
     const id = newId.trim();
@@ -259,6 +300,29 @@ export function WorkflowsPanel({
         </div>
       </header>
 
+      {workflows.length > 0 && (
+        <div className="workflows-filter-bar" role="group" aria-label="Filter workflows by category">
+          {(
+            [
+              ['all', 'All'],
+              ['dba', 'DBA & SQL'],
+              ['samples', 'Samples'],
+              ['scheduled', 'Scheduled / Webhook'],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              data-testid={`workflow-list-filter-${key}`}
+              className={`workflows-filter-chip${categoryFilter === key ? ' active' : ''}`}
+              onClick={() => setCategoryFilter(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {loading ? (
         <p className="empty">Loading workflows…</p>
       ) : filtered.length === 0 ? (
@@ -376,6 +440,18 @@ export function WorkflowsPanel({
                   <small>{relativeTime(workflow.updatedAt)}</small>
                 </td>
                 <td className="workflow-row-actions">
+                  {workflow.triggers.some((trigger) => trigger.kind === 'manual' && trigger.enabled) && (
+                    <Button
+                      size="icon"
+                      data-testid={`workflow-list-run-${workflow.id}`}
+                      disabled={!canRun || runningId === workflow.id}
+                      aria-label={`Run ${workflow.id}`}
+                      title={canRun ? 'Run now (debug capture enabled)' : 'Running needs the workflow run permission'}
+                      onClick={() => void runNow(workflow)}
+                    >
+                      <Play />
+                    </Button>
+                  )}
                   <Button
                     size="icon"
                     aria-label={`Open ${workflow.id}`}

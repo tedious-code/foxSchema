@@ -7,7 +7,7 @@
  * failure summary and event log (optionally followed live), which a user can
  * narrow to problems and download.
  */
-import { ArrowDown, ArrowUp, Download, RefreshCw } from 'lucide-react';
+import { ArrowDown, ArrowUp, Download, FolderOpen, Play, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { RUN_STREAM_END_EVENT } from '@foxschema/shared';
 import { useAuthStore } from '@/platform/authStore';
@@ -102,7 +102,17 @@ function FailureSummaryCard({ summary }: { summary: RunFailureSummary }) {
   );
 }
 
-export function RunsPanel({ runs, onRefresh }: { runs: RunRecord[]; onRefresh: () => void }) {
+export function RunsPanel({
+  runs,
+  onRefresh,
+  onOpenWorkflow,
+}: {
+  runs: RunRecord[];
+  onRefresh: () => void;
+  onOpenWorkflow?: (workflowId: string) => void;
+}) {
+  const canRun = useAuthStore((s) => s.can('workflow.run'));
+  const [rerunning, setRerunning] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<RunDetail | null>(null);
   const [failure, setFailure] = useState<RunFailureSummary | null>(null);
@@ -307,10 +317,52 @@ export function RunsPanel({ runs, onRefresh }: { runs: RunRecord[]; onRefresh: (
             <aside className="run-detail" ref={detailRef} data-testid="workflow-runs-detail">
               <div className="run-detail-header">
                 <h3>Run {selectedId.slice(0, 8)}</h3>
-                <label className="checkbox-row">
-                  <input data-testid="workflow-runs-live" type="checkbox" checked={live} onChange={(ev) => setLive(ev.target.checked)} />
-                  Live SSE
-                </label>
+                <div className="run-detail-header-actions">
+                  {detail && onOpenWorkflow && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      data-testid="workflow-run-open-workflow"
+                      onClick={() => onOpenWorkflow(detail.workflowId)}
+                      title="Open this workflow in Designer"
+                    >
+                      <FolderOpen />
+                      Open workflow
+                    </Button>
+                  )}
+                  {detail && detail.status !== 'queued' && detail.status !== 'running' && detail.status !== 'paused' && (
+                    <Button
+                      size="sm"
+                      data-testid="workflow-run-rerun"
+                      disabled={!canRun || rerunning}
+                      title={canRun ? 'Run this workflow again with debug capture' : 'Requires the workflow run permission'}
+                      onClick={async () => {
+                        setRerunning(true);
+                        setError(null);
+                        try {
+                          const res = await api.run(detail.workflowId, { debug: detail.debug ?? true });
+                          if (res.runId) {
+                            onRefresh();
+                            setSelectedId(res.runId);
+                          } else if (res.accepted === false) {
+                            setError(res.detail ?? res.reason ?? 'The engine declined to re-run this workflow.');
+                          }
+                        } catch (err) {
+                          setError((err as Error).message);
+                        } finally {
+                          setRerunning(false);
+                        }
+                      }}
+                    >
+                      <Play />
+                      Re-run
+                    </Button>
+                  )}
+                  <label className="checkbox-row">
+                    <input data-testid="workflow-runs-live" type="checkbox" checked={live} onChange={(ev) => setLive(ev.target.checked)} />
+                    Live SSE
+                  </label>
+                </div>
               </div>
               {error && <div className="field-error">{error}</div>}
               {failure && <FailureSummaryCard summary={failure} />}

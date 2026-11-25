@@ -269,4 +269,35 @@ describe('SqlPipeEditor', () => {
     await renderLinkedWithoutPassword(connection);
     expect(screen.getByText(/saved without its password/)).toBeTruthy();
   });
+
+  it('inserts DBA catalog template, parameter tokens, and toggles transaction/createTableIfMissing', () => {
+    const { onConfigChange: onQueryChange } = renderEditor('source.db.sql', '', { dialect: 'sqlite', sql: '' });
+
+    fireEvent.click(screen.getByTestId('workflow-sql-template-catalog'));
+    expect(onQueryChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining('FROM sqlite_master'),
+      }),
+    );
+
+    fireEvent.click(screen.getByTestId('workflow-sql-transaction'));
+    expect(onQueryChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transaction: true,
+      }),
+    );
+
+    const { onConfigChange: onInsertChange } = renderEditor('sink.db.sql', '', {
+      dialect: 'sqlite',
+      mode: 'insert',
+      table: 'dba_findings',
+    });
+    fireEvent.click(screen.getByTestId('workflow-sql-create-table-if-missing'));
+    expect(onInsertChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'insert',
+        createTableIfMissing: true,
+      }),
+    );
+  });
 });

@@ -6,6 +6,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { CatalogEntry } from '../lib/catalog';
+import { Input, Select } from './controls';
 import { Inspector } from './Inspector';
 import type { PipeData } from './PipeNode';
 import { PIPE_NAME_MAX_LENGTH } from '@foxschema/shared';
@@ -172,7 +173,7 @@ describe('Inspector pipe editors', () => {
     expect(checkbox.checked).toBe(true);
   });
 
-  it('renders read-only Pipe ID and editable Pipe name, calling onChange on blur', () => {
+  it('commits Pipe name changes immediately on input and trims trailing whitespace on blur', () => {
     const onChange = vi.fn();
     const data = makeData('transform.map', { mappings: {} });
     data.name = 'Initial Pipe Name';
@@ -185,9 +186,29 @@ describe('Inspector pipe editors', () => {
     const nameInput = screen.getByLabelText('Pipe name') as HTMLInputElement;
     expect(nameInput.value).toBe('Initial Pipe Name');
 
-    fireEvent.change(nameInput, { target: { value: 'Renamed Pipe' } });
+    fireEvent.change(nameInput, { target: { value: '  Renamed Pipe  ' } });
+    expect(onChange).toHaveBeenCalledWith('node_1', { name: '  Renamed Pipe  ' });
+
     fireEvent.blur(nameInput);
     expect(onChange).toHaveBeenCalledWith('node_1', { name: 'Renamed Pipe' });
+  });
+
+  it('omits w-full when workflow Select or Input provides an explicit width utility', () => {
+    render(
+      <div>
+        <Select aria-label="Toolbar select" className="w-auto stage-select">
+          <option value="main">Main</option>
+        </Select>
+        <Input aria-label="Toolbar input" className="w-[220px] workflow-name-input" defaultValue="wf" />
+        <Select aria-label="Default select">
+          <option value="1">One</option>
+        </Select>
+      </div>,
+    );
+    expect(screen.getByLabelText('Toolbar select').className).not.toMatch(/\bw-full\b/);
+    expect(screen.getByLabelText('Toolbar select').className).toMatch(/\bw-auto\b/);
+    expect(screen.getByLabelText('Toolbar input').className).not.toMatch(/\bw-full\b/);
+    expect(screen.getByLabelText('Default select').className).toMatch(/\bw-full\b/);
   });
 
   it('stops the pipe name at the length the engine accepts', () => {
@@ -195,5 +216,136 @@ describe('Inspector pipe editors', () => {
 
     const nameInput = screen.getByLabelText('Pipe name') as HTMLInputElement;
     expect(nameInput.maxLength).toBe(PIPE_NAME_MAX_LENGTH);
+  });
+
+  it('inserts starter transform.script snippets and formats raw JSON config', () => {
+    const scriptCatalog: CatalogEntry = {
+      type: 'transform.script',
+      role: 'transform',
+      label: 'Script',
+      category: 'Transform',
+      version: '0.1.0',
+      configSchema: { type: 'object', properties: { script: { type: 'string' } } },
+      inputs: [{ name: 'in', type: 'records' }],
+      outputs: [{ name: 'out', type: 'records' }],
+    };
+    const onChange = vi.fn();
+    render(
+      <Inspector
+        pipeId="script_1"
+        data={makeData('transform.script', { script: 'return records;' })}
+        credentials={[]}
+        categories={[]}
+        catalog={[...CATALOG, scriptCatalog]}
+        triggers={[{ id: 'manual', kind: 'manual', enabled: true }]}
+        workflowId="wf-1"
+        workflows={[]}
+        onChange={onChange}
+        onTriggersChange={vi.fn()}
+        onEditTrigger={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('workflow-script-snippet-dedupe'));
+    expect(JSON.parse(onChange.mock.calls[0]![1].config).script).toContain('seen.has(key)');
+
+    fireEvent.click(screen.getByTestId('workflow-inspector-show-raw'));
+    fireEvent.click(screen.getByTestId('workflow-inspector-format-raw'));
+    expect(onChange).toHaveBeenCalledTimes(2);
+  });
+
+  it('renders visual editors for transform.dedupe, transform.aggregate, and transform.redact pipes', () => {
+    const newCatalog: CatalogEntry[] = [
+      ...CATALOG,
+      {
+        type: 'transform.dedupe',
+        role: 'transform',
+        label: 'Deduplicate',
+        category: 'Transform',
+        version: '0.1.0',
+        configSchema: { type: 'object', properties: { keys: { type: 'array' }, keep: { type: 'string' } } },
+        inputs: [{ name: 'in', type: 'records' }],
+        outputs: [{ name: 'out', type: 'records' }, { name: 'rejects', type: 'records' }],
+      },
+      {
+        type: 'transform.aggregate',
+        role: 'transform',
+        label: 'Aggregate',
+        category: 'Transform',
+        version: '0.1.0',
+        configSchema: { type: 'object', properties: { groupBy: { type: 'array' }, metrics: { type: 'array' } } },
+        inputs: [{ name: 'in', type: 'records' }],
+        outputs: [{ name: 'out', type: 'records' }],
+      },
+      {
+        type: 'transform.redact',
+        role: 'transform',
+        label: 'Redact PII',
+        category: 'Transform',
+        version: '0.1.0',
+        configSchema: { type: 'object', properties: { fields: { type: 'array' }, strategy: { type: 'string' } } },
+        inputs: [{ name: 'in', type: 'records' }],
+        outputs: [{ name: 'out', type: 'records' }],
+      },
+    ];
+
+    const onDedupeChange = vi.fn();
+    const { unmount: u1 } = render(
+      <Inspector
+        pipeId="d1"
+        data={makeData('transform.dedupe', { keys: ['id'], keep: 'last' })}
+        credentials={[]}
+        categories={[]}
+        catalog={newCatalog}
+        triggers={[]}
+        workflowId="wf-1"
+        workflows={[]}
+        onChange={onDedupeChange}
+        onTriggersChange={vi.fn()}
+        onEditTrigger={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByTestId('workflow-dedupe-keys'), { target: { value: 'tenant_id, user_id' } });
+    expect(JSON.parse(onDedupeChange.mock.calls[0]![1].config).keys).toEqual(['tenant_id', 'user_id']);
+    u1();
+
+    const onAggChange = vi.fn();
+    const { unmount: u2 } = render(
+      <Inspector
+        pipeId="a1"
+        data={makeData('transform.aggregate', { groupBy: ['region'], metrics: [{ fn: 'count', as: 'rows' }] })}
+        credentials={[]}
+        categories={[]}
+        catalog={newCatalog}
+        triggers={[]}
+        workflowId="wf-1"
+        workflows={[]}
+        onChange={onAggChange}
+        onTriggersChange={vi.fn()}
+        onEditTrigger={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('workflow-aggregate-add-metric'));
+    expect(JSON.parse(onAggChange.mock.calls[0]![1].config).metrics).toHaveLength(2);
+    u2();
+
+    const onRedactChange = vi.fn();
+    render(
+      <Inspector
+        pipeId="r1"
+        data={makeData('transform.redact', { fields: ['email'], strategy: 'mask' })}
+        credentials={[]}
+        categories={[]}
+        catalog={newCatalog}
+        triggers={[]}
+        workflowId="wf-1"
+        workflows={[]}
+        onChange={onRedactChange}
+        onTriggersChange={vi.fn()}
+        onEditTrigger={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByTestId('workflow-redact-strategy'), { target: { value: 'hash' } });
+    expect(JSON.parse(onRedactChange.mock.calls[0]![1].config).strategy).toBe('hash');
   });
 });

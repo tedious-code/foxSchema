@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { describe, expect, it } from 'vitest';
-import { layoutPipeline } from './autoLayout';
+import { layoutPipeline, wouldCreateCycle } from './autoLayout';
 import {
   configProblem,
   failureOrigins,
@@ -62,6 +62,15 @@ describe('layoutPipeline', () => {
     const nodes = n('a', 'b', 'c', 'd');
     const edges = [e('a', 'b'), e('a', 'c'), e('b', 'd'), e('c', 'd')];
     expect([...layoutPipeline(nodes, edges)]).toEqual([...layoutPipeline(nodes, edges)]);
+  });
+
+  it('detects self-loops and indirect cycles while allowing DAG diamonds', () => {
+    const edges = [e('a', 'b'), e('b', 'c'), e('a', 'd')];
+    expect(wouldCreateCycle(edges, 'a', 'a')).toBe(true);
+    expect(wouldCreateCycle(edges, 'c', 'a')).toBe(true);
+    expect(wouldCreateCycle(edges, 'c', 'b')).toBe(true);
+    expect(wouldCreateCycle(edges, 'd', 'c')).toBe(false);
+    expect(wouldCreateCycle(edges, 'b', 'd')).toBe(false);
   });
 });
 

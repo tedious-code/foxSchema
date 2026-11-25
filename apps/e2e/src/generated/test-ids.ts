@@ -2521,6 +2521,12 @@ export const TestIds = {
       sqlSidebarResize: 'sql-sidebar-resize',
       /** button */
       sqlSidebarToggle: (id: string | number) => `sql-sidebar-toggle-${id}`,
+      /** button · Expand SQL editor pane (75%) */
+      sqlSplitEditorMax: 'sql-split-editor-max',
+      /** button · Balanced split (48% / 52%) */
+      sqlSplitEqual: 'sql-split-equal',
+      /** button · Expand results grid pane (78%) */
+      sqlSplitResultsMax: 'sql-split-results-max',
     },
     SqlRunsDrawer: {
       /** button · Clear recent */
@@ -3727,10 +3733,28 @@ export const TestIds = {
       pipeCredentialOption: (id: string | number) => `pipe-credential-option-${id}`,
       /** button · Filter by name, kind, id… */
       pipeCredentialTrigger: 'pipe-credential-trigger',
+      /** Button */
+      workflowAggregateAddMetric: 'workflow-aggregate-add-metric',
+      /** Input · Output field */
+      workflowAggregateAs: (idx: string | number) => `workflow-aggregate-as-${idx}`,
+      /** Input */
+      workflowAggregateField: (idx: string | number) => `workflow-aggregate-field-${idx}`,
+      /** Select */
+      workflowAggregateFn: (idx: string | number) => `workflow-aggregate-fn-${idx}`,
+      /** Input · Aggregate group by fields */
+      workflowAggregateGroupBy: 'workflow-aggregate-group-by',
+      /** Button */
+      workflowAggregateRemove: (idx: string | number) => `workflow-aggregate-remove-${idx}`,
+      /** Select · Dedupe keep occurrence */
+      workflowDedupeKeep: 'workflow-dedupe-keep',
+      /** Input · Dedupe key fields */
+      workflowDedupeKeys: 'workflow-dedupe-keys',
       /** input */
       workflowInspectorConcurrency: 'workflow-inspector-concurrency',
       /** select */
       workflowInspectorField: (name: string | number) => `workflow-inspector-field-${name}`,
+      /** button · Format JSON */
+      workflowInspectorFormatRaw: 'workflow-inspector-format-raw',
       /** input */
       workflowInspectorHttpRetryAttempts: 'workflow-inspector-http-retry-attempts',
       /** input */
@@ -3761,6 +3785,14 @@ export const TestIds = {
       workflowInspectorTrigger: 'workflow-inspector-trigger',
       /** select */
       workflowInspectorType: 'workflow-inspector-type',
+      /** Input · Redact fields */
+      workflowRedactFields: 'workflow-redact-fields',
+      /** Select · Redact strategy */
+      workflowRedactStrategy: 'workflow-redact-strategy',
+      /** button */
+      workflowScriptExpand: 'workflow-script-expand',
+      /** Button */
+      workflowScriptSnippet: (id: string | number) => `workflow-script-snippet-${id}`,
     },
     MultiHttpEditor: {
       /** Button */
@@ -3821,6 +3853,10 @@ export const TestIds = {
       workflowRunAnswerForKey: (key: string | number) => `workflow-run-answer-${key}`,
       /** Button */
       workflowRunCancel: 'workflow-run-cancel',
+      /** Button · Open this workflow in Designer */
+      workflowRunOpenWorkflow: 'workflow-run-open-workflow',
+      /** Button */
+      workflowRunRerun: 'workflow-run-rerun',
       /** Button */
       workflowRunResume: 'workflow-run-resume',
       /** aside · Run */
@@ -3855,10 +3891,20 @@ export const TestIds = {
       workflowSqlAddColumnMapping: 'workflow-sql-add-column-mapping',
       /** Button · Populate columns from selected table */
       workflowSqlAutomap: 'workflow-sql-automap',
+      /** input */
+      workflowSqlCreateTableIfMissing: 'workflow-sql-create-table-if-missing',
       /** Input · null */
       workflowSqlDefault: (index: string | number) => `workflow-sql-default-${index}`,
+      /** button */
+      workflowSqlExpand: 'workflow-sql-expand',
+      /** button · Format SQL */
+      workflowSqlFormat: 'workflow-sql-format',
+      /** Button · Insert bound record parameter placeholder */
+      workflowSqlInsertRecordToken: 'workflow-sql-insert-record-token',
       /** Input · Upsert key */
       workflowSqlInsertUpsertKey: 'workflow-sql-insert-upsert-key',
+      /** Button · Insert bound workflow variable parameter placeholder */
+      workflowSqlInsertVarToken: 'workflow-sql-insert-var-token',
       /** button */
       workflowSqlKeyCol: (index: string | number) => `workflow-sql-key-col-${index}`,
       /** tr */
@@ -3875,6 +3921,12 @@ export const TestIds = {
       workflowSqlTable: 'workflow-sql-table',
       /** Input · e.g. user_id */
       workflowSqlTargetCol: (index: string | number) => `workflow-sql-target-col-${index}`,
+      /** Button · Insert DBA schema catalog inspection query */
+      workflowSqlTemplateCatalog: 'workflow-sql-template-catalog',
+      /** Button · Insert DBA table row-count verification query */
+      workflowSqlTemplateCounts: 'workflow-sql-template-counts',
+      /** input */
+      workflowSqlTransaction: 'workflow-sql-transaction',
       /** Input · value.trim() */
       workflowSqlTransform: (index: string | number) => `workflow-sql-transform-${index}`,
       /** Input · Update condition */
@@ -3973,6 +4025,8 @@ export const TestIds = {
       workflowDesignerStageSelect: 'workflow-designer-stage-select',
       /** Button */
       workflowDesignerTriggers: 'workflow-designer-triggers',
+      /** span · This workflow has unsaved changes */
+      workflowDesignerUnsavedBadge: 'workflow-designer-unsaved-badge',
     },
     WorkflowLogPanel: {
       /** div · Log · */
@@ -4005,12 +4059,16 @@ export const TestIds = {
       workflowEmptyAddSamples: 'workflow-empty-add-samples',
       /** input */
       workflowListFile: 'workflow-list-file',
+      /** button */
+      workflowListFilter: (key: string | number) => `workflow-list-filter-${key}`,
       /** button · Open this workflow's log */
       workflowListLastRun: (id: string | number) => `workflow-list-last-run-${id}`,
       /** Button · Log: runs, failures and what to check */
       workflowListLogs: (id: string | number) => `workflow-list-logs-${id}`,
       /** button · Open in designer */
       workflowListOpenInDesigner: (id: string | number) => `workflow-list-open-in-designer-${id}`,
+      /** Button */
+      workflowListRun: (id: string | number) => `workflow-list-run-${id}`,
     },
     WorkflowView: {
       /** nav · Workflow */
@@ -5559,6 +5617,9 @@ export type TestId =
   | `sql-sidebar-resize-${string}`
   | `sql-sidebar-toggle-${string}`
   | 'sql-sidebar-utilities'
+  | 'sql-split-editor-max'
+  | 'sql-split-equal'
+  | 'sql-split-results-max'
   | `sql-statement-copy-${string}`
   | 'sql-statement-gutter'
   | `sql-statement-include-${string}`
@@ -5778,6 +5839,12 @@ export type TestId =
   | 'view-workflow-btn'
   | 'warning-banner'
   | 'workflow-add-sample'
+  | 'workflow-aggregate-add-metric'
+  | `workflow-aggregate-as-${string}`
+  | `workflow-aggregate-field-${string}`
+  | `workflow-aggregate-fn-${string}`
+  | 'workflow-aggregate-group-by'
+  | `workflow-aggregate-remove-${string}`
   | 'workflow-cron-sql'
   | 'workflow-cron-sql-connection-backdrop'
   | 'workflow-cron-sql-connection-clear'
@@ -5789,6 +5856,8 @@ export type TestId =
   | 'workflow-cron-sql-only-when-rows'
   | 'workflow-cron-sql-script'
   | 'workflow-cron-sql-transaction'
+  | 'workflow-dedupe-keep'
+  | 'workflow-dedupe-keys'
   | 'workflow-designer-add-sample'
   | 'workflow-designer-auto-layout'
   | 'workflow-designer-breadcrumb-workflows'
@@ -5806,6 +5875,7 @@ export type TestId =
   | `workflow-designer-stage-overview-${string}`
   | 'workflow-designer-stage-select'
   | 'workflow-designer-triggers'
+  | 'workflow-designer-unsaved-badge'
   | 'workflow-empty-add-samples'
   | 'workflow-engine'
   | `workflow-engine-${string}`
@@ -5854,6 +5924,7 @@ export type TestId =
   | 'workflow-http-variables'
   | 'workflow-inspector-concurrency'
   | `workflow-inspector-field-${string}`
+  | 'workflow-inspector-format-raw'
   | 'workflow-inspector-http-retry-attempts'
   | 'workflow-inspector-intent'
   | `workflow-inspector-json-${string}`
@@ -5870,9 +5941,11 @@ export type TestId =
   | 'workflow-inspector-trigger'
   | 'workflow-inspector-type'
   | 'workflow-list-file'
+  | `workflow-list-filter-${string}`
   | `workflow-list-last-run-${string}`
   | `workflow-list-logs-${string}`
   | `workflow-list-open-in-designer-${string}`
+  | `workflow-list-run-${string}`
   | 'workflow-logs'
   | `workflow-logs-all-events-${string}`
   | 'workflow-logs-back'
@@ -5909,9 +5982,13 @@ export type TestId =
   | 'workflow-palette-search-pipes'
   | 'workflow-palette-show-advanced'
   | `workflow-pipe-node-${string}`
+  | 'workflow-redact-fields'
+  | 'workflow-redact-strategy'
   | 'workflow-run-answer'
   | `workflow-run-answer-${string}`
   | 'workflow-run-cancel'
+  | 'workflow-run-open-workflow'
+  | 'workflow-run-rerun'
   | 'workflow-run-resume'
   | 'workflow-runs-detail'
   | 'workflow-runs-download-json'
@@ -5920,6 +5997,8 @@ export type TestId =
   | 'workflow-runs-filter-workflow'
   | 'workflow-runs-live'
   | 'workflow-runs-problems-only'
+  | 'workflow-script-expand'
+  | `workflow-script-snippet-${string}`
   | `workflow-sink-${string}`
   | 'workflow-source-add-column'
   | 'workflow-source-add-delimiter'
@@ -5955,8 +6034,13 @@ export type TestId =
   | 'workflow-source-trim'
   | 'workflow-sql-add-column-mapping'
   | 'workflow-sql-automap'
+  | 'workflow-sql-create-table-if-missing'
   | `workflow-sql-default-${string}`
+  | 'workflow-sql-expand'
+  | 'workflow-sql-format'
+  | 'workflow-sql-insert-record-token'
   | 'workflow-sql-insert-upsert-key'
+  | 'workflow-sql-insert-var-token'
   | `workflow-sql-key-col-${string}`
   | `workflow-sql-mapping-row-${string}`
   | 'workflow-sql-pipe-browse'
@@ -5965,6 +6049,9 @@ export type TestId =
   | `workflow-sql-source-prop-${string}`
   | 'workflow-sql-table'
   | `workflow-sql-target-col-${string}`
+  | 'workflow-sql-template-catalog'
+  | 'workflow-sql-template-counts'
+  | 'workflow-sql-transaction'
   | `workflow-sql-transform-${string}`
   | 'workflow-sql-upsert-condition'
   | 'workflow-sql-upsert-keys'

@@ -62,6 +62,32 @@ describe('Palette', () => {
     expect(screen.getByText('Postgres stream')).toBeTruthy();
   });
 
+  it('matches pipes by catalog tags such as approval or otp', () => {
+    const taggedCategories: CatalogCategory[] = [
+      {
+        id: 'Logic',
+        label: 'Logic',
+        entries: [
+          {
+            type: 'human.gate',
+            label: 'Ask a person',
+            role: 'transform',
+            category: 'Logic/Human',
+            version: '0.1.0',
+            configSchema: { type: 'object' },
+            inputs: [{ name: 'in', type: 'records' }],
+            outputs: [{ name: 'out', type: 'records' }],
+            palette: 'primary',
+            tags: ['otp', 'approval'],
+          },
+        ],
+      },
+    ];
+    render(<Palette categories={taggedCategories} onAdd={vi.fn()} />);
+    fireEvent.change(screen.getByTestId('workflow-palette-search-pipes'), { target: { value: 'approval' } });
+    expect(screen.getByText('Ask a person')).toBeTruthy();
+  });
+
   it('finds advanced pipes through search even when Show advanced pipes is unchecked', () => {
     render(<Palette categories={CATEGORIES} onAdd={vi.fn()} />);
 

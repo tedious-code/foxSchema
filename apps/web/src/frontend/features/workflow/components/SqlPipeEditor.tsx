@@ -24,6 +24,7 @@ import { FilterPicker, connectionPickerOption } from '@/shared/components/Filter
 import { dialectLabel } from '@/shared/lib/dialectLabel';
 import { connectionNeedsSecret } from '@/shared/lib/provider-settings';
 import { quoteSqlIdentifier } from '@/shared/lib/sql-splitter';
+import { formatSql, loadSqlFormatter } from '@/shared/utils/formatSql';
 import type { TableSchema } from '@/shared/lib/types';
 import { workflowConnections } from '../api/workflowApi';
 import { invalidateEngineQueries } from '../api/engineQueries';
@@ -55,6 +56,7 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
   // another connection shows none rather than the previous one's.
   const [loaded, setLoaded] = useState<{ key: string; tables: TableSchema[] } | null>(null);
   const [loadingTables, setLoadingTables] = useState(false);
+  const [sqlExpanded, setSqlExpanded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -504,6 +506,21 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
               ? `Upsert keys are supported on PostgreSQL and SQLite only; connection uses ${dialect}.`
               : 'With an upsert key (or comma-separated combination keys), running the workflow again updates existing rows instead of adding duplicate records.'}
           </div>
+          <label className="checkbox-row" style={{ marginTop: '6px' }}>
+            <input
+              type="checkbox"
+              data-testid="workflow-sql-create-table-if-missing"
+              checked={Boolean(config.createTableIfMissing)}
+              onChange={(event) =>
+                onConfigChange({
+                  ...config,
+                  mode: 'insert',
+                  createTableIfMissing: event.target.checked,
+                })
+              }
+            />
+            Create table automatically if missing
+          </label>
         </>
       )}
 
@@ -701,10 +718,102 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
 
       {mode === 'statement' || mode === 'query' ? (
         <>
-          <label>{mode === 'statement' ? 'Statement per record' : 'SQL'}</label>
+          <div className="flex items-center justify-between gap-2 mt-2 mb-1">
+            <label className="m-0">{mode === 'statement' ? 'Statement per record' : 'SQL'}</label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                data-testid="workflow-sql-format"
+                className="linkish"
+                disabled={!sql.trim()}
+                onClick={() => {
+                  void loadSqlFormatter().then(() => {
+                    const next = formatSql(sql, dialect === 'sql' ? 'sqlite' : dialect);
+                    if (next !== sql) onConfigChange({ ...config, sql: next });
+                  });
+                }}
+              >
+                Format SQL
+              </button>
+              <button
+                type="button"
+                data-testid="workflow-sql-expand"
+                className="linkish"
+                onClick={() => setSqlExpanded((v) => !v)}
+              >
+                {sqlExpanded ? 'Compact' : 'Expand'}
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+            {mode === 'statement' ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                data-testid="workflow-sql-insert-record-token"
+                onClick={() =>
+                  onConfigChange({
+                    ...config,
+                    sql: sql ? `${sql}${sql.endsWith(' ') ? '' : ' '}{{record.id}}` : '{{record.id}}',
+                  })
+                }
+                title="Insert bound record parameter placeholder"
+              >
+                + {'{{record.id}}'}
+              </Button>
+            ) : (
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  data-testid="workflow-sql-template-catalog"
+                  onClick={() =>
+                    onConfigChange({
+                      ...config,
+                      sql:
+                        dialect === 'postgres'
+                          ? `SELECT table_schema, table_name\nFROM information_schema.tables\nWHERE table_schema NOT IN ('pg_catalog', 'information_schema')\nORDER BY table_schema, table_name;`
+                          : `SELECT type, name, tbl_name, sql\nFROM sqlite_master\nWHERE type IN ('table', 'index') AND name NOT LIKE 'sqlite_%'\nORDER BY type, name;`,
+                    })
+                  }
+                  title="Insert DBA schema catalog inspection query"
+                >
+                  + Catalog Audit
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  data-testid="workflow-sql-template-counts"
+                  onClick={() =>
+                    onConfigChange({
+                      ...config,
+                      sql: `SELECT COUNT(*) AS total_rows,\n       CURRENT_TIMESTAMP AS checked_at\nFROM ${typeof config.table === 'string' && config.table ? config.table : 'your_table'};`,
+                    })
+                  }
+                  title="Insert DBA table row-count verification query"
+                >
+                  + Row Count Check
+                </Button>
+              </>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              data-testid="workflow-sql-insert-var-token"
+              onClick={() =>
+                onConfigChange({
+                  ...config,
+                  sql: sql ? `${sql}${sql.endsWith(' ') ? '' : ' '}{{vars.env}}` : '{{vars.env}}',
+                })
+              }
+              title="Insert bound workflow variable parameter placeholder"
+            >
+              + {'{{vars.env}}'}
+            </Button>
+          </div>
           <div className="monaco-frame">
             <Editor
-              height="180px"
+              height={sqlExpanded ? '340px' : '180px'}
               language={monacoLanguage(dialect)}
               theme={theme}
               value={sql}
@@ -712,6 +821,20 @@ export function SqlPipeEditor({ type, config, credentialId, onConfigChange, onCr
               options={{ ...JSON_EDITOR_OPTIONS, lineNumbers: 'on', wordWrap: 'on' }}
             />
           </div>
+          <label className="checkbox-row" style={{ marginTop: '6px' }}>
+            <input
+              type="checkbox"
+              data-testid="workflow-sql-transaction"
+              checked={config.transaction !== undefined ? Boolean(config.transaction) : mode === 'statement'}
+              onChange={(event) =>
+                onConfigChange({
+                  ...config,
+                  transaction: event.target.checked,
+                })
+              }
+            />
+            Run statements in a single transaction (atomic rollback on error)
+          </label>
           <div className="hint">
             {mode === 'statement'
               ? '{{record.field}} binds a field of each record. '

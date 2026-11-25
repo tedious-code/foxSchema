@@ -86,6 +86,22 @@ describe('pipeSummary', () => {
     ).toBe('postgres · INSERT → wf_cities');
     expect(
       pipeSummary(
+        'sink.db.mapped-insert',
+        JSON.stringify({
+          dialect: 'sqlite',
+          table: 'wf_tenant_users',
+          columnMapping: [{ targetColumn: 'tenant_id' }, { targetColumn: 'user_id' }],
+        }),
+      ),
+    ).toBe('sqlite · MAPPED → wf_tenant_users (2 cols)');
+    expect(
+      pipeSummary('workflow.sub', JSON.stringify({ workflowId: 'child-sync', workflowVersion: 3 })),
+    ).toBe('call: child-sync (v3)');
+    expect(
+      pipeSummary('human.gate', JSON.stringify({ prompt: 'Approve production purge?' })),
+    ).toBe('ask: Approve production purge?');
+    expect(
+      pipeSummary(
         'sink.file.delimited',
         JSON.stringify({ path: 'cities.csv', columns: ['city'], mode: 'overwrite' }),
       ),
@@ -111,6 +127,18 @@ describe('pipeSummary', () => {
     expect(
       pipeSummary('transform.map', JSON.stringify({ mappings: { a: 'x', b: 'y', c: 'z', d: 'w' } })),
     ).toBe('map: a, b, c (+1)');
+    expect(
+      pipeSummary('transform.dedupe', JSON.stringify({ keys: ['tenant_id', 'user_id'], keep: 'first' })),
+    ).toBe('dedupe: tenant_id, user_id (first)');
+    expect(
+      pipeSummary(
+        'transform.aggregate',
+        JSON.stringify({ groupBy: ['region'], metrics: [{ fn: 'count', as: 'n' }, { fn: 'sum', field: 'amount', as: 'total' }] }),
+      ),
+    ).toBe('group: region · 2 metrics');
+    expect(
+      pipeSummary('transform.redact', JSON.stringify({ fields: ['email', 'ssn'], strategy: 'mask' })),
+    ).toBe('mask: email, ssn');
     expect(
       pipeSummary('transform.split', JSON.stringify({ field: '_endpoint' })),
     ).toBe('split by: _endpoint');

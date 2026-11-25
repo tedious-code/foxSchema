@@ -356,4 +356,23 @@ describe('an emailed link in a browser that is already signed in', () => {
     });
     expect(screen.getByTestId('auth-link-signed-in')).toBeTruthy();
   });
+
+  it('does not leak non-DOM capsLock prop onto password inputs', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const modSpy = vi.spyOn(KeyboardEvent.prototype, 'getModifierState').mockImplementation((k) => k === 'CapsLock');
+    try {
+      useAuthStore.setState({ status: 'anon', user: null, setupState: null });
+      const { unmount } = render(<AuthPage />);
+      const passwordInput = screen.getByLabelText(/^password$/i) as HTMLInputElement;
+      expect(passwordInput.hasAttribute('capsLock')).toBe(false);
+      expect(passwordInput.hasAttribute('capslock')).toBe(false);
+      fireEvent.keyDown(passwordInput, { key: 'A' });
+      expect(screen.getByTestId('caps-lock-hint')).toBeTruthy();
+      expect(errorSpy).not.toHaveBeenCalled();
+      unmount();
+    } finally {
+      modSpy.mockRestore();
+      errorSpy.mockRestore();
+    }
+  });
 });

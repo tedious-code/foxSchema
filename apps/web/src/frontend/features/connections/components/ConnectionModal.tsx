@@ -443,6 +443,39 @@ export const ConnectionModal: React.FC<Props> = ({
                 created on first connect
                 {selDialect === 'sqlite' ? '; `:memory:` opens a scratch database' : ''}.
               </p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                  Quick fill:
+                </span>
+                <button
+                  type="button"
+                  data-testid="conn-quick-path-memory"
+                  onClick={() => updateField('database', ':memory:')}
+                  className="rounded border border-slate-800 bg-slate-950 px-2 py-0.5 font-mono text-[10px] text-slate-300 hover:border-cyan-500/40 hover:text-cyan-200"
+                >
+                  :memory:
+                </button>
+                {selDialect === 'sqlite' && (
+                  <>
+                    <button
+                      type="button"
+                      data-testid="conn-quick-path-demo-a"
+                      onClick={() => updateField('database', '/tmp/foxschema-sqlite/demo_a.db')}
+                      className="rounded border border-slate-800 bg-slate-950 px-2 py-0.5 font-mono text-[10px] text-slate-300 hover:border-cyan-500/40 hover:text-cyan-200"
+                    >
+                      demo_a.db
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="conn-quick-path-demo-b"
+                      onClick={() => updateField('database', '/tmp/foxschema-sqlite/demo_b.db')}
+                      className="rounded border border-slate-800 bg-slate-950 px-2 py-0.5 font-mono text-[10px] text-slate-300 hover:border-cyan-500/40 hover:text-cyan-200"
+                    >
+                      demo_b.db
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           ) : (
             <div>

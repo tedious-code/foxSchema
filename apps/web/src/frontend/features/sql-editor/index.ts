@@ -15,7 +15,7 @@
  * (2.6 MB) into the eager graph of every importer, which turned the `lazy()`
  * calls around it into decoration (Rolldown: INEFFECTIVE_DYNAMIC_IMPORT).
  */
-export { openRecentQuery, selectEditorConnection, useRecentQueries } from './state/recentQueries';
+export { openRecentQuery, openSqlInEditor, selectEditorConnection, useRecentQueries } from './state/recentQueries';
 export { insertAtCursor } from './lib/sqlEditorBridge';
 
 export const loadSqlEditor = () => import('./components/SqlEditor').then((m) => ({ default: m.SqlEditor }));

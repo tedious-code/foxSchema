@@ -2,13 +2,14 @@ import React, { useState, useMemo, Suspense, lazy } from 'react';
 import { useSyncStore } from '@/features/compare/state/useSyncStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '@/platform/authStore';
-import { Play, RefreshCw, FileText, CheckCircle2, Copy, AlertTriangle, GitCommitHorizontal } from 'lucide-react';
+import { useUiStore } from '@/platform/uiStore';
+import { Play, RefreshCw, FileText, FileCode2, CheckCircle2, Copy, Download, AlertTriangle, GitCommitHorizontal } from 'lucide-react';
 import { CommitMigrationDialog, commitRequirement, useGitStore } from '@/features/git';
 import { executeClick, executeGate } from '../lib/executeGate';
 import { SqlGeneratorModule } from '@/shared/lib/sql-generator';
 import { findDropDependencies } from '@foxschema/ui-shared';
 import { findMissingFkTargets, findNarrowingTypeChanges, extractReviewNotices, resolveDialect } from '@/shared/lib/migration-validation';
-import { buildIncludedDiffs, applySelectionsForScan } from '@/features/compare/state/syncHelpers';
+import { buildIncludedDiffs, applySelectionsForScan, invertTableDiff } from '@/features/compare/state/syncHelpers';
 import { useSqlFormat, type SqlFormat } from '@/shared/utils/useSqlFormat';
 import { SchemaBlueprint, DiffBriefingPanel } from '@/features/schema-diff/ui';
 import { DetailTabs, type DetailTab } from '@/features/schema-diff/ui';
@@ -19,7 +20,7 @@ import { DeployConfirmDialog } from '@/features/compare/components/DeployConfirm
 import { DependencyWarningDialog } from '@/features/compare/components/DependencyWarningDialog';
 import { ValidationWarningsDialog } from '@/features/compare/components/ValidationWarningsDialog';
 import { CrossDialectReadinessDialog } from '@/features/compare/components/CrossDialectReadinessDialog';
-import { loadSqlDiffEditor, loadSqlEditor } from '@/features/sql-editor';
+import { loadSqlDiffEditor, loadSqlEditor, openSqlInEditor } from '@/features/sql-editor';
 // Monaco is heavy — load it only when a SQL surface is actually shown
 const SqlEditor = lazy(loadSqlEditor);
 const SqlDiffEditor = lazy(loadSqlDiffEditor);
@@ -45,6 +46,7 @@ const SKIP_DEPLOY_CONFIRM_KEY = 'foxschema-skip-deploy-confirm';
 
 export const ObjectDetailPanel: React.FC = () => {
   const canMigrate = useAuthStore((s) => s.can('schema.migrate'));
+  const setActiveView = useUiStore((s) => s.setActiveView);
   // Migrations in Git: committing needs to see repositories and to migrate.
   const canUseGit = useAuthStore((s) => s.can('git.view')) && canMigrate;
   const gitRepos = useGitStore((s) => s.repos);
@@ -94,6 +96,7 @@ export const ObjectDetailPanel: React.FC = () => {
     toggleTriggerSelection,
     setAllTriggerSelection,
     targetServerVersion,
+    selectedTargetConnectionId,
   } = useSyncStore(
     useShallow((s) => ({
       selectedTable: s.selectedTable,
@@ -125,13 +128,16 @@ export const ObjectDetailPanel: React.FC = () => {
       toggleTriggerSelection: s.toggleTriggerSelection,
       setAllTriggerSelection: s.setAllTriggerSelection,
       targetServerVersion: s.targetServerVersion,
+      selectedTargetConnectionId: s.selectedTargetConnectionId,
     }))
   );
 
   const includedCount = Object.values(syncSelection).filter(Boolean).length;
 
   const [activeTab, setActiveTab] = useState<DetailTab>('DIFF');
+  const [sqlDirection, setSqlDirection] = useState<'up' | 'down'>('up');
   const [copied, setCopied] = useState(false);
+  const [copiedBlueprintDdl, setCopiedBlueprintDdl] = useState(false);
   const [expandedTriggers, setExpandedTriggers] = useState<Record<string, boolean>>({});
   // Matches the case-insensitive schema compare; toggle off to inspect raw identifier casing
   const [ignoreCase, setIgnoreCase] = useState(true);
@@ -242,15 +248,56 @@ export const ObjectDetailPanel: React.FC = () => {
     return formatSqlBounded(format, generatedSql, targetConfig.dialect);
   }, [format, activeTab, generatedSql, targetConfig.dialect]);
 
+  // Rollback (Down) SQL preview — synthesized by inverting the selected TableDiffs
+  // against the target dialect so DBAs can inspect or download both up.sql and down.sql.
+  const rollbackSql = useMemo(() => {
+    if (activeTab !== 'SQL' || sqlDirection !== 'down' || includedDiffs.length === 0) return '';
+    const invertedIncluded = includedDiffs.map(invertTableDiff);
+    const invertedAll = (compareResult?.tables ?? []).map(invertTableDiff);
+    const raw = ddlGenerator.generateMigrationSql(
+      invertedIncluded,
+      targetConfig.dialect,
+      {
+        sourceDialect: targetConfig.dialect,
+        sourceSchema: targetConfig.schema,
+        targetSchema: targetConfig.schema,
+        nonDestructive: false,
+        targetServerVersion,
+      },
+      invertedAll,
+    );
+    return formatSqlBounded(format, raw, targetConfig.dialect);
+  }, [
+    activeTab,
+    sqlDirection,
+    includedDiffs,
+    compareResult?.tables,
+    targetConfig.dialect,
+    targetConfig.schema,
+    targetServerVersion,
+    format,
+  ]);
+
+  const activeMigrationSql = sqlDirection === 'down' ? rollbackSql : formattedSql;
+
   // Blueprint definition viewer — memoize so re-renders (search, checkboxes) don't reformat.
+  // In Browse mode, synthesize CREATE TABLE DDL for tables as well so the reader can inspect
+  // and copy the table's CREATE statement right below the column/index blueprint.
   const blueprintDefinitionSql = useMemo(() => {
-    if (!selectedTable || selectedTable.objectType === 'TABLE') return '';
+    if (!selectedTable) return '';
+    if (selectedTable.objectType === 'TABLE') {
+      if (!browseMode) return '';
+      const tableObj = selectedTable.sourceTable ?? selectedTable.targetTable;
+      const dialect = selectedTable.sourceTable ? sourceConfig.dialect : targetConfig.dialect;
+      if (!tableObj) return '';
+      return formatSqlBounded(format, ddlGenerator.generateObjectDdl(tableObj, dialect), dialect);
+    }
     const src = selectedTable.sourceTable?.definition;
     const tgt = selectedTable.targetTable?.definition;
     if (src) return formatSqlBounded(format, src, sourceConfig.dialect);
     if (tgt) return formatSqlBounded(format, tgt ?? '', targetConfig.dialect);
     return '';
-  }, [format, selectedTable, sourceConfig.dialect, targetConfig.dialect]);
+  }, [format, selectedTable, browseMode, sourceConfig.dialect, targetConfig.dialect]);
 
   // Non-table DDL Diff sides — only when that tab is open.
   const ddlDiffSides = useMemo(() => {
@@ -370,11 +417,37 @@ export const ObjectDetailPanel: React.FC = () => {
   };
 
   const handleCopySql = async () => {
-    if (!formattedSql) return;
+    if (!activeMigrationSql) return;
     // Only claim "Copied!" when it was: writeText rejects without focus/permission.
-    if (!(await writeClipboard(formattedSql))) return;
+    if (!(await writeClipboard(activeMigrationSql))) return;
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDownloadSql = () => {
+    if (!activeMigrationSql) return;
+    const blob = new Blob([activeMigrationSql], { type: 'text/sql;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0, 10);
+    const prefix = sqlDirection === 'down' ? 'rollback' : 'migration';
+    a.href = url;
+    a.download = `${prefix}-${targetConfig.dialect}-${stamp}.sql`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleOpenInSqlEditor = () => {
+    if (!activeMigrationSql) return;
+    void openSqlInEditor(activeMigrationSql, selectedTargetConnectionId);
+    setActiveView('sqlEditor');
+  };
+
+  const handleCopyBlueprintDdl = async () => {
+    if (!blueprintDefinitionSql) return;
+    if (!(await writeClipboard(blueprintDefinitionSql))) return;
+    setCopiedBlueprintDdl(true);
+    setTimeout(() => setCopiedBlueprintDdl(false), 2000);
   };
 
   const renderDdlDiff = () => {
@@ -586,17 +659,27 @@ export const ObjectDetailPanel: React.FC = () => {
           triggerDdls={formattedTriggerDdls}
           ignoreCase={ignoreCase}
           definitionSlot={
-            selectedTable.objectType !== 'TABLE' &&
-            (selectedTable.sourceTable?.definition || selectedTable.targetTable?.definition) ? (
+            blueprintDefinitionSql ? (
               <div className="space-y-2">
-                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span> Source DDL Definition
-                </h4>
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span>
+                    {selectedTable.objectType === 'TABLE' ? 'CREATE TABLE DDL' : 'Source DDL Definition'}
+                  </h4>
+                  <button
+                    type="button"
+                    data-testid="migrate-copy-blueprint-ddl"
+                    onClick={handleCopyBlueprintDdl}
+                    className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-slate-300 hover:text-slate-100 border border-slate-800 rounded bg-slate-950/60 hover:bg-slate-900 transition"
+                  >
+                    <Copy className="w-3 h-3" /> {copiedBlueprintDdl ? 'Copied!' : 'Copy DDL'}
+                  </button>
+                </div>
                 <div className="bg-slate-950 border border-slate-850 rounded-lg overflow-hidden h-64">
                   <Suspense fallback={<EditorFallback />}>
                     <SqlEditor
                       highlight={searchTerm}
-                      dialect={selectedTable.sourceTable?.definition ? sourceConfig.dialect : targetConfig.dialect}
+                      dialect={selectedTable.sourceTable ? sourceConfig.dialect : targetConfig.dialect}
                       value={blueprintDefinitionSql}
                     />
                   </Suspense>
@@ -666,13 +749,60 @@ export const ObjectDetailPanel: React.FC = () => {
 
         {/* Action Panel Actions */}
         <div className="flex items-center gap-2">
-          {activeTab === 'SQL' && generatedSql && (
-            <button data-testid="migrate-copy-sql"
-              onClick={handleCopySql}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-slate-350 hover:text-slate-150 border border-slate-800 rounded bg-slate-950/40 hover:bg-slate-900 transition"
-            >
-              <Copy className="w-3.5 h-3.5" /> {copied ? 'Copied!' : 'Copy SQL'}
-            </button>
+          {activeTab === 'SQL' && (generatedSql || rollbackSql) && (
+            <>
+              <div className="inline-flex rounded border border-slate-800 bg-slate-950/60 p-0.5 text-[11px] font-semibold">
+                <button
+                  type="button"
+                  data-testid="migrate-sql-direction-up"
+                  onClick={() => setSqlDirection('up')}
+                  className={`rounded px-2 py-1 transition ${
+                    sqlDirection === 'up'
+                      ? 'bg-slate-800 text-cyan-300'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Up (Migrate)
+                </button>
+                <button
+                  type="button"
+                  data-testid="migrate-sql-direction-down"
+                  onClick={() => setSqlDirection('down')}
+                  title="Preview the inverse rollback DDL that reverts Target back to its previous schema"
+                  className={`rounded px-2 py-1 transition ${
+                    sqlDirection === 'down'
+                      ? 'bg-slate-800 text-amber-300'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Down (Rollback)
+                </button>
+              </div>
+              <button data-testid="migrate-copy-sql"
+                onClick={handleCopySql}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-slate-350 hover:text-slate-150 border border-slate-800 rounded bg-slate-950/40 hover:bg-slate-900 transition"
+              >
+                <Copy className="w-3.5 h-3.5" /> {copied ? 'Copied!' : 'Copy SQL'}
+              </button>
+              <button
+                type="button"
+                data-testid="migrate-download-sql"
+                onClick={handleDownloadSql}
+                title="Download the active migration or rollback SQL as a .sql file"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-slate-350 hover:text-slate-150 border border-slate-800 rounded bg-slate-950/40 hover:bg-slate-900 transition"
+              >
+                <Download className="w-3.5 h-3.5" /> Download .sql
+              </button>
+              <button
+                type="button"
+                data-testid="migrate-open-in-sql-editor"
+                onClick={handleOpenInSqlEditor}
+                title="Open this SQL script in the SQL Editor bound to the Target connection"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-cyan-300 hover:text-cyan-100 border border-cyan-500/30 rounded bg-cyan-950/30 hover:bg-cyan-900/40 transition"
+              >
+                <FileCode2 className="w-3.5 h-3.5" /> Open in SQL Editor
+              </button>
+            </>
           )}
 
           {!browseMode && canUseGit && gitRepos.length > 0 && (
@@ -905,7 +1035,12 @@ export const ObjectDetailPanel: React.FC = () => {
                 <Suspense fallback={<EditorFallback />}>
                   <SqlEditor
                     dialect={targetConfig.dialect}
-                    value={formattedSql || '-- No migration script generated.'}
+                    value={
+                      activeMigrationSql ||
+                      (sqlDirection === 'down'
+                        ? '-- No rollback script generated.'
+                        : '-- No migration script generated.')
+                    }
                     highlight={searchTerm}
                   />
                 </Suspense>

@@ -44,3 +44,12 @@ export async function openRecentQuery(id: string): Promise<void> {
 export async function selectEditorConnection(id: string): Promise<void> {
   (await editorStore()).ensureConnectionSelected(id);
 }
+
+/** Load a SQL script into the active SQL editor tab and optionally bind a destination connection. */
+export async function openSqlInEditor(sql: string, connectionId?: string | null): Promise<void> {
+  const store = await editorStore();
+  store.setSql(sql);
+  if (connectionId) {
+    store.ensureConnectionSelected(connectionId);
+  }
+}

@@ -221,7 +221,9 @@ export const SchemaTreePanel: React.FC = () => {
             </button>
           )}
           <span className="text-sm text-slate-200 font-mono font-bold">
-            {compareResult.tables.length} objects
+            {filteredTables.length !== compareResult.tables.length
+              ? `${filteredTables.length} / ${compareResult.tables.length} objects`
+              : `${compareResult.tables.length} objects`}
           </span>
           </div>
         </div>
@@ -266,8 +268,19 @@ export const SchemaTreePanel: React.FC = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search objects, columns, indexes..."
-            className="w-full text-sm pl-8 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-md focus:outline-none accent-focus text-slate-200"
+            className="w-full text-sm pl-8 pr-7 py-1.5 bg-slate-900 border border-slate-800 rounded-md focus:outline-none accent-focus text-slate-200"
           />
+          {searchTerm && (
+            <button
+              type="button"
+              data-testid="sql-schema-tree-search-clear"
+              aria-label="Clear search"
+              onClick={() => setSearchTerm('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-1 text-xs font-bold text-slate-500 hover:text-slate-200"
+            >
+              ×
+            </button>
+          )}
         </div>
       </div>
 

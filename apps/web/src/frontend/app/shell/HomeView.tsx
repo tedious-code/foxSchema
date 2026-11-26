@@ -7,7 +7,7 @@
  * no schema introspect.
  */
 import React from 'react';
-import { Camera, Database, GitCompareArrows, Search, Terminal, Wrench } from 'lucide-react';
+import { Camera, Database, GitCompareArrows, Search, Terminal, Workflow, Wrench } from 'lucide-react';
 import { openRecentQuery, useRecentQueries } from '@/features/sql-editor';
 import { useSyncStore } from '@/features/compare';
 import { useUiStore } from '@/platform/uiStore';
@@ -77,13 +77,12 @@ export const HomeView: React.FC = () => {
         </button>
       </div>
 
-      <section className="mt-6 grid gap-2 sm:grid-cols-2 xl:grid-cols-4" data-testid="home-continue">
+      <section className="mt-6 grid gap-2 sm:grid-cols-2 xl:grid-cols-5" data-testid="home-continue">
         <button
           type="button"
           data-testid="home-continue-sync"
-          disabled={!compareResult}
           onClick={() => setActiveView('sync')}
-          className="rounded-lg border border-slate-800 bg-slate-900/40 p-3 text-left hover:border-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-lg border border-slate-800 bg-slate-900/40 p-3 text-left hover:border-slate-600"
         >
           <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
             <GitCompareArrows className="h-3.5 w-3.5" /> Last compare
@@ -102,9 +101,8 @@ export const HomeView: React.FC = () => {
         <button
           type="button"
           data-testid="home-continue-sql"
-          disabled={!lastQuery}
-          onClick={() => lastQuery && openRecent(lastQuery.id)}
-          className="rounded-lg border border-slate-800 bg-slate-900/40 p-3 text-left hover:border-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
+          onClick={() => (lastQuery ? openRecent(lastQuery.id) : setActiveView('sqlEditor'))}
+          className="rounded-lg border border-slate-800 bg-slate-900/40 p-3 text-left hover:border-slate-600"
         >
           <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
             <Terminal className="h-3.5 w-3.5" /> Last query
@@ -142,6 +140,22 @@ export const HomeView: React.FC = () => {
           </span>
           <span className="mt-1 block text-[11px] text-slate-500">
             Indexes, clone table, insights, and query files
+          </span>
+        </button>
+        <button
+          type="button"
+          data-testid="home-continue-workflow"
+          onClick={() => setActiveView('workflow')}
+          className="rounded-lg border border-slate-800 bg-slate-900/40 p-3 text-left hover:border-slate-600"
+        >
+          <span className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+            <Workflow className="h-3.5 w-3.5" /> Workflow
+          </span>
+          <span className="mt-2 block text-[13px] font-semibold text-slate-100">
+            Pipelines &amp; automation
+          </span>
+          <span className="mt-1 block text-[11px] text-slate-500">
+            DBA audits, retention, and scheduled SQL
           </span>
         </button>
       </section>

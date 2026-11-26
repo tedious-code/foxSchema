@@ -6,10 +6,13 @@
  * Sync landing after Compare: counts and changed objects already in the
  * compare DTO. Clicking a row selects that object in the tree — no extra query.
  */
-import React, { useMemo } from 'react';
-import { ArrowRight, Layers } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { ArrowRight, Check, Copy, Download, FileCode2, Layers } from 'lucide-react';
 import type { TableDiff } from '@/shared/lib/types';
 import { useSyncStore } from '@/features/compare';
+import { openSqlInEditor } from '@/features/sql-editor';
+import { useUiStore } from '@/platform/uiStore';
+import { writeClipboard } from '@/shared/utils/clipboard';
 import { diffBriefing } from '../lib/diffBriefing';
 import { TYPE_META } from './objectTypeMeta';
 
@@ -21,12 +24,41 @@ const STATUS_TONE: Record<string, string> = {
 
 export function DiffBriefingPanel(): React.ReactElement {
   const compareResult = useSyncStore((s) => s.compareResult);
+  const generatedSql = useSyncStore((s) => s.generatedSql);
   const setSelectedTable = useSyncStore((s) => s.setSelectedTable);
   const syncSelection = useSyncStore((s) => s.syncSelection);
   const filterStatus = useSyncStore((s) => s.filterStatus);
   const setFilterStatus = useSyncStore((s) => s.setFilterStatus);
   const sourceConfig = useSyncStore((s) => s.sourceConfig);
   const targetConfig = useSyncStore((s) => s.targetConfig);
+  const selectedTargetConnectionId = useSyncStore((s) => s.selectedTargetConnectionId);
+  const setActiveView = useUiStore((s) => s.setActiveView);
+  const [copiedSql, setCopiedSql] = useState(false);
+
+  const handleOpenInSqlEditor = () => {
+    if (!generatedSql) return;
+    void openSqlInEditor(generatedSql, selectedTargetConnectionId);
+    setActiveView('sqlEditor');
+  };
+
+  const handleCopySql = async () => {
+    if (!generatedSql) return;
+    if (!(await writeClipboard(generatedSql))) return;
+    setCopiedSql(true);
+    setTimeout(() => setCopiedSql(false), 2000);
+  };
+
+  const handleDownloadSql = () => {
+    if (!generatedSql) return;
+    const blob = new Blob([generatedSql], { type: 'text/sql;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `migration-${targetConfig.dialect}-${stamp}.sql`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // `?? []` builds a fresh array whenever there is no compare result, so
   // without this the `changed` memo below re-ran on every render — the exact
@@ -95,9 +127,40 @@ export function DiffBriefingPanel(): React.ReactElement {
       </div>
 
       <section className="mt-6 max-w-2xl rounded-lg border border-slate-800 bg-slate-950/50 p-4">
-        <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-          Deploy checklist
-        </h3>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            Deploy checklist
+          </h3>
+          {generatedSql && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                data-testid="diff-briefing-copy-sql"
+                onClick={handleCopySql}
+                className="inline-flex items-center gap-1 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] font-semibold text-slate-200 hover:border-slate-500"
+              >
+                {copiedSql ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                {copiedSql ? 'Copied SQL' : 'Copy Migration SQL'}
+              </button>
+              <button
+                type="button"
+                data-testid="diff-briefing-download-sql"
+                onClick={handleDownloadSql}
+                className="inline-flex items-center gap-1 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] font-semibold text-slate-200 hover:border-slate-500"
+              >
+                <Download className="h-3 w-3" /> Download .sql
+              </button>
+              <button
+                type="button"
+                data-testid="diff-briefing-open-sql-editor"
+                onClick={handleOpenInSqlEditor}
+                className="inline-flex items-center gap-1 rounded border border-cyan-500/30 bg-cyan-950/30 px-2 py-1 text-[11px] font-semibold text-cyan-200 hover:border-cyan-400/50"
+              >
+                <FileCode2 className="h-3 w-3" /> Open in SQL Editor
+              </button>
+            </div>
+          )}
+        </div>
         <ul className="mt-2 space-y-1 text-[12px] text-slate-300">
           <li>
             {included} of {changed.length} changed objects are ticked for the script.

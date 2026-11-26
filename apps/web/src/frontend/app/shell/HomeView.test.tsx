@@ -94,4 +94,12 @@ describe('HomeView', () => {
     fireEvent.click(screen.getByTestId('home-continue-utilities'));
     expect(setActiveView).toHaveBeenCalledWith('utilities');
   });
+
+  it('opens Compare and Workflow from Home even before a comparison has run', () => {
+    render(<HomeView />);
+    fireEvent.click(screen.getByTestId('home-continue-sync'));
+    expect(setActiveView).toHaveBeenCalledWith('sync');
+    fireEvent.click(screen.getByTestId('home-continue-workflow'));
+    expect(setActiveView).toHaveBeenCalledWith('workflow');
+  });
 });

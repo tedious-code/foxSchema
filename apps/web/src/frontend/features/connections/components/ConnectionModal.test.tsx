@@ -104,5 +104,19 @@ describe('ConnectionModal', () => {
     );
     expect((screen.getByTestId('conn-name-input') as HTMLInputElement).value).toBe('127.0.0.1/foxdb (staging)');
   });
+
+  it('provides quick-fill paths for SQLite and DuckDB file dialects', () => {
+    render(<ConnectionModal open dialect="sqlite" onClose={() => undefined} onSave={() => undefined} />);
+    fireEvent.click(screen.getByTestId('conn-quick-path-demo-a'));
+    expect((screen.getByTestId('conn-database-input') as HTMLInputElement).value).toBe(
+      '/tmp/foxschema-sqlite/demo_a.db',
+    );
+    fireEvent.click(screen.getByTestId('conn-quick-path-demo-b'));
+    expect((screen.getByTestId('conn-database-input') as HTMLInputElement).value).toBe(
+      '/tmp/foxschema-sqlite/demo_b.db',
+    );
+    fireEvent.click(screen.getByTestId('conn-quick-path-memory'));
+    expect((screen.getByTestId('conn-database-input') as HTMLInputElement).value).toBe(':memory:');
+  });
 });
 

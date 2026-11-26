@@ -811,6 +811,8 @@ export const TestIds = {
       homeContinueSync: 'home-continue-sync',
       /** button · Utilities Database tools Indexes, clone table, insights, and query … */
       homeContinueUtilities: 'home-continue-utilities',
+      /** button · Workflow Pipelines & automation DBA audits, retention, and schedule… */
+      homeContinueWorkflow: 'home-continue-workflow',
       /** button */
       homeRecent: (id: string | number) => `home-recent-${id}`,
       /** section · Recent queries */
@@ -1083,6 +1085,8 @@ export const TestIds = {
       syncPaneSwitcher: 'sync-pane-switcher',
       /** button · Clear */
       toolbarClear: 'toolbar-clear',
+      /** select · Saved compare pairs */
+      toolbarComparePairSelect: 'toolbar-compare-pair-select',
       /** button · All */
       toolbarObjectTypesAll: 'toolbar-object-types-all',
       /** button · Cancel */
@@ -1091,6 +1095,8 @@ export const TestIds = {
       toolbarPasswordConnect: 'toolbar-password-connect',
       /** button */
       toolbarPasswordShow: 'toolbar-password-show',
+      /** button */
+      toolbarPinComparePair: 'toolbar-pin-compare-pair',
       /** button · Swap Original Server and Target (reverse migration direction) */
       toolbarSwapDirection: 'toolbar-swap-direction',
       /** button */
@@ -1194,19 +1200,29 @@ export const TestIds = {
       /** button */
       gitCommitBtn: 'git-commit-btn',
       /** button */
+      migrateCopyBlueprintDdl: 'migrate-copy-blueprint-ddl',
+      /** button */
       migrateCopySql: 'migrate-copy-sql',
       /** button · Cross-dialect migration — click for a per-object-type breakdown of what's translated vs. flagged for manual review */
       migrateCrossDialectMigration: 'migrate-cross-dialect-migration',
+      /** button · Download the active migration or rollback SQL as a .sql file */
+      migrateDownloadSql: 'migrate-download-sql',
       /** input */
       migrateIgnoreCase: 'migrate-ignore-case',
       /** button */
       migrateInlineDiff: 'migrate-inline-diff',
+      /** button · Open this SQL script in the SQL Editor bound to the Target connection */
+      migrateOpenInSqlEditor: 'migrate-open-in-sql-editor',
       /** button · Review conflicts */
       migrateReviewConflicts: 'migrate-review-conflicts',
       /** button · Review conflicts */
       migrateReviewDependencies: 'migrate-review-dependencies',
       /** input */
       migrateShowUnchangedDetail: 'migrate-show-unchanged-detail',
+      /** button · Preview the inverse rollback DDL that reverts Target back to its previous schema */
+      migrateSqlDirectionDown: 'migrate-sql-direction-down',
+      /** button · Up (Migrate) */
+      migrateSqlDirectionUp: 'migrate-sql-direction-up',
       /** input */
       migrateToggleSyncSelection: 'migrate-toggle-sync-selection',
       /** button · view details */
@@ -1235,6 +1251,8 @@ export const TestIds = {
       sqlSchemaTreeIncludeAll: 'sql-schema-tree-include-all',
       /** input · Search objects, columns, indexes... */
       sqlSchemaTreeSearch: 'sql-schema-tree-search',
+      /** button · Clear search */
+      sqlSchemaTreeSearchClear: 'sql-schema-tree-search-clear',
       /** button · All */
       sqlSchemaTreeTypeAll: 'sql-schema-tree-type-all',
     },
@@ -1311,6 +1329,12 @@ export const TestIds = {
       connPasswordInputReveal: 'conn-password-input-reveal',
       /** input */
       connPortInput: 'conn-port-input',
+      /** button · demo_a.db */
+      connQuickPathDemoA: 'conn-quick-path-demo-a',
+      /** button · demo_b.db */
+      connQuickPathDemoB: 'conn-quick-path-demo-b',
+      /** button · :memory: */
+      connQuickPathMemory: 'conn-quick-path-memory',
       /** button */
       connSaveBtn: 'conn-save-btn',
       /** input */
@@ -1769,10 +1793,16 @@ export const TestIds = {
     DiffBriefingPanel: {
       /** button */
       diffBriefingAdded: 'diff-briefing-added',
+      /** button */
+      diffBriefingCopySql: 'diff-briefing-copy-sql',
+      /** button · Download .sql */
+      diffBriefingDownloadSql: 'diff-briefing-download-sql',
       /** p */
       diffBriefingEmpty: 'diff-briefing-empty',
       /** button */
       diffBriefingModified: 'diff-briefing-modified',
+      /** button · Open in SQL Editor */
+      diffBriefingOpenSqlEditor: 'diff-briefing-open-sql-editor',
       /** div · What changed */
       diffBriefingPanel: 'diff-briefing-panel',
       /** button */
@@ -4642,6 +4672,9 @@ export type TestId =
   | 'conn-password-input'
   | 'conn-password-input-reveal'
   | 'conn-port-input'
+  | 'conn-quick-path-demo-a'
+  | 'conn-quick-path-demo-b'
+  | 'conn-quick-path-memory'
   | 'conn-save-btn'
   | 'conn-save-password'
   | 'conn-schema-input'
@@ -4804,9 +4837,12 @@ export type TestId =
   | `diff-action-${string}-${string}`
   | 'diff-add-row'
   | 'diff-briefing-added'
+  | 'diff-briefing-copy-sql'
+  | 'diff-briefing-download-sql'
   | 'diff-briefing-empty'
   | 'diff-briefing-modified'
   | 'diff-briefing-open'
+  | 'diff-briefing-open-sql-editor'
   | 'diff-briefing-panel'
   | 'diff-briefing-removed'
   | `diff-briefing-row-${string}`
@@ -4962,6 +4998,7 @@ export type TestId =
   | 'home-continue-sql'
   | 'home-continue-sync'
   | 'home-continue-utilities'
+  | 'home-continue-workflow'
   | 'home-drivers'
   | 'home-drivers-action-error'
   | 'home-drivers-check'
@@ -5137,16 +5174,21 @@ export type TestId =
   | `matrix-schema-${string}`
   | `matrix-section-${string}`
   | 'matrix-summary'
+  | 'migrate-copy-blueprint-ddl'
   | 'migrate-copy-sql'
   | 'migrate-cross-dialect-migration'
   | 'migrate-cross-dialect-readiness-close'
   | `migrate-dependency-${string}-${string}`
   | 'migrate-dependency-warning-close'
+  | 'migrate-download-sql'
   | 'migrate-ignore-case'
   | 'migrate-inline-diff'
+  | 'migrate-open-in-sql-editor'
   | 'migrate-review-conflicts'
   | 'migrate-review-dependencies'
   | 'migrate-show-unchanged-detail'
+  | 'migrate-sql-direction-down'
+  | 'migrate-sql-direction-up'
   | 'migrate-toggle-sync-selection'
   | 'migrate-validation-warnings-close'
   | 'migrate-view-details'
@@ -5568,6 +5610,7 @@ export type TestId =
   | `sql-schema-peek-${string}`
   | 'sql-schema-tree-include-all'
   | 'sql-schema-tree-search'
+  | 'sql-schema-tree-search-clear'
   | 'sql-schema-tree-type-all'
   | `sql-secret-${string}`
   | 'sql-secret-add'
@@ -5695,10 +5738,12 @@ export type TestId =
   | 'toast-host'
   | 'toolbar'
   | 'toolbar-clear'
+  | 'toolbar-compare-pair-select'
   | 'toolbar-object-types-all'
   | 'toolbar-password-cancel'
   | 'toolbar-password-connect'
   | 'toolbar-password-show'
+  | 'toolbar-pin-compare-pair'
   | 'toolbar-swap-direction'
   | `toolbar-toggle-object-type-${string}`
   | `toolbar-toggle-type-filter-${string}`

@@ -14,7 +14,7 @@
 import React, { lazy, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useShallow } from 'zustand/react/shallow';
-import { ArrowRight, ArrowLeftRight, RefreshCw, AlertCircle, Zap, Settings, KeyRound, X, Layers, Camera } from 'lucide-react';
+import { ArrowRight, ArrowLeftRight, RefreshCw, AlertCircle, Zap, Settings, KeyRound, X, Layers, Camera, Bookmark } from 'lucide-react';
 import { useUiStore } from '@/platform/uiStore';
 import { useAuthStore } from '@/platform/authStore';
 import { toast } from '@/platform/toastStore';
@@ -33,6 +33,34 @@ import { ConnectionChip } from './ConnectionChips';
 
 // Opened on a click: loaded on the first open.
 const ConnectionModal = lazy(loadConnectionModal);
+
+const LS_COMPARE_PAIRS = 'foxschema-saved-compare-pairs';
+
+export interface SavedComparePair {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  label: string;
+}
+
+function loadSavedComparePairs(): SavedComparePair[] {
+  try {
+    const raw = localStorage.getItem(LS_COMPARE_PAIRS);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as SavedComparePair[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistSavedComparePairs(pairs: SavedComparePair[]): void {
+  try {
+    localStorage.setItem(LS_COMPARE_PAIRS, JSON.stringify(pairs));
+  } catch {
+    /* ignore quota errors */
+  }
+}
 
 function connectionSummary(config: {
   schema: string;
@@ -95,6 +123,7 @@ export const CompareToolbarStart: React.FC = () => {
 
   const [activeModalTarget, setActiveModalTarget] = useState<'source' | 'target' | null>(null);
   const [capturingSnapshot, setCapturingSnapshot] = useState(false);
+  const [savedPairs, setSavedPairs] = useState<SavedComparePair[]>(loadSavedComparePairs);
   const { syncPane, setSyncPane, bumpLokeeEpoch } = useUiStore(
     useShallow((s) => ({ syncPane: s.syncPane, setSyncPane: s.setSyncPane, bumpLokeeEpoch: s.bumpLokeeEpoch }))
   );
@@ -131,6 +160,51 @@ export const CompareToolbarStart: React.FC = () => {
       return;
     }
     applySavedConnection(side, id);
+  };
+
+  const currentPairId =
+    selectedSourceConnectionId && selectedTargetConnectionId
+      ? `${selectedSourceConnectionId}::${selectedTargetConnectionId}`
+      : '';
+  const isCurrentPairPinned = Boolean(
+    currentPairId && savedPairs.some((p) => p.id === currentPairId),
+  );
+
+  const togglePinCurrentPair = () => {
+    if (!selectedSourceConnectionId || !selectedTargetConnectionId) return;
+    const id = `${selectedSourceConnectionId}::${selectedTargetConnectionId}`;
+    if (savedPairs.some((p) => p.id === id)) {
+      const next = savedPairs.filter((p) => p.id !== id);
+      setSavedPairs(next);
+      persistSavedComparePairs(next);
+      return;
+    }
+    const srcName =
+      connections.find((c) => c.id === selectedSourceConnectionId)?.name ??
+      sourceConfig.option.database ??
+      'Original';
+    const tgtName =
+      connections.find((c) => c.id === selectedTargetConnectionId)?.name ??
+      targetConfig.option.database ??
+      'Target';
+    const next: SavedComparePair[] = [
+      ...savedPairs,
+      {
+        id,
+        sourceId: selectedSourceConnectionId,
+        targetId: selectedTargetConnectionId,
+        label: `${srcName} → ${tgtName}`,
+      },
+    ];
+    setSavedPairs(next);
+    persistSavedComparePairs(next);
+  };
+
+  const applySavedPair = (pairId: string) => {
+    const pair = savedPairs.find((p) => p.id === pairId);
+    if (!pair) return;
+    selectSavedConnection('source', pair.sourceId);
+    selectSavedConnection('target', pair.targetId);
   };
 
   const confirmPendingPassword = () => {
@@ -269,6 +343,42 @@ export const CompareToolbarStart: React.FC = () => {
             }}
             onConnect={testTargetConnection}
           />
+          {selectedSourceConnectionId && selectedTargetConnectionId && (
+            <button
+              type="button"
+              data-testid="toolbar-pin-compare-pair"
+              onClick={togglePinCurrentPair}
+              title={
+                isCurrentPairPinned
+                  ? 'Unpin this Original → Target compare pair'
+                  : 'Pin this Original → Target compare pair for quick 1-click switching'
+              }
+              className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold transition ${
+                isCurrentPairPinned
+                  ? 'border-amber-500/40 bg-amber-950/40 text-amber-300 hover:bg-amber-900/40'
+                  : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+              }`}
+            >
+              <Bookmark className={`h-3 w-3 ${isCurrentPairPinned ? 'fill-current' : ''}`} />
+              {isCurrentPairPinned ? 'Pinned' : 'Pin pair'}
+            </button>
+          )}
+          {savedPairs.length > 0 && (
+            <select
+              data-testid="toolbar-compare-pair-select"
+              aria-label="Saved compare pairs"
+              value={isCurrentPairPinned ? currentPairId : ''}
+              onChange={(e) => applySavedPair(e.target.value)}
+              className="max-w-[13rem] truncate rounded-full border border-slate-800 bg-slate-950 px-2.5 py-1 text-[11px] font-semibold text-slate-300 outline-none hover:border-slate-700"
+            >
+              <option value="">Saved pairs ({savedPairs.length})…</option>
+              {savedPairs.map((pair) => (
+                <option key={pair.id} value={pair.id}>
+                  {pair.label}
+                </option>
+              ))}
+            </select>
+          )}
           {sameConfig && (
             <span className="flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-950/30 px-2 py-0.5 text-[11px] font-medium text-amber-400">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Same DB

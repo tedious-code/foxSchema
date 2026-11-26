@@ -58,4 +58,12 @@ describe('DiffBriefingPanel', () => {
     fireEvent.click(screen.getByTestId('diff-briefing-row-customers'));
     expect(useSyncStore.getState().selectedTable?.tableName).toBe('customers');
   });
+
+  it('offers Copy Migration SQL, Download .sql, and Open in SQL Editor when generatedSql is present', () => {
+    useSyncStore.setState({ generatedSql: 'CREATE TABLE orders (id INT);' });
+    render(<DiffBriefingPanel />);
+    expect(screen.getByTestId('diff-briefing-copy-sql')).toBeTruthy();
+    expect(screen.getByTestId('diff-briefing-download-sql')).toBeTruthy();
+    expect(screen.getByTestId('diff-briefing-open-sql-editor')).toBeTruthy();
+  });
 });

@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1114** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1129** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -431,6 +431,7 @@ Every control has a test ID: **1114** buttons, text boxes, selects and textareas
   - `home-continue-sql` · button · Last query
   - `home-continue-sync` · button · Last compare
   - `home-continue-utilities` · button · Utilities Database tools Indexes, clone table, insights, and query …
+  - `home-continue-workflow` · button · Workflow Pipelines & automation DBA audits, retention, and schedule…
   - `home-recent-{id}` · button
   - `home-recents` · section · Recent queries
   - `home-recents-empty` · p
@@ -573,10 +574,12 @@ Every control has a test ID: **1114** buttons, text boxes, selects and textareas
   - `sync-pane-compare-btn` · button · Compare
   - `sync-pane-switcher` · div
   - `toolbar-clear` · button · Clear
+  - `toolbar-compare-pair-select` · select · Saved compare pairs
   - `toolbar-object-types-all` · button · All
   - `toolbar-password-cancel` · button · Cancel
   - `toolbar-password-connect` · button · Connect
   - `toolbar-password-show` · button
+  - `toolbar-pin-compare-pair` · button
   - `toolbar-swap-direction` · button · Swap Original Server and Target (reverse migration direction)
   - `toolbar-toggle-object-type-{type}` · button
   - `toolbar-toggle-type-filter-{type}` · button
@@ -628,13 +631,18 @@ Every control has a test ID: **1114** buttons, text boxes, selects and textareas
   - `browse-connection-card` · dl
   - `execute-btn` · button
   - `git-commit-btn` · button
+  - `migrate-copy-blueprint-ddl` · button
   - `migrate-copy-sql` · button
   - `migrate-cross-dialect-migration` · button · Cross-dialect migration — click for a per-object-type breakdown of what's translated vs. flagged for manual review
+  - `migrate-download-sql` · button · Download the active migration or rollback SQL as a .sql file
   - `migrate-ignore-case` · input
   - `migrate-inline-diff` · button
+  - `migrate-open-in-sql-editor` · button · Open this SQL script in the SQL Editor bound to the Target connection
   - `migrate-review-conflicts` · button · Review conflicts
   - `migrate-review-dependencies` · button · Review conflicts
   - `migrate-show-unchanged-detail` · input
+  - `migrate-sql-direction-down` · button · Preview the inverse rollback DDL that reverts Target back to its previous schema
+  - `migrate-sql-direction-up` · button · Up (Migrate)
   - `migrate-toggle-sync-selection` · input
   - `migrate-view-details` · button · view details
   - `migrate-view-notes` · button · View notes
@@ -649,6 +657,7 @@ Every control has a test ID: **1114** buttons, text boxes, selects and textareas
   - `schema-tree-empty` · div
   - `sql-schema-tree-include-all` · input
   - `sql-schema-tree-search` · input · Search objects, columns, indexes...
+  - `sql-schema-tree-search-clear` · button · Clear search
   - `sql-schema-tree-type-all` · button · All
 - **ValidationWarningsDialog** · `features/compare/components/ValidationWarningsDialog.tsx`
   - `migrate-validation-warnings-close` · button · Close
@@ -689,6 +698,9 @@ Every control has a test ID: **1114** buttons, text boxes, selects and textareas
   - `conn-password-input` · input in PasswordInput
   - `conn-password-input-reveal` · button in PasswordInput · Hold to show password
   - `conn-port-input` · input
+  - `conn-quick-path-demo-a` · button · demo_a.db
+  - `conn-quick-path-demo-b` · button · demo_b.db
+  - `conn-quick-path-memory` · button · :memory:
   - `conn-save-btn` · button
   - `conn-save-password` · input
   - `conn-schema-input` · input in Autocomplete
@@ -932,8 +944,11 @@ Every control has a test ID: **1114** buttons, text boxes, selects and textareas
 - **DiffBriefingPanel** · `features/schema-diff/components/DiffBriefingPanel.tsx`
   - `{testId}` · button · passed in by the parent
   - `diff-briefing-added` · button in BriefingStat
+  - `diff-briefing-copy-sql` · button
+  - `diff-briefing-download-sql` · button · Download .sql
   - `diff-briefing-empty` · p
   - `diff-briefing-modified` · button in BriefingStat
+  - `diff-briefing-open-sql-editor` · button · Open in SQL Editor
   - `diff-briefing-panel` · div · What changed
   - `diff-briefing-removed` · button in BriefingStat
   - `diff-briefing-row-{tableName}` · button

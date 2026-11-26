@@ -215,3 +215,46 @@ export function regenerateSql(
     s.compareResult.tables
   );
 }
+
+function invertDiffStatus<T extends 'ADDED' | 'REMOVED' | 'MODIFIED' | 'UNCHANGED'>(status: T): T {
+  if (status === 'ADDED') return 'REMOVED' as T;
+  if (status === 'REMOVED') return 'ADDED' as T;
+  return status;
+}
+
+/**
+ * Invert a TableDiff so generating migration SQL produces the rollback (Down) script
+ * that reverts Target back to its pre-migration state.
+ */
+export function invertTableDiff(diff: TableDiff): TableDiff {
+  return {
+    ...diff,
+    status: invertDiffStatus(diff.status),
+    sourceTable: diff.targetTable,
+    targetTable: diff.sourceTable,
+    columnDiffs: diff.columnDiffs.map((c) => ({
+      ...c,
+      status: invertDiffStatus(c.status),
+      source: c.target,
+      target: c.source,
+    })),
+    indexDiffs: diff.indexDiffs.map((i) => ({
+      ...i,
+      status: invertDiffStatus(i.status),
+      source: i.target,
+      target: i.source,
+    })),
+    foreignKeyDiffs: diff.foreignKeyDiffs.map((f) => ({
+      ...f,
+      status: invertDiffStatus(f.status),
+      source: f.target,
+      target: f.source,
+    })),
+    triggerDiffs: diff.triggerDiffs?.map((tr) => ({
+      ...tr,
+      status: invertDiffStatus(tr.status),
+      source: tr.target,
+      target: tr.source,
+    })),
+  };
+}

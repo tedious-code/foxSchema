@@ -28,6 +28,11 @@
 import { createPublicKey, verify, type KeyObject } from 'node:crypto';
 
 export const DEFAULT_BROKER_URL = 'https://foxschema.com/wp-json/foxschema/v1/sso';
+/** Providers the Fox sign-in service permanently supports. */
+export const DEFAULT_BROKER_PROVIDERS: readonly BrokerProvider[] = [
+  { id: 'google', label: 'Google' },
+  { id: 'github', label: 'GitHub' },
+];
 /** Providers the service may offer. */
 const BROKER_PROVIDERS = new Set(['google', 'github']);
 const FETCH_TIMEOUT_MS = 5000;
@@ -63,6 +68,7 @@ interface Jwk {
 
 export class SsoBroker {
   private providersCache: { at: number; providers: BrokerProvider[] } | null = null;
+  private providersRefresh: Promise<BrokerProvider[]> | null = null;
   private keysCache: { at: number; keys: Map<string, KeyObject> } | null = null;
   private lastKeyRefresh = 0;
   private seen = new Map<string, number>();
@@ -85,19 +91,47 @@ export class SsoBroker {
     return res.json();
   }
 
-  /** What the service offers right now; empty when it cannot be reached. */
+  private refreshProviders(now: number): Promise<BrokerProvider[]> {
+    if (this.providersRefresh) return this.providersRefresh;
+    this.providersRefresh = (async () => {
+      try {
+        const body = (await this.getJson('/providers')) as { providers?: Array<{ id?: unknown; label?: unknown }> };
+        const providers = (body.providers ?? [])
+          .filter((p) => typeof p.id === 'string' && BROKER_PROVIDERS.has(p.id))
+          .map((p) => ({
+            id: p.id as BrokerProvider['id'],
+            label: typeof p.label === 'string' ? p.label : String(p.id),
+          }));
+        if (providers.length > 0) {
+          this.providersCache = { at: now, providers };
+          return providers;
+        }
+      } catch {
+        // Keep last known providers or fall back to the built-in Google/GitHub list
+        // so transient network/timeout blips never make SSO buttons disappear.
+      }
+      return this.providersCache?.providers ?? [...DEFAULT_BROKER_PROVIDERS];
+    })().finally(() => {
+      this.providersRefresh = null;
+    });
+    return this.providersRefresh;
+  }
+
+  /**
+   * Providers offered by the Fox sign-in service.
+   *
+   * Never drops to an empty list on transient network or timeout errors:
+   * stale-while-revalidate keeps login instant and falls back to the permanent
+   * Google + GitHub list if foxschema.com is temporarily unreachable.
+   */
   async providers(now = Date.now()): Promise<BrokerProvider[]> {
-    if (this.providersCache && now - this.providersCache.at < PROVIDERS_TTL_MS) return this.providersCache.providers;
-    try {
-      const body = (await this.getJson('/providers')) as { providers?: Array<{ id?: unknown; label?: unknown }> };
-      const providers = (body.providers ?? [])
-        .filter((p) => typeof p.id === 'string' && BROKER_PROVIDERS.has(p.id))
-        .map((p) => ({ id: p.id as BrokerProvider['id'], label: typeof p.label === 'string' ? p.label : String(p.id) }));
-      this.providersCache = { at: now, providers };
-      return providers;
-    } catch {
-      return [];
+    if (this.providersCache) {
+      if (now - this.providersCache.at >= PROVIDERS_TTL_MS) {
+        void this.refreshProviders(now);
+      }
+      return this.providersCache.providers;
     }
+    return this.refreshProviders(now);
   }
 
   /** Where to send the browser to start signing in. */

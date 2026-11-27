@@ -50,12 +50,24 @@ export interface SsoProvider {
   label: string;
 }
 
+/** Fetch configured SSO providers, throwing on network or non-2xx errors so callers can retry. */
+export async function fetchSsoProvidersStrict(): Promise<SsoProvider[]> {
+  const res = await fetch(`${getApiBase()}/auth/sso/providers`, {
+    credentials: 'include',
+    cache: 'no-store',
+  });
+  if (!res.ok) throw new Error(`SSO providers request failed (${res.status})`);
+  const data = await parseJsonResponseOrNull<{ providers?: SsoProvider[] }>(res);
+  if (!data || !Array.isArray(data.providers)) {
+    throw new Error('Invalid SSO providers response');
+  }
+  return data.providers;
+}
+
 /** Configured SSO providers (empty if none are set up on the server). */
 export async function fetchSsoProviders(): Promise<SsoProvider[]> {
   try {
-    const res = await fetch(`${getApiBase()}/auth/sso/providers`, { credentials: 'include' });
-    const data = await parseJsonResponseOrNull<{ providers?: SsoProvider[] }>(res);
-    return Array.isArray(data?.providers) ? data.providers : [];
+    return await fetchSsoProvidersStrict();
   } catch {
     return [];
   }

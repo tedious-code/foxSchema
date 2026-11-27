@@ -108,13 +108,32 @@ describe('Fox sign-in service assertions', () => {
     expect(jwksCalls()).toBe(2);
   });
 
-  it('offers only Google and GitHub, and nothing when the service is unreachable', async () => {
+  it('offers only Google and GitHub, and falls back to them permanently when the service is unreachable', async () => {
     const { broker } = brokerWith(() => [key.jwk]);
     expect((await broker.providers(NOW)).map((p) => p.id)).toEqual(['github', 'google']);
     const down = new SsoBroker(URL_BASE, (async () => {
       throw new Error('offline');
     }) as unknown as typeof fetch);
-    expect(await down.providers(NOW)).toEqual([]);
+    expect(await down.providers(NOW)).toEqual([
+      { id: 'google', label: 'Google' },
+      { id: 'github', label: 'GitHub' },
+    ]);
+  });
+
+  it('keeps showing cached providers when a later background refresh fails', async () => {
+    let fail = false;
+    const broker = new SsoBroker(URL_BASE, (async () => {
+      if (fail) throw new Error('timeout');
+      return {
+        ok: true,
+        json: async () => ({ providers: [{ id: 'github', label: 'GitHub' }, { id: 'google', label: 'Google' }] }),
+      };
+    }) as unknown as typeof fetch);
+
+    expect((await broker.providers(NOW)).map((p) => p.id)).toEqual(['github', 'google']);
+    fail = true;
+    // Past the 5-minute TTL: still returns the cached providers immediately without dropping them.
+    expect((await broker.providers(NOW + 10 * 60 * 1000)).map((p) => p.id)).toEqual(['github', 'google']);
   });
 
   it('sends the browser to the service with where to come back and the nonce', () => {

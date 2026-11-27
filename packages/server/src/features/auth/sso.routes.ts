@@ -95,6 +95,7 @@ export function createSsoRoutes(
 
   // Which providers are configured (drives which buttons the login shows).
   router.get('/providers', async (_req: AppRequest, res: FastifyReply) => {
+    res.header('cache-control', 'no-store');
     const providers = await settings.providers();
     res.send({
       providers: [

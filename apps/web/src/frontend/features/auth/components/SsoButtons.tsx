@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchSsoProviders, startSso, type SsoProvider, type SsoProviderId } from '../api/authApi';
+import { fetchSsoProvidersStrict, startSso, type SsoProvider, type SsoProviderId } from '../api/authApi';
 
 const GoogleIcon: React.FC = () => (
   <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true">
@@ -31,15 +31,44 @@ const ICONS: Record<SsoProviderId, React.ReactNode> = {
   github: <GithubIcon />,
 };
 
+const RETRY_DELAYS_MS = [350, 900, 1800];
+
+let cachedProviders: SsoProvider[] | null = null;
+
+/** Test helper to reset the in-memory SSO provider cache between cases. */
+export function resetSsoProvidersCache(): void {
+  cachedProviders = null;
+}
+
 /** "Continue with…" buttons for configured SSO providers. Renders nothing if none. */
 export const SsoButtons: React.FC = () => {
-  const [providers, setProviders] = useState<SsoProvider[]>([]);
+  const [providers, setProviders] = useState<SsoProvider[]>(() => cachedProviders ?? []);
 
   useEffect(() => {
     let alive = true;
-    fetchSsoProviders().then((p) => alive && setProviders(p));
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const load = async (attempt: number) => {
+      try {
+        const list = await fetchSsoProvidersStrict();
+        if (!alive) return;
+        cachedProviders = list;
+        setProviders(list);
+      } catch {
+        if (!alive) return;
+        const delay = RETRY_DELAYS_MS[attempt];
+        if (delay !== undefined) {
+          timer = setTimeout(() => {
+            void load(attempt + 1);
+          }, delay);
+        }
+      }
+    };
+
+    void load(0);
     return () => {
       alive = false;
+      if (timer) clearTimeout(timer);
     };
   }, []);
 

@@ -63,6 +63,81 @@ export const SAMPLE_DBA_SCHEMA_HEALTH_AUDIT_WORKFLOW_ID = 'sample-dba-schema-hea
 export const SAMPLE_DBA_RETENTION_MAINTENANCE_WORKFLOW_ID = 'sample-dba-table-retention-maintenance';
 export const SAMPLE_DBA_QUARANTINE_RECONCILE_WORKFLOW_ID = 'sample-dba-ledger-verify-quarantine';
 export const SAMPLE_DBA_PII_REDACT_DEDUPE_AGGREGATE_WORKFLOW_ID = 'sample-dba-pii-redact-dedupe-aggregate';
+export const SAMPLE_ELT_STAGED_SQL_WAREHOUSE_WORKFLOW_ID = 'sample-elt-staged-sql-warehouse';
+export const SAMPLE_CROSS_DIALECT_DATA_MIGRATION_WORKFLOW_ID = 'sample-cross-dialect-data-migration';
+export const SAMPLE_FILE_SOURCES_CSV_DELIMITED_ELT_WORKFLOW_ID = 'sample-file-sources-csv-delimited-elt';
+
+/** Raw e-commerce landing events for ELT staging + in-DB SQL transformation. */
+export const SAMPLE_ELT_RAW_EVENTS = [
+  {
+    raw_event_id: 'EVT-9001',
+    customer_email: '  ALICE@Acme.Example ',
+    customer_name: "  Alice O'Reilly  ",
+    currency_code: 'usd',
+    gross_amount_text: '149.95',
+    discount_text: '10.00',
+    event_status: 'COMPLETED',
+  },
+  {
+    raw_event_id: 'EVT-9002',
+    customer_email: 'bob@europa.example',
+    customer_name: 'Bob Müller — 东京',
+    currency_code: 'eur',
+    gross_amount_text: '220.50',
+    discount_text: '0',
+    event_status: 'completed',
+  },
+  {
+    raw_event_id: 'EVT-9003',
+    customer_email: '   ',
+    customer_name: 'Corrupt Missing Email',
+    currency_code: 'USD',
+    gross_amount_text: '-45.00',
+    discount_text: '0',
+    event_status: 'corrupt',
+  },
+  {
+    raw_event_id: 'EVT-9004',
+    customer_email: 'alice@acme.example',
+    customer_name: "Alice O'Reilly",
+    currency_code: 'USD',
+    gross_amount_text: '89.05',
+    discount_text: '9.00',
+    event_status: 'COMPLETED',
+  },
+] as const;
+
+/** Inbound file rows written in Stage 1 and ingested via source.file.csv & source.file.text in Stage 2. */
+export const SAMPLE_FILE_SOURCE_SHIPMENTS = [
+  {
+    shipment_id: 'SHP-701',
+    carrier: 'FastFreight, Inc.',
+    origin_hub: 'ORD',
+    weight_kg: 125.5,
+    handling_note: 'Fragile "Glass" — Keep Upright',
+  },
+  {
+    shipment_id: 'SHP-702',
+    carrier: 'Nordic Air Cargo',
+    origin_hub: 'FRA',
+    weight_kg: 340,
+    handling_note: '=SUM(A1:A5) formula-safe text',
+  },
+  {
+    shipment_id: 'SHP-703',
+    carrier: 'FastFreight, Inc.',
+    origin_hub: 'LAX',
+    weight_kg: -15,
+    handling_note: 'Invalid negative weight row',
+  },
+  {
+    shipment_id: 'SHP-704',
+    carrier: 'Pacific Express',
+    origin_hub: 'NRT',
+    weight_kg: 210.25,
+    handling_note: 'Standard pallet',
+  },
+] as const;
 
 /** Demo nested tenant & user records for side-by-side ETL column mapping. */
 export const SAMPLE_TENANT_USERS_ETL = [
@@ -3899,6 +3974,632 @@ ORDER BY seq;`,
   },
 };
 
+const ELT_STAGED_SQL_WAREHOUSE: SampleWorkflow = {
+  id: SAMPLE_ELT_STAGED_SQL_WAREHOUSE_WORKFLOW_ID,
+  name: '★ Sample · ELT · Raw Staging Load & In-DB SQL Warehouse Transform',
+  document: {
+    id: SAMPLE_ELT_STAGED_SQL_WAREHOUSE_WORKFLOW_ID,
+    name: '★ Sample · ELT · Raw Staging Load & In-DB SQL Warehouse Transform',
+    description:
+      'Two-stage ELT edge-case pipeline: Stage 1 extracts uncleaned raw events (padded whitespace, mixed-case currencies, stringified decimals, SQL quotes, Unicode, and a corrupt negative/blank-email row) and loads them as-is into elt_raw_events + CSV. Stage 2 runs an all-or-nothing in-DB SQL transformation that quarantines invalid rows into elt_quarantine_events, normalizes customer dimensions into elt_dim_customers, aggregates net revenue in elt_fact_orders, and verifies warehouse output.',
+    purpose:
+      'Demonstrate true ELT (Extract → Load raw staging → In-database SQL transform with transactional quarantine and dimension/fact upserts).',
+    tags: ['sample', 'dba', 'sql', 'elt', 'warehouse', 'quarantine', 'sqlite'],
+    expectedResult:
+      'Loads 4 raw events into elt_raw_events, quarantines 1 corrupt event in SQL, normalizes 2 customer dimensions, and verifies 2 aggregated warehouse order rows.',
+    origin: 'authored',
+    triggers: [
+      {
+        id: 'manual',
+        kind: 'manual',
+        enabled: true,
+        inputData: cloneRecords(SAMPLE_ELT_RAW_EVENTS),
+      },
+    ],
+    dependencies: [
+      { from: 'extract_and_load_raw', to: 'in_db_sql_elt_transform', on: 'success' },
+    ],
+    pipelines: [
+      {
+        id: 'extract_and_load_raw',
+        name: '1. Extract & Load Raw Landing',
+        task: 'Load raw uncleaned payload records into elt_raw_events and raw landing CSV',
+        pipes: [
+          {
+            id: 'read_raw_trigger',
+            role: 'source',
+            type: 'source.trigger.manual',
+            intent: 'Read raw uncleaned events from manual trigger',
+            config: { triggerId: 'manual' },
+          },
+          {
+            id: 'load_raw_staging_table',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Load raw events untouched into elt_raw_events staging table',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'elt_raw_events',
+              upsertKey: 'raw_event_id',
+              columns: [
+                'raw_event_id',
+                'customer_email',
+                'customer_name',
+                'currency_code',
+                'gross_amount_text',
+                'discount_text',
+                'event_status',
+              ],
+            },
+          },
+          {
+            id: 'archive_raw_landing_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Write raw landing snapshot to CSV before in-DB SQL transformation',
+            config: {
+              path: 'elt_raw_landing.csv',
+              columns: [
+                'raw_event_id',
+                'customer_email',
+                'customer_name',
+                'currency_code',
+                'gross_amount_text',
+                'discount_text',
+                'event_status',
+              ],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+        ],
+        edges: [
+          { from: 'read_raw_trigger', to: 'load_raw_staging_table', fromPort: 'out' },
+          { from: 'load_raw_staging_table', to: 'archive_raw_landing_csv', fromPort: 'out' },
+        ],
+      },
+      {
+        id: 'in_db_sql_elt_transform',
+        name: '2. In-DB SQL Warehouse Transform',
+        task: 'Quarantine bad rows in SQL, build dimension/fact tables, and verify warehouse invariants',
+        pipes: [
+          {
+            id: 'run_sql_elt_model',
+            role: 'source',
+            type: 'source.db.sql',
+            intent: 'Run transactional in-DB SQL ELT: quarantine invalid rows, upsert customer dim, and aggregate order facts',
+            config: {
+              dialect: 'sqlite',
+              transaction: true,
+              sql: `CREATE TABLE IF NOT EXISTS elt_quarantine_events (
+  raw_event_id TEXT PRIMARY KEY,
+  raw_email TEXT,
+  gross_amount_text TEXT,
+  reject_reason TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS elt_dim_customers (
+  customer_email TEXT PRIMARY KEY,
+  customer_name TEXT NOT NULL,
+  currency_code TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS elt_fact_orders (
+  customer_email TEXT PRIMARY KEY,
+  customer_name TEXT NOT NULL,
+  currency_code TEXT NOT NULL,
+  order_count INTEGER NOT NULL,
+  net_amount_usd REAL NOT NULL
+);
+DELETE FROM elt_quarantine_events;
+INSERT INTO elt_quarantine_events (raw_event_id, raw_email, gross_amount_text, reject_reason)
+SELECT
+  raw_event_id,
+  customer_email,
+  gross_amount_text,
+  CASE
+    WHEN TRIM(COALESCE(customer_email, '')) = '' THEN 'missing customer_email'
+    WHEN CAST(gross_amount_text AS REAL) < 0 THEN 'negative gross_amount'
+    ELSE 'non-completed status'
+  END
+FROM elt_raw_events
+WHERE TRIM(COALESCE(customer_email, '')) = ''
+   OR CAST(gross_amount_text AS REAL) < 0
+   OR LOWER(TRIM(event_status)) <> 'completed';
+
+INSERT OR REPLACE INTO elt_dim_customers (customer_email, customer_name, currency_code)
+SELECT
+  LOWER(TRIM(customer_email)) AS customer_email,
+  TRIM(customer_name) AS customer_name,
+  UPPER(TRIM(currency_code)) AS currency_code
+FROM elt_raw_events
+WHERE raw_event_id NOT IN (SELECT raw_event_id FROM elt_quarantine_events);
+
+DELETE FROM elt_fact_orders;
+INSERT INTO elt_fact_orders (customer_email, customer_name, currency_code, order_count, net_amount_usd)
+SELECT
+  LOWER(TRIM(r.customer_email)) AS customer_email,
+  MAX(TRIM(r.customer_name)) AS customer_name,
+  UPPER(TRIM(r.currency_code)) AS currency_code,
+  COUNT(*) AS order_count,
+  ROUND(SUM(CAST(r.gross_amount_text AS REAL) - CAST(COALESCE(r.discount_text, '0') AS REAL)), 2) AS net_amount_usd
+FROM elt_raw_events r
+WHERE r.raw_event_id NOT IN (SELECT raw_event_id FROM elt_quarantine_events)
+GROUP BY LOWER(TRIM(r.customer_email)), UPPER(TRIM(r.currency_code));
+
+SELECT customer_email, customer_name, currency_code, order_count, net_amount_usd
+FROM elt_fact_orders
+ORDER BY customer_email;`,
+            },
+          },
+          {
+            id: 'verify_warehouse_facts',
+            role: 'transform',
+            type: 'transform.verify',
+            intent: 'Assert transformed warehouse facts have valid email and non-negative net revenue',
+            config: {
+              onInvalid: 'fail',
+              rules: [
+                { field: 'customer_email', op: 'notEmpty', message: 'warehouse customer_email must not be empty' },
+                { field: 'net_amount_usd', op: 'gte', value: 0, message: 'warehouse net_amount_usd must be >= 0' },
+                { field: 'order_count', op: 'gt', value: 0, message: 'warehouse order_count must be > 0' },
+              ],
+            },
+          },
+          {
+            id: 'export_warehouse_facts_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Export verified ELT warehouse fact table to CSV',
+            config: {
+              path: 'elt_warehouse_facts.csv',
+              columns: ['customer_email', 'customer_name', 'currency_code', 'order_count', 'net_amount_usd'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+        ],
+        edges: [
+          { from: 'run_sql_elt_model', to: 'verify_warehouse_facts', fromPort: 'out' },
+          { from: 'verify_warehouse_facts', to: 'export_warehouse_facts_csv', fromPort: 'out' },
+        ],
+      },
+    ],
+  },
+};
+
+const CROSS_DIALECT_DATA_MIGRATION: SampleWorkflow = {
+  id: SAMPLE_CROSS_DIALECT_DATA_MIGRATION_WORKFLOW_ID,
+  name: '★ Sample · Cross-Dialect Data Migration · Legacy Types, Composite Upsert & Audit',
+  document: {
+    id: SAMPLE_CROSS_DIALECT_DATA_MIGRATION_WORKFLOW_ID,
+    name: '★ Sample · Cross-Dialect Data Migration · Legacy Types, Composite Upsert & Audit',
+    description:
+      'Simulates migrating legacy ERP customer records across SQL dialects with incompatible column conventions: extracts integer booleans (1/0), cent-based integer balances, NULL phone numbers, Unicode strings, and duplicate composite keys; deduplicates on (tenant_code, legacy_acct_no), masks tax IDs, maps and normalizes types into target_crm_accounts via Mapped DB insert with composite upsertKeys, and reconciles source vs target row counts.',
+    purpose:
+      'Migrate and reconcile data across dialects with type coercion (cents → decimal, 0/1 → boolean text, trim/lowercase), composite key deduplication, PII masking, and post-load audit.',
+    tags: ['sample', 'dba', 'sql', 'migration', 'cross-dialect', 'etl', 'upsert', 'sqlite'],
+    expectedResult:
+      'Deduplicates 5 legacy ERP rows to 4 unique composite keys, masks tax_id, upserts normalized rows into target_crm_accounts, and logs 100% reconciliation match.',
+    origin: 'authored',
+    triggers: [{ id: 'manual', kind: 'manual', enabled: true }],
+    dependencies: [
+      { from: 'extract_transform_load_target', to: 'reconcile_migration_counts', on: 'success' },
+    ],
+    pipelines: [
+      {
+        id: 'extract_transform_load_target',
+        name: '1. Extract Legacy, Normalize Types & Composite Upsert',
+        task: 'Read legacy ERP rows, dedupe composite keys, mask tax_id, and mapped-upsert into target CRM schema',
+        pipes: [
+          {
+            id: 'extract_legacy_erp',
+            role: 'source',
+            type: 'source.db.sql',
+            intent: 'Extract legacy ERP rows with integer booleans, cent balances, nulls, and duplicate composite keys',
+            config: {
+              dialect: 'sqlite',
+              sql: `CREATE TABLE IF NOT EXISTS legacy_erp_customers (
+  row_seq INTEGER PRIMARY KEY,
+  tenant_code TEXT NOT NULL,
+  legacy_acct_no TEXT NOT NULL,
+  full_name TEXT NOT NULL,
+  raw_email TEXT NOT NULL,
+  tax_id TEXT NOT NULL,
+  balance_cents INTEGER NOT NULL,
+  is_active_int INTEGER NOT NULL,
+  phone_nullable TEXT
+);
+INSERT OR REPLACE INTO legacy_erp_customers (
+  row_seq, tenant_code, legacy_acct_no, full_name, raw_email, tax_id, balance_cents, is_active_int, phone_nullable
+) VALUES
+  (1, 'TNT-US', 'ACCT-100', '  Sørina Åström — 北极  ', '  SORINA@Astrom.Example ', 'TIN-880-1111', 125050, 1, NULL),
+  (2, 'TNT-EU', 'ACCT-200', 'Liam O''Connor', 'liam@dublin.example', 'VAT-552-9999', 42000, 1, '+353-1-555-0199'),
+  (3, 'TNT-US', 'ACCT-100', '  Sørina Åström — 北极  ', '  SORINA@Astrom.Example ', 'TIN-880-1111', 150075, 1, '+1-415-555-0100'),
+  (4, 'TNT-APAC', 'ACCT-300', 'Kenji Takahashi', 'kenji@tokyo.example', 'JPT-301-4422', 0, 0, NULL),
+  (5, 'TNT-EU', 'ACCT-400', 'Elena Rostova', 'elena@berlin.example', 'VAT-719-3321', 8999, 1, NULL);
+SELECT
+  row_seq,
+  tenant_code,
+  legacy_acct_no,
+  full_name,
+  raw_email,
+  tax_id,
+  balance_cents,
+  is_active_int,
+  phone_nullable
+FROM legacy_erp_customers
+ORDER BY row_seq;`,
+            },
+          },
+          {
+            id: 'dedupe_composite_key',
+            role: 'transform',
+            type: 'transform.dedupe',
+            intent: 'Keep latest row per composite (tenant_code, legacy_acct_no) and route superseded rows to rejects',
+            config: {
+              keys: ['tenant_code', 'legacy_acct_no'],
+              keep: 'last',
+            },
+          },
+          {
+            id: 'redact_legacy_tax_id',
+            role: 'transform',
+            type: 'transform.redact',
+            intent: 'Mask tax_id during cross-dialect migration',
+            config: {
+              fields: ['tax_id'],
+              strategy: 'mask',
+            },
+          },
+          {
+            id: 'mapped_upsert_target_crm',
+            role: 'sink',
+            type: 'sink.db.mapped-insert',
+            intent: 'Map legacy columns, coerce cents/booleans/null defaults, and composite-upsert into target_crm_accounts',
+            config: {
+              dialect: 'sqlite',
+              mode: 'mapped',
+              table: 'target_crm_accounts',
+              upsertKeys: ['tenant_id', 'account_no'],
+              columnMapping: [
+                { targetColumn: 'tenant_id', sourcePath: 'tenant_code', isKey: true },
+                { targetColumn: 'account_no', sourcePath: 'legacy_acct_no', isKey: true },
+                { targetColumn: 'customer_name', sourcePath: 'full_name', expression: 'String(value).trim()' },
+                { targetColumn: 'email', sourcePath: 'raw_email', expression: 'String(value).trim().toLowerCase()' },
+                { targetColumn: 'tax_id_masked', sourcePath: 'tax_id' },
+                { targetColumn: 'balance_usd', sourcePath: 'balance_cents', expression: 'Number(value) / 100', defaultValue: 0 },
+                {
+                  targetColumn: 'active_status',
+                  sourcePath: 'is_active_int',
+                  expression: "Number(value) === 1 ? 'active' : 'inactive'",
+                },
+                { targetColumn: 'phone', sourcePath: 'phone_nullable', defaultValue: 'N/A' },
+              ],
+            },
+          },
+          {
+            id: 'export_superseded_duplicates',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Export superseded legacy duplicate rows to CSV',
+            config: {
+              path: 'cross_dialect_superseded.csv',
+              columns: ['row_seq', 'tenant_code', 'legacy_acct_no', 'balance_cents'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+        ],
+        edges: [
+          { from: 'extract_legacy_erp', to: 'dedupe_composite_key', fromPort: 'out' },
+          { from: 'dedupe_composite_key', to: 'redact_legacy_tax_id', fromPort: 'out' },
+          { from: 'redact_legacy_tax_id', to: 'mapped_upsert_target_crm', fromPort: 'out' },
+          { from: 'dedupe_composite_key', to: 'export_superseded_duplicates', fromPort: 'rejects' },
+        ],
+      },
+      {
+        id: 'reconcile_migration_counts',
+        name: '2. Reconcile Source vs Target Parity',
+        task: 'Verify target row count and balance sum match deduplicated source keys',
+        pipes: [
+          {
+            id: 'query_migration_parity',
+            role: 'source',
+            type: 'source.db.sql',
+            intent: 'Compare distinct composite keys in legacy_erp_customers against migrated rows in target_crm_accounts',
+            config: {
+              dialect: 'sqlite',
+              sql: `SELECT
+  'legacy_erp_to_target_crm' AS migration_job,
+  (SELECT COUNT(DISTINCT tenant_code || '::' || legacy_acct_no) FROM legacy_erp_customers) AS source_distinct_keys,
+  (SELECT COUNT(*) FROM target_crm_accounts) AS target_migrated_rows,
+  (SELECT ROUND(SUM(balance_usd), 2) FROM target_crm_accounts) AS target_total_balance_usd,
+  CASE
+    WHEN (SELECT COUNT(DISTINCT tenant_code || '::' || legacy_acct_no) FROM legacy_erp_customers) =
+         (SELECT COUNT(*) FROM target_crm_accounts)
+    THEN 'MATCHED'
+    ELSE 'MISMATCH'
+  END AS parity_status;`,
+            },
+          },
+          {
+            id: 'verify_parity_matched',
+            role: 'transform',
+            type: 'transform.verify',
+            intent: 'Ensure source distinct key count equals target migrated row count',
+            config: {
+              onInvalid: 'fail',
+              rules: [
+                { field: 'parity_status', op: 'equals', value: 'MATCHED', message: 'Source and target row counts diverged' },
+                { field: 'target_migrated_rows', op: 'equals', value: 4, message: 'Expected 4 unique migrated accounts' },
+              ],
+            },
+          },
+          {
+            id: 'record_migration_audit',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Persist cross-dialect data migration parity audit row',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'cross_dialect_migration_audit',
+              upsertKey: 'migration_job',
+              columns: [
+                'migration_job',
+                'source_distinct_keys',
+                'target_migrated_rows',
+                'target_total_balance_usd',
+                'parity_status',
+              ],
+            },
+          },
+          {
+            id: 'export_migration_report_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Export cross-dialect migration reconciliation report to CSV',
+            config: {
+              path: 'cross_dialect_migration_report.csv',
+              columns: [
+                'migration_job',
+                'source_distinct_keys',
+                'target_migrated_rows',
+                'target_total_balance_usd',
+                'parity_status',
+              ],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+        ],
+        edges: [
+          { from: 'query_migration_parity', to: 'verify_parity_matched', fromPort: 'out' },
+          { from: 'verify_parity_matched', to: 'record_migration_audit', fromPort: 'out' },
+          { from: 'record_migration_audit', to: 'export_migration_report_csv', fromPort: 'out' },
+        ],
+      },
+    ],
+  },
+};
+
+const FILE_SOURCES_CSV_DELIMITED_ELT: SampleWorkflow = {
+  id: SAMPLE_FILE_SOURCES_CSV_DELIMITED_ELT_WORKFLOW_ID,
+  name: '★ Sample · File Sources · Multi-Delimiter CSV/Text Ingest, Schema Rules & Rejects',
+  document: {
+    id: SAMPLE_FILE_SOURCES_CSV_DELIMITED_ELT_WORKFLOW_ID,
+    name: '★ Sample · File Sources · Multi-Delimiter CSV/Text Ingest, Schema Rules & Rejects',
+    description:
+      'End-to-end File Sources & ELT pipeline: Stage 1 writes both a standard RFC 4180 CSV file (with commas, quotes, and formula-escaped cells) and a pipe-delimited (|) text file into the workflow files directory. Stage 2 reads the CSV via source.file.csv and the pipe-delimited file via source.file.text (with typed column rules), dead-letters invalid negative weights to file_ingest_rejects.csv, loads valid shipments into SQLite, and aggregates carrier tonnage.',
+    purpose:
+      'Test and demonstrate CSV file (source.file.csv) and Text file (source.file.text) ingestion with custom delimiters, type conversion, dead-letter rejects, and database loading.',
+    tags: ['sample', 'dba', 'file', 'csv', 'text', 'elt', 'sqlite'],
+    expectedResult:
+      'Ingests 4 shipment rows from CSV and pipe-delimited files, quarantines 1 negative-weight row, loads 3 clean shipments into file_ingested_shipments, and aggregates carrier totals.',
+    origin: 'authored',
+    triggers: [
+      {
+        id: 'manual',
+        kind: 'manual',
+        enabled: true,
+        inputData: cloneRecords(SAMPLE_FILE_SOURCE_SHIPMENTS),
+      },
+    ],
+    dependencies: [
+      { from: 'stage_inbound_files', to: 'ingest_csv_and_text_files', on: 'success' },
+    ],
+    pipelines: [
+      {
+        id: 'stage_inbound_files',
+        name: '1. Stage Inbound CSV & Pipe-Delimited Files',
+        task: 'Write RFC 4180 CSV and pipe-delimited text feeds for file source ingestion',
+        pipes: [
+          {
+            id: 'trigger_shipments',
+            role: 'source',
+            type: 'source.trigger.manual',
+            intent: 'Read sample shipment rows from manual trigger',
+            config: { triggerId: 'manual' },
+          },
+          {
+            id: 'write_inbound_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Write comma-delimited RFC 4180 CSV feed with quoted fields and formula escaping',
+            config: {
+              path: 'inbound_shipments_feed.csv',
+              columns: ['shipment_id', 'carrier', 'origin_hub', 'weight_kg', 'handling_note'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+              escapeFormulas: true,
+            },
+          },
+          {
+            id: 'write_inbound_pipe_txt',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Write pipe-delimited (|) text feed for source.file.text ingestion',
+            config: {
+              path: 'inbound_pipe_inventory.txt',
+              columns: ['shipment_id', 'origin_hub', 'weight_kg'],
+              delimiter: '|',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+        ],
+        edges: [
+          { from: 'trigger_shipments', to: 'write_inbound_csv', fromPort: 'out' },
+          { from: 'trigger_shipments', to: 'write_inbound_pipe_txt', fromPort: 'out' },
+        ],
+      },
+      {
+        id: 'ingest_csv_and_text_files',
+        name: '2. Read CSV & Pipe Text Sources, Verify & Load DB',
+        task: 'Read staged CSV and pipe-delimited files, dead-letter invalid rows, load SQLite, and aggregate by carrier',
+        pipes: [
+          {
+            id: 'read_csv_feed',
+            role: 'source',
+            type: 'source.file.csv',
+            intent: 'Read inbound_shipments_feed.csv via CSV file source pipe',
+            config: {
+              path: 'inbound_shipments_feed.csv',
+              delimiter: ',',
+              skipLines: 0,
+            },
+          },
+          {
+            id: 'coerce_csv_types',
+            role: 'transform',
+            type: 'transform.script',
+            intent: 'Convert CSV weight_kg string to number and normalize hub code',
+            config: {
+              script: `return records.map((r) => ({
+  shipment_id: String(r.shipment_id ?? '').trim(),
+  carrier: String(r.carrier ?? '').trim(),
+  origin_hub: String(r.origin_hub ?? '').trim().toUpperCase(),
+  weight_kg: Number(r.weight_kg ?? 0),
+  handling_note: String(r.handling_note ?? ''),
+}));`,
+            },
+          },
+          {
+            id: 'verify_shipment_weight',
+            role: 'transform',
+            type: 'transform.verify',
+            intent: 'Reject shipments with non-positive weight_kg or missing shipment_id',
+            config: {
+              onInvalid: 'reject',
+              rules: [
+                { field: 'shipment_id', op: 'notEmpty', message: 'shipment_id is required' },
+                { field: 'weight_kg', op: 'gt', value: 0, message: 'weight_kg must be > 0' },
+              ],
+            },
+          },
+          {
+            id: 'load_valid_shipments_db',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Upsert valid file-ingested shipments into file_ingested_shipments table',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'file_ingested_shipments',
+              upsertKey: 'shipment_id',
+              columns: ['shipment_id', 'carrier', 'origin_hub', 'weight_kg', 'handling_note'],
+            },
+          },
+          {
+            id: 'aggregate_carrier_tonnage',
+            role: 'transform',
+            type: 'transform.aggregate',
+            intent: 'Group valid shipments by carrier and compute total_shipments and total_weight_kg',
+            config: {
+              groupBy: ['carrier'],
+              metrics: [
+                { fn: 'count', as: 'total_shipments' },
+                { fn: 'sum', field: 'weight_kg', as: 'total_weight_kg' },
+              ],
+            },
+          },
+          {
+            id: 'save_carrier_summary_db',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Upsert carrier summary metrics into file_carrier_summary',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'file_carrier_summary',
+              upsertKey: 'carrier',
+              columns: ['carrier', 'total_shipments', 'total_weight_kg'],
+            },
+          },
+          {
+            id: 'export_file_rejects_csv',
+            role: 'sink',
+            type: 'sink.file.delimited',
+            intent: 'Write rejected negative-weight file rows to file_ingest_rejects.csv',
+            config: {
+              path: 'file_ingest_rejects.csv',
+              columns: ['shipment_id', 'carrier', 'origin_hub', 'weight_kg', 'handling_note'],
+              delimiter: ',',
+              header: true,
+              mode: 'overwrite',
+            },
+          },
+          {
+            id: 'read_pipe_delimited_txt',
+            role: 'source',
+            type: 'source.file.text',
+            intent: 'Read inbound_pipe_inventory.txt via Text file source pipe with pipe (|) delimiter and numeric rule',
+            config: {
+              path: 'inbound_pipe_inventory.txt',
+              format: 'delimited',
+              delimiters: ['|'],
+              header: 'skip',
+              fields: ['shipment_id', 'origin_hub', 'weight_kg'],
+              rules: [
+                { name: 'shipment_id', type: 'string', required: true },
+                { name: 'origin_hub', type: 'string', required: true },
+                { name: 'weight_kg', type: 'number', required: true },
+              ],
+            },
+          },
+          {
+            id: 'save_pipe_inventory_db',
+            role: 'sink',
+            type: 'sink.db.sql',
+            intent: 'Upsert pipe-delimited inventory records into file_pipe_inventory',
+            config: {
+              dialect: 'sqlite',
+              mode: 'insert',
+              table: 'file_pipe_inventory',
+              upsertKey: 'shipment_id',
+              columns: ['shipment_id', 'origin_hub', 'weight_kg'],
+            },
+          },
+        ],
+        edges: [
+          { from: 'read_csv_feed', to: 'coerce_csv_types', fromPort: 'out' },
+          { from: 'coerce_csv_types', to: 'verify_shipment_weight', fromPort: 'out' },
+          { from: 'verify_shipment_weight', to: 'load_valid_shipments_db', fromPort: 'out' },
+          { from: 'verify_shipment_weight', to: 'aggregate_carrier_tonnage', fromPort: 'out' },
+          { from: 'aggregate_carrier_tonnage', to: 'save_carrier_summary_db', fromPort: 'out' },
+          { from: 'verify_shipment_weight', to: 'export_file_rejects_csv', fromPort: 'rejects' },
+          { from: 'read_pipe_delimited_txt', to: 'save_pipe_inventory_db', fromPort: 'out' },
+        ],
+      },
+    ],
+  },
+};
+
 export const WORKFLOW_SAMPLES: SampleWorkflow[] = [
   HELLO,
   ORDERS,
@@ -3922,6 +4623,9 @@ export const WORKFLOW_SAMPLES: SampleWorkflow[] = [
   DBA_RETENTION_MAINTENANCE,
   DBA_QUARANTINE_RECONCILE,
   DBA_PII_REDACT_DEDUPE_AGGREGATE,
+  ELT_STAGED_SQL_WAREHOUSE,
+  CROSS_DIALECT_DATA_MIGRATION,
+  FILE_SOURCES_CSV_DELIMITED_ELT,
 ];
 
 export function sampleWorkflowIds(): string[] {

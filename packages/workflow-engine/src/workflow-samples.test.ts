@@ -112,12 +112,15 @@ describe('built-in workflow samples', () => {
     // group would no longer be run by default.
     expect(LOCAL.map((sample) => sample.id).sort()).toEqual([
       'sample-cdc-watermark-incremental-sync',
+      'sample-cross-dialect-data-migration',
       'sample-dba-ledger-verify-quarantine',
       'sample-dba-pii-redact-dedupe-aggregate',
       'sample-dba-schema-health-audit',
       'sample-dba-table-retention-maintenance',
       'sample-dedupe-nulls-quarantine-etl',
+      'sample-elt-staged-sql-warehouse',
       'sample-empty-batch-and-loop-edge',
+      'sample-file-sources-csv-delimited-elt',
       'sample-hello-records',
       'sample-mapped-db-composite-upsert',
       'sample-orders-branch',

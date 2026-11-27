@@ -88,6 +88,7 @@ Finished or in-progress implementation plans. Each starts with its status. Do no
 | Feature-module schedule | [2026-10-10-feature-architecture.md](plans/2026-10-10-feature-architecture.md) |
 | Package split (the old core package → `@foxschema/sql` + `@foxschema/db`; superseded) | [package-split.md](plans/package-split.md) |
 | Splitting `@foxschema/sql` into sql + features + the Db2 add-on, and the submodules (#626–#628) | [2026-11-21-sql-package-split-review.md](plans/2026-11-21-sql-package-split-review.md) |
+| Signed Cloudflare CDN UI bundle updates (#636) | [2026-11-22-signed-ui-bundles.md](plans/2026-11-22-signed-ui-bundles.md) |
 | Backend moved out of the web app; Express removed | [backend-extraction.md](plans/backend-extraction.md) |
 | API layout and the decisions still open | [api-restructure.md](plans/api-restructure.md) |
 | Frontend moved to `app/` + `features/` + `shared/` | [frontend-refactor.md](plans/frontend-refactor.md) |

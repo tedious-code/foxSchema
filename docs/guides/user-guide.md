@@ -75,9 +75,10 @@ Docker / Homebrew / locked-down servers get **Copy command** (or use
 Every install asks you to **sign in**. The first time, the page is **Create
 your account** — the first account on this install is its administrator
 (email and password). From another machine — including through a reverse
-proxy — setup also asks for a one-time code printed in the server log
-(`docker logs <container>` on Docker). After that, only an administrator can
-add people; there is no self-registration.
+proxy — setup also asks for a first-run code (`XXXX-XXXX`) derived from the
+install encryption key and printed in the server log (`docker logs <container>`
+on Docker), or you can paste your `APP_ENCRYPTION_KEY` directly. After that,
+only an administrator can add people; there is no self-registration.
 
 **Opened with `foxschema open`** on your own machine, Fox skips that page the
 first time: it opens straight into the workspace, signed in as the install's
@@ -95,11 +96,10 @@ After you sign in, Fox Schema may show a short **welcome wizard** asking for
 your email so you can get product updates (new dialects, releases). It is
 optional — use **Skip for now** if you prefer. It only appears once per install.
 
-You land on **Home**: continue last compare / last query, **Snapshots**, **Utilities**,
-and saved connections (grouped by dialect). A **Services** card lists the **API**
+You land on **Home**: quick-launch cards for **Last compare** (or *Run Compare* on a fresh workspace), **Last query** (or *Run SQL*), **Snapshots**, **Utilities**, and **Workflow**, plus saved connections grouped by dialect. A **Services** card lists the **API**
 (this server, with its version), the **Web UI** (this page loaded), and the
-**Workflow engine** — Running, Not configured (set `FOXFLOW_ENCRYPTION_KEY`), or
-Unreachable (the key is set but the engine did not start). A running engine that is Disabled in
+**Workflow engine** — Running, Not configured, or
+Unreachable. A running engine that is Disabled in
 Workflow settings still shows Running, with “Not taking new runs”. The card
 refreshes every 10 seconds while Home is open. Status only: there is no Start
 or Stop from here yet. Under it, **Drivers** lists each database driver package
@@ -210,7 +210,8 @@ admin**) or several. `FOX_ADMIN_POLICY` on the server overrides the switch.
    finds the document even when Mongo stored it as an ObjectId.
 3. Fill in host, port, database, username, and password. Schema is optional on
    PostgreSQL (the form matches the engine). SQLite and DuckDB are **file paths**
-   — use **Browse…**; they have no password.
+   — use **Browse…** or the **Quick fill** chips (`:memory:`, `demo_a.db`,
+   `demo_b.db`); they have no password.
    Redis and MongoDB offer a **Login method**: **No password** for a server
    with no auth (nothing is sent or asked for), or **Password** — which a
    Redis with only `requirepass` needs even without a username. Saved without
@@ -227,7 +228,9 @@ comparing **to** (Target).
 ## Run a comparison
 
 1. On the left rail, open **Compare**.
-2. Choose an **Original Server** connection and a **Target** connection.
+2. Choose an **Original Server** connection and a **Target** connection (or click
+   **Pin pair** to save the pair and recall it later from the **Saved pairs**
+   dropdown).
 3. Click **Compare**.
 
 A **Same DB** warning appears only after **both** sides are picked and they name the
@@ -246,7 +249,10 @@ Results are grouped by object type with a summary at the top:
 - **= Unchanged** (dim) — identical.
 
 Click any object to drill in and see the exact column, index, foreign-key, and
-trigger differences. Use the search box to jump to a specific name.
+trigger differences. Use the search box (with its `×` clear button and
+`filtered / total objects` counter) to jump to a specific name. In **Browse**
+mode, selecting any table, view, or routine also displays its formatted `CREATE`
+DDL script with a **Copy DDL** button.
 
 **Comparing two different database types?** (e.g. Postgres → MySQL) Fox is
 cross-dialect aware: equivalent types aren't flagged as changes, and a readiness
@@ -255,10 +261,13 @@ look (view/function bodies, for instance, aren't auto-translated).
 
 ## Generate & apply a migration
 
-1. From the diff, choose **Generate migration** (or the DDL view).
-2. Review the SQL — it targets the **target** database's dialect. Nothing has been
-   applied yet.
-3. To apply it, choose **Deploy / Migrate**. You'll get a confirmation and a
+1. From the **Diff briefing** panel (or the **Migration SQL** tab on any object),
+   you can **Copy Migration SQL**, **Download `.sql`**, or **Open in SQL Editor**
+   (bound to the Target connection).
+2. On the **Migration SQL** tab, switch between **Up (Migrate)** and **Down
+   (Rollback)** to preview, copy, or download either the forward migration
+   script or the inverse rollback DDL. Nothing has been applied yet.
+3. To apply it, choose **Execute Sync Script**. You'll get a confirmation and a
    pre-migration snapshot is taken first.
 4. **Skip failures (optional):** turn this on and Fox continues past any single object
    that fails, instead of rolling back the whole run — useful for large migrations
@@ -853,16 +862,20 @@ sent Home.
 Developer / ops runbook: [workflow.md](workflow.md). Env vars:
 [DEPLOYMENT.md](DEPLOYMENT.md#workflow-engine).
 
-1. `npm run dev` starts the API with the in-process engine. Production needs
-   `FOXFLOW_ENCRYPTION_KEY`. Home → **Services** shows whether it started.
-2. Open **Workflow** on the activity rail (when the rail item is on).
+1. `npm run dev` and production installs start the API with the in-process
+   engine (sharing `APP_ENCRYPTION_KEY` unless `FOXFLOW_ENCRYPTION_KEY` is set
+   separately). Home → **Services** shows whether it started.
+2. Open **Workflow** on the activity rail (or from the Home **Workflow** card).
 3. **Engine** tab: health should read `engine ready`. New installs default to
    **Enabled**. Set **Disabled** if you do not want new runs.
-4. **Add samples** (Designer toolbar or the **Workflows** list) installs three
-   starters you can **Test run** with no database or credential: **Hello
-   records** (trigger → map), **Orders branch** (verify, paid/other split,
-   merge), and **Regions join** (split → loop → script, then a second pipeline
-   after the first succeeds). Re-clicking refreshes those same ids in place.
+4. **Add samples** (Designer toolbar or the **Workflows** list) installs 7
+   starters you can **Test run** right away: **Hello records**, **Orders
+   branch**, **Regions join**, plus 4 DBA workflows (**DBA: Schema & Catalog
+   Health Audit**, **DBA: Table Retention & Archival Maintenance**, **DBA:
+   Ledger Verify & Quarantine**, and **DBA: PII Redact, Dedupe & Rollup**).
+   Filter the Workflows list with the category chips (**All**, **DBA & SQL**,
+   **Samples**, **Scheduled / Webhook**) or run any workflow in 1 click from the
+   list. Re-clicking **Add samples** refreshes those same ids in place.
 5. **Designer**: drop a trigger (Manual, Schedule, Webhook, Parent Workflow) and
    pipes. Picking a saved connection on a **SQL query** / **SQL write** pipe
    **links** it — Fox Schema records the grant; the pipe never holds a password.

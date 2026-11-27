@@ -23,10 +23,12 @@ Every install requires sign-in with an email and password — Docker and the CLI
   an install that was used before sign-in was required, setup *claims* the
   existing local account (email pre-filled from `fox setup` when bound), so
   saved connections and history carry over.
-- **Setup from another machine** (a server, a container) asks for a one-time
-  **setup code**, printed in the Fox server log when someone opens the setup
-  screen remotely. From the machine itself no code is needed. Behind a reverse
-  proxy every visitor counts as remote.
+- **Setup from another machine** (a server, a container) asks for a first-run
+  **setup code** (`XXXX-XXXX`), deterministically derived from the install's
+  encryption key and printed in the Fox server log when someone opens the setup
+  screen remotely (you can also paste the raw `APP_ENCRYPTION_KEY` directly).
+  From the machine itself no code is needed. Behind a reverse proxy every
+  visitor counts as remote.
 - **No self-registration.** Admins invite people under **Profile → Access
   control → App users**: an invite sends a one-time code, and the person chooses
   their own password. (A starting password to hand over still works.)
@@ -152,7 +154,7 @@ docker compose -f docker-compose.app.yml up -d
 | `FOX_VERIFY_MAIL_URL` | `https://foxschema.com/wp-json/foxschema/v1/verify-email` | Where email-verification codes go when the install has no SMTP relay. `off` sends them nowhere: a new account then stays unverified until email is set up. See [Fox mail service](#fox-mail-service). |
 | `FOX_ACCOUNT_MAIL_URL` | `https://foxschema.com/wp-json/foxschema/v1/account-email` | Where password-reset and invite emails go when the install has no SMTP relay. `off` (or `FOX_VERIFY_MAIL_URL=off`) writes those codes to the server log instead. See [Fox mail service](#fox-mail-service). |
 | `FOX_SETUP_ALLOW_LOCAL_WITHOUT_CODE` | off | Skip the first-run setup code for a direct loopback request. The `foxschema open` launcher sets this because it binds only to loopback. Never enable it behind a reverse proxy: an unlabelled proxy request is indistinguishable from a local one. |
-| `NODE_ENV` | `production` | Set in the image; enforces that `APP_ENCRYPTION_KEY` is present. |
+| `NODE_ENV` | `production` | Set in the image; enables production security defaults (HSTS, Secure cookies, loopback proxy protection). |
 | `FOX_ALLOWED_ORIGINS` | — | Comma-separated browser origins allowed to call the API with cookies. When set, it is the entire allowlist. See [Origin policy](#origin-policy). |
 
 > The app also reads `APP_USER_EMAIL` (only for the `v2` key scheme).
@@ -162,16 +164,17 @@ docker compose -f docker-compose.app.yml up -d
 
 The workflow engine runs **in the FoxSchema API process**. The browser talks to
 `/api/workflow/engine/*` with a session; public webhook
-ingress is `/api/hooks/*` (by path) and `/api/triggers/*` (by workflow and trigger id). Set `FOXFLOW_ENCRYPTION_KEY`
-(32 bytes, hex or base64) on the same process — it is **required** and is not
-`APP_ENCRYPTION_KEY`.
+ingress is `/api/hooks/*` (by path) and `/api/triggers/*` (by workflow and trigger id).
+By default it shares the install's `APP_ENCRYPTION_KEY` on first boot; set
+`FOXFLOW_ENCRYPTION_KEY` (32 bytes, hex or base64) only if you want a separate
+key for workflow credentials.
 
 Home → **Services** (`GET /api/system/services`) shows whether the engine
 started; it does not start it. The Workflow rail item is on (`NAV_FLAGS.workflow`).
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `FOXFLOW_ENCRYPTION_KEY` | — | **Required.** 32-byte key (hex or base64) encrypting the engine's credential store. No plaintext fallback. A bad key is logged and the rest of the API still boots. |
+| `FOXFLOW_ENCRYPTION_KEY` | falls back to `APP_ENCRYPTION_KEY` | Optional 32-byte key (hex or base64) encrypting the engine's credential store. Shares `APP_ENCRYPTION_KEY` when omitted. A malformed key is logged and the rest of the API still boots. |
 | `FOXFLOW_DB_PATH` | Image: `/data/workflow-engine.sqlite`. Otherwise `workflow-engine.sqlite` at the repo root | The engine's SQLite database. Keep it on `/data` in Docker so it survives recreate. |
 | `FOXFLOW_FILES_DIR` | Image: `/data/workflow-files`. Otherwise `workflow-files/` next to the engine database | The only directory the file pipes read or write. |
 | `FOXFLOW_PLUGINS_ALLOWLIST` | empty (load nothing) | `name@sha256:<hex>` pins. A name without a digest is ignored. |
@@ -222,7 +225,9 @@ openssl rand -hex 32
 
 - **Keep it stable and secret.** If it changes, previously saved passwords can't be
   decrypted and must be re-entered.
-- Running `serve.ts` outside Docker still requires the env var in production.
+- Bare Node deploys (`serve.ts`) also auto-load or auto-generate `.app_encryption_key`
+  (under `APP_ENCRYPTION_KEY_FILE`, alongside `APP_DB_PATH`, or `/data/.app_encryption_key`)
+  and share it with `FOXFLOW_ENCRYPTION_KEY` when unset.
 
 ## Choosing a port
 

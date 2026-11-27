@@ -79,3 +79,21 @@ from a file or URL listed in `FOX_GCP_WIF_TOKEN_FILES` / `FOX_GCP_WIF_TOKEN_URLS
 on the server. Nothing is listed by default. Connecting under a name already in
 use reconnects that Google Cloud connection and needs **Edit secrets**; it never
 replaces another kind of credential.
+
+## Unified install encryption key & derived first-run setup code
+
+- **One key on first boot.** Docker (`docker-entrypoint.sh`), the CLI (`foxschema open`), and `serve.ts` auto-load or auto-generate the install encryption key on first boot and share it across both `APP_ENCRYPTION_KEY` and `FOXFLOW_ENCRYPTION_KEY`, so the sandboxed workflow engine starts out of the box without configuring a second key.
+- **Deterministic first-run setup code.** When setting up the first administrator account from another machine, the `XXXX-XXXX` setup code printed in the server log is derived from the install encryption key (`HMAC-SHA256`), so it survives container or server restarts during initial setup. The setup screen accepts either the short `XXXX-XXXX` log code or the raw `APP_ENCRYPTION_KEY`.
+
+## Compare & Browse: Rollback SQL preview, Open in SQL Editor, Saved compare pairs, and Table DDL
+
+- **Up (Migrate) / Down (Rollback) SQL preview.** On the **Migration SQL** tab, switch between **Up (Migrate)** and **Down (Rollback)** to inspect, copy, or download (`Download .sql`) either the forward migration script or the inverse rollback DDL across all 14 SQL dialects.
+- **Open in SQL Editor.** Both the **Diff briefing** panel and the **Migration SQL** tab offer **Open in SQL Editor** and **Download `.sql`**, loading the generated script directly into the SQL Editor bound to the Target connection.
+- **Saved compare pairs.** Pin any `(Original → Target)` connection pair in the Compare toolbar (`Pin pair`) and switch between saved pairs in one click from the **Saved pairs** dropdown.
+- **Browse `CREATE TABLE` DDL.** Browsing a single schema in **Browse** mode now renders formatted `CREATE TABLE` DDL with a **Copy DDL** button alongside column and index blueprints.
+
+## Workflow DBA pipelines, new transform pipes, and SQL Editor shortcuts
+
+- **Three new data/DBA transform pipes:** **Deduplicate rows** (`transform.dedupe`), **Aggregate / group rows** (`transform.aggregate`), and **Redact / mask fields** (`transform.redact` — mask, SHA-256 hash, last-4, email domain, or drop), with visual configuration forms in the Workflow Inspector.
+- **Four practical DBA sample workflows:** **Add samples** now installs **DBA: Schema & Catalog Health Audit**, **DBA: Table Retention & Archival Maintenance**, **DBA: Ledger Verify & Quarantine**, and **DBA: PII Redact, Dedupe & Rollup**, with category filter chips (**All**, **DBA & SQL**, **Samples**, **Scheduled / Webhook**), 1-click **Run** from the Workflows list, and **Re-run** / **Open workflow** from Runs.
+- **SQL Editor UX:** Added view-wide keyboard shortcuts (`Cmd/Ctrl+S` bookmark, `Cmd/Ctrl+Shift+F` format SQL, `Cmd/Ctrl+Shift+S` toggle Safe mode) and status-bar split-ratio presets (**Editor 75%**, **50:50**, **Results 78%**).

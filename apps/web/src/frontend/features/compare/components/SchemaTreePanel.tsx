@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSyncStore } from '../state/useSyncStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useUiStore } from '@/platform/uiStore';
-import { Search, Layers } from 'lucide-react';
+import { Search, Layers, Plus, Eye } from 'lucide-react';
 import type { TableDiff } from '@/shared/lib/types';
 import { SchemaDiffTree } from '@/features/schema-diff/ui';
 import { TYPE_META, TYPE_ORDER } from '@/features/schema-diff';
@@ -12,6 +12,9 @@ const MAX_WIDTH = 640;
 
 export const SchemaTreePanel: React.FC = () => {
   const syncPane = useUiStore((s) => s.syncPane);
+  const setSyncPane = useUiStore((s) => s.setSyncPane);
+  const connectionsCount = useSyncStore((s) => s.connections.length);
+  const setShowConnectionModal = useSyncStore((s) => s.setShowConnectionModal);
   // Only these fields: a whole-store subscription re-rendered every row of the
   // tree on any store write, twice per object during a migration.
   const {
@@ -130,23 +133,45 @@ export const SchemaTreePanel: React.FC = () => {
   }, [compareResult, filteredTables, selectedTable, setSelectedTable]);
 
   if (!compareResult) {
-    // Browse is its own pane now, so the empty state has to name the thing the
-    // reader is actually looking at rather than always saying "comparison".
     const browsing = syncPane === 'browse';
     return (
       <div
         data-testid="schema-tree-empty"
-        className="w-80 border-r border-slate-800 flex flex-col items-center justify-center text-slate-500 p-6 bg-slate-900/30"
+        className="w-80 border-r border-slate-800 flex flex-col items-center justify-center text-slate-400 p-6 bg-slate-900/30"
       >
-        <Layers className="w-10 h-10 mb-3 text-slate-700 animate-bounce" />
-        <p className="text-sm font-semibold text-slate-400">
-          {browsing ? 'Nothing loaded' : 'No comparison yet'}
+        <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl border border-slate-800 bg-slate-950/70">
+          <Layers className="w-6 h-6 text-cyan-400/80" />
+        </div>
+        <p className="text-sm font-semibold text-slate-200">
+          {browsing ? 'Ready to browse a database' : 'Ready to compare schemas'}
         </p>
-        <p className="text-xs text-slate-600 text-center max-w-[220px] mt-1">
+        <p className="text-xs text-slate-400 text-center max-w-[240px] mt-1.5 leading-relaxed">
           {browsing
-            ? 'Pick a connection above and click "Browse" to read its objects.'
-            : 'Pick Original and Target in the chips, then Compare. The briefing opens here.'}
+            ? 'Pick a saved connection above and click Browse to explore its tables, views, and indexes.'
+            : '1. Pick Original & Target above  2. Click Compare  3. Review diffs and migration SQL.'}
         </p>
+        <div className="mt-4 flex flex-col items-stretch gap-2 w-full max-w-[220px]">
+          {connectionsCount === 0 && (
+            <button
+              type="button"
+              data-testid="schema-tree-add-connection"
+              onClick={() => setShowConnectionModal(true)}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg accent-grad on-accent-fg px-3 py-2 text-xs font-bold shadow-sm cursor-pointer hover:brightness-110 transition"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add your first connection
+            </button>
+          )}
+          {!browsing && (
+            <button
+              type="button"
+              data-testid="schema-tree-switch-browse"
+              onClick={() => setSyncPane('browse')}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:border-slate-500 hover:text-slate-100 cursor-pointer transition"
+            >
+              <Eye className="h-3.5 w-3.5 text-cyan-400" /> Or browse a single DB
+            </button>
+          )}
+        </div>
       </div>
     );
   }

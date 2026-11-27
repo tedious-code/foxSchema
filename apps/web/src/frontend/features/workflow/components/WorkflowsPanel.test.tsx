@@ -40,6 +40,7 @@ const mockWorkflows: WorkflowSummary[] = [
 
 const refreshMock = vi.fn();
 const runMock = vi.fn();
+const deleteWorkflowMock = vi.fn();
 
 vi.mock('../api/engineQueries', () => ({
   useWorkflows: () => ({ workflows: mockWorkflows, loading: false, refresh: refreshMock }),
@@ -51,7 +52,7 @@ vi.mock('../api/engineClient', async (importOriginal) => ({
     run: (...args: unknown[]) => runMock(...args),
     save: vi.fn(),
     duplicateWorkflow: vi.fn(),
-    deleteWorkflow: vi.fn(),
+    deleteWorkflow: (...args: unknown[]) => deleteWorkflowMock(...args),
     exportWorkflow: vi.fn(),
     importWorkflow: vi.fn(),
   },
@@ -116,6 +117,26 @@ describe('WorkflowsPanel filters and quick run', () => {
     await waitFor(() =>
       expect(runMock).toHaveBeenCalledWith('sample-dba-schema-health-audit', { debug: true }),
     );
+    expect(refreshMock).toHaveBeenCalled();
+  });
+
+  it('uses an in-app confirmation modal before deleting a workflow', async () => {
+    deleteWorkflowMock.mockResolvedValue({ deleted: true });
+    render(
+      <WorkflowsPanel
+        currentId=""
+        onOpen={vi.fn()}
+        onLogs={vi.fn()}
+        onCreate={vi.fn()}
+        onApplySample={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('workflow-list-delete-custom-http-flow'));
+    expect(screen.getByTestId('workflow-delete-modal')).toBeTruthy();
+    expect(deleteWorkflowMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('workflow-delete-confirm'));
+    await waitFor(() => expect(deleteWorkflowMock).toHaveBeenCalledWith('custom-http-flow'));
     expect(refreshMock).toHaveBeenCalled();
   });
 });

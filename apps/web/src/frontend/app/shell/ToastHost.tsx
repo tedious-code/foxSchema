@@ -1,11 +1,11 @@
 import React, { useEffect } from 'react';
-import { ArrowUpCircle, CheckCircle2, Info, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Info, X } from 'lucide-react';
 import { useToastStore, type ToastItem, type ToastTone } from '@/platform/toastStore';
 
 const TONE_ICON: Record<ToastTone, React.ReactNode> = {
   info: <Info className="w-4 h-4 text-sky-300 shrink-0" />,
   success: <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />,
-  warning: <ArrowUpCircle className="w-4 h-4 text-amber-300 shrink-0" />,
+  warning: <AlertTriangle className="w-4 h-4 text-amber-300 shrink-0" />,
 };
 
 const TONE_BORDER: Record<ToastTone, string> = {

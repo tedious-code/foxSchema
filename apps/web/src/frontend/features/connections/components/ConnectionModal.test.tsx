@@ -9,7 +9,7 @@ vi.mock('@/shared/api/schemaApi', () => ({
   invalidateCache: vi.fn(),
 }));
 
-import { checkDriver, installDriver } from '@/shared/api/schemaApi';
+import { checkDriver, fetchSchemaList, installDriver } from '@/shared/api/schemaApi';
 import { useAuthStore } from '@/platform/authStore';
 import { clearDriverStatus } from '@/shared/lib/driverStatus';
 import { ConnectionModal } from './ConnectionModal';
@@ -117,6 +117,30 @@ describe('ConnectionModal', () => {
     );
     fireEvent.click(screen.getByTestId('conn-quick-path-memory'));
     expect((screen.getByTestId('conn-database-input') as HTMLInputElement).value).toBe(':memory:');
+  });
+
+  it('fills dialect, host, port, database, user, password, and SSL from a pasted connection URL', () => {
+    render(<ConnectionModal open mode="credential" dialect="sqlite" onClose={() => undefined} onSaveCredential={vi.fn()} />);
+    fireEvent.change(screen.getByTestId('conn-url-input'), {
+      target: { value: 'postgresql://alice:secret@db.example.com:5433/analytics?sslmode=require' },
+    });
+    fireEvent.click(screen.getByTestId('conn-url-apply'));
+    expect((screen.getByTestId('conn-dialect-select') as HTMLSelectElement).value).toBe('postgres');
+    expect((screen.getByTestId('conn-host-input') as HTMLInputElement).value).toBe('db.example.com');
+    expect((screen.getByTestId('conn-port-input') as HTMLInputElement).value).toBe('5433');
+    expect((screen.getByTestId('conn-database-input') as HTMLInputElement).value).toBe('analytics');
+    expect((screen.getByTestId('conn-username-input') as HTMLInputElement).value).toBe('alice');
+    expect((screen.getByTestId('conn-ssl-enabled') as HTMLInputElement).checked).toBe(true);
+    expect(screen.getByTestId('conn-url-hint').textContent).toMatch(/PostgreSQL/);
+  });
+
+  it('exposes a dedicated Test Connection button that verifies connectivity', async () => {
+    vi.mocked(fetchSchemaList).mockResolvedValueOnce(['public', 'billing']);
+    render(<ConnectionModal open dialect="postgres" onClose={() => undefined} onSave={() => undefined} />);
+    fireEvent.click(screen.getByTestId('conn-test-btn'));
+    await waitFor(() => expect(screen.getByTestId('conn-test-success')).toBeTruthy());
+    expect(screen.getByTestId('conn-test-success').textContent).toContain('Connection verified');
+    expect(screen.getByTestId('conn-test-success').textContent).toContain('2 schemas loaded');
   });
 });
 

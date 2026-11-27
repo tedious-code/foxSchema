@@ -5,8 +5,9 @@
  *
  * Workflow designer — ported from FoxAgent (components/WorkflowsPanel.tsx).
  */
-import { Copy, Download, FilePlus2, Play, PlayCircle, ScrollText, Search, Sparkles, Trash2, Upload } from 'lucide-react';
+import { Copy, Download, FilePlus2, Play, PlayCircle, ScrollText, Search, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuthStore } from '@/platform/authStore';
 import { toast } from '../lib/notify';
 import { api, type WorkflowPackage, type WorkflowSummary } from '../api/engineClient';
@@ -79,6 +80,10 @@ export function WorkflowsPanel({
   const [categoryFilter, setCategoryFilter] = useState<WorkflowCategoryFilter>('all');
   const [runningId, setRunningId] = useState<string | null>(null);
   const [newId, setNewId] = useState('');
+  const [pendingDelete, setPendingDelete] = useState<WorkflowSummary | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [pendingImport, setPendingImport] = useState<{ pkg: WorkflowPackage; workflowId: string } | null>(null);
+  const [importing, setImporting] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => {
@@ -165,23 +170,25 @@ export function WorkflowsPanel({
     }
   };
 
-  const remove = async (workflow: WorkflowSummary) => {
-    if (
-      !window.confirm(
-        `Delete workflow "${workflow.id}"? Run history is kept, but the definition and its workflow-scoped variables are removed.`,
-      )
-    ) {
-      return;
-    }
+  const remove = (workflow: WorkflowSummary) => {
+    setPendingDelete(workflow);
+  };
+
+  const confirmRemove = async () => {
+    if (!pendingDelete) return;
+    setDeleting(true);
     try {
-      await api.deleteWorkflow(workflow.id);
+      await api.deleteWorkflow(pendingDelete.id);
       refresh();
-      toast.success(`Deleted "${workflow.id}"`, {
+      toast.success(`Deleted "${pendingDelete.id}"`, {
         description: 'Run history is kept — runs carry their own snapshot.',
       });
+      setPendingDelete(null);
     } catch (error) {
       // The API refuses while a run is active; surface that verbatim.
       toast.error('Delete failed', { description: (error as Error).message });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -207,24 +214,35 @@ export function WorkflowsPanel({
     try {
       const text = await file.text();
       const pkg = JSON.parse(text) as WorkflowPackage;
-      const override = window.prompt(
-        'Import workflow id (leave blank to keep package id):',
+      const defaultId =
         pkg.workflow &&
-          typeof pkg.workflow === 'object' &&
-          'id' in pkg.workflow &&
-          typeof (pkg.workflow as { id: unknown }).id === 'string'
+        typeof pkg.workflow === 'object' &&
+        'id' in pkg.workflow &&
+        typeof (pkg.workflow as { id: unknown }).id === 'string'
           ? (pkg.workflow as { id: string }).id
-          : '',
-      );
-      if (override === null) return;
+          : '';
+      setPendingImport({ pkg, workflowId: defaultId });
+    } catch (error) {
+      toast.error('Import failed', { description: (error as Error).message });
+    }
+  };
+
+  const confirmImport = async () => {
+    if (!pendingImport) return;
+    setImporting(true);
+    try {
+      const override = pendingImport.workflowId.trim();
       await api.importWorkflow({
-        package: pkg,
-        ...(override.trim() ? { workflowId: override.trim() } : {}),
+        package: pendingImport.pkg,
+        ...(override ? { workflowId: override } : {}),
       });
       refresh();
       toast.success('Imported workflow package');
+      setPendingImport(null);
     } catch (error) {
       toast.error('Import failed', { description: (error as Error).message });
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -488,6 +506,7 @@ export function WorkflowsPanel({
                   </Button>
                   <Button
                     size="icon"
+                    data-testid={`workflow-list-delete-${workflow.id}`}
                     disabled={!canDesign}
                     aria-label={`Delete ${workflow.id}`}
                     title={canDesign ? 'Delete' : 'Deleting needs the workflow design permission'}
@@ -501,6 +520,147 @@ export function WorkflowsPanel({
           </tbody>
         </table>
       )}
+
+      {pendingDelete &&
+        createPortal(
+          <div
+            data-testid="workflow-delete-modal"
+            className="fixed inset-0 z-[400] flex items-center justify-center bg-black/65 backdrop-blur-sm p-4"
+            onClick={() => !deleting && setPendingDelete(null)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="workflow-delete-title"
+              className="w-full max-w-md rounded-xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/50 px-5 py-3.5">
+                <h2 id="workflow-delete-title" className="text-sm font-bold text-slate-100">
+                  Delete workflow?
+                </h2>
+                <button
+                  type="button"
+                  data-testid="workflow-delete-close"
+                  aria-label="Close"
+                  disabled={deleting}
+                  onClick={() => setPendingDelete(null)}
+                  className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100 cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="p-5 space-y-3 text-xs text-slate-300">
+                <p>
+                  Remove <strong className="text-slate-100">{pendingDelete.name}</strong> (
+                  <code className="font-mono text-slate-200">{pendingDelete.id}</code>) and its
+                  workflow-scoped variables?
+                </p>
+                <p className="text-slate-400">
+                  Past run history is preserved — each run keeps its own snapshot.
+                </p>
+              </div>
+              <div className="flex justify-end gap-2 border-t border-slate-800 bg-slate-950/40 px-5 py-3">
+                <button
+                  type="button"
+                  data-testid="workflow-delete-cancel"
+                  disabled={deleting}
+                  onClick={() => setPendingDelete(null)}
+                  className="rounded-md border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:border-slate-500 hover:text-slate-100 cursor-pointer transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-testid="workflow-delete-confirm"
+                  disabled={deleting}
+                  onClick={() => void confirmRemove()}
+                  className="rounded-md border border-rose-500/40 bg-rose-600/90 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-rose-500 disabled:opacity-50 cursor-pointer transition"
+                >
+                  {deleting ? 'Deleting…' : 'Delete workflow'}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {pendingImport &&
+        createPortal(
+          <div
+            data-testid="workflow-import-modal"
+            className="fixed inset-0 z-[400] flex items-center justify-center bg-black/65 backdrop-blur-sm p-4"
+            onClick={() => !importing && setPendingImport(null)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="workflow-import-title"
+              className="w-full max-w-md rounded-xl border border-slate-800 bg-slate-900 shadow-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/50 px-5 py-3.5">
+                <h2 id="workflow-import-title" className="text-sm font-bold text-slate-100">
+                  Import workflow package
+                </h2>
+                <button
+                  type="button"
+                  data-testid="workflow-import-close"
+                  aria-label="Close"
+                  disabled={importing}
+                  onClick={() => setPendingImport(null)}
+                  className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100 cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="p-5 space-y-2.5 text-xs text-slate-300">
+                <label htmlFor="workflow-import-id" className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  Workflow ID
+                </label>
+                <input
+                  id="workflow-import-id"
+                  data-testid="workflow-import-id"
+                  type="text"
+                  autoFocus
+                  value={pendingImport.workflowId}
+                  onChange={(e) =>
+                    setPendingImport((cur) => (cur ? { ...cur, workflowId: e.target.value } : null))
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !importing) void confirmImport();
+                  }}
+                  placeholder="Leave blank to keep the package ID"
+                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-xs text-slate-100 outline-none accent-focus"
+                />
+                <p className="text-[11px] text-slate-400">
+                  Keep the package ID or enter a new ID to avoid overwriting an existing workflow.
+                </p>
+              </div>
+              <div className="flex justify-end gap-2 border-t border-slate-800 bg-slate-950/40 px-5 py-3">
+                <button
+                  type="button"
+                  data-testid="workflow-import-cancel"
+                  disabled={importing}
+                  onClick={() => setPendingImport(null)}
+                  className="rounded-md border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:border-slate-500 hover:text-slate-100 cursor-pointer transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-testid="workflow-import-confirm"
+                  disabled={importing}
+                  onClick={() => void confirmImport()}
+                  className="rounded-md accent-grad on-accent-fg px-3.5 py-1.5 text-xs font-bold hover:brightness-110 disabled:opacity-50 cursor-pointer transition"
+                >
+                  {importing ? 'Importing…' : 'Import'}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

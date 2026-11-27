@@ -25,22 +25,43 @@ import { EventLog } from './EventLog';
 type SortKey = 'workflowId' | 'workflowVersion' | 'status' | 'trigger' | 'startedAt';
 
 const COLUMNS: Array<{ header: string; sortKey?: SortKey; cell: (run: RunRecord) => ReactNode }> = [
-  { header: 'Run', cell: (run) => <span className="mono">{run.id.slice(0, 8)}</span> },
-  { header: 'Workflow', sortKey: 'workflowId', cell: (run) => run.workflowId },
-  { header: 'Version', sortKey: 'workflowVersion', cell: (run) => `v${run.workflowVersion}` },
+  { header: 'Run', cell: (run) => <span className="mono whitespace-nowrap">{run.id.slice(0, 8)}</span> },
+  {
+    header: 'Workflow',
+    sortKey: 'workflowId',
+    cell: (run) => (
+      <span className="block max-w-[16rem] truncate font-medium" title={run.workflowId}>
+        {run.workflowId}
+      </span>
+    ),
+  },
+  { header: 'Version', sortKey: 'workflowVersion', cell: (run) => <span className="whitespace-nowrap">v{run.workflowVersion}</span> },
   {
     header: 'Status',
     sortKey: 'status',
     cell: (run) => <span className={`status-pill ${run.status}`}>{run.status}</span>,
   },
-  { header: 'Trigger', sortKey: 'trigger', cell: (run) => run.trigger },
-  { header: 'Started', sortKey: 'startedAt', cell: (run) => new Date(run.startedAt).toLocaleString() },
-  { header: 'Duration', cell: (run) => <span className="mono">{formatDuration(runDuration(run))}</span> },
+  { header: 'Trigger', sortKey: 'trigger', cell: (run) => <span className="whitespace-nowrap">{run.trigger}</span> },
+  {
+    header: 'Started',
+    sortKey: 'startedAt',
+    cell: (run) => (
+      <span className="whitespace-nowrap" title={new Date(run.startedAt).toLocaleString()}>
+        {new Date(run.startedAt).toLocaleString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })}
+      </span>
+    ),
+  },
+  { header: 'Duration', cell: (run) => <span className="mono whitespace-nowrap">{formatDuration(runDuration(run))}</span> },
   {
     header: 'Error',
     cell: (run) =>
       run.error ? (
-        <span className="run-error-cell" title={run.error}>
+        <span className="run-error-cell block max-w-[14rem] truncate" title={run.error}>
           {run.error}
         </span>
       ) : null,
@@ -358,9 +379,9 @@ export function RunsPanel({
                       Re-run
                     </Button>
                   )}
-                  <label className="checkbox-row">
+                  <label className="checkbox-row" title="Stream live events as the run executes">
                     <input data-testid="workflow-runs-live" type="checkbox" checked={live} onChange={(ev) => setLive(ev.target.checked)} />
-                    Live SSE
+                    Live updates
                   </label>
                 </div>
               </div>

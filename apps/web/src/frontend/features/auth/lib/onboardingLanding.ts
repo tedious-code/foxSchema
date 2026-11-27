@@ -21,8 +21,11 @@ export function landingForGoal(goal: string | undefined): OnboardingLanding | nu
     case 'COMPARE_SCHEMAS':
     case 'GENERATE_SQL':
       return { view: 'sync', syncPane: 'compare' };
+    case 'RUN_SQL':
     case 'EXPLORE_DATABASE':
       return { view: 'sqlEditor' };
+    case 'AUTOMATE_WORKFLOWS':
+      return { view: 'workflow' };
     case 'CREATE_DOCUMENTATION':
       return { view: 'sync', syncPane: 'browse' };
     default:

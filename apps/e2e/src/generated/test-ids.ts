@@ -733,13 +733,13 @@ export const TestIds = {
       activityToggle: 'activity-toggle',
     },
     ActivityRail: {
-      /** button · Credentials */
+      /** button · Saved connections */
       credentialsBtn: 'credentials-btn',
-      /** button · Applies */
+      /** button · History */
       historyBtn: 'history-btn',
       /** button · Home */
       homeOpenBtn: 'home-open-btn',
-      /** button · Preferences */
+      /** button · Settings */
       viewSettingsBtn: 'view-settings-btn',
       /** nav · Main */
       workspaceSwitcher: 'workspace-switcher',
@@ -791,7 +791,7 @@ export const TestIds = {
       viewWorkflowBtn: 'view-workflow-btn',
     },
     HomeView: {
-      /** button · Search workspaces and recents ⌘K */
+      /** button · Quick jump ⌘K */
       homeCommandPalette: 'home-command-palette',
       /** section · Connections by provider */
       homeConnections: 'home-connections',
@@ -803,24 +803,38 @@ export const TestIds = {
       homeConnectionsGroup: (dialect: string | number) => `home-connections-group-${dialect}`,
       /** section */
       homeContinue: 'home-continue',
-      /** button · Snapshots Schema history Timeline, briefing, and compare pane */
+      /** button · Snapshots Schema history Timeline, briefing, and drift checks */
       homeContinueSnapshots: 'home-continue-snapshots',
-      /** button · Last query */
+      /** button · SQL Editor */
       homeContinueSql: 'home-continue-sql',
-      /** button · Last compare */
+      /** button · Compare */
       homeContinueSync: 'home-continue-sync',
-      /** button · Utilities Database tools Indexes, clone table, insights, and query … */
+      /** button · Utilities Database tools Indexes, clone table, insights & files */
       homeContinueUtilities: 'home-continue-utilities',
-      /** button · Workflow Pipelines & automation DBA audits, retention, and schedule… */
+      /** button · Workflows Pipelines & automation ELT, data migration & DBA audits */
       homeContinueWorkflow: 'home-continue-workflow',
+      /** section */
+      homeGettingStarted: 'home-getting-started',
       /** button */
       homeRecent: (id: string | number) => `home-recent-${id}`,
       /** section · Recent queries */
       homeRecents: 'home-recents',
-      /** p */
+      /** div */
       homeRecentsEmpty: 'home-recents-empty',
-      /** div · Home */
+      /** button · Connect & Compare */
+      homeStartCompare: 'home-start-compare',
+      /** button · Try Sample Workflows */
+      homeStartWorkflow: 'home-start-workflow',
+      /** button · System status & database drivers */
+      homeSystemToggle: 'home-system-toggle',
+      /** div · Welcome to FoxSchema */
       homeView: 'home-view',
+    },
+    KeyboardShortcutsModal: {
+      /** button · Close shortcuts */
+      shortcutsCloseBtn: 'shortcuts-close-btn',
+      /** div · Keyboard Shortcuts */
+      shortcutsModal: 'shortcuts-modal',
     },
     ProfileMenu: {
       /** button · App users & roles */
@@ -895,6 +909,12 @@ export const TestIds = {
       commandPaletteBtn: 'command-palette-btn',
       /** header */
       toolbar: 'toolbar',
+      /** button · Keyboard shortcuts */
+      toolbarShortcutsBtn: 'toolbar-shortcuts-btn',
+      /** button */
+      toolbarThemeToggle: 'toolbar-theme-toggle',
+      /** div */
+      toolbarViewTitle: 'toolbar-view-title',
     },
     UpdatesSettings: {
       /** button · Update now */
@@ -1107,6 +1127,8 @@ export const TestIds = {
     ConnectionChips: {
       /** div */
       connectionChip: (side: string | number) => `connection-chip-${side}`,
+      /** button · Add connection */
+      sourceAddBtn: 'source-add-btn',
       /** button · Add or edit this connection's credentials */
       sourceConfigBtn: 'source-config-btn',
       /** button · Connect and load the schema list */
@@ -1125,6 +1147,8 @@ export const TestIds = {
       sourceSavedSelectOption: (id: string | number) => `source-saved-select-option-${id}`,
       /** button · Saved connections — search by name, host, database, user, or port */
       sourceSavedSelectTrigger: 'source-saved-select-trigger',
+      /** button · Add connection */
+      targetAddBtn: 'target-add-btn',
       /** button · Add or edit this connection's credentials */
       targetConfigBtn: 'target-config-btn',
       /** button · Connect and load the schema list */
@@ -1245,8 +1269,12 @@ export const TestIds = {
       schemaStatusFilter: (status: string | number) => `schema-status-filter-${status}`,
       /** div */
       schemaTree: 'schema-tree',
+      /** button · Add your first connection */
+      schemaTreeAddConnection: 'schema-tree-add-connection',
       /** div */
       schemaTreeEmpty: 'schema-tree-empty',
+      /** button · Or browse a single DB */
+      schemaTreeSwitchBrowse: 'schema-tree-switch-browse',
       /** input */
       sqlSchemaTreeIncludeAll: 'sql-schema-tree-include-all',
       /** input · Search objects, columns, indexes... */
@@ -1351,6 +1379,14 @@ export const TestIds = {
       connSslEnabled: 'conn-ssl-enabled',
       /** div */
       connTest: (status: string | number) => `conn-test-${status}`,
+      /** button · Test Connection */
+      connTestBtn: 'conn-test-btn',
+      /** button · Fill */
+      connUrlApply: 'conn-url-apply',
+      /** p */
+      connUrlHint: 'conn-url-hint',
+      /** input · postgresql://user:pass@host:5432/mydb */
+      connUrlInput: 'conn-url-input',
       /** input */
       connUsernameInput: 'conn-username-input',
     },
@@ -1363,6 +1399,10 @@ export const TestIds = {
       credCloseBtn: 'cred-close-btn',
       /** button · Delete */
       credDelete: (id: string | number) => `cred-delete-${id}`,
+      /** button · Cancel */
+      credDeleteCancel: (id: string | number) => `cred-delete-cancel-${id}`,
+      /** button */
+      credDeleteConfirm: (id: string | number) => `cred-delete-confirm-${id}`,
       /** select · Filter by provider */
       credDialectFilter: 'cred-dialect-filter',
       /** button · Edit */
@@ -1879,6 +1919,8 @@ export const TestIds = {
   },
   sqlEditor: {
     ConnectionChecklist: {
+      /** button · Add connection */
+      sqlAddConnectionBtn: 'sql-add-connection-btn',
       /** input */
       sqlConnCheck: (value: string | number) => `sql-conn-check-${value}`,
       /** span */
@@ -2515,7 +2557,7 @@ export const TestIds = {
       sqlEditorStatusBar: 'sql-editor-status-bar',
       /** div */
       sqlEditorView: 'sql-editor-view',
-      /** button · Pretty-print SQL (sql-formatter) and JS/TS/Node cells (Prettier) (Cmd/Ctrl+Shift+F) */
+      /** button · Pretty-print SQL and JS/TS/Node cells (Cmd/Ctrl+Shift+F) */
       sqlFormatBtn: 'sql-format-btn',
       /** span */
       sqlFormatNote: 'sql-format-note',
@@ -4022,6 +4064,10 @@ export const TestIds = {
     },
     WorkflowDesigner: {
       /** Button */
+      workflowCanvasAddSamples: 'workflow-canvas-add-samples',
+      /** Button */
+      workflowCanvasBrowseWorkflows: 'workflow-canvas-browse-workflows',
+      /** Button */
       workflowDesignerAddSample: 'workflow-designer-add-sample',
       /** Button · Arrange this stage's pipes left to right, in the order records flow */
       workflowDesignerAutoLayout: 'workflow-designer-auto-layout',
@@ -4085,8 +4131,28 @@ export const TestIds = {
     WorkflowsPanel: {
       /** Button */
       workflowAddSample: 'workflow-add-sample',
+      /** button · Cancel */
+      workflowDeleteCancel: 'workflow-delete-cancel',
+      /** button · Close */
+      workflowDeleteClose: 'workflow-delete-close',
+      /** button */
+      workflowDeleteConfirm: 'workflow-delete-confirm',
+      /** div · Delete workflow? */
+      workflowDeleteModal: 'workflow-delete-modal',
       /** Button */
       workflowEmptyAddSamples: 'workflow-empty-add-samples',
+      /** button · Cancel */
+      workflowImportCancel: 'workflow-import-cancel',
+      /** button · Close */
+      workflowImportClose: 'workflow-import-close',
+      /** button */
+      workflowImportConfirm: 'workflow-import-confirm',
+      /** input · Leave blank to keep the package ID */
+      workflowImportId: 'workflow-import-id',
+      /** div · Import workflow package */
+      workflowImportModal: 'workflow-import-modal',
+      /** Button */
+      workflowListDelete: (id: string | number) => `workflow-list-delete-${id}`,
       /** input */
       workflowListFile: 'workflow-list-file',
       /** button */
@@ -4683,6 +4749,10 @@ export type TestId =
   | 'conn-ssl-ca-input'
   | 'conn-ssl-enabled'
   | `conn-test-${string}`
+  | 'conn-test-btn'
+  | 'conn-url-apply'
+  | 'conn-url-hint'
+  | 'conn-url-input'
   | 'conn-username-input'
   | `connection-chip-${string}`
   | 'continue-on-error-checkbox'
@@ -4690,6 +4760,8 @@ export type TestId =
   | 'cred-clear-filters'
   | 'cred-close-btn'
   | `cred-delete-${string}`
+  | `cred-delete-cancel-${string}`
+  | `cred-delete-confirm-${string}`
   | 'cred-dialect-filter'
   | `cred-edit-${string}`
   | `cred-edit-credential-${string}`
@@ -5005,6 +5077,7 @@ export type TestId =
   | 'home-drivers-error'
   | 'home-drivers-loading'
   | 'home-drivers-queue'
+  | 'home-getting-started'
   | 'home-open-btn'
   | `home-recent-${string}`
   | 'home-recents'
@@ -5014,6 +5087,9 @@ export type TestId =
   | `home-service-${string}-state`
   | 'home-services'
   | 'home-services-error'
+  | 'home-start-compare'
+  | 'home-start-workflow'
+  | 'home-system-toggle'
   | 'home-view'
   | 'index-management-embed'
   | 'index-management-modal'
@@ -5284,7 +5360,9 @@ export type TestId =
   | 'schema-blueprint'
   | `schema-status-filter-${string}`
   | 'schema-tree'
+  | 'schema-tree-add-connection'
   | 'schema-tree-empty'
+  | 'schema-tree-switch-browse'
   | `server-insights-blocker-cancel-${string}`
   | `server-insights-blocker-kill-${string}`
   | 'server-insights-cancel-action'
@@ -5315,6 +5393,8 @@ export type TestId =
   | `settings-tone-${string}`
   | 'settings-view'
   | 'settings-workspace'
+  | 'shortcuts-close-btn'
+  | 'shortcuts-modal'
   | 'sign-in-copy'
   | 'sign-in-demo'
   | 'sign-in-demo-hint'
@@ -5349,6 +5429,7 @@ export type TestId =
   | 'signup-wizard-error'
   | 'signup-wizard-skip'
   | 'signup-wizard-submit'
+  | 'source-add-btn'
   | 'source-config-btn'
   | 'source-connect-btn'
   | 'source-connected-btn'
@@ -5358,6 +5439,7 @@ export type TestId =
   | `source-saved-select-group-${string}`
   | `source-saved-select-option-${string}`
   | 'source-saved-select-trigger'
+  | 'sql-add-connection-btn'
   | `sql-bookmark-delete-${string}`
   | 'sql-bookmark-install-samples'
   | `sql-bookmark-open-${string}`
@@ -5724,6 +5806,7 @@ export type TestId =
   | 'sync-pane-switcher'
   | 'table-blueprint-indexes'
   | 'table-blueprint-modal'
+  | 'target-add-btn'
   | 'target-config-btn'
   | 'target-connect-btn'
   | 'target-connected-btn'
@@ -5744,9 +5827,12 @@ export type TestId =
   | 'toolbar-password-connect'
   | 'toolbar-password-show'
   | 'toolbar-pin-compare-pair'
+  | 'toolbar-shortcuts-btn'
   | 'toolbar-swap-direction'
+  | 'toolbar-theme-toggle'
   | `toolbar-toggle-object-type-${string}`
   | `toolbar-toggle-type-filter-${string}`
+  | 'toolbar-view-title'
   | 'trigger-endpoint-card'
   | 'type-drop-confirm-all'
   | 'type-drop-confirm-all-cancel'
@@ -5890,6 +5976,8 @@ export type TestId =
   | `workflow-aggregate-fn-${string}`
   | 'workflow-aggregate-group-by'
   | `workflow-aggregate-remove-${string}`
+  | 'workflow-canvas-add-samples'
+  | 'workflow-canvas-browse-workflows'
   | 'workflow-cron-sql'
   | 'workflow-cron-sql-connection-backdrop'
   | 'workflow-cron-sql-connection-clear'
@@ -5903,6 +5991,10 @@ export type TestId =
   | 'workflow-cron-sql-transaction'
   | 'workflow-dedupe-keep'
   | 'workflow-dedupe-keys'
+  | 'workflow-delete-cancel'
+  | 'workflow-delete-close'
+  | 'workflow-delete-confirm'
+  | 'workflow-delete-modal'
   | 'workflow-designer-add-sample'
   | 'workflow-designer-auto-layout'
   | 'workflow-designer-breadcrumb-workflows'
@@ -5967,6 +6059,11 @@ export type TestId =
   | 'workflow-http-token-refresh-url'
   | 'workflow-http-url'
   | 'workflow-http-variables'
+  | 'workflow-import-cancel'
+  | 'workflow-import-close'
+  | 'workflow-import-confirm'
+  | 'workflow-import-id'
+  | 'workflow-import-modal'
   | 'workflow-inspector-concurrency'
   | `workflow-inspector-field-${string}`
   | 'workflow-inspector-format-raw'
@@ -5985,6 +6082,7 @@ export type TestId =
   | `workflow-inspector-tab-${string}`
   | 'workflow-inspector-trigger'
   | 'workflow-inspector-type'
+  | `workflow-list-delete-${string}`
   | 'workflow-list-file'
   | `workflow-list-filter-${string}`
   | `workflow-list-last-run-${string}`

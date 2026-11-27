@@ -68,6 +68,7 @@ export const CredentialManager: React.FC<Props> = ({ open, onClose }) => {
   );
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<SavedConnectionSummary | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [dialectFilter, setDialectFilter] = useState('all');
@@ -386,27 +387,53 @@ export const CredentialManager: React.FC<Props> = ({ open, onClose }) => {
                         </button>
                         <div className="flex items-center gap-1 shrink-0 mt-0.5">
                           <button data-testid={`cred-edit-${c.id}`}
-                            onClick={() => setEditing(c)}
+                            onClick={() => {
+                              setConfirmDeleteId(null);
+                              setEditing(c);
+                            }}
                             title="Edit"
                             className="p-2 text-slate-500 hover:text-cyan-300 hover:bg-cyan-950/30 rounded-lg transition cursor-pointer"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
-                          <button data-testid={`cred-delete-${c.id}`}
-                            onClick={async () => {
-                              setDeletingId(c.id);
-                              try {
-                                await removeConnection(c.id);
-                              } finally {
-                                setDeletingId(null);
-                              }
-                            }}
-                            disabled={deletingId === c.id}
-                            title="Delete"
-                            className="p-2 text-slate-500 hover:text-rose-300 hover:bg-rose-950/30 rounded-lg transition disabled:opacity-50 cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {confirmDeleteId === c.id ? (
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                data-testid={`cred-delete-confirm-${c.id}`}
+                                onClick={async () => {
+                                  setDeletingId(c.id);
+                                  try {
+                                    await removeConnection(c.id);
+                                  } finally {
+                                    setDeletingId(null);
+                                    setConfirmDeleteId(null);
+                                  }
+                                }}
+                                disabled={deletingId === c.id}
+                                className="rounded-md border border-rose-500/40 bg-rose-950/60 px-2 py-1 text-[11px] font-bold text-rose-200 hover:bg-rose-900/60 transition disabled:opacity-50 cursor-pointer"
+                              >
+                                {deletingId === c.id ? 'Deleting…' : 'Confirm'}
+                              </button>
+                              <button
+                                type="button"
+                                data-testid={`cred-delete-cancel-${c.id}`}
+                                onClick={() => setConfirmDeleteId(null)}
+                                className="rounded-md border border-slate-700 px-2 py-1 text-[11px] font-semibold text-slate-400 hover:text-slate-200 transition cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button data-testid={`cred-delete-${c.id}`}
+                              onClick={() => setConfirmDeleteId(c.id)}
+                              disabled={deletingId === c.id}
+                              title="Delete"
+                              className="p-2 text-slate-500 hover:text-rose-300 hover:bg-rose-950/30 rounded-lg transition disabled:opacity-50 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
 

@@ -8,7 +8,7 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1129** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1151** buttons, text boxes, selects and textareas.
 
 ## access
 
@@ -388,10 +388,10 @@ Every control has a test ID: **1129** buttons, text boxes, selects and textareas
   - `activity-toggle` · button · running
 - **ActivityRail** · `app/shell/ActivityRail.tsx`
   - `{item.testId}` · button · passed in by the parent
-  - `credentials-btn` · button · Credentials
-  - `history-btn` · button · Applies
+  - `credentials-btn` · button · Saved connections
+  - `history-btn` · button · History
   - `home-open-btn` · button · Home
-  - `view-settings-btn` · button · Preferences
+  - `view-settings-btn` · button · Settings
   - `workspace-switcher` · nav · Main
 - **BackendOfflineBanner** · `app/shell/BackendOfflineBanner.tsx`
   - `backend-offline-banner` · div
@@ -421,21 +421,28 @@ Every control has a test ID: **1129** buttons, text boxes, selects and textareas
   - `view-utilities-btn` · data · Utils
   - `view-workflow-btn` · data
 - **HomeView** · `app/shell/HomeView.tsx`
-  - `home-command-palette` · button · Search workspaces and recents ⌘K
+  - `home-command-palette` · button · Quick jump ⌘K
   - `home-connections` · section · Connections by provider
   - `home-connections-count` · span
   - `home-connections-count-{dialect}` · span
   - `home-connections-group-{dialect}` · button
   - `home-continue` · section
-  - `home-continue-snapshots` · button · Snapshots Schema history Timeline, briefing, and compare pane
-  - `home-continue-sql` · button · Last query
-  - `home-continue-sync` · button · Last compare
-  - `home-continue-utilities` · button · Utilities Database tools Indexes, clone table, insights, and query …
-  - `home-continue-workflow` · button · Workflow Pipelines & automation DBA audits, retention, and schedule…
+  - `home-continue-snapshots` · button · Snapshots Schema history Timeline, briefing, and drift checks
+  - `home-continue-sql` · button · SQL Editor
+  - `home-continue-sync` · button · Compare
+  - `home-continue-utilities` · button · Utilities Database tools Indexes, clone table, insights & files
+  - `home-continue-workflow` · button · Workflows Pipelines & automation ELT, data migration & DBA audits
+  - `home-getting-started` · section
   - `home-recent-{id}` · button
   - `home-recents` · section · Recent queries
-  - `home-recents-empty` · p
-  - `home-view` · div · Home
+  - `home-recents-empty` · div
+  - `home-start-compare` · button · Connect & Compare
+  - `home-start-workflow` · button · Try Sample Workflows
+  - `home-system-toggle` · button · System status & database drivers
+  - `home-view` · div · Welcome to FoxSchema
+- **KeyboardShortcutsModal** · `app/shell/KeyboardShortcutsModal.tsx`
+  - `shortcuts-close-btn` · button · Close shortcuts
+  - `shortcuts-modal` · div · Keyboard Shortcuts
 - **ProfileMenu** · `app/shell/ProfileMenu.tsx`
   - `profile-access-control` · button · App users & roles
   - `profile-create-account` · button · Create your account
@@ -473,6 +480,9 @@ Every control has a test ID: **1129** buttons, text boxes, selects and textareas
 - **TopToolbar** · `app/shell/TopToolbar.tsx`
   - `command-palette-btn` · button · Command palette (⌘K)
   - `toolbar` · header
+  - `toolbar-shortcuts-btn` · button · Keyboard shortcuts
+  - `toolbar-theme-toggle` · button
+  - `toolbar-view-title` · div
 - **UpdatesSettings** · `app/settings/UpdatesSettings.tsx`
   - `updates-apply-btn` · button · Update now
   - `updates-check-btn` · button · Check
@@ -585,6 +595,7 @@ Every control has a test ID: **1129** buttons, text boxes, selects and textareas
   - `toolbar-toggle-type-filter-{type}` · button
 - **ConnectionChips** · `features/compare/components/ConnectionChips.tsx`
   - `connection-chip-{side}` · div
+  - `source-add-btn` · button · Add connection
   - `source-config-btn` · button · Add or edit this connection's credentials
   - `source-connect-btn` · button · Connect and load the schema list
   - `source-connected-btn` · button · Reconnect and refresh schema list
@@ -594,6 +605,7 @@ Every control has a test ID: **1129** buttons, text boxes, selects and textareas
   - `source-saved-select-group-{group}` · div in FilterPicker · Saved connections — search by name, host, database, user, or port
   - `source-saved-select-option-{id}` · data
   - `source-saved-select-trigger` · button in FilterPicker · Saved connections — search by name, host, database, user, or port
+  - `target-add-btn` · button · Add connection
   - `target-config-btn` · button · Add or edit this connection's credentials
   - `target-connect-btn` · button · Connect and load the schema list
   - `target-connected-btn` · button · Reconnect and refresh schema list
@@ -654,7 +666,9 @@ Every control has a test ID: **1129** buttons, text boxes, selects and textareas
   - `non-destructive-checkbox` · input
   - `schema-status-filter-{status}` · button
   - `schema-tree` · div
+  - `schema-tree-add-connection` · button · Add your first connection
   - `schema-tree-empty` · div
+  - `schema-tree-switch-browse` · button · Or browse a single DB
   - `sql-schema-tree-include-all` · input
   - `sql-schema-tree-search` · input · Search objects, columns, indexes...
   - `sql-schema-tree-search-clear` · button · Clear search
@@ -709,12 +723,18 @@ Every control has a test ID: **1129** buttons, text boxes, selects and textareas
   - `conn-ssl-ca-input` · textarea · Absolute path to .arm / .pem / .crt, or paste the PEM. Not a Java .jks.
   - `conn-ssl-enabled` · input
   - `conn-test-{status}` · div
+  - `conn-test-btn` · button · Test Connection
+  - `conn-url-apply` · button · Fill
+  - `conn-url-hint` · p
+  - `conn-url-input` · input · postgresql://user:pass@host:5432/mydb
   - `conn-username-input` · input
 - **CredentialManager** · `features/connections/components/CredentialManager.tsx`
   - `cred-add-btn` · button · Add Credential
   - `cred-clear-filters` · button · Clear filters
   - `cred-close-btn` · button · Close saved credentials
   - `cred-delete-{id}` · button · Delete
+  - `cred-delete-cancel-{id}` · button · Cancel
+  - `cred-delete-confirm-{id}` · button
   - `cred-dialect-filter` · select · Filter by provider
   - `cred-edit-{id}` · button · Edit
   - `cred-edit-credential-{id}` · button · Edit credential
@@ -1021,6 +1041,7 @@ Every control has a test ID: **1129** buttons, text boxes, selects and textareas
 ## sql-editor
 
 - **ConnectionChecklist** · `features/sql-editor/components/ConnectionChecklist.tsx`
+  - `sql-add-connection-btn` · button · Add connection
   - `sql-conn-check-{value}` · input
   - `sql-dest-group-{n}` · span
   - `sql-dest-option-{value}` · data
@@ -1345,7 +1366,7 @@ Every control has a test ID: **1129** buttons, text boxes, selects and textareas
   - `sql-editor-resize` · div · Resize editor and results
   - `sql-editor-status-bar` · div
   - `sql-editor-view` · div
-  - `sql-format-btn` · button · Pretty-print SQL (sql-formatter) and JS/TS/Node cells (Prettier) (Cmd/Ctrl+Shift+F)
+  - `sql-format-btn` · button · Pretty-print SQL and JS/TS/Node cells (Cmd/Ctrl+Shift+F)
   - `sql-format-note` · span
   - `sql-multi-table-threshold` · input
   - `sql-one-transaction` · input
@@ -2122,6 +2143,8 @@ Every control has a test ID: **1129** buttons, text boxes, selects and textareas
 - **VariablesPanel** · `features/workflow/components/VariablesPanel.tsx`
   - `workflow-variables-environment-{id}` · button
 - **WorkflowDesigner** · `features/workflow/components/WorkflowDesigner.tsx`
+  - `workflow-canvas-add-samples` · Button
+  - `workflow-canvas-browse-workflows` · Button
   - `workflow-designer-add-sample` · Button
   - `workflow-designer-auto-layout` · Button · Arrange this stage's pipes left to right, in the order records flow
   - `workflow-designer-breadcrumb-workflows` · button · Workflows
@@ -2154,7 +2177,17 @@ Every control has a test ID: **1129** buttons, text boxes, selects and textareas
   - `workflow-logs-stats` · div
 - **WorkflowsPanel** · `features/workflow/components/WorkflowsPanel.tsx`
   - `workflow-add-sample` · Button
+  - `workflow-delete-cancel` · button · Cancel
+  - `workflow-delete-close` · button · Close
+  - `workflow-delete-confirm` · button
+  - `workflow-delete-modal` · div · Delete workflow?
   - `workflow-empty-add-samples` · Button
+  - `workflow-import-cancel` · button · Cancel
+  - `workflow-import-close` · button · Close
+  - `workflow-import-confirm` · button
+  - `workflow-import-id` · input · Leave blank to keep the package ID
+  - `workflow-import-modal` · div · Import workflow package
+  - `workflow-list-delete-{id}` · Button
   - `workflow-list-file` · input
   - `workflow-list-filter-{key}` · button
   - `workflow-list-last-run-{id}` · button · Open this workflow's log

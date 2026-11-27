@@ -62,12 +62,17 @@ works after sign-in.
 
 Then in the UI: **Workflow → Engine**. The Workflow rail item is on
 (`NAV_FLAGS.workflow` in `apps/web/src/frontend/app/features/featureRegistry.ts`).
-**Add samples** on the designer (or the Workflows list) installs
-`sample-hello-records`, `sample-orders-branch`, and `sample-regions-join`.
+**Add samples** on the designer (or the Workflows list) installs 7 ready-to-run
+starters: `sample-hello-records`, `sample-orders-branch`, `sample-regions-join`,
+`sample-dba-schema-health-audit`, `sample-dba-table-retention-maintenance`,
+`sample-dba-ledger-verify-quarantine`, and `sample-dba-pii-redact-dedupe-aggregate`.
 Health: `GET /api/workflow/engine/health` with a session.
 
-Production still requires a real `FOXFLOW_ENCRYPTION_KEY` (32 bytes, hex or
-base64). Do not alias it to `APP_ENCRYPTION_KEY`.
+On first boot, if `FOXFLOW_ENCRYPTION_KEY` is not set separately, FoxSchema
+shares the install's `APP_ENCRYPTION_KEY` (32 bytes, hex or base64) with the
+workflow engine so initial installs work with a single key. Set
+`FOXFLOW_ENCRYPTION_KEY` explicitly if you want a separate key for the workflow
+credential store.
 
 All engine stores share one SQLite file. The default path is **repo-root**
 `workflow-engine.sqlite`, not `process.cwd()`. Set `FOXFLOW_DB_PATH` to override.
@@ -103,7 +108,7 @@ Transform, Logic, Output** — and every label is unique
 |-------|--------|
 | Trigger | Manual, Schedule (run the workflow, call an HTTP endpoint, or **SQL execute**), Webhook, Parent Workflow; Trigger payload |
 | Source | SQL query (any FoxSchema dialect); HTTP API, HTTP Multi; CSV file, JSON file, Text file |
-| Transform | Map fields, Merge, Split, Script; HTTP lookup; Verify |
+| Transform | Map fields, Merge, Split, Script, **Deduplicate rows** (`transform.dedupe`), **Aggregate / group rows** (`transform.aggregate`), **Redact / mask fields** (`transform.redact`); HTTP lookup; Verify |
 | Logic | Condition, Loop, Sub-workflow; Ask a person |
 | Output | SQL write (any dialect); Send HTTP request, Workflow response; Write CSV file; Send email, Send SMS |
 | *Advanced* (palette toggle) | PostgreSQL / MySQL: stream table (resumable keyset paging) and load table (exactly-once batch claims) |
@@ -192,10 +197,11 @@ them on save and re-reads them every **30 seconds**.
 
 ## Constraints and pitfalls
 
-- **Two encryption keys.** `APP_ENCRYPTION_KEY` protects FoxSchema saved
-  connections. `FOXFLOW_ENCRYPTION_KEY` (32 bytes, hex or base64) protects the
-  engine credential store and is **required at engine boot** — there is no
-  plaintext fallback (`keyFromEnv()`).
+- **Shared or separate encryption key.** `APP_ENCRYPTION_KEY` protects FoxSchema
+  saved connections. When `FOXFLOW_ENCRYPTION_KEY` is not set separately, the
+  workflow engine shares `APP_ENCRYPTION_KEY` on first boot; you can set
+  `FOXFLOW_ENCRYPTION_KEY` (32 bytes, hex or base64) to isolate the engine's
+  credential store. There is no plaintext fallback (`keyFromEnv()`).
 - **A connection stays in its workspace.** Linking one in workspace A used to
   let every designer on the install save and run with A's password. The API
   now refuses that. Move the workflow (or re-pick a connection that belongs

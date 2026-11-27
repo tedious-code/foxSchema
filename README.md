@@ -114,9 +114,10 @@ Walkthrough: [User guide → SQL Editor](docs/guides/user-guide.md#sql-editor).
 ## Workflow
 
 Optional designer for scheduled and triggered jobs (SQL, HTTP, files, email/SMS).
-The engine runs in the FoxSchema API process. Production needs
-`FOXFLOW_ENCRYPTION_KEY` (32 bytes, hex or base64). `npm run dev` sets a local
-key. Then **Workflow → Engine**. Runbook: [docs/guides/workflow.md](docs/guides/workflow.md).
+The engine runs in the FoxSchema API process and shares the install's
+`APP_ENCRYPTION_KEY` automatically on first boot (set `FOXFLOW_ENCRYPTION_KEY`
+only if you want a separate 32-byte key for workflow credentials). Then open
+**Workflow → Engine**. Runbook: [docs/guides/workflow.md](docs/guides/workflow.md).
 User steps: [User guide → Workflow](docs/guides/user-guide.md#workflow).
 
 ## Schema Sync

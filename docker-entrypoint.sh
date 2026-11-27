@@ -39,4 +39,11 @@ if [ -z "${APP_ENCRYPTION_KEY:-}" ]; then
   fi
 fi
 
+# Share the install encryption key with the in-process workflow engine when
+# FOXFLOW_ENCRYPTION_KEY is not set separately, so a fresh install needs one key.
+if [ -z "${FOXFLOW_ENCRYPTION_KEY:-}" ] && [ -n "${APP_ENCRYPTION_KEY:-}" ]; then
+  FOXFLOW_ENCRYPTION_KEY="$APP_ENCRYPTION_KEY"
+  export FOXFLOW_ENCRYPTION_KEY
+fi
+
 exec "$@"

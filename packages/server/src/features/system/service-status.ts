@@ -29,9 +29,10 @@ export async function readServiceStatus(deps: ServiceStatusDeps): Promise<Servic
 
 async function engineStatus(deps: ServiceStatusDeps): Promise<EngineServiceStatus> {
   const env = deps.env ?? process.env;
-  const missing = ENGINE_REQUIRED_ENV.filter((name) => !env[name]?.trim());
-  if (missing.length > 0) {
-    return { state: 'not_configured', detail: `Set ${missing.join(' and ')} on the server to run the engine.` };
+  const effectiveFlowKey =
+    env.FOXFLOW_ENCRYPTION_KEY !== undefined ? env.FOXFLOW_ENCRYPTION_KEY : env.APP_ENCRYPTION_KEY;
+  if (!effectiveFlowKey?.trim()) {
+    return { state: 'not_configured', detail: `Set ${ENGINE_REQUIRED_ENV.join(' and ')} on the server to run the engine.` };
   }
   let probe: WorkflowHealth & { error?: string };
   try {

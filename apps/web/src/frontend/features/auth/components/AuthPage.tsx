@@ -324,12 +324,14 @@ export const FirstAccountForm: React.FC = () => {
           />
           <div className="rounded-md border border-slate-800 bg-slate-950/60 px-2.5 py-2 text-[11px] text-slate-400 space-y-1">
             <p>
-              <strong className="text-slate-300">What is this?</strong> A one-time server security code that verifies
-              you have access to the machine or container running Fox Schema before claiming the administrator account.
+              <strong className="text-slate-300">What is this?</strong> A first-run security code derived from your
+              install&apos;s encryption key that verifies you have access to the machine or container running Fox Schema
+              before claiming the administrator account.
             </p>
             <p>
               <strong className="text-slate-300">Where to find it:</strong> Look in your Fox server terminal or
-              container logs for <code className="text-slate-300">First-run setup: enter code XXXX-XXXX</code>.
+              container logs for <code className="text-slate-300">First-run setup: enter code XXXX-XXXX</code> (or paste
+              your <code className="text-slate-300">APP_ENCRYPTION_KEY</code> directly).
             </p>
           </div>
           {announceNote && (

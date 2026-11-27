@@ -22,6 +22,19 @@ import type { WorkflowEngineBackend } from './sandbox-protocol.js';
 
 const SETTINGS_REFRESH_MS = 30_000;
 
+/**
+ * Resolve the 32-byte encryption key for the workflow engine.
+ * An explicit `FOXFLOW_ENCRYPTION_KEY` (even if blank/invalid in tests) takes
+ * precedence; when omitted, the install's `APP_ENCRYPTION_KEY` is shared so a
+ * new install only needs one encryption key.
+ */
+export function resolveWorkflowEncryptionKey(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): string {
+  const explicit = env.FOXFLOW_ENCRYPTION_KEY;
+  return (explicit !== undefined ? explicit : env.APP_ENCRYPTION_KEY) ?? '';
+}
+
 export interface WorkflowEngineHost {
   backend: WorkflowEngineBackend;
   /** Populated only when `FOXFLOW_SANDBOX_MODE=in-process`. */
@@ -146,7 +159,7 @@ async function openProductionHost(): Promise<WorkflowEngineHost> {
 
   backend = new WorkflowSandboxClient({
     databasePath: process.env.FOXFLOW_DB_PATH ?? (process.env.VITEST ? ':memory:' : undefined),
-    encryptionKey: process.env.FOXFLOW_ENCRYPTION_KEY ?? '',
+    encryptionKey: resolveWorkflowEncryptionKey(),
     resolveFoxSchemaConnection,
     loadRuntimeConfig: async () => toRuntimeConfig(await settings.getConfig()),
     onReadyChange: (ready) => markWorkflowEngineReady(ready),

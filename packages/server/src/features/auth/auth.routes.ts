@@ -333,6 +333,6 @@ function announceSetupCode(force = false): void {
   announced = true;
   getLogger().warn(
     `First-run setup: enter code ${setupCode()} on the sign-in screen to create the admin account ` +
-      '(only needed when setting up from another machine).'
+      '(derived from your install encryption key; only needed when setting up from another machine).'
   );
 }

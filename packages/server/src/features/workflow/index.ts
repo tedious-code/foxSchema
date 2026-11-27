@@ -8,6 +8,7 @@ import type { ServerFeatureModule } from '../../platform/feature-module';
 import { getLogger } from '../../platform/logger/logger';
 import { createWorkflowRoutes } from './workflow.routes';
 import {
+  resolveWorkflowEncryptionKey,
   startProductionWorkflowEngine,
   stopProductionWorkflowEngine,
 } from './runtime/engine-host';
@@ -17,7 +18,7 @@ export const workflowFeature: ServerFeatureModule = {
   id: 'workflow',
   mounts: [{ prefix: '/api/workflow', access: 'user', routes: () => createWorkflowRoutes() }],
   async registerFastify(app, context) {
-    if (!process.env.FOXFLOW_ENCRYPTION_KEY?.trim()) {
+    if (!resolveWorkflowEncryptionKey().trim()) {
       getLogger().warn(
         { component: 'workflow' },
         'FOXFLOW_ENCRYPTION_KEY is not set; the sandboxed workflow engine is not started',

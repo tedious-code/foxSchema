@@ -19,6 +19,9 @@ import {
   SAMPLE_DBA_SCHEMA_HEALTH_AUDIT_WORKFLOW_ID,
   SAMPLE_DBA_RETENTION_MAINTENANCE_WORKFLOW_ID,
   SAMPLE_DBA_QUARANTINE_RECONCILE_WORKFLOW_ID,
+  SAMPLE_ELT_STAGED_SQL_WAREHOUSE_WORKFLOW_ID,
+  SAMPLE_CROSS_DIALECT_DATA_MIGRATION_WORKFLOW_ID,
+  SAMPLE_FILE_SOURCES_CSV_DELIMITED_ELT_WORKFLOW_ID,
   SAMPLE_MULTI_API_FANOUT_WORKFLOW_ID,
   SAMPLE_MULTI_API_MERGE_TO_DB_WORKFLOW_ID,
   SAMPLE_MULTI_DB_ETL_CONSOLIDATE_WORKFLOW_ID,
@@ -557,6 +560,24 @@ describe('workflow samples', () => {
         expect.objectContaining({ from: 'verify_ledger_rules', to: 'promote_clean_rows', fromPort: 'out' }),
         expect.objectContaining({ from: 'verify_ledger_rules', to: 'format_quarantine', fromPort: 'rejects' }),
       ]),
+    );
+
+    const elt = parseWorkflow(sample(SAMPLE_ELT_STAGED_SQL_WAREHOUSE_WORKFLOW_ID).document);
+    expect(elt.pipelines).toHaveLength(2);
+    expect(elt.dependencies).toEqual([
+      { from: 'extract_and_load_raw', to: 'in_db_sql_elt_transform', on: 'success' },
+    ]);
+
+    const crossDialect = parseWorkflow(sample(SAMPLE_CROSS_DIALECT_DATA_MIGRATION_WORKFLOW_ID).document);
+    expect(crossDialect.pipelines).toHaveLength(2);
+    expect(crossDialect.pipelines[0]!.pipes.map((p) => p.type)).toEqual(
+      expect.arrayContaining(['source.db.sql', 'transform.dedupe', 'transform.redact', 'sink.db.mapped-insert']),
+    );
+
+    const fileSources = parseWorkflow(sample(SAMPLE_FILE_SOURCES_CSV_DELIMITED_ELT_WORKFLOW_ID).document);
+    expect(fileSources.pipelines).toHaveLength(2);
+    expect(fileSources.pipelines[1]!.pipes.map((p) => p.type)).toEqual(
+      expect.arrayContaining(['source.file.csv', 'source.file.text', 'transform.verify', 'transform.aggregate']),
     );
   });
 });

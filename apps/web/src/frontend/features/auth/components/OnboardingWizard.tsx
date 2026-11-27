@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Loader2, ChevronRight, Table2, Eye, FunctionSquare, Code, Database } from 'lucide-react';
+import { Loader2, ChevronRight, Table2, Eye, FunctionSquare, Code, Database, Terminal, Workflow } from 'lucide-react';
 import { useAuthStore } from '@/platform/authStore';
 import { useUiStore } from '@/platform/uiStore';
 import { landingForGoal } from '../lib/onboardingLanding';
@@ -32,10 +32,12 @@ const DATABASES = (() => {
   });
 })();
 const GOALS: { id: string; label: string; icon: React.ReactNode }[] = [
-  { id: 'COMPARE_SCHEMAS', label: 'Compare schemas', icon: <Table2 className="w-5 h-5" /> },
+  { id: 'COMPARE_SCHEMAS', label: 'Compare schemas & plan migrations', icon: <Table2 className="w-5 h-5" /> },
+  { id: 'RUN_SQL', label: 'Run SQL queries & inspect data', icon: <Terminal className="w-5 h-5" /> },
+  { id: 'AUTOMATE_WORKFLOWS', label: 'Build ELT & DBA automation workflows', icon: <Workflow className="w-5 h-5" /> },
   { id: 'GENERATE_SQL', label: 'Generate migration SQL', icon: <Code className="w-5 h-5" /> },
   { id: 'EXPLORE_DATABASE', label: 'Explore a database', icon: <Eye className="w-5 h-5" /> },
-  { id: 'CREATE_DOCUMENTATION', label: 'Document a schema', icon: <FunctionSquare className="w-5 h-5" /> },
+  { id: 'CREATE_DOCUMENTATION', label: 'Browse & document a schema', icon: <FunctionSquare className="w-5 h-5" /> },
 ];
 
 export const OnboardingWizard: React.FC = () => {
@@ -161,9 +163,9 @@ export const OnboardingWizard: React.FC = () => {
         </div>
         {error && <p className="mt-4 text-xs text-rose-400 text-center">{error}</p>}
 
-        <div className="flex items-center justify-center gap-1.5 mt-8 text-slate-700">
+        <div className="flex items-center justify-center gap-1.5 mt-8 text-slate-600">
           <Database className="w-3.5 h-3.5" />
-          <span className="text-[10px] uppercase tracking-wider">Fox</span>
+          <span className="text-[10px] uppercase tracking-wider">FoxSchema</span>
         </div>
       </div>
     </div>

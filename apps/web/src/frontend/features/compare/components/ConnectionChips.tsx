@@ -8,7 +8,7 @@
  * not a second connection model.
  */
 import React from 'react';
-import { CheckCircle2, RefreshCw, Settings } from 'lucide-react';
+import { CheckCircle2, Plus, RefreshCw, Settings } from 'lucide-react';
 import { FilterPicker, connectionPickerOption } from '@/shared/components/FilterPicker';
 import { dialectLabel } from '@/shared/lib/dialectLabel';
 
@@ -99,7 +99,7 @@ export function ConnectionChip({
       <span className={`shrink-0 text-[10px] font-bold uppercase tracking-wider ${tone.label}`}>
         {label}
       </span>
-      {connections.length > 0 && (
+      {connections.length > 0 ? (
         <FilterPicker
           mode="single"
           testId={savedTestId}
@@ -118,15 +118,25 @@ export function ConnectionChip({
           placeholder="Search name, host, db, user, port…"
           triggerClassName="flex w-full min-w-0 items-center gap-1 truncate rounded-full border border-slate-700/60 bg-slate-950 px-2 py-0.5 text-left text-[11px] text-slate-200 accent-focus focus:outline-none"
         />
+      ) : (
+        <button
+          type="button"
+          data-testid={side === 'source' ? 'source-add-btn' : 'target-add-btn'}
+          onClick={onEdit}
+          className={`flex min-w-0 flex-1 items-center gap-1 truncate rounded-full border border-dashed border-slate-700/80 bg-slate-950/60 px-2 py-0.5 text-left text-[11px] font-semibold hover:border-cyan-500/50 hover:text-slate-100 cursor-pointer transition ${tone.empty}`}
+        >
+          <Plus className="h-3 w-3 shrink-0" />
+          <span className="truncate">Add connection</span>
+        </button>
       )}
-      <span
-        className={`pointer-events-none hidden min-w-0 max-w-[7rem] truncate font-mono text-[10px] font-medium xl:inline ${
-          summary ? tone.summary : tone.empty
-        }`}
-        title={summary ?? undefined}
-      >
-        {summary ?? 'Add a connection'}
-      </span>
+      {summary && (
+        <span
+          className={`pointer-events-none hidden min-w-0 max-w-[7rem] truncate font-mono text-[10px] font-medium xl:inline ${tone.summary}`}
+          title={summary}
+        >
+          {summary}
+        </span>
+      )}
       <button
         type="button"
         data-testid={editTestId}

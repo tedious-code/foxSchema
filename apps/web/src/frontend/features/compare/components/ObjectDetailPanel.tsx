@@ -345,12 +345,14 @@ export const ObjectDetailPanel: React.FC = () => {
     // in the toolbar already; browsing has one, and it was nowhere on screen.
     const browsed = browseSide === 'target' ? targetConfig : sourceConfig;
     return (
-      <div className="flex-1 flex flex-col items-center justify-center text-slate-500 bg-slate-950/20 p-6">
-        <FileText className="w-12 h-12 text-slate-800 mb-3 animate-pulse" />
-        <p className="text-sm font-semibold text-slate-400">Select Object to View Details</p>
-        <p className="text-xs text-slate-600 max-w-xs text-center mt-1">
-          Select an object from the left browser tree to inspect columns, indices, definitions,
-          {browseMode ? ' and its CREATE script.' : ' and generated migration DDL.'}
+      <div className="flex-1 flex flex-col items-center justify-center text-slate-400 bg-slate-950/20 p-6">
+        <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl border border-slate-800 bg-slate-900/60">
+          <FileText className="w-6 h-6 text-slate-400" />
+        </div>
+        <p className="text-sm font-semibold text-slate-200">Select an object to inspect</p>
+        <p className="text-xs text-slate-400 max-w-sm text-center mt-1.5 leading-relaxed">
+          Choose any table, view, index, or routine from the left tree to inspect columns, definitions,
+          {browseMode ? ' and its CREATE script.' : ' diffs, and generated migration SQL.'}
         </p>
         {browseMode && (
           <dl

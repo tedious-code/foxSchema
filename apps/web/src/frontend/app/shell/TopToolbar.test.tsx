@@ -7,7 +7,7 @@
  * controls, in the places those parts had when the toolbar was one component.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { useUiStore } from '@/platform/uiStore';
 import { TopToolbar } from './TopToolbar';
 
@@ -39,7 +39,13 @@ describe('TopToolbar', () => {
     const header = screen.getByTestId('toolbar');
     const [row, below] = [...header.children];
     expect(childIds(row!)).toEqual(['view-start', 'div']);
-    expect(childIds(row!.lastElementChild!)).toEqual(['activity', 'command-palette-btn', 'view-end']);
+    expect(childIds(row!.lastElementChild!)).toEqual([
+      'activity',
+      'command-palette-btn',
+      'toolbar-theme-toggle',
+      'toolbar-shortcuts-btn',
+      'view-end',
+    ]);
     expect(below!.getAttribute('data-testid')).toBe('view-below');
   });
 
@@ -51,12 +57,19 @@ describe('TopToolbar', () => {
     expect(screen.queryByTestId('view-below')).toBeNull();
   });
 
-  it('shows only the shell’s controls on a view that adds nothing', () => {
+  it('shows the view title and shell controls on a view that adds nothing', () => {
     useUiStore.setState({ activeView: 'home' });
     render(<TopToolbar />);
+    expect(screen.getByTestId('toolbar-view-title').textContent).toContain('Home');
     expect(screen.getByTestId('command-palette-btn')).toBeTruthy();
+    expect(screen.getByTestId('toolbar-theme-toggle')).toBeTruthy();
+    expect(screen.getByTestId('toolbar-shortcuts-btn')).toBeTruthy();
     expect(screen.getByTestId('activity')).toBeTruthy();
     expect(screen.queryByTestId('view-start')).toBeNull();
     expect(screen.getByTestId('toolbar').children).toHaveLength(1);
+    fireEvent.click(screen.getByTestId('toolbar-shortcuts-btn'));
+    expect(screen.getByTestId('shortcuts-modal')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('shortcuts-close-btn'));
+    expect(screen.queryByTestId('shortcuts-modal')).toBeNull();
   });
 });

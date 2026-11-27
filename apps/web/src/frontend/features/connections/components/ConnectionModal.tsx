@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, CheckCircle, AlertTriangle, FolderOpen, Loader2, ListTree, Download } from "lucide-react";
+import { X, CheckCircle, AlertTriangle, FolderOpen, Loader2, ListTree, Download, Link2, PlugZap } from "lucide-react";
 import {
   type ConnectionOptions,
   type Dialect,
@@ -59,6 +59,84 @@ const dialectOptions = Object.values(PROVIDER_SETTINGS).sort((a, b) =>
 const MAX_NAME_LEN = CONNECTION_NAME_MAX;
 const sanitizeName = (raw: string) => raw.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, MAX_NAME_LEN);
 
+const SCHEME_TO_DIALECT: Record<string, Dialect> = {
+  postgres: 'postgres',
+  postgresql: 'postgres',
+  cockroach: 'cockroachdb',
+  cockroachdb: 'cockroachdb',
+  yugabyte: 'yugabytedb',
+  yugabytedb: 'yugabytedb',
+  redshift: 'redshift',
+  mysql: 'mysql',
+  mysql2: 'mysql',
+  mariadb: 'mariadb',
+  tidb: 'tidb',
+  mssql: 'sqlserver',
+  sqlserver: 'sqlserver',
+  azuresql: 'azuresql',
+  oracle: 'oracle',
+  db2: 'db2',
+  clickhouse: 'clickhouse',
+  sqlite: 'sqlite',
+  sqlite3: 'sqlite',
+  duckdb: 'duckdb',
+  mongodb: 'mongodb',
+  'mongodb+srv': 'mongodb',
+  redis: 'redis',
+  rediss: 'redis',
+};
+
+function parseConnectionUrlInput(raw: string): {
+  dialect: Dialect;
+  host?: string;
+  port?: number;
+  database?: string;
+  username?: string;
+  password?: string;
+  schema?: string;
+  sslEnabled?: boolean;
+} | null {
+  const trimmed = raw.trim();
+  const schemeMatch = /^([a-z0-9+.-]+):\/\//i.exec(trimmed);
+  if (!schemeMatch) return null;
+  const scheme = schemeMatch[1]!.toLowerCase();
+  const dialect = SCHEME_TO_DIALECT[scheme];
+  if (!dialect) return null;
+
+  if (dialect === 'sqlite' || dialect === 'duckdb') {
+    const filePath = trimmed.slice(schemeMatch[0].length);
+    return { dialect, database: decodeURIComponent(filePath || '') };
+  }
+
+  try {
+    const normalized = `http://${trimmed.slice(schemeMatch[0].length)}`;
+    const u = new URL(normalized);
+    const db = decodeURIComponent(u.pathname.replace(/^\/+/, ''));
+    const sslMode = (u.searchParams.get('sslmode') ?? u.searchParams.get('ssl') ?? '').toLowerCase();
+    const sslEnabled =
+      scheme === 'rediss' ||
+      scheme === 'mongodb+srv' ||
+      sslMode === 'true' ||
+      sslMode === '1' ||
+      sslMode === 'require' ||
+      sslMode === 'verify-ca' ||
+      sslMode === 'verify-full';
+    const schema = u.searchParams.get('schema') || u.searchParams.get('currentSchema') || undefined;
+    return {
+      dialect,
+      host: u.hostname || undefined,
+      port: u.port ? Number(u.port) : defaultPorts[dialect],
+      database: db || undefined,
+      username: u.username ? decodeURIComponent(u.username) : undefined,
+      password: u.password ? decodeURIComponent(u.password) : undefined,
+      schema,
+      sslEnabled,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export const ConnectionModal: React.FC<Props> = ({
   open,
   dialect,
@@ -96,6 +174,8 @@ export const ConnectionModal: React.FC<Props> = ({
   const isFileDialect = isFileDialectOf(selDialect);
 
   const [browsing, setBrowsing] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
+  const [urlHint, setUrlHint] = useState<string | null>(null);
   // Shared with the SQL editor's banners: an install from either shows on both.
   // Checked only while the form is open, as before.
   const driver = useDriverStatus(open ? selDialect : '');
@@ -146,6 +226,8 @@ export const ConnectionModal: React.FC<Props> = ({
     });
     setSchemaList([]);
     setBrowsing(false);
+    setUrlInput('');
+    setUrlHint(null);
     // New credential → save password on by default; edit → match what's stored.
     setSavePassword(initialHasPassword ?? true);
     setTestingState({ status: 'idle' });
@@ -180,6 +262,45 @@ export const ConnectionModal: React.FC<Props> = ({
         rejectUnauthorized: d === 'azuresql' ? true : prev.ssl?.rejectUnauthorized,
       },
     }));
+  };
+
+  const applyConnectionUrl = (rawValue?: string) => {
+    const candidate = (rawValue ?? urlInput).trim();
+    if (!candidate) return;
+    const parsed = parseConnectionUrlInput(candidate);
+    if (!parsed) {
+      setUrlHint('Enter a full URL such as postgresql://user:pass@host:5432/dbname or sqlite:///path/to/app.db');
+      return;
+    }
+    setSelDialect(parsed.dialect);
+    setSchemaList([]);
+    setTestingState({ status: 'idle' });
+    setForm((prev) => {
+      const nextUsername = parsed.username ?? (isFileDialectOf(parsed.dialect) ? '' : prev.username);
+      const nextAuth = resolveAuthMethod(
+        parsed.dialect,
+        parsed.password ? 'password' : undefined,
+        nextUsername,
+      );
+      return {
+        ...prev,
+        host: parsed.host ?? prev.host,
+        port: parsed.port ?? defaultPorts[parsed.dialect],
+        database: parsed.database ?? prev.database,
+        username: nextUsername,
+        password: parsed.password ?? prev.password,
+        schema: parsed.schema ?? getProviderSettings(parsed.dialect).defaultSchema ?? '',
+        authMethod: nextAuth,
+        ssl: {
+          ...prev.ssl,
+          enabled: parsed.sslEnabled ?? (parsed.dialect === 'redshift' || parsed.dialect === 'azuresql'),
+        },
+      };
+    });
+    if (isCredential && !name.trim() && (parsed.database || parsed.host)) {
+      setName(sanitizeName(parsed.database || parsed.host || ''));
+    }
+    setUrlHint(`Filled ${PROVIDER_SETTINGS[parsed.dialect]?.label ?? parsed.dialect} fields from URL.`);
   };
 
   const handleInstall = async () => {
@@ -328,6 +449,54 @@ export const ConnectionModal: React.FC<Props> = ({
         </div>
 
         <div data-testid="conn-modal-body" className="min-h-0 overflow-y-auto p-6 space-y-4">
+          <div className="rounded-lg border border-slate-800/90 bg-slate-950/50 p-2.5">
+            <label htmlFor="conn-url-input" className={`${labelCls} flex items-center gap-1.5`}>
+              <Link2 className="h-3 w-3 text-cyan-400" /> Quick fill from connection URL
+            </label>
+            <div className="mt-1.5 flex gap-1.5">
+              <input
+                id="conn-url-input"
+                data-testid="conn-url-input"
+                type="text"
+                value={urlInput}
+                onChange={(e) => {
+                  setUrlInput(e.target.value);
+                  if (urlHint) setUrlHint(null);
+                }}
+                onPaste={(e) => {
+                  const pasted = e.clipboardData.getData('text');
+                  if (parseConnectionUrlInput(pasted)) {
+                    e.preventDefault();
+                    setUrlInput(pasted);
+                    applyConnectionUrl(pasted);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    applyConnectionUrl();
+                  }
+                }}
+                placeholder="postgresql://user:pass@host:5432/mydb"
+                className="min-w-0 flex-1 rounded border border-slate-800 bg-slate-900 px-2.5 py-1.5 font-mono text-xs text-slate-200 outline-none accent-focus placeholder:text-slate-500"
+              />
+              <button
+                type="button"
+                data-testid="conn-url-apply"
+                onClick={() => applyConnectionUrl()}
+                disabled={!urlInput.trim()}
+                className="shrink-0 rounded border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-200 hover:border-cyan-500/40 hover:text-cyan-200 disabled:opacity-40 cursor-pointer transition"
+              >
+                Fill
+              </button>
+            </div>
+            {urlHint && (
+              <p data-testid="conn-url-hint" className="mt-1 text-[11px] text-cyan-300/90">
+                {urlHint}
+              </p>
+            )}
+          </div>
+
           {isCredential && (
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-2">
@@ -659,8 +828,9 @@ export const ConnectionModal: React.FC<Props> = ({
               {testingState.status === 'failed' && <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />}
               <div>
                 <p className="font-semibold">
-                  {testingState.status === 'testing' && 'Loading schemas…'}
-                  {testingState.status === 'success' && 'Schemas loaded'}
+                  {testingState.status === 'testing' && 'Testing connection & loading schemas…'}
+                  {testingState.status === 'success' &&
+                    `Connection verified${schemaList.length > 0 ? ` · ${schemaList.length} schema${schemaList.length === 1 ? '' : 's'} loaded` : ''}`}
                   {testingState.status === 'failed' && 'Connection Failed'}
                 </p>
                 {testingState.error && <p className="mt-1 text-slate-400 font-mono text-[10px] leading-relaxed break-all">{testingState.error}</p>}
@@ -669,18 +839,34 @@ export const ConnectionModal: React.FC<Props> = ({
           )}
         </div>
 
-        <div className="shrink-0 flex justify-end items-center gap-2 px-6 py-4 bg-slate-950/60 border-t border-slate-800">
-          <button data-testid="conn-cancel" onClick={onClose} className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-850/50 rounded transition">
-            Cancel
-          </button>
+        <div className="shrink-0 flex justify-between items-center gap-2 px-6 py-4 bg-slate-950/60 border-t border-slate-800">
           <button
-            data-testid="conn-save-btn"
-            onClick={handleSave}
+            type="button"
+            data-testid="conn-test-btn"
+            onClick={() => void loadSchemas()}
             disabled={testingState.status === 'testing'}
-            className="px-4 py-2 text-xs font-bold accent-grad on-accent-fg rounded transition shadow-md cursor-pointer disabled:opacity-60 disabled:cursor-wait flex items-center gap-1.5"
+            className="inline-flex items-center gap-1.5 rounded border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-cyan-300 hover:border-cyan-500/50 hover:bg-slate-800 disabled:opacity-60 disabled:cursor-wait cursor-pointer transition"
           >
-            {isCredential ? 'Save Credential' : 'Apply & Connect'}
+            {testingState.status === 'testing' ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <PlugZap className="w-3.5 h-3.5" />
+            )}
+            Test Connection
           </button>
+          <div className="flex items-center gap-2">
+            <button data-testid="conn-cancel" onClick={onClose} className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-850/50 rounded transition cursor-pointer">
+              Cancel
+            </button>
+            <button
+              data-testid="conn-save-btn"
+              onClick={handleSave}
+              disabled={testingState.status === 'testing'}
+              className="px-4 py-2 text-xs font-bold accent-grad on-accent-fg rounded transition shadow-md cursor-pointer disabled:opacity-60 disabled:cursor-wait flex items-center gap-1.5"
+            >
+              {isCredential ? 'Save Credential' : 'Apply & Connect'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

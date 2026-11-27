@@ -47,7 +47,7 @@ export function ActivityRail(): React.ReactElement | null {
       <nav
         data-testid="workspace-switcher"
         aria-label="Main"
-        className="flex w-14 shrink-0 flex-col items-center gap-1 border-r border-slate-800 bg-slate-900/90 py-2"
+        className="flex w-[68px] shrink-0 flex-col items-center gap-1 border-r border-slate-800 bg-slate-900/90 py-2.5"
       >
         <button
           type="button"
@@ -56,9 +56,9 @@ export function ActivityRail(): React.ReactElement | null {
           aria-label="Home"
           aria-current={activeView === 'home' ? 'page' : undefined}
           onClick={() => setActiveView('home')}
-          className={`mb-2 flex h-10 w-10 items-center justify-center rounded-md transition ${
+          className={`mb-2 flex h-10 w-10 items-center justify-center rounded-lg transition cursor-pointer ${
             activeView === 'home'
-              ? 'bg-slate-800 ring-1 ring-slate-600'
+              ? 'bg-slate-800 ring-1 ring-cyan-500/40 shadow-sm'
               : 'hover:bg-slate-800/60'
           }`}
         >
@@ -73,17 +73,24 @@ export function ActivityRail(): React.ReactElement | null {
               type="button"
               data-testid={item.testId}
               title={item.label}
+              aria-current={on ? 'page' : undefined}
               onClick={() => setActiveView(item.view)}
               onPointerEnter={() => prefetchView(item.view)}
               onFocus={() => prefetchView(item.view)}
-              className={`flex w-12 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-[9px] font-bold uppercase tracking-wide transition ${
+              className={`relative flex w-[60px] flex-col items-center gap-1 rounded-lg px-1 py-1.5 text-[10px] font-semibold tracking-tight transition cursor-pointer ${
                 on
-                  ? 'bg-slate-800 text-slate-100'
-                  : 'text-slate-500 hover:bg-slate-800/60 hover:text-slate-200'
+                  ? 'bg-slate-800/90 text-slate-100 shadow-sm'
+                  : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-100'
               }`}
             >
-              <item.icon className="h-4 w-4" />
-              {item.label}
+              {on && (
+                <span
+                  aria-hidden="true"
+                  className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full accent-grad"
+                />
+              )}
+              <item.icon className="h-4 w-4 shrink-0" />
+              <span className="max-w-full truncate">{item.label}</span>
             </button>
           );
         })}
@@ -92,45 +99,51 @@ export function ActivityRail(): React.ReactElement | null {
           <button
             type="button"
             data-testid="credentials-btn"
-            title="Credentials"
-            aria-label="Credentials"
+            title="Saved connections & credentials"
+            aria-label="Saved connections"
             onClick={() => setShowCredentials(true)}
-            className="flex w-12 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-[9px] font-bold uppercase tracking-wide text-cyan-400 transition hover:bg-slate-800/60 hover:text-cyan-300"
+            className="flex w-[60px] flex-col items-center gap-1 rounded-lg px-1 py-1.5 text-[10px] font-semibold tracking-tight text-cyan-400 transition cursor-pointer hover:bg-slate-800/60 hover:text-cyan-300"
           >
-            <KeyRound className="h-4 w-4" />
-            Creds
+            <KeyRound className="h-4 w-4 shrink-0" />
+            <span>Connect</span>
           </button>
           <button
             type="button"
             data-testid="history-btn"
-            title="Applies"
-            aria-label="Applies"
+            title="Migration apply history"
+            aria-label="History"
             onClick={() => setShowApplies(true)}
-            className="flex w-12 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-[9px] font-bold uppercase tracking-wide text-slate-400 transition hover:bg-slate-800/60 hover:text-slate-200"
+            className="flex w-[60px] flex-col items-center gap-1 rounded-lg px-1 py-1.5 text-[10px] font-semibold tracking-tight text-slate-400 transition cursor-pointer hover:bg-slate-800/60 hover:text-slate-100"
           >
-            <History className="h-4 w-4" />
-            Applies
+            <History className="h-4 w-4 shrink-0" />
+            <span>History</span>
           </button>
-          <div className="mt-1 flex w-12 justify-center">
+          <div className="mt-1 flex w-[60px] justify-center">
             <ProfileMenu />
           </div>
           <button
             type="button"
             data-testid="view-settings-btn"
-            title="Preferences"
-            aria-label="Preferences"
+            title="Preferences & appearance"
+            aria-label="Settings"
             aria-current={activeView === 'settings' ? 'page' : undefined}
             onClick={() => setActiveView('settings')}
             onPointerEnter={() => prefetchView('settings')}
             onFocus={() => prefetchView('settings')}
-            className={`flex w-12 flex-col items-center gap-0.5 rounded-md px-1 py-1.5 text-[9px] font-bold uppercase tracking-wide transition ${
+            className={`relative flex w-[60px] flex-col items-center gap-1 rounded-lg px-1 py-1.5 text-[10px] font-semibold tracking-tight transition cursor-pointer ${
               activeView === 'settings'
-                ? 'bg-slate-800 text-slate-100'
-                : 'text-slate-500 hover:bg-slate-800/60 hover:text-slate-200'
+                ? 'bg-slate-800/90 text-slate-100 shadow-sm'
+                : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-100'
             }`}
           >
-            <Settings className="h-4 w-4" />
-            Prefs
+            {activeView === 'settings' && (
+              <span
+                aria-hidden="true"
+                className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full accent-grad"
+              />
+            )}
+            <Settings className="h-4 w-4 shrink-0" />
+            <span>Settings</span>
           </button>
         </div>
       </nav>

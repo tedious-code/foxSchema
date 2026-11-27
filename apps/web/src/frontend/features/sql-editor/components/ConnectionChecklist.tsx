@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { KeyRound } from 'lucide-react';
+import { KeyRound, Plus } from 'lucide-react';
 import { useSyncStore } from '@/features/compare';
+import { useUiStore } from '@/platform/uiStore';
 import { useSqlEditorStore } from '@/features/sql-editor/state/useSqlEditorStore';
 import { effectiveConnectionIds } from '@/features/sql-editor/state/sqlEditorTabLogic';
 import { FilterPicker, connectionPickerOption } from '@/shared/components/FilterPicker';
@@ -131,7 +132,17 @@ export const ConnectionChecklist: React.FC<{ variant?: 'list' | 'chips' }> = ({
         {!connectionsLoaded ? (
           <span className="text-[11px] text-slate-500">Loading…</span>
         ) : connections.length === 0 ? (
-          <span className="truncate text-[11px] text-slate-500">No saved connections</span>
+          <button
+            type="button"
+            data-testid="sql-add-connection-btn"
+            onClick={() => {
+              useUiStore.getState().setActiveView('sync');
+              useSyncStore.getState().setShowConnectionModal(true);
+            }}
+            className="inline-flex items-center gap-1 rounded-full border border-dashed border-cyan-500/40 bg-cyan-950/30 px-2.5 py-0.5 text-[11px] font-semibold text-cyan-200 hover:border-cyan-400 hover:bg-cyan-950/50 cursor-pointer transition"
+          >
+            <Plus className="h-3 w-3 shrink-0" /> Add connection
+          </button>
         ) : (
           /* A dropdown, not a scrolling strip: with a dozen saved servers the
              strip pushed most of them off-screen behind a scrollbar, so the

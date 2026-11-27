@@ -824,11 +824,10 @@ export const SqlEditorView: React.FC = () => {
             data-testid="sql-format-btn"
             onClick={onFormat}
             disabled={!tab.sql.trim()}
-            title="Pretty-print SQL (sql-formatter) and JS/TS/Node cells (Prettier) (Cmd/Ctrl+Shift+F)"
-            className="flex shrink-0 items-center gap-1 whitespace-nowrap px-2.5 py-1.5 rounded text-[11px] font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Pretty-print SQL and JS/TS/Node cells (Cmd/Ctrl+Shift+F)"
+            className="flex shrink-0 items-center gap-1 whitespace-nowrap px-2.5 py-1.5 rounded text-[11px] font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             <AlignLeft className="w-3.5 h-3.5 text-teal-400" strokeWidth={SQL_ICON_STROKE} /> Format
-            SQL+JS
           </button>
           {formatNote && (
             <span
@@ -907,7 +906,7 @@ export const SqlEditorView: React.FC = () => {
                   oneTransaction ? 'text-cyan-300 font-semibold' : 'text-slate-400 font-medium'
                 }
               >
-                1-Tx
+                Single Tx
               </span>
             </label>
 

@@ -1659,7 +1659,29 @@ function Designer() {
                   <div className="canvas-hint">
                     <div className="canvas-hint-card">
                       <strong>Build your workflow</strong>
-                      <span>Drag a pipe from the palette onto the canvas.</span>
+                      <span>
+                        Click or drag any pipe from the left palette onto the canvas, or start from a ready-to-run sample.
+                      </span>
+                      {canDesign && (
+                        <div className="mt-2 flex flex-wrap items-center justify-center gap-2 pointer-events-auto">
+                          <Button
+                            data-testid="workflow-canvas-add-samples"
+                            variant="primary"
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => void addSampleWorkflow()}
+                          >
+                            <Sparkles /> Load sample workflows
+                          </Button>
+                          <Button
+                            data-testid="workflow-canvas-browse-workflows"
+                            size="sm"
+                            onClick={() => setView('workflows')}
+                          >
+                            <FolderOpen /> Browse saved
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

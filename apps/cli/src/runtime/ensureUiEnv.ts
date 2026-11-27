@@ -35,6 +35,9 @@ export function ensureUiEnv(): { source: 'keychain' | 'env' | 'file' | 'generate
     if (!process.env.APP_ENCRYPTION_KEY && process.env.FOXSCHEMA_KEY) {
       process.env.APP_ENCRYPTION_KEY = process.env.FOXSCHEMA_KEY;
     }
+    if (!process.env.FOXFLOW_ENCRYPTION_KEY && process.env.APP_ENCRYPTION_KEY) {
+      process.env.FOXFLOW_ENCRYPTION_KEY = process.env.APP_ENCRYPTION_KEY;
+    }
     process.env.EDITION = process.env.EDITION || 'community';
     return { source: process.env.FOXSCHEMA_KEY ? 'env' : 'keychain' };
   }
@@ -44,6 +47,9 @@ export function ensureUiEnv(): { source: 'keychain' | 'env' | 'file' | 'generate
     const dek = getDek(c.email);
     if (dek) {
       applyEnv();
+      if (!process.env.FOXFLOW_ENCRYPTION_KEY && process.env.APP_ENCRYPTION_KEY) {
+        process.env.FOXFLOW_ENCRYPTION_KEY = process.env.APP_ENCRYPTION_KEY;
+      }
       return { source: 'keychain' };
     }
   }
@@ -57,6 +63,7 @@ export function ensureUiEnv(): { source: 'keychain' | 'env' | 'file' | 'generate
   }
 
   process.env.APP_ENCRYPTION_KEY = key;
+  process.env.FOXFLOW_ENCRYPTION_KEY ||= key;
   process.env.APP_KEY_SCHEME = 'v1';
   process.env.APP_DB_ENGINE = c.dbEngine || 'sqlite';
   const dbPath = c.dbPath || DEFAULT_DB_PATH;

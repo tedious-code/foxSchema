@@ -1,5 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { startUiServer, getLogger } from '@foxschema/server';
 
 /**
@@ -17,19 +19,40 @@ try {
   /* no .env file — fine */
 }
 
-// Encryption key must be present in production. The Docker entrypoint
-// (docker-entrypoint.sh) auto-generates and persists one under /data when unset,
-// so plain `docker pull && docker run -v …:/data` works. Bare process deploys
-// without that helper still need an explicit APP_ENCRYPTION_KEY.
-if (process.env.NODE_ENV === 'production' && !process.env.APP_ENCRYPTION_KEY) {
-  console.error(
-    'FATAL: APP_ENCRYPTION_KEY is required in production — it encrypts saved database\n' +
-      'passwords at rest. Generate one and set it in the environment:\n' +
-      '  openssl rand -hex 32\n' +
-      'Or run the Docker image with a /data volume (entrypoint auto-creates the key).\n' +
-      'Or use `foxschema open` (CLI auto-manages a local key under XDG data).'
-  );
-  process.exit(1);
+// Ensure an install encryption key exists on first boot so initial installs
+// work without manual env setup, and share it with the workflow engine when
+// FOXFLOW_ENCRYPTION_KEY is not set separately.
+if (!process.env.APP_ENCRYPTION_KEY) {
+  const keyFile =
+    process.env.APP_ENCRYPTION_KEY_FILE ||
+    (process.env.APP_DB_PATH && process.env.APP_DB_PATH !== ':memory:'
+      ? resolve(dirname(process.env.APP_DB_PATH), '.app_encryption_key')
+      : '/data/.app_encryption_key');
+  try {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- operator-configured key file path
+    const saved = readFileSync(keyFile, 'utf8').trim();
+    if (saved) process.env.APP_ENCRYPTION_KEY = saved;
+  } catch {
+    /* key file does not exist yet */
+  }
+  if (!process.env.APP_ENCRYPTION_KEY) {
+    const generated = randomBytes(32).toString('hex');
+    process.env.APP_ENCRYPTION_KEY = generated;
+    try {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- operator-configured key file path
+      mkdirSync(dirname(keyFile), { recursive: true });
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- operator-configured key file path
+      writeFileSync(keyFile, `${generated}\n`, { mode: 0o600 });
+      console.log(`[fox] Generated APP_ENCRYPTION_KEY and saved to ${keyFile}`);
+    } catch {
+      console.warn(
+        `[fox] Generated an in-memory APP_ENCRYPTION_KEY (could not write ${keyFile}). Set APP_ENCRYPTION_KEY or mount /data to persist it.`
+      );
+    }
+  }
+}
+if (!process.env.FOXFLOW_ENCRYPTION_KEY && process.env.APP_ENCRYPTION_KEY) {
+  process.env.FOXFLOW_ENCRYPTION_KEY = process.env.APP_ENCRYPTION_KEY;
 }
 
 // This app owns its build output, so this entry is the right place to know

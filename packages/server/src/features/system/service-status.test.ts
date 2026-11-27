@@ -37,6 +37,13 @@ describe('readServiceStatus', () => {
     });
     const blank = await readServiceStatus(deps(down, { FOXFLOW_ENCRYPTION_KEY: '  ' }));
     expect(blank.engine.detail).toBe('Set FOXFLOW_ENCRYPTION_KEY on the server to run the engine.');
+
+    const sharedAppKey = await readServiceStatus(
+      deps(async () => ({ ok: true, acceptsRuns: true, version: '1.4.0' }), {
+        APP_ENCRYPTION_KEY: '0'.repeat(64),
+      }),
+    );
+    expect(sharedAppKey.engine).toEqual({ state: 'running', version: '1.4.0', acceptsRuns: true });
   });
 
   it('calls a configured engine that is not ready unreachable, with the reason', async () => {

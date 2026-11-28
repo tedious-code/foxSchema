@@ -24,4 +24,18 @@ describe('compileZodSchema', () => {
     ]);
     expect(order).toEqual(['typed', 'cleared']);
   });
+
+  it('rejects browser globals, network calls, storage, and constructor escapes', async () => {
+    const unsafe = [
+      'fetch("https://evil.example"), z.string()',
+      'window.location.href = "https://evil.example"; return z.string();',
+      'document.cookie; return z.string();',
+      'localStorage.getItem("x"); return z.string();',
+      '({}).constructor.constructor("return 1")()',
+    ];
+    for (const snippet of unsafe) {
+      const res = await compileZodSchema(snippet);
+      expect(res).toHaveProperty('error');
+    }
+  });
 });

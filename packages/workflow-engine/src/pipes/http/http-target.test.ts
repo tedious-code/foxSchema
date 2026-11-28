@@ -18,6 +18,12 @@ describe('assertHttpTargetAllowed', () => {
     'http://100.100.100.200/latest/meta-data/',
     'http://169.254.169.254/latest/meta-data/',
     'http://metadata.google.internal/',
+    'http://10.0.0.1/internal',
+    'http://172.16.0.5/internal',
+    'http://192.168.1.10/admin',
+    'http://100.64.0.1/tailscale',
+    'http://[::ffff:10.0.0.1]/',
+    'http://[64:ff9b::127.0.0.1]/',
   ])('refuses %s', async (url) => {
     await expect(assertHttpTargetAllowed(url, { resolveHost: false })).rejects.toThrow(/not a public address/);
   });

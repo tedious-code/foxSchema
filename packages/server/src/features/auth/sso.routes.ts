@@ -11,9 +11,16 @@ import { SignInSettings } from '../../platform/identity/sign-in-settings.service
 import { SsoBroker } from '../../platform/identity/sso-broker';
 import { sendError } from '../../platform/http/respond';
 import { setCookie, clearCookie } from '../../platform/http/reply';
+import { rateLimit } from '../../platform/guards/rate-limit';
+import { redactCredentials } from '../../platform/http/redact';
 
 const STATE_COOKIE = 'sso_state';
 const STATE_PATH = '/api/auth/sso';
+
+function safeSsoError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : 'SSO sign-in failed';
+  return redactCredentials(raw).replace(/[\r\n\t]+/g, ' ').trim().slice(0, 240) || 'SSO sign-in failed';
+}
 
 function sameText(a: string, b: string): boolean {
   const x = Buffer.from(a);
@@ -73,6 +80,7 @@ export function createSsoRoutes(
   };
 
   const router = Router();
+  const ssoLimiter = rateLimit({ name: 'sso', windowMs: 15 * 60 * 1000, max: 60 });
   const secure = process.env.NODE_ENV === 'production';
   const stateCookie = (res: FastifyReply, value: string) =>
     setCookie(res, STATE_COOKIE, value, {
@@ -107,7 +115,7 @@ export function createSsoRoutes(
 
   // Begin the flow: remember state + PKCE verifier in a short-lived cookie,
   // then send the browser to the provider.
-  router.get('/:provider/start', async (req: AppRequest, res: FastifyReply) => {
+  router.get('/:provider/start', ssoLimiter, async (req: AppRequest, res: FastifyReply) => {
     const id = String(req.params.provider);
     const provider = await settings.provider(id);
     if (!provider && (await brokered()).some((p) => p.id === id)) {
@@ -135,7 +143,7 @@ export function createSsoRoutes(
   });
 
   // The Fox sign-in service redirects back here with ?assertion&state.
-  router.get(`/${BROKER_CALLBACK}/callback`, async (req: AppRequest, res: FastifyReply) => {
+  router.get(`/${BROKER_CALLBACK}/callback`, ssoLimiter, async (req: AppRequest, res: FastifyReply) => {
     try {
       if (!(await settings.broker()).enabled) throw new Error('The Fox sign-in service is turned off on this install.');
       const error = typeof req.query.error === 'string' ? req.query.error : '';
@@ -156,13 +164,12 @@ export function createSsoRoutes(
       setSessionCookie(res, token);
       res.redirect('/');
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'SSO sign-in failed';
-      res.redirect('/?sso_error=' + encodeURIComponent(message));
+      res.redirect('/?sso_error=' + encodeURIComponent(safeSsoError(error)));
     }
   });
 
   // Provider redirects back here with ?code&state.
-  router.get('/:provider/callback', async (req: AppRequest, res: FastifyReply) => {
+  router.get('/:provider/callback', ssoLimiter, async (req: AppRequest, res: FastifyReply) => {
     try {
       const provider = await settings.provider(String(req.params.provider));
       if (!provider) throw new Error('Unknown SSO provider');
@@ -190,8 +197,7 @@ export function createSsoRoutes(
       setSessionCookie(res, token);
       res.redirect('/');
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'SSO sign-in failed';
-      res.redirect('/?sso_error=' + encodeURIComponent(message));
+      res.redirect('/?sso_error=' + encodeURIComponent(safeSsoError(error)));
     }
   });
 

@@ -137,7 +137,8 @@ describe('runCodeCellOnServer (worker_threads sandbox)', () => {
   async function run(
     body: string,
     kind: 'js' | 'ts',
-    timeoutMs = 5000
+    timeoutMs = 5000,
+    options?: { allowPrivateFetch?: boolean }
   ) {
     const validated = validateCodeCellRequest({
       body,
@@ -149,7 +150,7 @@ describe('runCodeCellOnServer (worker_threads sandbox)', () => {
     });
     expect(validated.ok).toBe(true);
     if (!validated.ok) throw new Error(validated.error);
-    return runCodeCellOnServer(validated.value);
+    return runCodeCellOnServer(validated.value, options);
   }
 
   it('transpiles TS and returns a grid', async () => {
@@ -183,7 +184,8 @@ describe('runCodeCellOnServer (worker_threads sandbox)', () => {
          const json = await res.json();
          return [{ status: res.status, hello: json.hello }];`,
         'js',
-        20_000
+        20_000,
+        { allowPrivateFetch: true }
       );
       expect(result.ok, result.ok ? '' : result.error).toBe(true);
       if (result.ok) expect(result.rows[0]).toEqual([200, 'undici']);
@@ -228,6 +230,10 @@ describe('runCodeCellOnServer (worker_threads sandbox)', () => {
         `const F = (async function () {})[k];\n` +
         `const fs = await F('return import("node:fs")')();\n` +
         `return [{ hasRead: typeof fs.readFileSync }];`,
+      `const k = "constru" + "ctor";\n` +
+        `const F = (async function* () {})[k];\n` +
+        `const fs = await F('return import("node:fs")')().next();\n` +
+        `return [{ hasRead: Boolean(fs) }];`,
       `const F = Reflect.get(async function () {}, "constructor");\n` +
         `const fs = await F('return import("node:fs")')();\n` +
         `return [{ hasRead: typeof fs.readFileSync }];`,
@@ -241,6 +247,26 @@ describe('runCodeCellOnServer (worker_threads sandbox)', () => {
       }
     }
   }, 90_000);
+
+  it('blocks SSRF fetch targets (loopback, cloud metadata, private LAN) by default', async () => {
+    const blockedUrls = [
+      'http://127.0.0.1:3210/api/health',
+      'http://169.254.169.254/latest/meta-data/',
+      'http://10.0.0.1/internal',
+      'http://[::ffff:127.0.0.1]:3210/',
+    ];
+    for (const url of blockedUrls) {
+      const result = await run(
+        `const res = await fetch(${JSON.stringify(url)}); return [{ status: res.status }];`,
+        'js',
+        20_000
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toMatch(/not a public address|refused/i);
+      }
+    }
+  }, 60_000);
 
   it('rejects dynamic import of Node builtins (fs / child_process / cwd)', async () => {
     const attacks = [

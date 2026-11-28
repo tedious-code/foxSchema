@@ -19,22 +19,26 @@ export interface SecurityHeaderOptions {
    * months — a self-inflicted outage that is awkward to undo.
    */
   hsts?: boolean;
+  /** Tighter production CSP (omits dev HMR wildcard ws:/wss:). Defaults to NODE_ENV === 'production'. */
+  isProduction?: boolean;
 }
 
-const CSP = [
-  "default-src 'self'",
-  "script-src 'self'",
-  // Required by Tailwind runtime theming, which sets CSS variables inline.
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "font-src 'self' data:",
-  // Same-origin XHR plus ws: for the dev server's HMR socket.
-  "connect-src 'self' ws: wss:",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-].join('; ');
+function cspFor(isProduction: boolean): string {
+  return [
+    "default-src 'self'",
+    "script-src 'self'",
+    // Required by Tailwind runtime theming, which sets CSS variables inline.
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    // Same-origin XHR; dev also permits ws:/wss: for Vite HMR.
+    isProduction ? "connect-src 'self'" : "connect-src 'self' ws: wss:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join('; ');
+}
 
 /**
  * The headers for one request path.
@@ -48,7 +52,11 @@ export function securityHeadersFor(
   path: string,
   options: SecurityHeaderOptions = {}
 ): Record<string, string> {
-  const { servesUi = true, hsts = false } = options;
+  const {
+    servesUi = true,
+    hsts = false,
+    isProduction = process.env.NODE_ENV === 'production',
+  } = options;
   const isApi = path.startsWith('/api');
 
   const headers: Record<string, string> = {
@@ -59,6 +67,9 @@ export function securityHeadersFor(
     'X-Frame-Options': 'DENY',
     // Referrers can carry connection names and object paths.
     'Referrer-Policy': 'no-referrer',
+    // Isolate browsing context and block cross-origin resource reads.
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Resource-Policy': 'same-origin',
     'Permissions-Policy':
       'geolocation=(), microphone=(), camera=(), payment=(), usb=(), interest-cohort=()',
   };
@@ -71,7 +82,7 @@ export function securityHeadersFor(
     headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains';
   }
   if (servesUi && !isApi) {
-    headers['Content-Security-Policy'] = CSP;
+    headers['Content-Security-Policy'] = cspFor(isProduction);
   }
   return headers;
 }

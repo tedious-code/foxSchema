@@ -191,6 +191,8 @@ function runInWorkerThread(args: {
   defaultBeamAlias?: string;
   /** When true, enforce max SQL bridge calls per Execute (all `sql` / `sql.on`). */
   enforceBeamSqlOnCap?: boolean;
+  /** Local/test opt-in to allow fetch to loopback/private addresses. Never set from HTTP bodies. */
+  allowPrivateFetch?: boolean;
 }): Promise<CodeCellResult> {
   return new Promise((resolve) => {
     let settled = false;
@@ -264,6 +266,10 @@ function runInWorkerThread(args: {
           allowWrites: args.allowWrites,
           beamDialects: args.beamDialects,
           defaultBeamAlias: args.defaultBeamAlias,
+          allowPrivateFetch: args.allowPrivateFetch === true,
+        },
+        resourceLimits: {
+          maxOldGenerationSizeMb: 128,
         },
         execArgv,
         env: codeCellWorkerEnv(),
@@ -365,6 +371,8 @@ export async function runCodeCellOnServer(
     beamDialects?: Record<string, string>;
     defaultBeamAlias?: string;
     enforceBeamSqlOnCap?: boolean;
+    /** Local/test opt-in to allow fetch to loopback/private addresses. */
+    allowPrivateFetch?: boolean;
   }
 ): Promise<CodeCellResult & { durationMs: number }> {
   const started = Date.now();
@@ -393,6 +401,8 @@ export async function runCodeCellOnServer(
     beamDialects: options?.beamDialects,
     defaultBeamAlias: options?.defaultBeamAlias,
     enforceBeamSqlOnCap: options?.enforceBeamSqlOnCap,
+    allowPrivateFetch:
+      options?.allowPrivateFetch ?? process.env.FOX_CODE_CELL_ALLOW_PRIVATE_FETCH === 'true',
   });
   return { ...result, durationMs: Date.now() - started };
 }

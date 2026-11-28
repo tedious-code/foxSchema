@@ -60,6 +60,15 @@ describe('secret encryption (AES-256-GCM)', () => {
     expect(() => decryptSecret(tampered)).toThrow();
   });
 
+  it('rejects truncated GCM auth tags or invalid IV lengths', () => {
+    const enc = encryptSecret('secret');
+    const [scheme, iv, tag, data] = enc.split(':');
+    const shortTag = Buffer.from(tag!, 'base64').subarray(0, 8).toString('base64');
+    expect(() => decryptSecret(`${scheme}:${iv}:${shortTag}:${data}`)).toThrow(/Malformed/);
+    const shortIv = Buffer.from(iv!, 'base64').subarray(0, 8).toString('base64');
+    expect(() => decryptSecret(`${scheme}:${shortIv}:${tag}:${data}`)).toThrow(/Malformed/);
+  });
+
   it('still decrypts a legacy untagged (3-part) v1 payload', () => {
     // Old format had no scheme prefix; encrypt then strip the "v1:" tag.
     const enc = encryptSecret('legacy-secret');

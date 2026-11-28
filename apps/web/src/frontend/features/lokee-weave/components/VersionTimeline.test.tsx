@@ -5,12 +5,20 @@
  */
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { VersionTimeline } from './VersionTimeline';
 
 const V = (
   number: number,
-  extras: { added?: number; modified?: number; removed?: number; changeCount?: number } = {}
+  extras: {
+    added?: number;
+    modified?: number;
+    removed?: number;
+    changeCount?: number;
+    name?: string;
+    description?: string;
+    author?: string;
+  } = {}
 ) => ({
   id: `v${number}`,
   number,
@@ -40,5 +48,52 @@ describe('VersionTimeline', () => {
     );
     fireEvent.click(screen.getByTestId('lokee-timeline-v-1'));
     expect(onSelect).toHaveBeenCalledWith('v1');
+  });
+
+  it('filters versions by label, author, or version number and clears search', () => {
+    render(
+      <VersionTimeline
+        versions={[
+          V(2, { name: 'Billing release', author: 'alice' }),
+          V(1, { name: 'Initial baseline', author: 'bob' }),
+        ]}
+        totalVersions={2}
+      />
+    );
+    fireEvent.change(screen.getByTestId('lokee-timeline-search'), {
+      target: { value: 'billing' },
+    });
+    expect(screen.getByTestId('lokee-timeline-v-2')).toBeTruthy();
+    expect(screen.queryByTestId('lokee-timeline-v-1')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('lokee-timeline-search-clear'));
+    expect(screen.getByTestId('lokee-timeline-v-1')).toBeTruthy();
+  });
+
+  it('edits version label and notes inline directly from the timeline', async () => {
+    const onSaveVersionMeta = vi.fn().mockResolvedValue(undefined);
+    render(
+      <VersionTimeline
+        versions={[V(2, { name: 'Old label', description: 'Old note' })]}
+        totalVersions={1}
+        onSaveVersionMeta={onSaveVersionMeta}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('lokee-timeline-edit-2'));
+    fireEvent.change(screen.getByTestId('lokee-timeline-edit-name'), {
+      target: { value: 'Pre-deploy checkpoint' },
+    });
+    fireEvent.change(screen.getByTestId('lokee-timeline-edit-desc'), {
+      target: { value: 'Verified on staging' },
+    });
+    fireEvent.click(screen.getByTestId('lokee-timeline-edit-save'));
+
+    await waitFor(() => {
+      expect(onSaveVersionMeta).toHaveBeenCalledWith('v2', {
+        name: 'Pre-deploy checkpoint',
+        description: 'Verified on staging',
+      });
+    });
   });
 });

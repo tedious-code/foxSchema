@@ -37,6 +37,7 @@ import { useSqlEditorStore } from '@/features/sql-editor/state';
 import { useUiStore } from '@/platform/uiStore';
 import { useAuthStore } from '@/platform/authStore';
 import { EmptyState, Segmented, inputCls, labelCls } from '@/shared/components/controls';
+import { useEscapeKey } from '@/shared/lib/useEscapeKey';
 import { type DbAccessConfirmRequest } from './DbAccessPermissionSections';
 import { PermissionInspector } from './PermissionInspector';
 import { SectionLabel } from '@/shared/components/surfaces';
@@ -92,6 +93,7 @@ export const AccessPermissionPanel: React.FC<{
     () => new Set(['user', 'role', 'group'])
   );
   const loadToken = useRef(0);
+  useEscapeKey(() => setConfirm(null), Boolean(confirm) && !applying);
 
   const conn = connections.find((c) => c.id === connectionId) || null;
   const dialect = conn?.dialect ?? '';
@@ -250,15 +252,23 @@ export const AccessPermissionPanel: React.FC<{
     })).filter((g) => g.allOfKind.length > 0);
   }, [principals, filter, kindFilter]);
 
+  const showStandaloneHeader = lockedConnectionId === undefined || !connectionId || Boolean(hint);
+
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden" data-testid="access-permission-panel">
-      <div className="shrink-0 px-4 pt-3 pb-2 flex flex-wrap items-center gap-2">
+      <div
+        className={
+          showStandaloneHeader
+            ? 'shrink-0 px-4 pt-3 pb-2 flex flex-wrap items-center gap-2'
+            : 'sr-only'
+        }
+      >
         <label
           className={`flex flex-col gap-1 min-w-[14rem] flex-1 ${
             lockedConnectionId !== undefined ? 'sr-only' : ''
           }`}
         >
-          <span className={labelCls}>Database</span>
+          <span className={labelCls}>Connection</span>
           <select
             data-testid="access-permission-connection"
             value={connectionId}
@@ -283,30 +293,35 @@ export const AccessPermissionPanel: React.FC<{
             ))}
           </select>
         </label>
-        <button
-          type="button"
-          data-testid="access-permission-reload"
-          disabled={!connectionId || loading}
-          onClick={() => void load({ force: true })}
-          className="inline-flex items-center gap-1.5 rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-100 hover:bg-slate-700 disabled:opacity-40"
-        >
-          {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-          Reload
-        </button>
         {hint && (
-          <p className="text-[11px] text-slate-500 w-full" data-testid="access-permission-hint">
+          <p className="text-[11px] text-slate-400 w-full" data-testid="access-permission-hint">
             {hint}
           </p>
         )}
       </div>
 
       {!connectionId && (
-        <div className="px-4">
-          <EmptyState
-            title="Choose a connection"
-            body="Pick a saved database to load principals and grant privileges."
-            testId="access-permission-needs-connection"
-          />
+        <div className="px-4 flex flex-col items-center gap-3">
+          <div className="w-full">
+            <EmptyState
+              title="Choose a connection"
+              body="Pick a saved database above to load users, roles, and grant privileges."
+              testId="access-permission-needs-connection"
+            />
+          </div>
+          {connections.length === 0 && (
+            <button
+              type="button"
+              data-testid="access-permission-add-connection"
+              onClick={() => {
+                setActiveView('sync');
+                useSyncStore.getState().setShowConnectionModal(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg accent-grad on-accent-fg px-3.5 py-2 text-xs font-bold shadow-sm cursor-pointer hover:brightness-110 transition"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add your first connection
+            </button>
+          )}
         </div>
       )}
 
@@ -328,9 +343,22 @@ export const AccessPermissionPanel: React.FC<{
             data-testid="access-principals-sidebar"
           >
             <div className="px-3 py-2.5 border-b border-slate-800 shrink-0">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Principals
-              </p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Principals
+                </p>
+                <button
+                  type="button"
+                  data-testid="access-permission-reload"
+                  disabled={!connectionId || loading}
+                  onClick={() => void load({ force: true })}
+                  title="Reload principals and privileges from the database"
+                  className="inline-flex items-center gap-1 rounded border border-slate-700 bg-slate-900 px-2 py-0.5 text-[11px] font-semibold text-slate-300 hover:border-slate-500 hover:text-slate-100 disabled:opacity-40 cursor-pointer transition"
+                >
+                  {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                  Reload
+                </button>
+              </div>
               <input
                 data-testid="access-permission-filter"
                 value={filter}
@@ -553,11 +581,14 @@ export const AccessPermissionPanel: React.FC<{
             onClick={() => setConfirm(null)}
           >
             <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="access-confirm-title"
               className="w-full max-w-lg rounded-xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
               onClick={(e) => e.stopPropagation()}
               data-testid="access-permission-confirm"
             >
-              <h3 className="text-sm font-bold text-slate-100 mb-2">{confirm.title}</h3>
+              <h3 id="access-confirm-title" className="text-sm font-bold text-slate-100 mb-2">{confirm.title}</h3>
               <p className="text-[11px] text-slate-500 mb-2">
                 {canGrant
                   ? 'Apply runs this SQL on the connection. Copy and Open in SQL Editor leave the database unchanged.'

@@ -13,11 +13,11 @@ export const TestIds = {
       accessGrantsAlsoHolds: 'access-grants-also-holds',
       /** li */
       accessGrantsChange: (action: string | number) => `access-grants-change-${action}`,
-      /** button · Copy */
+      /** button */
       accessGrantsCopy: 'access-grants-copy',
       /** ul */
       accessGrantsDiff: 'access-grants-diff',
-      /** button · Open in SQL Editor */
+      /** button */
       accessGrantsOpenSql: 'access-grants-open-sql',
       /** button */
       accessGrantsPreset: (p: string | number) => `access-grants-preset-${p}`,
@@ -45,6 +45,8 @@ export const TestIds = {
       accessPermissionAccountMembers: 'access-permission-account-members',
       /** dd */
       accessPermissionAccountName: 'access-permission-account-name',
+      /** button · Add your first connection */
+      accessPermissionAddConnection: 'access-permission-add-connection',
       /** p */
       accessPermissionAllowAll: 'access-permission-allow-all',
       /** li */
@@ -81,7 +83,7 @@ export const TestIds = {
       accessPermissionPanel: 'access-permission-panel',
       /** div */
       accessPermissionPrincipal: 'access-permission-principal',
-      /** button · Reload */
+      /** button · Reload principals and privileges from the database */
       accessPermissionReload: 'access-permission-reload',
       /** button */
       accessPermissionRow: (name: string | number) => `access-permission-row-${name}`,
@@ -127,6 +129,8 @@ export const TestIds = {
       reportWho: 'report-who',
     },
     AccessView: {
+      /** button · Add connection */
+      accessAddConnection: 'access-add-connection',
       /** select · Choose a saved connection… */
       accessConnection: 'access-connection',
       /** nav · Access */
@@ -475,6 +479,8 @@ export const TestIds = {
       userNameToggle: 'user-name-toggle',
       /** input */
       userNewName: 'user-new-name',
+      /** button · Open this SQL script in the SQL Editor without running it */
+      userOpenSql: 'user-open-sql',
       /** input · <password> */
       userOsPassword: 'user-os-password',
       /** button · Generate */
@@ -1603,7 +1609,7 @@ export const TestIds = {
     HistoryCompareBar: {
       /** button · Read the live schema and record it as a new version */
       lokeeCaptureBtn: 'lokee-capture-btn',
-      /** select · Live credential to snapshot into this history */
+      /** select · Live connection to snapshot into this history */
       lokeeCaptureConnection: 'lokee-capture-connection',
       /** button · Diff Original against Target */
       lokeeCompareVersionsBtn: 'lokee-compare-versions-btn',
@@ -1647,13 +1653,15 @@ export const TestIds = {
     LokeeWeavePage: {
       /** MiniMap */
       lokeeMinimap: 'lokee-minimap',
+      /** span */
+      lokeeRfActiveFilters: 'lokee-rf-active-filters',
       /** input */
       lokeeRfAuthor: (author: string | number) => `lokee-rf-author-${author}`,
       /** div */
       lokeeRfCapped: 'lokee-rf-capped',
       /** input */
       lokeeRfChangesOnly: 'lokee-rf-changes-only',
-      /** button · Clear filters */
+      /** button · Reset all filters to default */
       lokeeRfClearFilters: 'lokee-rf-clear-filters',
       /** input */
       lokeeRfDateFrom: 'lokee-rf-date-from',
@@ -1701,14 +1709,18 @@ export const TestIds = {
       lokeeWeavePage: 'lokee-weave-page',
     },
     LokeeWeaveView: {
+      /** button · Add connection */
+      lokeeEmptyAddConnection: 'lokee-empty-add-connection',
       /** button */
       lokeeEmptyCapture: 'lokee-empty-capture',
       /** select · Choose a database… */
       lokeeEmptyCredential: 'lokee-empty-credential',
       /** button · Apply a stored version to a database it was not captured from */
       lokeeForceMigrateBtn: 'lokee-force-migrate-btn',
-      /** button · Graph */
+      /** button · Object lineage graph */
       lokeeGraphToggle: 'lokee-graph-toggle',
+      /** button · Version timeline list */
+      lokeeTimelineToggle: 'lokee-timeline-toggle',
       /** button · Try again */
       lokeeTryAgain: 'lokee-try-again',
       /** div */
@@ -1781,7 +1793,23 @@ export const TestIds = {
       lokeeSummary: 'lokee-summary',
       /** div */
       lokeeTimeline: 'lokee-timeline',
-      /** button · v */
+      /** button · Rename or add notes */
+      lokeeTimelineEdit: (number: string | number) => `lokee-timeline-edit-${number}`,
+      /** button · Cancel */
+      lokeeTimelineEditCancel: 'lokee-timeline-edit-cancel',
+      /** textarea · Optional notes for this version… */
+      lokeeTimelineEditDesc: 'lokee-timeline-edit-desc',
+      /** div */
+      lokeeTimelineEditForm: (number: string | number) => `lokee-timeline-edit-form-${number}`,
+      /** input */
+      lokeeTimelineEditName: 'lokee-timeline-edit-name',
+      /** button */
+      lokeeTimelineEditSave: 'lokee-timeline-edit-save',
+      /** input · Filter versions, labels, authors… */
+      lokeeTimelineSearch: 'lokee-timeline-search',
+      /** button · Clear version filter */
+      lokeeTimelineSearchClear: 'lokee-timeline-search-clear',
+      /** button · v Compare */
       lokeeTimelineV: (number: string | number) => `lokee-timeline-v-${number}`,
     },
   },
@@ -1799,16 +1827,32 @@ export const TestIds = {
       historyClearAllConfirm: 'history-clear-all-confirm',
       /** button · Delete this record */
       historyDeleteRecord: 'history-delete-record',
+      /** button · Cancel */
+      historyDeleteRecordCancel: 'history-delete-record-cancel',
+      /** button · Confirm */
+      historyDeleteRecordConfirm: 'history-delete-record-confirm',
       /** button · Delete selected records */
       historyDeleteSelected: 'history-delete-selected',
+      /** button · Cancel */
+      historyDeleteSelectedCancel: 'history-delete-selected-cancel',
+      /** button · Delete */
+      historyDeleteSelectedConfirm: 'history-delete-selected-confirm',
       /** div · Migration History */
       historyDialog: 'history-dialog',
-      /** button */
+      /** button · Close migration history */
       historyDialogCloseBtn: 'history-dialog-close-btn',
       /** button · Download pre-migration snapshot */
       historyDownloadPreMigration: 'history-download-pre-migration',
+      /** div */
+      historyLoadError: 'history-load-error',
+      /** button · Open Schema Snapshots timeline and version diff */
+      historyOpenSnapshots: 'history-open-snapshots',
       /** button · Refresh */
       historyRefresh: 'history-refresh',
+      /** button · Retry */
+      historyRetry: 'history-retry',
+      /** span */
+      historyRunDuration: 'history-run-duration',
       /** div */
       historyRunItem: 'history-run-item',
       /** input · Select this record */
@@ -1817,10 +1861,14 @@ export const TestIds = {
       historySelectAll: 'history-select-all',
       /** button · Copy SQL */
       migrationHistoryCopySql: 'migration-history-copy-sql',
+      /** button · Download .sql */
+      migrationHistoryDownloadSql: 'migration-history-download-sql',
       /** select · Filter migrations by status */
       migrationHistoryFilterStatus: 'migration-history-filter-status',
       /** div */
       migrationHistoryNoMatch: 'migration-history-no-match',
+      /** button · Open in SQL Editor */
+      migrationHistoryOpenSql: 'migration-history-open-sql',
       /** input · Search migration history */
       migrationHistorySearch: 'migration-history-search',
     },
@@ -4283,6 +4331,7 @@ export const TestIds = {
 
 /** Any test ID in the web app; `${string}` is a part filled in at run time. */
 export type TestId =
+  | 'access-add-connection'
   | 'access-connection'
   | 'access-grants-also-holds'
   | `access-grants-change-${string}`
@@ -4302,6 +4351,7 @@ export type TestId =
   | 'access-permission-account-memberof'
   | 'access-permission-account-members'
   | 'access-permission-account-name'
+  | 'access-permission-add-connection'
   | 'access-permission-allow-all'
   | `access-permission-alteration-${string}`
   | 'access-permission-apply'
@@ -5052,11 +5102,19 @@ export type TestId =
   | 'history-clear-all-cancel'
   | 'history-clear-all-confirm'
   | 'history-delete-record'
+  | 'history-delete-record-cancel'
+  | 'history-delete-record-confirm'
   | 'history-delete-selected'
+  | 'history-delete-selected-cancel'
+  | 'history-delete-selected-confirm'
   | 'history-dialog'
   | 'history-dialog-close-btn'
   | 'history-download-pre-migration'
+  | 'history-load-error'
+  | 'history-open-snapshots'
   | 'history-refresh'
+  | 'history-retry'
+  | 'history-run-duration'
   | 'history-run-item'
   | `history-select-${string}`
   | 'history-select-all'
@@ -5178,6 +5236,7 @@ export type TestId =
   | 'lokee-compare-copy-revert-sql'
   | 'lokee-compare-versions-btn'
   | 'lokee-database-select'
+  | 'lokee-empty-add-connection'
   | 'lokee-empty-capture'
   | 'lokee-empty-credential'
   | 'lokee-force-migrate-btn'
@@ -5197,6 +5256,7 @@ export type TestId =
   | 'lokee-object-inspector'
   | 'lokee-original-version'
   | 'lokee-refresh-btn'
+  | 'lokee-rf-active-filters'
   | `lokee-rf-author-${string}`
   | 'lokee-rf-capped'
   | 'lokee-rf-changes-only'
@@ -5225,6 +5285,15 @@ export type TestId =
   | 'lokee-summary'
   | 'lokee-target-version'
   | 'lokee-timeline'
+  | `lokee-timeline-edit-${string}`
+  | 'lokee-timeline-edit-cancel'
+  | 'lokee-timeline-edit-desc'
+  | `lokee-timeline-edit-form-${string}`
+  | 'lokee-timeline-edit-name'
+  | 'lokee-timeline-edit-save'
+  | 'lokee-timeline-search'
+  | 'lokee-timeline-search-clear'
+  | 'lokee-timeline-toggle'
   | `lokee-timeline-v-${string}`
   | 'lokee-try-again'
   | 'lokee-version-briefing'
@@ -5274,8 +5343,10 @@ export type TestId =
   | 'migration-download-pre-migration'
   | 'migration-failed'
   | 'migration-history-copy-sql'
+  | 'migration-history-download-sql'
   | 'migration-history-filter-status'
   | 'migration-history-no-match'
+  | 'migration-history-open-sql'
   | 'migration-history-search'
   | 'migration-partial'
   | 'migration-progress-item'
@@ -5926,6 +5997,7 @@ export type TestId =
   | `user-name-option-${string}`
   | 'user-name-toggle'
   | 'user-new-name'
+  | 'user-open-sql'
   | 'user-os-password'
   | 'user-os-password-generate'
   | 'user-os-password-reveal'

@@ -13,7 +13,7 @@
  * else it had — CONNECT on the database included.
  */
 import React, { useCallback, useMemo, useState } from 'react';
-import { Copy, FileCode2 } from 'lucide-react';
+import { Check, Copy, FileCode2 } from 'lucide-react';
 import {
   buildAccessSql,
   splitHeldPrivileges,
@@ -93,6 +93,7 @@ export const AccessGrantsStage: React.FC<{
   } | null>(null);
   const [changes, setChanges] = useState<GridChanges>({ grant: [], revoke: [] });
   const [resetNonce, setResetNonce] = useState<number | undefined>(undefined);
+  const [copiedSql, setCopiedSql] = useState(false);
   const catalog = useAllSchemaObjects(connectionId, true);
 
   const accessPrincipal = useMemo(
@@ -246,19 +247,26 @@ export const AccessGrantsStage: React.FC<{
               type="button"
               data-testid="access-grants-copy"
               disabled={!sqlText.trim()}
-              onClick={() => void writeClipboard(sqlText)}
-              className="inline-flex items-center gap-1 rounded-md border border-slate-600 px-2 py-1 text-[11px] font-bold text-slate-200 disabled:opacity-40"
+              onClick={() => {
+                void writeClipboard(sqlText).then((ok) => {
+                  if (!ok) return;
+                  setCopiedSql(true);
+                  setTimeout(() => setCopiedSql(false), 1600);
+                });
+              }}
+              className="inline-flex items-center gap-1 rounded-md border border-slate-600 px-2 py-1 text-[11px] font-bold text-slate-200 hover:border-slate-500 disabled:opacity-40 cursor-pointer transition"
             >
-              <Copy className="w-3 h-3" /> Copy
+              {copiedSql ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+              {copiedSql ? 'Copied' : 'Copy'}
             </button>
             <button
               type="button"
               data-testid="access-grants-open-sql"
               disabled={!sqlText.trim()}
               onClick={openSql}
-              className="inline-flex items-center gap-1 rounded-md border border-sky-500/40 bg-sky-500/15 px-2 py-1 text-[11px] font-bold text-sky-100 disabled:opacity-40"
+              className="inline-flex items-center gap-1 rounded-md border border-sky-500/40 bg-sky-500/15 px-2.5 py-1 text-[11px] font-bold text-sky-100 hover:bg-sky-500/25 disabled:opacity-40 cursor-pointer transition"
             >
-              <FileCode2 className="w-3 h-3" /> Open in SQL Editor
+              <FileCode2 className="w-3 h-3" /> {canGrant && grantSupported ? 'Review & Apply…' : 'Review SQL…'}
             </button>
           </div>
         </div>
@@ -268,8 +276,10 @@ export const AccessGrantsStage: React.FC<{
               ? 'Reading schema objects…'
               : `Nothing to change: the grid matches what ${principal.name} holds now. Tick a box to grant it, untick one to revoke it.`)}
         </pre>
-        <p className="mt-2 text-[10px] text-slate-500">
-          Open in SQL Editor shows the script first. Apply there runs it; Copy does not.
+        <p className="mt-2 text-[11px] text-slate-400">
+          {canGrant && grantSupported
+            ? 'Review & Apply previews the full script first — apply directly, open in SQL Editor, or copy.'
+            : 'Review SQL previews the script so you can open it in SQL Editor or copy it.'}
         </p>
       </div>
       {/*

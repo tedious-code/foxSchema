@@ -10,7 +10,7 @@
  * testable with a fixture and has no idea a network exists.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Camera, GitBranch, Loader2, RefreshCw, TriangleAlert, Upload } from 'lucide-react';
+import { Camera, GitBranch, List, Loader2, Plus, RefreshCw, TriangleAlert, Upload } from 'lucide-react';
 import { LokeeWeavePage } from './LokeeWeavePage';
 import { VersionCompareModal } from './VersionCompareModal';
 import { ForceMigrateModal } from './ForceMigrateModal';
@@ -555,9 +555,23 @@ export function LokeeWeaveView({
             </button>
           </div>
           {connections.length === 0 && (
-            <p className="text-[11px] text-slate-500">
-              No saved connections yet — add one from <span className="text-slate-300">Credentials</span> first.
-            </p>
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-[11px] text-slate-400">
+                No saved connections yet — add a database connection to take your first snapshot.
+              </p>
+              <button
+                type="button"
+                data-testid="lokee-empty-add-connection"
+                onClick={() => {
+                  useUiStore.getState().setActiveView('sync');
+                  useSyncStore.getState().setShowConnectionModal(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-cyan-500/40 bg-cyan-950/30 px-3 py-1 text-xs font-semibold text-cyan-200 transition hover:border-cyan-400 hover:bg-cyan-950/50 cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5 shrink-0" strokeWidth={SQL_ICON_STROKE} />
+                Add connection
+              </button>
+            </div>
           )}
           <p className="max-w-sm text-[11px] leading-relaxed text-slate-500">
             After that, every migration you run records a version automatically. You can compare
@@ -576,21 +590,43 @@ export function LokeeWeaveView({
           graph draws at once.
         </div>
       )}
-      <div className="flex shrink-0 items-center justify-end gap-2 border-b border-slate-800 px-4 py-1">
-        <button
-          type="button"
-          data-testid="lokee-graph-toggle"
-          aria-pressed={showGraph}
-          onClick={() => setShowGraph((on) => !on)}
-          className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-[11px] font-semibold transition ${
-            showGraph
-              ? 'bg-violet-700/80 text-violet-50'
-              : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-          }`}
+      <div className="flex shrink-0 items-center justify-end gap-2 border-b border-slate-800 px-4 py-1.5">
+        <div
+          role="group"
+          aria-label="History view mode"
+          className="inline-flex items-center rounded-md border border-slate-700/80 bg-slate-950/60 p-0.5"
         >
-          <GitBranch className="h-3.5 w-3.5" strokeWidth={SQL_ICON_STROKE} />
-          Graph
-        </button>
+          <button
+            type="button"
+            data-testid="lokee-timeline-toggle"
+            aria-pressed={!showGraph}
+            onClick={() => setShowGraph(false)}
+            title="Version timeline list"
+            className={`inline-flex items-center gap-1.5 rounded px-2.5 py-0.5 text-[11px] font-semibold transition ${
+              !showGraph
+                ? 'bg-slate-800 text-slate-100 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <List className="h-3.5 w-3.5" strokeWidth={SQL_ICON_STROKE} />
+            Timeline
+          </button>
+          <button
+            type="button"
+            data-testid="lokee-graph-toggle"
+            aria-pressed={showGraph}
+            onClick={() => setShowGraph(true)}
+            title="Object lineage graph"
+            className={`inline-flex items-center gap-1.5 rounded px-2.5 py-0.5 text-[11px] font-semibold transition ${
+              showGraph
+                ? 'bg-violet-700/80 text-violet-50 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <GitBranch className="h-3.5 w-3.5" strokeWidth={SQL_ICON_STROKE} />
+            Graph
+          </button>
+        </div>
         {canForceMigrate && activeId && (
           <button
             type="button"
@@ -632,6 +668,7 @@ export function LokeeWeaveView({
                   useLokeeHistoryStore.getState().setOriginalVersionId(id);
                   setComparePair({ original: id });
                 }}
+                onSaveVersionMeta={saveVersionMeta}
               />
             </>
           )}

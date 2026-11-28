@@ -10,9 +10,10 @@
  * tabs (e2e testids preserved).
  */
 import React, { useEffect, useState } from 'react';
-import { UserCog, GitCompare, ShieldCheck } from 'lucide-react';
+import { UserCog, GitCompare, ShieldCheck, Plus } from 'lucide-react';
 import { useSyncStore } from '@/features/compare';
 import { useAuthStore } from '@/platform/authStore';
+import { useUiStore } from '@/platform/uiStore';
 import type { Permission } from '@foxschema/shared';
 import { PermissionDiff } from './PermissionDiff';
 import { UserManagement } from './UserManagement';
@@ -26,12 +27,13 @@ const LS_CONN = 'foxschema-access-connection';
 const SECTIONS: {
   id: AccessSection;
   label: string;
+  title: string;
   icon: React.ElementType;
   permission: Permission;
 }[] = [
-  { id: 'permission', label: 'Permissions', icon: ShieldCheck, permission: 'access.builder' },
-  { id: 'users', label: 'Users', icon: UserCog, permission: 'access.users' },
-  { id: 'diff', label: 'Insight', icon: GitCompare, permission: 'access.diff' },
+  { id: 'permission', label: 'Permissions', title: 'Inspect principals and edit object or schema grants', icon: ShieldCheck, permission: 'access.builder' },
+  { id: 'users', label: 'Users', title: 'Create, alter, or drop database users and roles', icon: UserCog, permission: 'access.users' },
+  { id: 'diff', label: 'Insight', title: 'Compare desired privileges against the live database catalog', icon: GitCompare, permission: 'access.diff' },
 ];
 
 function loadConnectionId(connections: { id: string }[]): string {
@@ -97,6 +99,7 @@ export const AccessView: React.FC = () => {
               key={s.id}
               type="button"
               data-testid={`access-tab-${s.id}`}
+              title={s.title}
               aria-current={active ? 'page' : undefined}
               onClick={() => setSection(s.id)}
               className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
@@ -110,30 +113,45 @@ export const AccessView: React.FC = () => {
             </button>
           );
         })}
-        <label className="ml-auto flex min-w-[14rem] max-w-sm flex-col gap-0.5 px-1 py-0.5">
-          <span className="text-[9px] font-bold uppercase tracking-wide text-slate-500">
-            Credential
-          </span>
-          <select
-            data-testid="access-connection"
-            value={connectionId}
-            onChange={(e) => pickConnection(e.target.value)}
-            className="rounded-full border border-cyan-500/30 bg-slate-950 px-3 py-1 text-[12px] text-slate-100 outline-none accent-focus"
-          >
-            <option value="">Choose a saved connection…</option>
-            {connections.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} · {c.dialect}
-              </option>
-            ))}
-          </select>
-          {conn?.database && (
-            <span className="truncate font-mono text-[10px] text-slate-500" title={conn.database}>
-              {conn.database}
-              {conn.schema ? ` · ${conn.schema}` : ''}
-            </span>
+        <div className="ml-auto flex items-end gap-2 px-1 py-0.5">
+          {connections.length === 0 && (
+            <button
+              type="button"
+              data-testid="access-add-connection"
+              onClick={() => {
+                useUiStore.getState().setActiveView('sync');
+                useSyncStore.getState().setShowConnectionModal(true);
+              }}
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-cyan-500/40 bg-cyan-950/30 px-2.5 py-1 text-[11px] font-semibold text-cyan-200 hover:border-cyan-400 hover:bg-cyan-950/50 cursor-pointer transition"
+            >
+              <Plus className="h-3 w-3 shrink-0" /> Add connection
+            </button>
           )}
-        </label>
+          <label className="flex min-w-[14rem] max-w-sm flex-col gap-0.5">
+            <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400">
+              Connection
+            </span>
+            <select
+              data-testid="access-connection"
+              value={connectionId}
+              onChange={(e) => pickConnection(e.target.value)}
+              className="rounded-full border border-cyan-500/30 bg-slate-950 px-3 py-1 text-[12px] text-slate-100 outline-none accent-focus"
+            >
+              <option value="">Choose a saved connection…</option>
+              {connections.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} · {c.dialect}
+                </option>
+              ))}
+            </select>
+            {conn?.database && (
+              <span className="truncate font-mono text-[10px] text-slate-400" title={conn.database}>
+                {conn.database}
+                {conn.schema ? ` · ${conn.schema}` : ''}
+              </span>
+            )}
+          </label>
+        </div>
       </nav>
 
       <div className="flex-1 min-h-0 flex flex-col overflow-hidden">

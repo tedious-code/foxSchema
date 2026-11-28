@@ -660,6 +660,22 @@ export const LokeeWeavePage: React.FC<LokeeWeavePageProps> = ({
   // A reader of the history is asking what moved and what did not.
   const unchanged = dto.objects.length - changed;
 
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    const defaultTypes = new Set(DEFAULT_HISTORY_OBJECT_TYPES);
+    const typesChanged =
+      filters.objectTypes.size !== defaultTypes.size ||
+      [...filters.objectTypes].some((t) => !defaultTypes.has(t));
+    if (typesChanged) count += 1;
+    if (filters.showDeleted) count += 1;
+    if (!filters.changesOnly) count += 1;
+    if (filters.statuses.size > 0) count += 1;
+    if (filters.versionIds.size > 0) count += 1;
+    if (filters.authors.size > 0) count += 1;
+    if (filters.dateFrom || filters.dateTo) count += 1;
+    return count;
+  }, [filters]);
+
   return (
     <div data-testid="lokee-weave-page" className="flex h-full min-h-0 flex-col gap-2 overflow-hidden px-6 pt-2">
       {/* One compact line. The title, the subtitle and a three-line totals card
@@ -691,6 +707,34 @@ export const LokeeWeavePage: React.FC<LokeeWeavePageProps> = ({
           style={{ width: sidebarWidth }}
           className="flex shrink-0 flex-col gap-2 overflow-y-auto text-[11px]"
         >
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-slate-700/80 bg-slate-900/80 px-2.5 py-1.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300">
+                Filters
+              </span>
+              {activeFilterCount > 0 && (
+                <span
+                  data-testid="lokee-rf-active-filters"
+                  className="rounded-full bg-cyan-500/20 px-1.5 text-[10px] font-bold text-cyan-300"
+                >
+                  {activeFilterCount}
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              data-testid="lokee-rf-clear-filters"
+              onClick={() => setFilters(freshFilters())}
+              title="Reset all filters to default"
+              className={`rounded border border-slate-700 px-1.5 py-0.5 text-[10px] font-semibold transition ${
+                activeFilterCount > 0
+                  ? 'border-cyan-500/40 bg-cyan-950/30 text-cyan-200 hover:bg-cyan-900/40'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Reset filters
+            </button>
+          </div>
           {sidebarOrder.map((id, index) => (
             <React.Fragment key={id}>{renderSidebarSection(id, index)}</React.Fragment>
           ))}
@@ -764,14 +808,6 @@ export const LokeeWeavePage: React.FC<LokeeWeavePageProps> = ({
             <p className="mt-1 text-[10px] leading-tight text-slate-500">
               Dragging is a view preference only — it never changes history.
             </p>
-            <button
-              type="button"
-              data-testid="lokee-rf-clear-filters"
-              onClick={() => setFilters(freshFilters())}
-              className="mt-2 rounded border border-slate-700 px-1.5 py-0.5 text-slate-400 hover:text-slate-200"
-            >
-              Clear filters
-            </button>
           </SidebarSection>
         </aside>
 

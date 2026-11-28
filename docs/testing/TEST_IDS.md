@@ -8,16 +8,16 @@ or `TestIds` for the same tree with autocomplete. `{name}` marks a part filled i
 time; "in FilterPicker" marks an ID a shared component draws from the prop written here.
 How to write a test with them: [WRITING_E2E.md](WRITING_E2E.md).
 
-Every control has a test ID: **1151** buttons, text boxes, selects and textareas.
+Every control has a test ID: **1171** buttons, text boxes, selects and textareas.
 
 ## access
 
 - **AccessGrantsStage** · `features/access/components/AccessGrantsStage.tsx`
   - `access-grants-also-holds` · p
   - `access-grants-change-{action}` · li
-  - `access-grants-copy` · button · Copy
+  - `access-grants-copy` · button
   - `access-grants-diff` · ul
-  - `access-grants-open-sql` · button · Open in SQL Editor
+  - `access-grants-open-sql` · button
   - `access-grants-preset-{p}` · button
   - `access-grants-presets` · div
   - `access-grants-reset` · button · Reset to current
@@ -31,6 +31,7 @@ Every control has a test ID: **1151** buttons, text boxes, selects and textareas
   - `access-permission-account-memberof` · ul
   - `access-permission-account-members` · ul
   - `access-permission-account-name` · dd
+  - `access-permission-add-connection` · button · Add your first connection
   - `access-permission-allow-all` · p
   - `access-permission-alteration-{a}` · li
   - `access-permission-apply` · button
@@ -49,7 +50,7 @@ Every control has a test ID: **1151** buttons, text boxes, selects and textareas
   - `access-permission-open-user-management` · button · Open User Management
   - `access-permission-panel` · div
   - `access-permission-principal` · div
-  - `access-permission-reload` · button · Reload
+  - `access-permission-reload` · button · Reload principals and privileges from the database
   - `access-permission-row-{name}` · button
   - `access-permission-selected-name` · h2
   - `access-permission-stage` · div in Segmented
@@ -72,6 +73,7 @@ Every control has a test ID: **1151** buttons, text boxes, selects and textareas
   - `report-tiles` · div
   - `report-who` · div
 - **AccessView** · `features/access/components/AccessView.tsx`
+  - `access-add-connection` · button · Add connection
   - `access-connection` · select · Choose a saved connection…
   - `access-menu` · nav · Access
   - `access-tab-{id}` · button
@@ -254,6 +256,7 @@ Every control has a test ID: **1151** buttons, text boxes, selects and textareas
   - `user-name-option-{value}` · button in Autocomplete
   - `user-name-toggle` · button in Autocomplete
   - `user-new-name` · input
+  - `user-open-sql` · button · Open this SQL script in the SQL Editor without running it
   - `user-os-password` · input in PasswordInput · &lt;password>
   - `user-os-password-generate` · button · Generate
   - `user-os-password-reveal` · button in PasswordInput · Hold to show password
@@ -841,7 +844,7 @@ Every control has a test ID: **1151** buttons, text boxes, selects and textareas
   - `lokee-script-modal-close` · button · Close full screen script
 - **HistoryCompareBar** · `features/lokee-weave/components/HistoryCompareBar.tsx`
   - `lokee-capture-btn` · button · Read the live schema and record it as a new version
-  - `lokee-capture-connection` · select · Live credential to snapshot into this history
+  - `lokee-capture-connection` · select · Live connection to snapshot into this history
   - `lokee-compare-versions-btn` · button · Diff Original against Target
   - `lokee-database-select` · select · History database
   - `lokee-history-compare-bar` · div
@@ -863,10 +866,11 @@ Every control has a test ID: **1151** buttons, text boxes, selects and textareas
   - `lokee-roadmap-toggle-all` · button
 - **LokeeWeavePage** · `features/lokee-weave/components/LokeeWeavePage.tsx`
   - `lokee-minimap` · MiniMap
+  - `lokee-rf-active-filters` · span
   - `lokee-rf-author-{author}` · input
   - `lokee-rf-capped` · div
   - `lokee-rf-changes-only` · input
-  - `lokee-rf-clear-filters` · button · Clear filters
+  - `lokee-rf-clear-filters` · button · Reset all filters to default
   - `lokee-rf-date-from` · input
   - `lokee-rf-date-to` · input
   - `lokee-rf-empty` · div
@@ -890,10 +894,12 @@ Every control has a test ID: **1151** buttons, text boxes, selects and textareas
   - `lokee-version-save` · button
   - `lokee-weave-page` · div
 - **LokeeWeaveView** · `features/lokee-weave/components/LokeeWeaveView.tsx`
+  - `lokee-empty-add-connection` · button · Add connection
   - `lokee-empty-capture` · button
   - `lokee-empty-credential` · select · Choose a database…
   - `lokee-force-migrate-btn` · button · Apply a stored version to a database it was not captured from
-  - `lokee-graph-toggle` · button · Graph
+  - `lokee-graph-toggle` · button · Object lineage graph
+  - `lokee-timeline-toggle` · button · Version timeline list
   - `lokee-try-again` · button · Try again
   - `lokee-weave-view` · div
 - **nodes** · `features/lokee-weave/components/nodes.tsx`
@@ -930,7 +936,15 @@ Every control has a test ID: **1151** buttons, text boxes, selects and textareas
 - **VersionTimeline** · `features/lokee-weave/components/VersionTimeline.tsx`
   - `lokee-summary` · header
   - `lokee-timeline` · div
-  - `lokee-timeline-v-{number}` · button · v
+  - `lokee-timeline-edit-{number}` · button · Rename or add notes
+  - `lokee-timeline-edit-cancel` · button · Cancel
+  - `lokee-timeline-edit-desc` · textarea · Optional notes for this version…
+  - `lokee-timeline-edit-form-{number}` · div
+  - `lokee-timeline-edit-name` · input
+  - `lokee-timeline-edit-save` · button
+  - `lokee-timeline-search` · input · Filter versions, labels, authors…
+  - `lokee-timeline-search-clear` · button · Clear version filter
+  - `lokee-timeline-v-{number}` · button · v Compare
 
 ## migrations
 
@@ -941,17 +955,27 @@ Every control has a test ID: **1151** buttons, text boxes, selects and textareas
   - `history-clear-all-cancel` · button · Cancel
   - `history-clear-all-confirm` · button · Clear all
   - `history-delete-record` · button · Delete this record
+  - `history-delete-record-cancel` · button · Cancel
+  - `history-delete-record-confirm` · button · Confirm
   - `history-delete-selected` · button · Delete selected records
+  - `history-delete-selected-cancel` · button · Cancel
+  - `history-delete-selected-confirm` · button · Delete
   - `history-dialog` · div · Migration History
-  - `history-dialog-close-btn` · button
+  - `history-dialog-close-btn` · button · Close migration history
   - `history-download-pre-migration` · button · Download pre-migration snapshot
+  - `history-load-error` · div
+  - `history-open-snapshots` · button · Open Schema Snapshots timeline and version diff
   - `history-refresh` · button · Refresh
+  - `history-retry` · button · Retry
+  - `history-run-duration` · span
   - `history-run-item` · div
   - `history-select-{id}` · input · Select this record
   - `history-select-all` · button
   - `migration-history-copy-sql` · button · Copy SQL
+  - `migration-history-download-sql` · button · Download .sql
   - `migration-history-filter-status` · select · Filter migrations by status
   - `migration-history-no-match` · div
+  - `migration-history-open-sql` · button · Open in SQL Editor
   - `migration-history-search` · input · Search migration history
 
 ## schema-diff

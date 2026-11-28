@@ -26,6 +26,7 @@ import {
   Pencil,
   Users,
   X,
+  FileCode2,
 } from 'lucide-react';
 import {
   PASSWORD_PLACEHOLDER,
@@ -67,6 +68,7 @@ import {
 } from '../lib/password-suggest';
 import { useSyncStore } from '@/features/compare';
 import { useSqlEditorStore } from '@/features/sql-editor/state';
+import { useUiStore } from '@/platform/uiStore';
 import { fetchDbAccess } from '@/shared/api/schemaApi';
 import {
   ALTERATION_LABEL,
@@ -1522,11 +1524,29 @@ export const UserManagement: React.FC<{
                 data-testid="user-copy"
                 onClick={copy}
                 disabled={!sqlText}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-sky-500/40 bg-sky-500/15 text-[11px] font-bold text-sky-100 disabled:opacity-40"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-sky-500/40 bg-sky-500/15 text-[11px] font-bold text-sky-100 disabled:opacity-40 cursor-pointer"
               >
                 {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                 {copied ? 'Copied' : 'Copy SQL'}
               </button>
+              {!isDb2 && (
+                <button
+                  type="button"
+                  data-testid="user-open-sql"
+                  disabled={!sqlText || !connectionId}
+                  onClick={() => {
+                    if (!sqlText || !connectionId) return;
+                    useSqlEditorStore.getState().setSql(sqlText);
+                    useSqlEditorStore.getState().ensureConnectionSelected(connectionId);
+                    useUiStore.getState().setActiveView('sqlEditor');
+                  }}
+                  title="Open this SQL script in the SQL Editor without running it"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-slate-600 bg-slate-900/70 text-[11px] font-bold text-slate-200 hover:border-slate-500 hover:text-white disabled:opacity-40 cursor-pointer transition"
+                >
+                  <FileCode2 className="w-3.5 h-3.5" />
+                  Open in SQL Editor
+                </button>
+              )}
               {onGrantAccess && (
                 <button
                   type="button"

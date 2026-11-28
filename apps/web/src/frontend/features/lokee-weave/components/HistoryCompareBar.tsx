@@ -47,12 +47,12 @@ export function HistoryCompareBar(): React.ReactElement {
 
   return (
     <div className="flex min-w-0 flex-wrap items-stretch gap-1.5" data-testid="lokee-history-compare-bar">
-      <div className="flex min-w-[16rem] flex-1 flex-col gap-1 rounded-full border border-slate-800/80 bg-slate-950/60 px-2 py-1">
+      <div className="flex min-w-[16rem] flex-1 flex-col gap-1 rounded-lg border border-slate-800/80 bg-slate-950/60 px-2.5 py-1.5">
         <div className="flex items-baseline justify-between gap-2">
           <div className="text-[10px] font-bold uppercase tracking-wider text-cyan-500/80">
             Original
           </div>
-          <div className="text-[10px] text-slate-500">Select a version</div>
+          <div className="text-[10px] text-slate-400">Select a version</div>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
           <select
@@ -114,12 +114,12 @@ export function HistoryCompareBar(): React.ReactElement {
         </button>
       </div>
 
-      <div className="flex min-w-[16rem] flex-1 flex-col gap-1 rounded-full border border-slate-800/80 bg-slate-950/60 px-2 py-1">
+      <div className="flex min-w-[16rem] flex-1 flex-col gap-1 rounded-lg border border-slate-800/80 bg-slate-950/60 px-2.5 py-1.5">
         <div className="flex items-baseline justify-between gap-2">
           <div className="text-[10px] font-bold uppercase tracking-wider text-purple-400/80">
             Target
           </div>
-          <div className="text-[10px] text-slate-500">Current database or older version</div>
+          <div className="text-[10px] text-slate-400">Current database or older version</div>
         </div>
         <div className="flex items-center gap-1.5">
         <select
@@ -171,7 +171,7 @@ export function HistoryCompareBar(): React.ReactElement {
       {/* Capture lives on this row too. It used to sit on a second bar with its
           own credential picker, which read as a *third* connection control next
           to the two above it — three pickers for two ideas. */}
-      <div className="flex min-w-[14rem] flex-1 flex-col gap-1 rounded-full border border-slate-800/80 bg-slate-950/60 px-2 py-1">
+      <div className="flex min-w-[14rem] flex-1 flex-col gap-1 rounded-lg border border-slate-800/80 bg-slate-950/60 px-2.5 py-1.5">
         <div className="flex items-baseline justify-between gap-2">
           <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
             Capture
@@ -192,10 +192,10 @@ export function HistoryCompareBar(): React.ReactElement {
             data-testid="lokee-capture-connection"
             value={captureConnectionId}
             onChange={(e) => setCaptureConnectionId(e.target.value)}
-            title="Live credential to snapshot into this history"
+            title="Live connection to snapshot into this history"
             className="min-w-0 flex-1 text-xs bg-slate-900 border border-slate-700/60 rounded px-2 py-1 text-slate-200 focus:outline-none accent-focus truncate"
           >
-            <option value="">Credential…</option>
+            <option value="">Connection…</option>
             {connections.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name} [{c.dialect}]

@@ -120,7 +120,7 @@ export function VersionTimeline({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Filter versions, labels, authors…"
-              className="w-56 rounded-md border border-slate-800 bg-slate-950/70 py-1 pl-6 pr-6 text-[11px] text-slate-200 placeholder:text-slate-500 focus:border-cyan-500/50 focus:outline-none"
+              className="w-56 rounded-md border border-slate-800 bg-slate-950/70 py-1 pl-6 pr-6 text-[11px] text-slate-200 placeholder:text-slate-500 accent-focus focus:outline-none"
             />
             {query && (
               <button
@@ -244,7 +244,7 @@ export function VersionTimeline({
                           }
                         }}
                         placeholder={`Label for v${version.number} (e.g. Before billing release)`}
-                        className="min-w-[14rem] flex-1 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-[11px] text-slate-100 focus:border-cyan-500/60 focus:outline-none"
+                        className="min-w-[14rem] flex-1 rounded border border-slate-700 bg-slate-950 px-2 py-1 text-[11px] text-slate-100 accent-focus focus:outline-none"
                       />
                       <div className="flex items-center gap-1">
                         <button
@@ -275,7 +275,7 @@ export function VersionTimeline({
                       value={editDesc}
                       onChange={(e) => setEditDesc(e.target.value)}
                       placeholder="Optional notes for this version…"
-                      className="resize-y rounded border border-slate-700 bg-slate-950 px-2 py-1 text-[11px] text-slate-200 focus:border-cyan-500/60 focus:outline-none"
+                      className="resize-y rounded border border-slate-700 bg-slate-950 px-2 py-1 text-[11px] text-slate-200 accent-focus focus:outline-none"
                     />
                   </div>
                 )}

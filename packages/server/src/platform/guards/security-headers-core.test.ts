@@ -22,6 +22,8 @@ describe('security headers', () => {
     ['X-Content-Type-Options', 'nosniff'],
     ['X-Frame-Options', 'DENY'],
     ['Referrer-Policy', 'no-referrer'],
+    ['Cross-Origin-Opener-Policy', 'same-origin'],
+    ['Cross-Origin-Resource-Policy', 'same-origin'],
   ])('sets %s on every response', (h, v) => {
     expect(run('/api/health')[h]).toBe(v);
     expect(run('/index.html')[h]).toBe(v);
@@ -55,10 +57,12 @@ describe('security headers', () => {
     expect(csp).toContain("base-uri 'self'");
   });
 
-  it('the CSP still allows the dev HMR socket', () => {
+  it('the CSP allows the dev HMR socket in dev and drops wildcard ws:/wss: in production', () => {
     // Otherwise local development breaks in a way that invites turning the
     // whole header off.
-    expect(run('/index.html')['Content-Security-Policy']).toMatch(/connect-src[^;]*ws:/);
+    expect(run('/index.html', { isProduction: false })['Content-Security-Policy']).toMatch(/connect-src[^;]*ws:/);
+    expect(run('/index.html', { isProduction: true })['Content-Security-Policy']).toContain("connect-src 'self';");
+    expect(run('/index.html', { isProduction: true })['Content-Security-Policy']).not.toMatch(/ws:/);
   });
 
   it('omits HSTS by default', () => {

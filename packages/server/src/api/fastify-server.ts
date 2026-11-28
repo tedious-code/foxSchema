@@ -255,8 +255,9 @@ export async function createFastifyApp(
       if ((req.method !== 'GET' && req.method !== 'HEAD') || req.url.startsWith('/api')) return;
       const parsed = new URL(req.url, 'http://localhost');
       const uiParam = parsed.searchParams.get('ui');
+      const uiCookieFlags = `Path=/; HttpOnly; SameSite=Lax${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`;
       if (uiParam === 'cdn' || uiParam === 'auto') {
-        reply.header('Set-Cookie', 'fox_ui=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax');
+        reply.header('Set-Cookie', `fox_ui=; Max-Age=0; ${uiCookieFlags}`);
         return;
       }
       const cookieHeader = req.headers.cookie ?? '';
@@ -264,7 +265,7 @@ export async function createFastifyApp(
       if (uiParam !== 'packaged' && !hasPackagedCookie) return;
 
       if (uiParam === 'packaged') {
-        reply.header('Set-Cookie', 'fox_ui=packaged; Path=/; HttpOnly; SameSite=Lax');
+        reply.header('Set-Cookie', `fox_ui=packaged; ${uiCookieFlags}`);
       }
       let rel = 'index.html';
       try {

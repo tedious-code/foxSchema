@@ -69,16 +69,32 @@ const querySchema = z.object({
 /** Methods a webhook may be configured to answer, so the routes can exist. */
 const INGRESS_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 
+/** Hard cap for raw webhook buffering before Fastify's body parser runs. */
+const MAX_WEBHOOK_RAW_BYTES = 10 * 1024 * 1024;
+
 /** Buffer the stream so HMAC can see the exact bytes, then replay it for JSON parsing. */
 async function replayWithRawBody(
   request: { rawBody?: Buffer },
   payload: AsyncIterable<unknown>,
+  maxBytes = MAX_WEBHOOK_RAW_BYTES,
 ): Promise<Readable> {
   const chunks: Buffer[] = [];
+  let total = 0;
   for await (const chunk of payload) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array));
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array);
+    total += buf.length;
+    if (total > maxBytes) {
+      const err = new Error('Request body is too large') as Error & {
+        statusCode?: number;
+        code?: string;
+      };
+      err.statusCode = 413;
+      err.code = 'FST_ERR_CTP_BODY_TOO_LARGE';
+      throw err;
+    }
+    chunks.push(buf);
   }
-  const buf = Buffer.concat(chunks);
+  const buf = Buffer.concat(chunks, total);
   request.rawBody = buf;
   return Readable.from(buf);
 }

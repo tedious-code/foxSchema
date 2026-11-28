@@ -273,6 +273,43 @@ export async function executeHttpRequest(
 }
 
 const MAX_REDIRECTS = 5;
+/** Hard cap on a single HTTP pipe response body so a hostile remote cannot OOM the worker. */
+export const MAX_HTTP_RESPONSE_BYTES = 25 * 1024 * 1024;
+
+async function readBoundedText(response: Response, maxBytes = MAX_HTTP_RESPONSE_BYTES): Promise<string> {
+  const contentLength = Number(response.headers?.get('content-length'));
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new Error(`HTTP response exceeded ${Math.round(maxBytes / (1024 * 1024))} MB size limit`);
+  }
+  const reader = response.body?.getReader?.();
+  if (!reader) {
+    const text = await response.text();
+    if (Buffer.byteLength(text, 'utf8') > maxBytes) {
+      throw new Error(`HTTP response exceeded ${Math.round(maxBytes / (1024 * 1024))} MB size limit`);
+    }
+    return text;
+  }
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        total += value.byteLength;
+        if (total > maxBytes) {
+          await reader.cancel().catch(() => undefined);
+          throw new Error(`HTTP response exceeded ${Math.round(maxBytes / (1024 * 1024))} MB size limit`);
+        }
+        chunks.push(value);
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks.map((c) => Buffer.from(c)), total).toString('utf8');
+}
 
 async function fetchWithSafeRedirects(
   initialUrl: string,
@@ -344,7 +381,7 @@ async function dispatch(
       signal: controller.signal,
     });
     const contentType = response.headers.get('content-type') ?? '';
-    const text = await response.text();
+    const text = await readBoundedText(response);
     let body: unknown = text;
     if (contentType.includes('application/json') || looksLikeJson(text)) {
       try {

@@ -3,12 +3,167 @@
  * Receives workerData, optionally proxies SQL back to the parent, and posts a
  * CodeCellResult.
  */
+import { lookup as dnsLookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 import { parentPort, workerData } from 'node:worker_threads';
 import { renderSqlQuery, sqlTag, isSqlQuery, type SqlQuery } from '@foxschema/db';
 import { neutralizeCodeCellHostBreakouts } from '@foxschema/features';
 import { executeCodeCellNode, type CodeCellLast, type CodeCellVars } from './code-cell-node-exec.service';
 import type { CellQueryResponse } from './code-cell-bridge.service';
 import { errorMessage } from '@foxschema/sql';
+
+const BLOCKED_FETCH_HOSTS = new Set([
+  'localhost',
+  'metadata.google.internal',
+  'metadata.goog',
+]);
+
+const V4_PRIVATE_CIDRS: Array<[string, number]> = [
+  ['0.0.0.0', 8],
+  ['10.0.0.0', 8],
+  ['100.64.0.0', 10], // CGNAT + Alibaba metadata 100.100.100.200
+  ['127.0.0.0', 8],
+  ['169.254.0.0', 16], // link-local & AWS/GCP/Azure cloud metadata
+  ['172.16.0.0', 12],
+  ['192.0.0.0', 24],
+  ['192.168.0.0', 16],
+  ['198.18.0.0', 15],
+  ['224.0.0.0', 4],
+  ['240.0.0.0', 4],
+];
+
+function v4Int(ip: string): number {
+  return ip.split('.').reduce((acc, part) => (acc << 8) + Number(part), 0) >>> 0;
+}
+
+function parseIpv6Hextets(address: string): number[] | null {
+  let a = address.toLowerCase().replace(/^\[|\]$/g, '').replace(/%.*$/, '');
+  const dotted = /(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(a);
+  if (dotted) {
+    const o = dotted.slice(1).map(Number);
+    if (o.some((n) => n > 255)) return null;
+    a = `${a.slice(0, dotted.index)}${((o[0]! << 8) | o[1]!).toString(16)}:${((o[2]! << 8) | o[3]!).toString(16)}`;
+  }
+  const halves = a.split('::');
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(':') : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  const missing = 8 - head.length - tail.length;
+  if (halves.length === 1 ? missing !== 0 : missing < 1) return null;
+  const parts = [...head, ...Array(halves.length === 2 ? missing : 0).fill('0'), ...tail];
+  if (parts.length !== 8 || parts.some((p) => !/^[0-9a-f]{1,4}$/.test(p))) return null;
+  return parts.map((p) => parseInt(p, 16));
+}
+
+function isBlockedFetchIp(address: string): boolean {
+  const family = isIP(address);
+  if (family === 4) {
+    const n = v4Int(address);
+    return V4_PRIVATE_CIDRS.some(([base, bits]) => {
+      const mask = bits === 0 ? 0 : (~0 << (32 - bits)) >>> 0;
+      return (n & mask) === (v4Int(base) & mask);
+    });
+  }
+  if (family === 6) {
+    const h = parseIpv6Hextets(address);
+    if (!h) return true;
+    const v4 = (hi: number, lo: number) => `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+    const zeroUntil = (n: number) => h.slice(0, n).every((x) => x === 0);
+    if (h.every((x) => x === 0)) return true; // ::
+    if (zeroUntil(7) && h[7] === 1) return true; // ::1
+    if (zeroUntil(5) && h[5] === 0xffff) return isBlockedFetchIp(v4(h[6]!, h[7]!));
+    if (zeroUntil(6)) return isBlockedFetchIp(v4(h[6]!, h[7]!));
+    if (h[0] === 0x64 && h[1] === 0xff9b && h.slice(2, 6).every((x) => x === 0)) {
+      return isBlockedFetchIp(v4(h[6]!, h[7]!));
+    }
+    if (h[0] === 0x2002) return isBlockedFetchIp(v4(h[1]!, h[2]!));
+    const first = h[0]!;
+    return (
+      (first & 0xfe00) === 0xfc00 ||
+      (first & 0xffc0) === 0xfe80 ||
+      (first & 0xffc0) === 0xfec0 ||
+      (first & 0xff00) === 0xff00
+    );
+  }
+  return true;
+}
+
+async function assertSafeCodeCellUrl(rawUrl: string): Promise<URL> {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error('Code cell fetch URL is not valid');
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error(`Code cell fetch refused: protocol ${parsed.protocol} is not allowed`);
+  }
+  const host = parsed.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  if (BLOCKED_FETCH_HOSTS.has(host) || host.endsWith('.localhost')) {
+    throw new Error(`Code cell fetch refused: ${host} is not a public address`);
+  }
+  if (isIP(host)) {
+    if (isBlockedFetchIp(host)) {
+      throw new Error(`Code cell fetch refused: ${host} is not a public address`);
+    }
+    return parsed;
+  }
+  const records = await dnsLookup(host, { all: true, verbatim: true });
+  for (const record of records) {
+    if (isBlockedFetchIp(record.address)) {
+      throw new Error(`Code cell fetch refused: ${host} resolves to a non-public address`);
+    }
+  }
+  return parsed;
+}
+
+const MAX_CODE_CELL_REDIRECTS = 5;
+
+function createGuardedFetch(nativeFetch: typeof fetch): typeof fetch {
+  return (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    let currentUrl = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    let currentInit: RequestInit = {
+      ...(input instanceof Request ? { method: input.method, headers: input.headers } : {}),
+      ...init,
+      redirect: 'manual',
+    };
+    for (let hop = 0; hop <= MAX_CODE_CELL_REDIRECTS; hop++) {
+      await assertSafeCodeCellUrl(currentUrl);
+      const response = await nativeFetch(currentUrl, currentInit);
+      if (response.status < 300 || response.status >= 400) return response;
+      const location = response.headers.get('location');
+      if (!location) return response;
+      if (hop === MAX_CODE_CELL_REDIRECTS) {
+        throw new Error(`Code cell fetch exceeded maximum redirects (${MAX_CODE_CELL_REDIRECTS})`);
+      }
+      const nextUrl = new URL(location, currentUrl).toString();
+      const sameOrigin = new URL(nextUrl).origin === new URL(currentUrl).origin;
+      const nextHeaders = new Headers(currentInit.headers);
+      if (!sameOrigin) {
+        nextHeaders.delete('authorization');
+        nextHeaders.delete('cookie');
+        nextHeaders.delete('proxy-authorization');
+      }
+      const method = (currentInit.method ?? 'GET').toUpperCase();
+      const dropBodyToGet =
+        response.status === 303 ||
+        ((response.status === 301 || response.status === 302) && method === 'POST');
+      if (dropBodyToGet) {
+        nextHeaders.delete('content-length');
+        nextHeaders.delete('content-type');
+      }
+      currentInit = {
+        ...currentInit,
+        method: dropBodyToGet ? 'GET' : method,
+        ...(dropBodyToGet ? { body: undefined } : {}),
+        headers: nextHeaders,
+        redirect: 'manual',
+      };
+      currentUrl = nextUrl;
+    }
+    throw new Error('Code cell fetch redirect loop aborted');
+  }) as typeof fetch;
+}
 
 /**
  * Worker threads inherit a copy of process.env. The parent already passes a
@@ -24,12 +179,27 @@ process.argv = process.argv.slice(0, 1);
  * property-access / concat escapes cannot recover import()/process. Static
  * `assertCodeCellSandboxSafe` is the first line; this closes what lexing misses.
  */
-function lockdownWorkerGlobals(): void {
+function lockdownWorkerGlobals(allowPrivateFetch: boolean): void {
   neutralizeCodeCellHostBreakouts();
   try {
     delete (globalThis as any).process;
   } catch {
     /* ignore */
+  }
+  for (const name of ['WebSocket', 'EventSource', 'XMLHttpRequest'] as const) {
+    try {
+      delete (globalThis as Record<string, unknown>)[name];
+    } catch {
+      /* ignore */
+    }
+  }
+  if (!allowPrivateFetch && typeof globalThis.fetch === 'function') {
+    const guarded = createGuardedFetch(globalThis.fetch.bind(globalThis));
+    Object.defineProperty(globalThis, 'fetch', {
+      value: guarded,
+      writable: false,
+      configurable: false,
+    });
   }
   // Buffer stays on the global, deliberately, and this is a narrowing of the
   // original lockdown rather than an oversight.
@@ -76,6 +246,8 @@ type Payload = {
   defaultBeamAlias?: string;
   /** When false, the parent rejects write/DDL statements from `sql`. */
   allowWrites?: boolean;
+  /** When true, skip SSRF private-IP filtering in fetch (local/test opt-in only). */
+  allowPrivateFetch?: boolean;
 };
 
 /** In-flight bridged queries, keyed by request id. */
@@ -206,7 +378,7 @@ async function main() {
     });
     return;
   }
-  lockdownWorkerGlobals();
+  lockdownWorkerGlobals(data.allowPrivateFetch === true);
   const result = await executeCodeCellNode({
     body: data.body,
     last: data.last,

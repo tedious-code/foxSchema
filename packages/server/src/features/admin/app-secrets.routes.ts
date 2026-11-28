@@ -149,8 +149,11 @@ export function createAppSecretsRoutes(
       });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Failed to save provider credentials';
-      const status = /require|Invalid|must be|already exists|Unknown/i.test(msg) ? 400 : 500;
-      res.status(status).send({ error: msg });
+      if (/require|Invalid|must be|already exists|Unknown/i.test(msg)) {
+        sendError(res, 'invalid_input', msg);
+        return;
+      }
+      sendThrown(res, error, 'Failed to save provider credentials');
     }
   });
 
@@ -172,8 +175,11 @@ export function createAppSecretsRoutes(
       res.send({ provider: updated });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Failed to update provider credentials';
-      const status = /require|Invalid|must be|already exists/i.test(msg) ? 400 : 500;
-      res.status(status).send({ error: msg });
+      if (/require|Invalid|must be|already exists/i.test(msg)) {
+        sendError(res, 'invalid_input', msg);
+        return;
+      }
+      sendThrown(res, error, 'Failed to update provider credentials');
     }
   });
 
@@ -292,8 +298,11 @@ export function createAppSecretsRoutes(
       });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Failed to create secret';
-      const status = /already exists|Invalid|require/i.test(msg) ? 400 : 500;
-      res.status(status).send({ error: msg });
+      if (/already exists|Invalid|require/i.test(msg)) {
+        sendError(res, 'invalid_input', msg);
+        return;
+      }
+      sendThrown(res, error, 'Failed to create secret');
     }
   });
 
@@ -320,8 +329,11 @@ export function createAppSecretsRoutes(
       res.send({ secret: updated });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Failed to update secret';
-      const status = /already exists|Invalid|require/i.test(msg) ? 400 : 500;
-      res.status(status).send({ error: msg });
+      if (/already exists|Invalid|require/i.test(msg)) {
+        sendError(res, 'invalid_input', msg);
+        return;
+      }
+      sendThrown(res, error, 'Failed to update secret');
     }
   });
 

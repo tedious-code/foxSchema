@@ -25,7 +25,15 @@
  * letting it see those emails (it does not store them). That is why it is
  * off until an admin turns it on.
  */
-import { createPublicKey, verify, type KeyObject } from 'node:crypto';
+import { createPublicKey, timingSafeEqual, verify, type KeyObject } from 'node:crypto';
+
+function constantTimeEqual(a: string, b: string): boolean {
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
+const MAX_SEEN_JTIS = 10_000;
 
 export const DEFAULT_BROKER_URL = 'https://foxschema.com/wp-json/foxschema/v1/sso';
 /** Providers the Fox sign-in service permanently supports. */
@@ -187,7 +195,7 @@ export class SsoBroker {
     const exp = Number(claims.exp);
     if (claims.iss !== brokerIssuer(this.url)) fail('wrong issuer');
     if (claims.aud !== expect.audience) fail('it was issued for another site');
-    if (typeof claims.nonce !== 'string' || claims.nonce !== expect.nonce) fail('it belongs to another sign-in');
+    if (typeof claims.nonce !== 'string' || !constantTimeEqual(claims.nonce, expect.nonce)) fail('it belongs to another sign-in');
     if (!Number.isFinite(exp) || exp + SKEW_S < nowS) fail('it has expired');
     if (!Number.isFinite(iat) || iat - SKEW_S > nowS || nowS - iat > MAX_AGE_S) fail('it is too old');
     if (claims.email_verified !== true) fail('the provider did not verify the email');
@@ -198,6 +206,10 @@ export class SsoBroker {
 
     for (const [id, until] of this.seen) if (until < nowS) this.seen.delete(id);
     if (this.seen.has(jti)) fail('it was already used');
+    if (this.seen.size >= MAX_SEEN_JTIS) {
+      const oldest = this.seen.keys().next().value;
+      if (oldest !== undefined) this.seen.delete(oldest);
+    }
     this.seen.set(jti, Math.max(exp, iat + MAX_AGE_S) + SKEW_S);
 
     return { email, provider: String(claims.provider ?? '') };

@@ -122,8 +122,13 @@ export function decryptSecret(payload: string): string {
     [ivB64, tagB64, dataB64] = parts;
   }
   if (!ivB64 || !tagB64 || !dataB64) throw new Error('Malformed encrypted payload.');
-  const decipher = createDecipheriv('aes-256-gcm', deriveKey(scheme), Buffer.from(ivB64, 'base64'));
-  decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
+  const iv = Buffer.from(ivB64, 'base64');
+  const tag = Buffer.from(tagB64, 'base64');
+  if (iv.length !== 12 || tag.length !== 16) {
+    throw new Error('Malformed encrypted payload.');
+  }
+  const decipher = createDecipheriv('aes-256-gcm', deriveKey(scheme), iv, { authTagLength: 16 });
+  decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(Buffer.from(dataB64, 'base64')), decipher.final()]).toString('utf8');
 }
 

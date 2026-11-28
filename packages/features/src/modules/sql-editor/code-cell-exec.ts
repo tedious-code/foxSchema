@@ -129,6 +129,12 @@ export function neutralizeCodeCellHostBreakouts(): void {
   } catch {
     GeneratorFunction = undefined;
   }
+  let AsyncGeneratorFunction: Function | undefined;
+  try {
+    AsyncGeneratorFunction = Object.getPrototypeOf(async function* () {}).constructor as Function;
+  } catch {
+    AsyncGeneratorFunction = undefined;
+  }
 
   const block = (label: string): Function => {
     const blocked = function blockedCtor() {
@@ -160,6 +166,7 @@ export function neutralizeCodeCellHostBreakouts(): void {
   sealCtor(Function.prototype, 'Function()');
   sealCtor(AsyncFunction.prototype, 'AsyncFunction()');
   if (GeneratorFunction) sealCtor(GeneratorFunction.prototype, 'GeneratorFunction()');
+  if (AsyncGeneratorFunction) sealCtor(AsyncGeneratorFunction.prototype, 'AsyncGeneratorFunction()');
 
   try {
     Object.defineProperty(globalThis, 'eval', {
